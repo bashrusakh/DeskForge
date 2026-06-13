@@ -6,21 +6,18 @@
         eyebrow="Monitoring"
         pulse="warning"
     />
-    <page-section class="list-query" title="Filters" subtitle="Filter file transfer records before export or cleanup.">
-      <el-form inline label-width="80px">
-        <el-form-item :label="T('Peer')">
-          <el-input v-model="listQuery.peer_id" clearable></el-input>
-        </el-form-item>
-        <el-form-item :label="T('FromPeer')">
-          <el-input v-model="listQuery.from_peer" clearable></el-input>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handlerQuery">{{ T('Filter') }}</el-button>
-          <el-button type="danger" @click="toBatchDelete">{{ T('BatchDelete') }}</el-button>
-          <el-button type="success" @click="toExport">{{ T('Export') }}</el-button>
-        </el-form-item>
-      </el-form>
-    </page-section>
+    <filter-bar
+        :title="T('Filters')"
+        :subtitle="T('Filter file transfer records before export or cleanup.')"
+        :fields="filterFields"
+        :filters="listQuery"
+        @filter="handlerQuery"
+    >
+      <template #actions>
+        <el-button type="danger" @click="toBatchDelete">{{ T('BatchDelete') }}</el-button>
+        <el-button type="success" @click="toExport">{{ T('Export') }}</el-button>
+      </template>
+    </filter-bar>
     <page-section class="list-body" :title="T('FileTransferHistory')" :subtitle="`${listRes.total} records`">
       <el-table :data="listRes.list" v-loading="listRes.loading" border max-height="750" @selection-change="handleSelectionChange">
         <el-table-column type="selection" align="center" width="50"/>
@@ -107,44 +104,62 @@
   import { T } from '@/utils/i18n'
   import { sizeFormat } from '@/utils/file'
   import { Right } from '@element-plus/icons'
-  import PageHeader from '@/components/ui/PageHeader.vue'
-  import PageSection from '@/components/ui/PageSection.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
+import PageSection from '@/components/ui/PageSection.vue'
+import FilterBar from '@/components/ui/FilterBar.vue'
 
-  const showDirFileNum = 3
-  const {
-    listRes,
-    listQuery,
-    getList,
-    handlerQuery,
-    del,
-    batchdel,
-    toExport,
-  } = useFileRepositories()
+const showDirFileNum = 3
+const {
+  listRes,
+  listQuery,
+  getList,
+  handlerQuery,
+  del,
+  batchdel,
+  toExport,
+} = useFileRepositories()
 
-  onMounted(getList)
-  onActivated(getList)
+onMounted(getList)
+onActivated(getList)
 
-  watch(() => listQuery.page, getList)
+watch(() => listQuery.page, getList)
 
-  watch(() => listQuery.page_size, handlerQuery)
+watch(() => listQuery.page_size, handlerQuery)
 
-  const allFilesVisible = ref(false)
-  const showFiles = ref([])
-  const showAllFile = (files) => {
-    showFiles.value = files
-    allFilesVisible.value = true
+const allFilesVisible = ref(false)
+const showFiles = ref([])
+const showAllFile = (files) => {
+  showFiles.value = files
+  allFilesVisible.value = true
+}
+
+const multipleSelection = ref([])
+const handleSelectionChange = (val) => {
+  multipleSelection.value = val
+}
+const toBatchDelete = () => {
+  if (multipleSelection.value.length === 0) {
+    return
   }
+  batchdel(multipleSelection.value)
+}
 
-  const multipleSelection = ref([])
-  const handleSelectionChange = (val) => {
-    multipleSelection.value = val
-  }
-  const toBatchDelete = () => {
-    if (multipleSelection.value.length === 0) {
-      return
-    }
-    batchdel(multipleSelection.value)
-  }
+const filterFields = [
+  {
+    key: 'peer_id',
+    label: 'Peer',
+    component: 'el-input',
+    clearable: true,
+    placeholder: 'Peer ID',
+  },
+  {
+    key: 'from_peer',
+    label: 'From Peer',
+    component: 'el-input',
+    clearable: true,
+    placeholder: 'From Peer ID',
+  },
+]
 </script>
 
 <style scoped lang="scss">

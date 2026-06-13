@@ -55,8 +55,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   переведены на token-based визуальный язык, поддерживают theme switch и Connection Pulse.
 - **Custom Client runtime fix**: preset/upload handlers теперь возвращаются из `setup()` и
   доступны template-кнопкам без изменения backend/API контрактов.
-- **Monitoring filter pass**: Login History получил `FilterBar` primitive; остальные monitoring
-  страницы (Connection, File Transfer, Shared Sessions) следуют в следующей фазе.
+- **Monitoring filter pass**: Login History, Connection History, File Transfer History и Shared Sessions получили `FilterBar` primitive с collapsible panel, reset/clear, active filter count и integrated action buttons.
 - **Review/verification**:
   - `ocr review` по рабочей копии: high/medium findings нет; единственный low nit про
     magic number исправлен через `--sidebar-brand-height`;

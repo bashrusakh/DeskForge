@@ -957,7 +957,7 @@ As of 2026-06-14 UI rework pass:
 - The dashboard now has a Quick Connect panel for native `rustdesk://` launch, web client launch, and device-list navigation.
 - The admin Devices page now has a persistent Status column, ConnectionPulse online/offline state, copyable IDs, and compact Connect/More actions.
 - Monitoring pages now share a page header/section structure across login history, connection history, file transfers, and shared sessions.
-- Login History received `FilterBar` with user filter, collapsible filter panel, and integrated action buttons.
+- Login History, Connection History, File Transfer History, and Shared Sessions received `FilterBar` with user/peer filters, collapsible panel, reset/clear, active filter count, and integrated action buttons.
 - Server Commands, Server Config, and GitHub Build settings now share the page header/section structure.
 - Advanced Server Commands are visually separated in a Danger Zone and require confirmation before sending custom commands.
 - Server command output now uses readonly terminal styling with target hint, Copy/Clear controls, and an empty-output placeholder.
@@ -980,7 +980,6 @@ Still pending:
 - Full table/form/dialog unification across CRUD views.
 - Full i18n coverage for new dashboard/auth hero copy.
 - Remaining form/dialog standards still need shared primitives and validation/loading unification.
-- Monitoring Connection, File Transfer, and Shared Sessions pages need FilterBar.
 
 ## 30. Recommended First Implementation Step
 

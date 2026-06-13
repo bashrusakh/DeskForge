@@ -6,21 +6,18 @@
         eyebrow="Monitoring"
         pulse="warning"
     />
-    <page-section class="list-query" title="Filters" subtitle="Filter connection events before export or cleanup.">
-      <el-form inline label-width="80px">
-        <el-form-item :label="T('Peer')">
-          <el-input v-model="listQuery.peer_id" clearable></el-input>
-        </el-form-item>
-        <el-form-item :label="T('FromPeer')">
-          <el-input v-model="listQuery.from_peer" clearable></el-input>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handlerQuery">{{ T('Filter') }}</el-button>
-          <el-button type="danger" @click="toBatchDelete">{{ T('BatchDelete') }}</el-button>
-          <el-button type="success" @click="toExport">{{ T('Export') }}</el-button>
-        </el-form-item>
-      </el-form>
-    </page-section>
+    <filter-bar
+        :title="T('Filters')"
+        :subtitle="T('Filter connection events before export or cleanup.')"
+        :fields="filterFields"
+        :filters="listQuery"
+        @filter="handlerQuery"
+    >
+      <template #actions>
+        <el-button type="danger" @click="toBatchDelete">{{ T('BatchDelete') }}</el-button>
+        <el-button type="success" @click="toExport">{{ T('Export') }}</el-button>
+      </template>
+    </filter-bar>
     <page-section class="list-body" :title="T('ConnectionHistory')" :subtitle="`${listRes.total} records`">
       <el-table :data="listRes.list" v-loading="listRes.loading" border @selection-change="handleSelectionChange">
         <el-table-column type="selection" align="center" width="50"/>
@@ -58,38 +55,56 @@
 </template>
 
 <script setup>
-  import { onActivated, onMounted, ref, watch } from 'vue'
-  import { useRepositories } from '@/views/audit/reponsitories'
-  import { T } from '@/utils/i18n'
-  import PageHeader from '@/components/ui/PageHeader.vue'
-  import PageSection from '@/components/ui/PageSection.vue'
+import { onActivated, onMounted, ref, watch } from 'vue'
+import { useRepositories } from '@/views/audit/reponsitories'
+import { T } from '@/utils/i18n'
+import PageHeader from '@/components/ui/PageHeader.vue'
+import PageSection from '@/components/ui/PageSection.vue'
+import FilterBar from '@/components/ui/FilterBar.vue'
 
-  const {
-    listRes,
-    listQuery,
-    getList,
-    handlerQuery,
-    del,
-    batchdel,
-    toExport,
-  } = useRepositories()
+const {
+  listRes,
+  listQuery,
+  getList,
+  handlerQuery,
+  del,
+  batchdel,
+  toExport,
+} = useRepositories()
 
-  onMounted(getList)
-  onActivated(getList)
+onMounted(getList)
+onActivated(getList)
 
-  watch(() => listQuery.page, getList)
+watch(() => listQuery.page, getList)
 
-  watch(() => listQuery.page_size, handlerQuery)
-  const multipleSelection = ref([])
-  const handleSelectionChange = (val) => {
-    multipleSelection.value = val
+watch(() => listQuery.page_size, handlerQuery)
+const multipleSelection = ref([])
+const handleSelectionChange = (val) => {
+  multipleSelection.value = val
+}
+const toBatchDelete = () => {
+  if (multipleSelection.value.length === 0) {
+    return
   }
-  const toBatchDelete = () => {
-    if (multipleSelection.value.length === 0) {
-      return
-    }
-    batchdel(multipleSelection.value)
-  }
+  batchdel(multipleSelection.value)
+}
+
+const filterFields = [
+  {
+    key: 'peer_id',
+    label: 'Peer',
+    component: 'el-input',
+    clearable: true,
+    placeholder: 'Peer ID',
+  },
+  {
+    key: 'from_peer',
+    label: 'From Peer',
+    component: 'el-input',
+    clearable: true,
+    placeholder: 'From Peer ID',
+  },
+]
 </script>
 
 <style scoped lang="scss">

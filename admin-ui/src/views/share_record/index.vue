@@ -6,24 +6,17 @@
         eyebrow="Monitoring"
         pulse="warning"
     />
-    <page-section class="list-query" title="Filters" subtitle="Filter shared sessions before cleanup.">
-      <el-form inline label-width="80px">
-        <el-form-item :label="T('User')">
-          <el-select v-model="listQuery.user_id" clearable>
-            <el-option
-                v-for="item in allUsers"
-                :key="item.id"
-                :label="item.username"
-                :value="item.id"
-            ></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handlerQuery">{{ T('Filter') }}</el-button>
-          <el-button type="danger" @click="toBatchDelete">{{ T('BatchDelete') }}</el-button>
-        </el-form-item>
-      </el-form>
-    </page-section>
+    <filter-bar
+        :title="T('Filters')"
+        :subtitle="T('Filter shared sessions before cleanup.')"
+        :fields="filterFields"
+        :filters="listQuery"
+        @filter="handlerQuery"
+    >
+      <template #actions>
+        <el-button type="danger" @click="toBatchDelete">{{ T('BatchDelete') }}</el-button>
+      </template>
+    </filter-bar>
     <page-section class="list-body" :title="T('SharedSessions')" :subtitle="`${listRes.total} records`">
       <el-table :data="listRes.list" v-loading="listRes.loading" border @selection-change="handleSelectionChange">
         <el-table-column type="selection" align="center" width="50"/>
@@ -66,8 +59,9 @@
   import { remove, list, batchDelete } from '@/api/share_record'
   import { ElMessage, ElMessageBox } from 'element-plus'
   import { useRepositories } from '@/views/share_record/index'
-  import PageHeader from '@/components/ui/PageHeader.vue'
-  import PageSection from '@/components/ui/PageSection.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
+import PageSection from '@/components/ui/PageSection.vue'
+import FilterBar from '@/components/ui/FilterBar.vue'
 
   const { allUsers, getAllUsers } = loadAllUsers()
   getAllUsers()
@@ -93,7 +87,20 @@
     multipleSelection.value = val
   }
 
-
+  const filterFields = [
+    {
+      key: 'user_id',
+      label: 'User',
+      component: 'el-select',
+      clearable: true,
+      get options() {
+        return allUsers.value.map(u => ({
+          label: u.username,
+          value: u.id
+        }))
+      }
+    },
+  ]
 </script>
 
 <style scoped lang="scss">

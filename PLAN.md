@@ -512,14 +512,14 @@ prod-API (Linux) и win-build (Windows). Варианты: общий сетев
   - login/register/OAuth approve/OAuth bind переведены на token-based auth layout;
   - `ocr review`: high/medium findings нет; low nit исправлен;
   - `npm run build` проходит.
-  - Monitoring filter pass: Login History получил `FilterBar` primitive.
+  - Monitoring filter pass: Login History, Connection History, File Transfer History и Shared Sessions получили `FilterBar` primitive.
 
   Осталось следующими фазами:
   - [ ] i18n для нового dashboard/auth hero copy;
   - [ ] shared components: `DataTable`, `AppDialog`, `AppDrawer`, `FormSection`;
   - [ ] унификация таблиц, фильтров, пагинации, empty/loading states;
   - [x] Devices page: ConnectionPulse status, compact actions, copyable ID, web/native connect, pagination aligned via PageSection;
-  - [~] Monitoring: общий page header/section готов; Login History получил FilterBar; Connection, File Transfer, Shared Sessions остаются унифицировать;
+  - [x] Monitoring: общий page header/section готов; Login History, Connection History, File Transfer History, Shared Sessions получили FilterBar;
   - [x] Server commands: Simple/Advanced/Danger Zone + terminal output polishing готовы;
   - [~] Access/Security CRUD screens: address books/collections/share rules/tags, users,
         API tokens, OAuth providers, groups и device groups page primitives готовы;
