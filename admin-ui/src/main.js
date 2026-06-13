@@ -6,6 +6,7 @@ import en from 'element-plus/es/locale/lang/en'
 import { router } from '@/router'
 import 'normalize.css/normalize.css'
 import { pinia } from '@/store'
+import { useAppStore } from '@/store/app'
 import '@/permission'
 import 'element-plus/theme-chalk/dark/css-vars.css'
 import '@/styles/style.scss'
@@ -14,6 +15,9 @@ import * as ElementIcons from '@element-plus/icons'
 const app = createApp(App)
 app.use(ElementPlus, { locale: en })
 app.use(pinia)
+const appStore = useAppStore()
+appStore.initViewport()
+appStore.initTheme()
 app.use(router)
 for (let icon in ElementIcons){
   app.component("ElIcon" +icon ,ElementIcons[icon])

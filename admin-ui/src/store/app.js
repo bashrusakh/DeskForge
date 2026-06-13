@@ -19,6 +19,20 @@ const langs = {
   'zh-TW': { name: 'Chinese (Traditional)', value: zhTw, sideBarWidth: '210px' },
 }
 const defaultLang = localStorage.getItem('lang') || 'en'
+const defaultThemeMode = localStorage.getItem('theme-mode') || 'auto'
+const systemTheme = window.matchMedia('(prefers-color-scheme: dark)')
+const mobileViewport = window.matchMedia('(max-width: 768px)')
+
+function resolveTheme (mode) {
+  return mode === 'auto' ? (systemTheme.matches ? 'dark' : 'light') : mode
+}
+
+function applyTheme (mode) {
+  const theme = resolveTheme(mode)
+  document.documentElement.dataset.theme = mode
+  document.documentElement.classList.toggle('dark', theme === 'dark')
+}
+
 export const useAppStore = defineStore({
   id: 'App',
   state: () => ({
@@ -26,6 +40,9 @@ export const useAppStore = defineStore({
       title: 'RustDesk Server Admin',
       hello: '',
       sideIsCollapse: false,
+      isMobile: mobileViewport.matches,
+      mobileMenuOpen: false,
+      themeMode: defaultThemeMode,
       logo,
       langs: langs,
       lang: defaultLang,
@@ -43,8 +60,40 @@ export const useAppStore = defineStore({
   }),
 
   actions: {
+    initViewport () {
+      this.setting.isMobile = mobileViewport.matches
+      mobileViewport.addEventListener('change', (event) => {
+        this.setting.isMobile = event.matches
+        if (!event.matches) {
+          this.setting.mobileMenuOpen = false
+        }
+      })
+    },
+    initTheme () {
+      applyTheme(this.setting.themeMode)
+      systemTheme.addEventListener('change', () => {
+        if (this.setting.themeMode === 'auto') {
+          applyTheme('auto')
+        }
+      })
+    },
+    setThemeMode (mode) {
+      this.setting.themeMode = mode
+      localStorage.setItem('theme-mode', mode)
+      applyTheme(mode)
+    },
     sideCollapse () {
       this.setting.sideIsCollapse = !this.setting.sideIsCollapse
+    },
+    toggleNavigation () {
+      if (this.setting.isMobile) {
+        this.setting.mobileMenuOpen = !this.setting.mobileMenuOpen
+      } else {
+        this.sideCollapse()
+      }
+    },
+    closeMobileMenu () {
+      this.setting.mobileMenuOpen = false
     },
     setLang (lang) {
       console.log('setLang', lang)

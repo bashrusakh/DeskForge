@@ -228,8 +228,8 @@ onMounted(load)
 
 <style scoped>
 .card-header { display: flex; align-items: baseline; gap: 12px; }
-.hint { color: #888; font-size: 0.9em; }
-.hint-text { color: #888; font-size: 0.85em; margin-top: 4px; }
+.hint { color: var(--color-muted); font-size: 0.9em; }
+.hint-text { color: var(--color-muted); font-size: 0.85em; margin-top: 4px; }
 .generated-key { margin-top: 12px; padding: 8px; background: #f4f8fb; border-radius: 4px; }
 .warn { color: #c00; margin-top: 4px; font-size: 0.85em; }
 code { background: #eef; padding: 1px 4px; border-radius: 2px; }

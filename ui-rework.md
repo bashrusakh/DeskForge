@@ -940,15 +940,25 @@ Before considering the rework complete:
 
 ## 29. Current Implementation Status
 
-As of the initial check:
+As of 2026-06-13 UI rework pass:
 
-- `ui-rework.md` did not exist.
-- No new design-system components were found.
-- No `DataTable`, `FilterBar`, `ThemeSwitch`, `PageHeader`, `AppDialog`, or `ConnectionPulse` component exists yet.
-- Existing UI still uses hardcoded colors.
-- Existing theme is still based on `html.dark` and `useDark`.
-- Existing navigation is still the old detailed route structure.
-- Existing tables/forms/dialogs are still manually repeated in views.
+- Foundation pass started in `admin-ui/`.
+- Global design tokens were added in `src/styles/style.scss` for light/dark surfaces, text, borders, status colors, radius, shadows, and typography.
+- Theme mode now supports `auto`, `light`, and `dark` through `html[data-theme]`, stored in `localStorage` as `theme-mode`.
+- Header/sidebar layout colors were moved off the old hardcoded `#2d3a4b` / `#3f454b` shell palette.
+- The always-visible tags bar was removed from the main shell.
+- `src/components/ui/ConnectionPulse.vue` was added and used in the shell/dashboard.
+- `src/components/ui/ThemeSwitch.vue` was added and used in the header and public auth screens.
+- The dashboard now has a Quick Connect panel for native `rustdesk://` launch, web client launch, and device-list navigation.
+- Login, register, OAuth approval, and OAuth binding screens were moved to the token-based visual direction and support the theme switch.
+- Mobile navigation now uses an `el-drawer`; the header toggle opens the drawer on mobile and collapses the sidebar on desktop.
+- `npm run build` passes after installing `admin-ui` dependencies.
+
+Still pending:
+
+- `DataTable`, `FilterBar`, `PageHeader`, `AppDialog`, and the rest of the shared design-system components.
+- Full table/form/dialog unification across CRUD views.
+- Full i18n coverage for new dashboard/auth hero copy.
 
 ## 30. Recommended First Implementation Step
 

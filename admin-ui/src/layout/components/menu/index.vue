@@ -1,12 +1,9 @@
 <template>
   <el-menu
-          class="menus"
-          :collapse="isCollapse"
-          :default-active="activeIndex"
-          background-color="#2d3a4b"
-          text-color="#fff"
-          active-text-color="#409eff"
-          router
+           class="menus"
+           :collapse="isCollapse"
+           :default-active="activeIndex"
+           router
   >
     <menu-item v-for="(route,index) in routes" :key="route.name" :route="route"></menu-item>
   </el-menu>
@@ -44,10 +41,28 @@
 
 <style lang="scss" scoped>
   .menus {
-    min-height: 100vh;
+    min-height: calc(100vh - var(--sidebar-brand-height));
     border-right: none;
+    background: var(--color-sidebar);
+    --el-menu-bg-color: var(--color-sidebar);
+    --el-menu-text-color: var(--color-sidebar-text);
+    --el-menu-active-color: var(--color-primary);
+    --el-menu-hover-bg-color: var(--color-sidebar-hover);
+
     &:not(.el-menu--collapse) {
       width: var(--sideBarWidth);
+    }
+
+    :deep(.el-menu-item),
+    :deep(.el-sub-menu__title) {
+      height: 44px;
+      margin: 4px 10px;
+      border-radius: 12px;
+      font-weight: 600;
+    }
+
+    :deep(.el-menu-item.is-active) {
+      background: var(--color-primary-soft);
     }
 
   }

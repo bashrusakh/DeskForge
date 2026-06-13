@@ -1,7 +1,20 @@
 <template>
   <div class="login-container">
+    <theme-switch class="auth-theme" />
+    <section class="auth-visual">
+      <div class="visual-kicker"><connection-pulse status="online" /> Account provisioning</div>
+      <h1>Create an admin-ready account.</h1>
+      <p>Registration joins the same operational console used for devices, access rules, monitoring, and server safety controls.</p>
+      <div class="signal-card">
+        <div><span>Identity</span><strong>local</strong></div>
+        <div><span>Access</span><strong>scoped</strong></div>
+        <div><span>Audit</span><strong>logged</strong></div>
+      </div>
+    </section>
+
     <div class="login-card">
       <img src="@/assets/logo.png" alt="logo" class="login-logo"/>
+      <h2>{{ T('Register') }}</h2>
       <el-form ref="f" :model="form" label-position="top" class="login-form" :rules="rules">
         <el-form-item :label="T('Username')" prop="username">
           <el-input v-model="form.username" class="login-input"></el-input>
@@ -36,6 +49,8 @@
   import { register } from '@/api/user'
   import { useUserStore } from '@/store/user'
   import { useAppStore } from '@/store/app'
+  import ConnectionPulse from '@/components/ui/ConnectionPulse.vue'
+  import ThemeSwitch from '@/components/ui/ThemeSwitch.vue'
 
   const router = useRouter()
   const userStore = useUserStore()
@@ -91,28 +106,109 @@
 
 <style scoped lang="scss">
 .login-container {
-  display: flex;
-  justify-content: center;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 420px;
+  gap: 34px;
   align-items: center;
-  height: 100vh;
-  background-color: #2d3a4b;
-  padding: 20px;
-  box-sizing: border-box;
+  min-height: 100vh;
+  padding: clamp(20px, 5vw, 64px);
+  background:
+    radial-gradient(circle at 18% 14%, color-mix(in srgb, var(--color-primary) 22%, transparent), transparent 28rem),
+    radial-gradient(circle at 84% 78%, color-mix(in srgb, var(--color-success) 12%, transparent), transparent 24rem),
+    var(--color-bg);
+}
+
+.auth-theme {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+}
+
+.auth-visual {
+  max-width: 680px;
+  color: var(--color-text);
+}
+
+.visual-kicker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.auth-visual h1 {
+  max-width: 640px;
+  margin: 0;
+  font-size: clamp(40px, 6vw, 72px);
+  line-height: 0.95;
+  letter-spacing: -0.06em;
+}
+
+.auth-visual p {
+  max-width: 520px;
+  margin: 20px 0 0;
+  color: var(--color-muted);
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.signal-card {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  max-width: 520px;
+  margin-top: 34px;
+
+  div {
+    padding: 16px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--color-surface) 86%, transparent);
+  }
+
+  span,
+  strong {
+    display: block;
+  }
+
+  span {
+    color: var(--color-muted);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-transform: uppercase;
+  }
+
+  strong {
+    margin-top: 8px;
+    color: var(--color-success);
+    font-size: 18px;
+  }
 }
 
 .login-card {
-  width: 360px;
-  background-color: #283342;
-  padding: 40px;
-  border-radius: 8px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 420px;
+  padding: 34px;
+  border: 1px solid var(--color-border);
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+  box-shadow: var(--shadow-card);
   text-align: center;
+  backdrop-filter: blur(18px);
 }
 
-h1 {
-  margin-bottom: 20px;
+h2 {
+  margin: 0 0 24px;
+  color: var(--color-text);
   font-size: 24px;
-  font-weight: bold;
+  font-weight: 700;
 }
 
 .login-form {
@@ -140,18 +236,43 @@ h1 {
 
 .el-form-item {
   ::v-deep(.el-form-item__label) {
-    color: #fff;
+    color: var(--color-text);
+    font-weight: 600;
   }
 
   .el-input {
     ::v-deep(.el-input__wrapper) {
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      background: transparent;
+      border: 1px solid var(--color-border);
+      background: var(--color-bg);
     }
 
     ::v-deep(input) {
-      color: #fff;
+      color: var(--color-text);
     }
+  }
+}
+
+@media (max-width: 980px) {
+  .login-container {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-visual {
+    display: none;
+  }
+
+  .login-card {
+    margin: 0 auto;
+  }
+}
+
+@media (max-width: 520px) {
+  .login-container {
+    padding: 76px 16px 20px;
+  }
+
+  .login-card {
+    padding: 24px;
   }
 }
 </style>
