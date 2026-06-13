@@ -917,25 +917,24 @@ Mitigation:
 
 Before considering the rework complete:
 
-- [ ] `ui-rework.md` exists.
+- [x] `ui-rework.md` exists.
 - [ ] Light theme works.
 - [ ] Dark theme works.
 - [ ] Auto theme works.
-- [ ] No hardcoded layout colors remain.
+- [x] No hardcoded layout colors remain.
 - [ ] Sidebar navigation is simplified.
-- [ ] My Profile is moved to user menu.
-- [ ] Tags bar is removed or made optional.
-- [ ] Tables use a unified component.
+- [x] My Profile is moved to user menu.
+- [x] Tags bar is removed or made optional.
+- [x] Tables use a unified component.
 - [ ] Checkboxes use one standard.
-- [ ] Forms use one dialog/drawer standard.
-- [ ] Dashboard has Quick Connect.
+- [x] Forms use one dialog/drawer standard.
+- [x] Dashboard has Quick Connect.
 - [ ] Devices page shows clear online/offline status.
 - [ ] Monitoring pages share one filter model.
-- [x] Server commands have danger confirmations.
 - [ ] Login/Register are redesigned.
 - [ ] Mobile layout works.
 - [ ] i18n still works.
-- [ ] `npm run build` passes.
+- [x] `npm run build` passes.
 - [ ] Console has no new UI errors.
 
 ## 29. Current Implementation Status

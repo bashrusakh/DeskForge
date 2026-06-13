@@ -413,7 +413,7 @@
   overflow: hidden;
   border: 1px solid var(--color-border);
   border-radius: 14px;
-  background: #0b1020;
+  background: var(--bg-tertiary);
 }
 
 .command-result-toolbar {
@@ -422,9 +422,9 @@
   justify-content: space-between;
   gap: 12px;
   padding: 10px 12px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
-  background: rgba(15, 23, 42, 0.92);
-  color: #94a3b8;
+  border-bottom: 1px solid var(--border-secondary);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
   font-family: var(--font-mono);
   font-size: 12px;
 }

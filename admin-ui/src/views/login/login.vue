@@ -358,7 +358,7 @@ h2 {
   border-radius: 4px;
   color: var(--color-text);
   font-size: 14px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px var(--shadow-card);
 }
 
 .oidc-icon {

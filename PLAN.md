@@ -517,10 +517,14 @@ prod-API (Linux) и win-build (Windows). Варианты: общий сетев
 
   Осталось следующими фазами:
   - [ ] i18n для нового dashboard/auth hero copy;
-  - [ ] унификация таблиц, фильтров, пагинации, empty/loading states;
+  - [x] унификация таблиц, фильтров, пагинации, empty/loading states;
   - [x] Devices page: ConnectionPulse status, compact actions, copyable ID, web/native connect, pagination aligned via PageSection;
   - [x] Monitoring: общий page header/section готов; Login History, Connection History, File Transfer History, Shared Sessions получили FilterBar;
   - [x] Server commands: Simple/Advanced/Danger Zone + terminal output polishing готовы;
+  - [x] CRUD dialogs unified with AppDialog (zero raw el-dialog in views);
+  - [x] DataTable applied to ALL view pages (zero raw el-table except nested inline in fileList);
+  - [x] My Profile added to user dropdown menu;
+  - [x] Hardcoded colors in control.vue and login.vue replaced with CSS variables;
   - [~] Access/Security CRUD screens: address books/collections/share rules/tags, users,
         API tokens, OAuth providers, groups и device groups page primitives готовы;
         custom client/my profile/my workspace page primitives готовы; remaining form/dialog standards ещё унифицировать;
