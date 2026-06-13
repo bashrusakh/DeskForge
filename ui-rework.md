@@ -952,6 +952,7 @@ As of 2026-06-14 UI rework pass:
 - `src/components/ui/CopyableText.vue` was added and used for device IDs.
 - `src/components/ui/PageHeader.vue` and `src/components/ui/PageSection.vue` were added and used on Monitoring pages.
 - `src/components/ui/DangerZone.vue` was added and used for advanced Server Commands.
+- `src/components/ui/EmptyState.vue` and `src/components/ui/LoadingState.vue` were added for upcoming table/form standardization.
 - The dashboard now has a Quick Connect panel for native `rustdesk://` launch, web client launch, and device-list navigation.
 - The admin Devices page now has a persistent Status column, ConnectionPulse online/offline state, copyable IDs, and compact Connect/More actions.
 - Monitoring pages now share a page header/section structure across login history, connection history, file transfers, and shared sessions.
@@ -965,6 +966,7 @@ As of 2026-06-14 UI rework pass:
 - Custom Client preset/upload handlers are returned from `setup()` so the existing template controls are exposed at runtime.
 - My Devices, My Address Book, My Address Book Collections, My Tags, My Shared Sessions, and My Login History now share the page header/section structure.
 - Personal device/address-book IDs use `CopyableText` where copy actions already existed.
+- The 404 page now uses the shared empty-state primitive and links back to Dashboard.
 - Login, register, OAuth approval, and OAuth binding screens were moved to the token-based visual direction and support the theme switch.
 - Mobile navigation now uses an `el-drawer`; the header toggle opens the drawer on mobile and collapses the sidebar on desktop.
 - `npm run build` passes after installing `admin-ui` dependencies.

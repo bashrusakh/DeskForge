@@ -485,7 +485,8 @@ prod-API (Linux) и win-build (Windows). Варианты: общий сетев
     typography (`admin-ui/src/styles/style.scss`);
   - theme system `auto` / `light` / `dark` через `html[data-theme]`, `localStorage`
     (`theme-mode`) и Element Plus dark class sync;
-  - `ConnectionPulse`, `ThemeSwitch`, `CopyableText`, `PageHeader`, `PageSection`, `DangerZone` как первые shared UI primitives;
+  - `ConnectionPulse`, `ThemeSwitch`, `CopyableText`, `PageHeader`, `PageSection`,
+    `DangerZone`, `EmptyState`, `LoadingState` как первые shared UI primitives;
   - shell refresh: sidebar/header/menu/settings на tokens, без всегда включённой tags bar;
   - mobile navigation через `el-drawer`, desktop collapse сохранён;
   - dashboard Quick Connect: `rustdesk://id`, web client `/webclient2/#/{id}`, переход к devices;
@@ -505,6 +506,7 @@ prod-API (Linux) и win-build (Windows). Варианты: общий сетев
     page header/section layout; build history pagination выровнен;
   - My Workspace visual pass: My Devices, My Address Book, My Address Book Collections,
     My Tags, My Shared Sessions и My Login History используют общий page header/section layout;
+  - 404 refresh: standalone empty-state экран с возвратом на dashboard;
   - Custom Client runtime fix: preset/upload handlers возвращаются из `setup()` и доступны template;
   - login/register/OAuth approve/OAuth bind переведены на token-based auth layout;
   - `ocr review`: high/medium findings нет; low nit исправлен;
@@ -512,8 +514,7 @@ prod-API (Linux) и win-build (Windows). Варианты: общий сетев
 
   Осталось следующими фазами:
   - [ ] i18n для нового dashboard/auth hero copy;
-  - [ ] shared components: `DataTable`, `FilterBar`, `AppDialog`, `AppDrawer`, `FormSection`,
-        `EmptyState`, `LoadingState`;
+  - [ ] shared components: `DataTable`, `FilterBar`, `AppDialog`, `AppDrawer`, `FormSection`;
   - [ ] унификация таблиц, фильтров, пагинации, empty/loading states;
   - [x] Devices page: ConnectionPulse status, compact actions, copyable ID, web/native connect;
   - [~] Monitoring: общий page header/section готов; filter model/date/user/peer/type/export/danger toolbar ещё унифицировать;
@@ -521,6 +522,7 @@ prod-API (Linux) и win-build (Windows). Варианты: общий сетев
   - [~] Access/Security CRUD screens: address books/collections/share rules/tags, users,
         API tokens, OAuth providers, groups и device groups page primitives готовы;
         custom client/my profile/my workspace page primitives готовы; remaining form/dialog standards ещё унифицировать;
+  - [x] 404 page: tokenized empty-state экран готов;
   - [ ] ручная проверка responsive UI в браузере, не только `npm run build`.
 - [x] **8.9. Custom Preset — ЗАКРЫТО.**
   Расширение модели НЕ потребовалось (все поля уже в `custom_json` text-blob). Фактически
@@ -612,7 +614,8 @@ prod-API (Linux) и win-build (Windows). Варианты: общий сетев
 - admin-ui UI rework foundation: design tokens, `auto/light/dark` theme mode,
   `ConnectionPulse`, `ThemeSwitch`, refreshed shell/sidebar/header/menu/settings,
   dashboard Quick Connect, token-based login/register/OAuth screens, mobile drawer nav,
-  devices/monitoring/server/access/security/client-builder/profile/my-workspace visual passes with shared page primitives. ✅ PR #3.
+  devices/monitoring/server/access/security/client-builder/profile/my-workspace visual passes,
+  refreshed 404 and shared empty/loading primitives. ✅ PR #3.
 - Dashboard API+UI, Server Config UI, `GET /api/admin/config/all`. ✅
 - Custom Client UI (форма + история), Presets CRUD, Logo/Icon upload. ✅
 - Go API: модели/сервисы/контроллеры CustomBuild + CustomPreset, AutoMigrate,

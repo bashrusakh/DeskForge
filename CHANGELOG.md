@@ -17,7 +17,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - `admin-ui/src/components/ui/ThemeSwitch.vue` — общий переключатель темы;
   - `admin-ui/src/components/ui/CopyableText.vue` — копируемый monospace ID/token text;
   - `admin-ui/src/components/ui/PageHeader.vue` и `PageSection.vue` — общая структура
-    заголовка и секций страниц.
+    заголовка и секций страниц;
+  - `admin-ui/src/components/ui/EmptyState.vue` и `LoadingState.vue` — базовые empty/loading
+    states для следующих DataTable/Form phases.
 - **Shell/layout refresh**:
   - sidebar/header/menu/settings переведены с hardcoded `#2d3a4b` / `#3f454b` на tokens;
   - always-visible tags bar убран из основного layout;
@@ -45,6 +47,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **My Workspace visual pass**: My Devices, My Address Book, My Address Book Collections,
   My Tags, My Shared Sessions и My Login History получили общий page header/section layout;
   персональные device/address-book ID переведены на `CopyableText`.
+- **404 refresh**: минимальная `404` страница заменена на tokenized empty-state экран с
+  возвратом на dashboard.
 - **Auth/OAuth visual refresh**: login, register, OAuth approve и OAuth bind экраны
   переведены на token-based визуальный язык, поддерживают theme switch и Connection Pulse.
 - **Custom Client runtime fix**: preset/upload handlers теперь возвращаются из `setup()` и
@@ -57,8 +61,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Known Follow-ups (admin-ui UI rework)
 - Полное i18n-покрытие нового dashboard/auth hero copy.
-- Shared components: `PageHeader`, `DataTable`, `FilterBar`, `AppDialog`, `AppDrawer`,
-  `FormSection`, `EmptyState`, `LoadingState`.
+- Shared components: `DataTable`, `FilterBar`, `AppDialog`, `AppDrawer`, `FormSection`.
 - Таблицы, формы, dialogs/drawers и CRUD-экраны всё ещё требуют унификации.
 - Monitoring filters/toolbars и Server terminal output polishing нужно проходить отдельными фазами.
 
