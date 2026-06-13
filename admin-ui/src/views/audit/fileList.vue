@@ -83,7 +83,12 @@
                      :total="listRes.total">
       </el-pagination>
     </page-section>
-    <el-dialog v-model="allFilesVisible" :title="T('File')">
+    <app-dialog
+        v-model="allFilesVisible"
+        :title="T('File')"
+        :show-confirm="false"
+        :hide-footer="true"
+    >
       <el-table :data="showFiles" max-height="800px">
         <el-table-column type="index" :label="T('IndexNum')" width="120" align="center"></el-table-column>
         <el-table-column prop="0" :label="T('FileName')" align="center"></el-table-column>
@@ -94,7 +99,7 @@
         </el-table-column>
       </el-table>
       <el-button @click="allFilesVisible=false" style="margin-top: 20px;width: 100%" type="primary">{{ T('Close') }}</el-button>
-    </el-dialog>
+    </app-dialog>
   </div>
 </template>
 
@@ -107,6 +112,7 @@
 import PageHeader from '@/components/ui/PageHeader.vue'
 import PageSection from '@/components/ui/PageSection.vue'
 import FilterBar from '@/components/ui/FilterBar.vue'
+import AppDialog from '@/components/ui/AppDialog.vue'
 
 const showDirFileNum = 3
 const {

@@ -141,7 +141,12 @@
                      :total="listRes.total">
       </el-pagination>
     </page-section>
-    <el-dialog v-model="formVisible" :title="!formData.row_id?T('Create'):T('Update')" width="800">
+    <app-dialog
+        v-model="formVisible"
+        :title="!formData.row_id ? T('Create') : T('Update')"
+        width="800"
+        @confirm="submit"
+    >
       <el-form class="dialog-form" ref="form" :model="formData" label-width="120px">
         <el-form-item label="ID" prop="id" required>
           <el-input v-model="formData.id"></el-input>
@@ -180,18 +185,26 @@
         <el-form-item :label="T('Alias')" prop="alias">
           <el-input v-model="formData.alias"></el-input>
         </el-form-item>
-        <el-form-item>
-          <el-button @click="formVisible = false">{{ T('Cancel') }}</el-button>
-          <el-button @click="submit" type="primary">{{ T('Submit') }}</el-button>
-        </el-form-item>
       </el-form>
-    </el-dialog>
+    </app-dialog>
 
-    <el-dialog v-model="ABFormVisible" width="800" :title="T('Create')" destroy-on-close>
+    <app-dialog
+        v-model="ABFormVisible"
+        :title="T('Create')"
+        width="800"
+        destroy-on-close
+        :show-confirm="false"
+        :hide-footer="true"
+    >
       <createABForm :peer="clickRow" @success="ABFormVisible=false" @cancel="ABFormVisible=false"></createABForm>
-    </el-dialog>
+    </app-dialog>
 
-    <el-dialog v-model="batchABFormVisible" width="800" :title="T('Create')">
+    <app-dialog
+        v-model="batchABFormVisible"
+        :title="T('Create')"
+        width="800"
+        @confirm="submitBatchAddToAB"
+    >
       <el-form class="dialog-form" ref="form" :model="batchABFormData" label-width="120px">
         <el-form-item :label="T('Owner')" prop="user_id" required>
           <el-select v-model="batchABFormData.user_id" @change="changeUserForBatchCreateAB">
@@ -209,24 +222,14 @@
             <el-option v-for="c in collectionListResForBatchCreateAB.list" :key="c.id" :label="c.name" :value="c.id"></el-option>
           </el-select>
         </el-form-item>
-        <!--        <el-form-item :label="T('Tags')" prop="tags">
-                  <el-select v-model="batchABFormData.tags" multiple>
-                    <el-option
-                        v-for="item in tagListRes.list"
-                        :key="item.name"
-                        :label="item.name"
-                        :value="item.name"
-                    ></el-option>
-                  </el-select>
-                </el-form-item>-->
-        <el-form-item>
-          <el-button @click="batchABFormVisible = false">{{ T('Cancel') }}</el-button>
-          <el-button @click="submitBatchAddToAB" type="primary">{{ T('Submit') }}</el-button>
-        </el-form-item>
       </el-form>
-    </el-dialog>
+    </app-dialog>
 
-    <el-dialog v-model="columnSettingVisible" title="Column Setting">
+    <app-dialog
+        v-model="columnSettingVisible"
+        :title="T('ColumnSetting')"
+        @confirm="saveColumnSetting"
+    >
       <div v-for="(row, key) in visibleColumns" :key="key" style="margin-bottom: 10px;display: flex;align-items: center">
         <div style="width: 200px">
           <el-checkbox v-model="row.visible" :label="true">{{ T(row.label) }}</el-checkbox>
@@ -242,11 +245,7 @@
           </el-icon>
         </div>
       </div>
-      <span slot="footer" class="dialog-footer">
-        <el-button @click="columnSettingVisible = false">{{ T('Cancel') }}</el-button>
-        <el-button type="primary" @click="saveColumnSetting">{{ T('Save') }}</el-button>
-      </span>
-    </el-dialog>
+    </app-dialog>
   </div>
 </template>
 
@@ -270,6 +269,8 @@
   import ConnectionPulse from '@/components/ui/ConnectionPulse.vue'
   import CopyableText from '@/components/ui/CopyableText.vue'
   import PageSection from '@/components/ui/PageSection.vue'
+  import DataTable from '@/components/ui/DataTable.vue'
+  import AppDialog from '@/components/ui/AppDialog.vue'
 
   const appStore = useAppStore()
 

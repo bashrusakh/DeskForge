@@ -86,7 +86,12 @@
                      :total="listRes.total">
       </el-pagination>
     </page-section>
-    <el-dialog v-model="formVisible" width="800" :title="!formData.row_id?T('Create') :T('Update') ">
+    <app-dialog
+        v-model="formVisible"
+        :title="!formData.row_id ? T('Create') : T('Update')"
+        width="800"
+        @confirm="submit"
+    >
       <el-form class="dialog-form" ref="form" :model="formData" label-width="120px">
         <el-form-item :label="T('AddressBookName')" required prop="collection_id">
           <el-select v-model="formData.collection_id" clearable @change="changeCollectionForUpdate">
@@ -109,12 +114,6 @@
         <el-form-item :label="T('Hostname')" prop="hostname">
           <el-input v-model="formData.hostname"></el-input>
         </el-form-item>
-        <!--        <el-form-item :label="T('LoginName')" prop="loginName">
-                  <el-input v-model="formData.loginName"></el-input>
-                </el-form-item>-->
-        <!--        <el-form-item :label="T('Password')" prop="password">
-                          <el-input v-model="formData.password"></el-input>
-                        </el-form-item>-->
         <el-form-item :label="T('Platform')" prop="platform">
           <el-select v-model="formData.platform">
             <el-option
@@ -136,22 +135,25 @@
             ></el-option>
           </el-select>
         </el-form-item>
-
-
-
-        <el-form-item>
-          <el-button @click="formVisible = false">{{ T('Cancel') }}</el-button>
-          <el-button @click="submit" type="primary">{{ T('Submit') }}</el-button>
-        </el-form-item>
       </el-form>
-    </el-dialog>
-    <el-dialog v-model="shareToWebClientVisible" width="900" :close-on-click-modal="false">
+    </app-dialog>
+    <app-dialog
+        v-model="shareToWebClientVisible"
+        width="900"
+        :show-confirm="false"
+        :hide-footer="true"
+    >
       <shareByWebClient :id="shareToWebClientForm.id"
                         :hash="shareToWebClientForm.hash"
                         @cancel="shareToWebClientVisible=false"
                         @success=""/>
-    </el-dialog>
-    <el-dialog v-model="batchEditTagVisible" width="800">
+    </app-dialog>
+    <app-dialog
+        v-model="batchEditTagVisible"
+        :title="T('BatchEditTags')"
+        width="800"
+        @confirm="submitBatchEditTags"
+    >
       <el-form :model="batchEditTagsFormData" label-width="120px" class="dialog-form">
         <el-form-item :label="T('Tags')" prop="tags">
           <el-select v-model="batchEditTagsFormData.tags" multiple>
@@ -163,12 +165,8 @@
             ></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button @click="batchEditTagVisible = false">{{ T('Cancel') }}</el-button>
-          <el-button @click="submitBatchEditTags" type="primary">{{ T('Submit') }}</el-button>
-        </el-form-item>
       </el-form>
-    </el-dialog>
+    </app-dialog>
   </div>
 </template>
 
@@ -185,6 +183,8 @@
   import PageHeader from '@/components/ui/PageHeader.vue'
   import PageSection from '@/components/ui/PageSection.vue'
   import CopyableText from '@/components/ui/CopyableText.vue'
+  import DataTable from '@/components/ui/DataTable.vue'
+  import AppDialog from '@/components/ui/AppDialog.vue'
 
   const appStore = useAppStore()
   const {

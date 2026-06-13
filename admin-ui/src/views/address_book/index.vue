@@ -98,7 +98,12 @@
                      :total="listRes.total">
       </el-pagination>
     </page-section>
-    <el-dialog v-model="formVisible" width="800" :title="!formData.row_id?T('Create') :T('Update') ">
+    <app-dialog
+        v-model="formVisible"
+        :title="!formData.row_id ? T('Create') : T('Update')"
+        width="800"
+        @confirm="submit"
+    >
       <el-form class="dialog-form" ref="form" :model="formData" label-width="120px">
         <el-form-item :label="T('Owner')" prop="user_id" required>
           <el-select v-model="formData.user_id" @change="changeUserForUpdate">
@@ -131,12 +136,6 @@
         <el-form-item :label="T('Hostname')" prop="hostname">
           <el-input v-model="formData.hostname"></el-input>
         </el-form-item>
-        <!--        <el-form-item :label="T('LoginName')" prop="loginName">
-                  <el-input v-model="formData.loginName"></el-input>
-                </el-form-item>
-                <el-form-item :label="T('Password')" prop="password">
-                  <el-input v-model="formData.password"></el-input>
-                </el-form-item>-->
         <el-form-item :label="T('Platform')" prop="platform">
           <el-select v-model="formData.platform">
             <el-option
@@ -158,14 +157,8 @@
             ></el-option>
           </el-select>
         </el-form-item>
-
-
-        <el-form-item>
-          <el-button @click="formVisible = false">{{ T('Cancel') }}</el-button>
-          <el-button @click="submit" type="primary">{{ T('Submit') }}</el-button>
-        </el-form-item>
       </el-form>
-    </el-dialog>
+    </app-dialog>
     <!--    <el-dialog v-model="shareToWebClientVisible" width="900" :close-on-click-modal="false">
           <shareByWebClient :id="shareToWebClientForm.id"
                             :hash="shareToWebClientForm.hash"
@@ -190,6 +183,7 @@
   import PageSection from '@/components/ui/PageSection.vue'
   import CopyableText from '@/components/ui/CopyableText.vue'
   import DataTable from '@/components/ui/DataTable.vue'
+  import AppDialog from '@/components/ui/AppDialog.vue'
 
   const appStore = useAppStore()
   const route = useRoute()
