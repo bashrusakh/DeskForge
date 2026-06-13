@@ -954,7 +954,7 @@ As of 2026-06-14 UI rework pass:
 - `src/components/ui/DangerZone.vue` was added and used for advanced Server Commands.
 - `src/components/ui/EmptyState.vue` and `src/components/ui/LoadingState.vue` were added for upcoming table/form standardization.
 - The dashboard now has a Quick Connect panel for native `rustdesk://` launch, web client launch, and device-list navigation.
-- The admin Devices page now has a persistent Status column, ConnectionPulse online/offline state, copyable IDs, and compact Connect/More actions.
+- The admin Devices page now has a persistent Status column, ConnectionPulse online/offline state, copyable IDs, compact Connect/More actions, and pagination aligned via PageSection.
 - Monitoring pages now share a page header/section structure across login history, connection history, file transfers, and shared sessions.
 - Server Commands, Server Config, and GitHub Build settings now share the page header/section structure.
 - Advanced Server Commands are visually separated in a Danger Zone and require confirmation before sending custom commands.

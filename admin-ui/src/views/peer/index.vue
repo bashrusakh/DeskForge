@@ -132,7 +132,7 @@
         </el-table-column>
       </el-table>
     </el-card>
-    <el-card class="list-page" shadow="hover">
+    <page-section class="list-page">
       <el-pagination background
                      layout="prev, pager, next, sizes, jumper"
                      :page-sizes="[10,20,50,100]"
@@ -140,7 +140,7 @@
                      v-model:current-page="listQuery.page"
                      :total="listRes.total">
       </el-pagination>
-    </el-card>
+    </page-section>
     <el-dialog v-model="formVisible" :title="!formData.row_id?T('Create'):T('Update')" width="800">
       <el-form class="dialog-form" ref="form" :model="formData" label-width="120px">
         <el-form-item label="ID" prop="id" required>
@@ -269,6 +269,7 @@
   import { UploadFilled } from '@element-plus/icons-vue'
   import ConnectionPulse from '@/components/ui/ConnectionPulse.vue'
   import CopyableText from '@/components/ui/CopyableText.vue'
+  import PageSection from '@/components/ui/PageSection.vue'
 
   const appStore = useAppStore()
 
@@ -601,6 +602,11 @@
   .device-filter-card,
   .device-table-card {
     border-radius: var(--radius-lg);
+  }
+
+  :deep(.list-page .el-card__body) {
+    display: flex;
+    justify-content: flex-end;
   }
 }
 

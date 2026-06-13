@@ -517,7 +517,7 @@ prod-API (Linux) и win-build (Windows). Варианты: общий сетев
   - [ ] i18n для нового dashboard/auth hero copy;
   - [ ] shared components: `DataTable`, `FilterBar`, `AppDialog`, `AppDrawer`, `FormSection`;
   - [ ] унификация таблиц, фильтров, пагинации, empty/loading states;
-  - [x] Devices page: ConnectionPulse status, compact actions, copyable ID, web/native connect;
+  - [x] Devices page: ConnectionPulse status, compact actions, copyable ID, web/native connect, pagination aligned via PageSection;
   - [~] Monitoring: общий page header/section готов; filter model/date/user/peer/type/export/danger toolbar ещё унифицировать;
   - [x] Server commands: Simple/Advanced/Danger Zone + terminal output polishing готовы;
   - [~] Access/Security CRUD screens: address books/collections/share rules/tags, users,

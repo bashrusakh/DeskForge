@@ -30,7 +30,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   panel с native `rustdesk://id`, web client `/webclient2/#/{id}` и переходом к devices.
 - **Devices refresh** (`admin-ui/src/views/peer/index.vue`): добавлена постоянная колонка
   Status с `ConnectionPulse`, online/offline определяется по `last_online_time < 60s`, ID
-  переведён на `CopyableText`, action column сжата до `Connect` + `More` dropdown.
+  переведён на `CopyableText`, action column сжата до `Connect` + `More` dropdown; pagination
+  выровнен через `PageSection`.
 - **Monitoring visual pass**: login history, connection history, file transfers и shared
   sessions получили общий `PageHeader`/`PageSection` layout без изменения API/composable логики.
 - **Server visual pass**: Server Commands, Server Config и GitHub Build settings получили
