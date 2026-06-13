@@ -1,6 +1,12 @@
 <template>
-  <div>
-    <el-card class="list-query" shadow="hover">
+  <div class="monitoring-page">
+    <page-header
+        :title="T('FileTransferHistory')"
+        subtitle="Inspect file movement direction, peer IDs, paths, counts, sizes, and transfer time."
+        eyebrow="Monitoring"
+        pulse="warning"
+    />
+    <page-section class="list-query" title="Filters" subtitle="Filter file transfer records before export or cleanup.">
       <el-form inline label-width="80px">
         <el-form-item :label="T('Peer')">
           <el-input v-model="listQuery.peer_id" clearable></el-input>
@@ -14,8 +20,8 @@
           <el-button type="success" @click="toExport">{{ T('Export') }}</el-button>
         </el-form-item>
       </el-form>
-    </el-card>
-    <el-card class="list-body" shadow="hover">
+    </page-section>
+    <page-section class="list-body" :title="T('FileTransferHistory')" :subtitle="`${listRes.total} records`">
       <el-table :data="listRes.list" v-loading="listRes.loading" border max-height="750" @selection-change="handleSelectionChange">
         <el-table-column type="selection" align="center" width="50"/>
         <el-table-column prop="id" label="ID" align="center" width="100"/>
@@ -70,8 +76,8 @@
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
-    <el-card class="list-page" shadow="hover">
+    </page-section>
+    <page-section class="list-page">
       <el-pagination background
                      layout="prev, pager, next, sizes, jumper"
                      :page-sizes="[10,20,50,100]"
@@ -79,7 +85,7 @@
                      v-model:current-page="listQuery.page"
                      :total="listRes.total">
       </el-pagination>
-    </el-card>
+    </page-section>
     <el-dialog v-model="allFilesVisible" :title="T('File')">
       <el-table :data="showFiles" max-height="800px">
         <el-table-column type="index" :label="T('IndexNum')" width="120" align="center"></el-table-column>
@@ -101,6 +107,8 @@
   import { T } from '@/utils/i18n'
   import { sizeFormat } from '@/utils/file'
   import { Right } from '@element-plus/icons'
+  import PageHeader from '@/components/ui/PageHeader.vue'
+  import PageSection from '@/components/ui/PageSection.vue'
 
   const showDirFileNum = 3
   const {

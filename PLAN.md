@@ -485,23 +485,25 @@ prod-API (Linux) и win-build (Windows). Варианты: общий сетев
     typography (`admin-ui/src/styles/style.scss`);
   - theme system `auto` / `light` / `dark` через `html[data-theme]`, `localStorage`
     (`theme-mode`) и Element Plus dark class sync;
-  - `ConnectionPulse`, `ThemeSwitch`, `CopyableText` как первые shared UI primitives;
+  - `ConnectionPulse`, `ThemeSwitch`, `CopyableText`, `PageHeader`, `PageSection` как первые shared UI primitives;
   - shell refresh: sidebar/header/menu/settings на tokens, без всегда включённой tags bar;
   - mobile navigation через `el-drawer`, desktop collapse сохранён;
   - dashboard Quick Connect: `rustdesk://id`, web client `/webclient2/#/{id}`, переход к devices;
   - Devices page: постоянная колонка Status, ConnectionPulse online/offline по `last_online_time`,
     copyable ID, компактные действия Connect + More;
+  - Monitoring visual pass: login history, connection history, file transfers и shared sessions
+    используют общий page header/section layout;
   - login/register/OAuth approve/OAuth bind переведены на token-based auth layout;
   - `ocr review`: high/medium findings нет; low nit исправлен;
   - `npm run build` проходит.
 
   Осталось следующими фазами:
   - [ ] i18n для нового dashboard/auth hero copy;
-  - [ ] shared components: `PageHeader`, `DataTable`, `FilterBar`, `AppDialog`, `AppDrawer`,
-        `FormSection`, `EmptyState`, `LoadingState`, `DangerZone`;
+  - [ ] shared components: `DataTable`, `FilterBar`, `AppDialog`, `AppDrawer`, `FormSection`,
+        `EmptyState`, `LoadingState`, `DangerZone`;
   - [ ] унификация таблиц, фильтров, пагинации, empty/loading states;
   - [x] Devices page: ConnectionPulse status, compact actions, copyable ID, web/native connect;
-  - [ ] Monitoring: общий filter model/date/user/peer/type/export/danger toolbar;
+  - [~] Monitoring: общий page header/section готов; filter model/date/user/peer/type/export/danger toolbar ещё унифицировать;
   - [ ] Server commands: Simple/Advanced/Danger Zone + terminal output;
   - [ ] Users/Security/Access CRUD screens перевести на новые компоненты;
   - [ ] ручная проверка responsive UI в браузере, не только `npm run build`.

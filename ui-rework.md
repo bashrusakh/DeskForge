@@ -950,15 +950,17 @@ As of 2026-06-13 UI rework pass:
 - `src/components/ui/ConnectionPulse.vue` was added and used in the shell/dashboard/devices.
 - `src/components/ui/ThemeSwitch.vue` was added and used in the header and public auth screens.
 - `src/components/ui/CopyableText.vue` was added and used for device IDs.
+- `src/components/ui/PageHeader.vue` and `src/components/ui/PageSection.vue` were added and used on Monitoring pages.
 - The dashboard now has a Quick Connect panel for native `rustdesk://` launch, web client launch, and device-list navigation.
 - The admin Devices page now has a persistent Status column, ConnectionPulse online/offline state, copyable IDs, and compact Connect/More actions.
+- Monitoring pages now share a page header/section structure across login history, connection history, file transfers, and shared sessions.
 - Login, register, OAuth approval, and OAuth binding screens were moved to the token-based visual direction and support the theme switch.
 - Mobile navigation now uses an `el-drawer`; the header toggle opens the drawer on mobile and collapses the sidebar on desktop.
 - `npm run build` passes after installing `admin-ui` dependencies.
 
 Still pending:
 
-- `DataTable`, `FilterBar`, `PageHeader`, `AppDialog`, and the rest of the shared design-system components.
+- `DataTable`, `FilterBar`, `AppDialog`, and the rest of the shared design-system components.
 - Full table/form/dialog unification across CRUD views.
 - Full i18n coverage for new dashboard/auth hero copy.
 

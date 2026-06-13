@@ -1,6 +1,12 @@
 <template>
-  <div>
-    <el-card class="list-query" shadow="hover">
+  <div class="monitoring-page">
+    <page-header
+        :title="T('LoginHistory')"
+        subtitle="Audit sign-ins by user, client, device, IP address, platform, and time."
+        eyebrow="Monitoring"
+        pulse="warning"
+    />
+    <page-section class="list-query" title="Filters" subtitle="Narrow login events before exporting or deleting records.">
       <el-form inline label-width="80px">
         <el-form-item :label="T('User')">
           <el-select v-model="listQuery.user_id" clearable>
@@ -18,8 +24,8 @@
           <el-button type="success" @click="toExport">{{ T('Export') }}</el-button>
         </el-form-item>
       </el-form>
-    </el-card>
-    <el-card class="list-body" shadow="hover">
+    </page-section>
+    <page-section class="list-body" title="Login events" :subtitle="`${listRes.total} records`">
       <el-table :data="listRes.list" v-loading="listRes.loading" border @selection-change="handleSelectionChange">
         <el-table-column type="selection" align="center" width="50"/>
         <el-table-column prop="id" label="ID" align="center" width="100"/>
@@ -45,8 +51,8 @@
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
-    <el-card class="list-page" shadow="hover">
+    </page-section>
+    <page-section class="list-page">
       <el-pagination background
                      layout="prev, pager, next, sizes, jumper"
                      :page-sizes="[10,20,50,100]"
@@ -54,7 +60,7 @@
                      v-model:current-page="listQuery.page"
                      :total="listRes.total">
       </el-pagination>
-    </el-card>
+    </page-section>
   </div>
 </template>
 
@@ -65,6 +71,8 @@
   import { T } from '@/utils/i18n'
   import { list } from '@/api/peer'
   import { downBlob, jsonToCsv } from '@/utils/file'
+  import PageHeader from '@/components/ui/PageHeader.vue'
+  import PageSection from '@/components/ui/PageSection.vue'
 
   const { allUsers, getAllUsers } = loadAllUsers()
   getAllUsers()

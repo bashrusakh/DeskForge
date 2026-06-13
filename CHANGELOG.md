@@ -15,7 +15,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - `admin-ui/src/components/ui/ConnectionPulse.vue` — продуктовый индикатор статуса
     для shell/dashboard/auth/OAuth экранов;
   - `admin-ui/src/components/ui/ThemeSwitch.vue` — общий переключатель темы;
-  - `admin-ui/src/components/ui/CopyableText.vue` — копируемый monospace ID/token text.
+  - `admin-ui/src/components/ui/CopyableText.vue` — копируемый monospace ID/token text;
+  - `admin-ui/src/components/ui/PageHeader.vue` и `PageSection.vue` — общая структура
+    заголовка и секций страниц.
 - **Shell/layout refresh**:
   - sidebar/header/menu/settings переведены с hardcoded `#2d3a4b` / `#3f454b` на tokens;
   - always-visible tags bar убран из основного layout;
@@ -27,6 +29,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Devices refresh** (`admin-ui/src/views/peer/index.vue`): добавлена постоянная колонка
   Status с `ConnectionPulse`, online/offline определяется по `last_online_time < 60s`, ID
   переведён на `CopyableText`, action column сжата до `Connect` + `More` dropdown.
+- **Monitoring visual pass**: login history, connection history, file transfers и shared
+  sessions получили общий `PageHeader`/`PageSection` layout без изменения API/composable логики.
 - **Auth/OAuth visual refresh**: login, register, OAuth approve и OAuth bind экраны
   переведены на token-based визуальный язык, поддерживают theme switch и Connection Pulse.
 - **Review/verification**:
@@ -40,7 +44,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Shared components: `PageHeader`, `DataTable`, `FilterBar`, `AppDialog`, `AppDrawer`,
   `FormSection`, `EmptyState`, `LoadingState`, `DangerZone`.
 - Таблицы, формы, dialogs/drawers и CRUD-экраны всё ещё требуют унификации.
-- Monitoring/Server danger-zone screens нужно проходить отдельными фазами.
+- Monitoring filters/toolbars и Server danger-zone screens нужно проходить отдельными фазами.
 
 ### 🟢 Done (§8.9 Custom Preset — фактически 3 бага склейки UI↔backend, 2026-06-13)
 Расширение модели не потребовалось: все поля уже в `custom_json` text-blob. При разборе

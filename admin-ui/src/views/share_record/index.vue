@@ -1,6 +1,12 @@
 <template>
-  <div>
-    <el-card class="list-query" shadow="hover">
+  <div class="monitoring-page">
+    <page-header
+        :title="T('SharedSessions')"
+        subtitle="Review shared web-client sessions, owners, peer IDs, creation time, and expiration state."
+        eyebrow="Monitoring"
+        pulse="warning"
+    />
+    <page-section class="list-query" title="Filters" subtitle="Filter shared sessions before cleanup.">
       <el-form inline label-width="80px">
         <el-form-item :label="T('User')">
           <el-select v-model="listQuery.user_id" clearable>
@@ -17,8 +23,8 @@
           <el-button type="danger" @click="toBatchDelete">{{ T('BatchDelete') }}</el-button>
         </el-form-item>
       </el-form>
-    </el-card>
-    <el-card class="list-body" shadow="hover">
+    </page-section>
+    <page-section class="list-body" :title="T('SharedSessions')" :subtitle="`${listRes.total} records`">
       <el-table :data="listRes.list" v-loading="listRes.loading" border @selection-change="handleSelectionChange">
         <el-table-column type="selection" align="center" width="50"/>
         <el-table-column prop="id" label="ID" align="center" width="100"/>
@@ -40,8 +46,8 @@
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
-    <el-card class="list-page" shadow="hover">
+    </page-section>
+    <page-section class="list-page">
       <el-pagination background
                      layout="prev, pager, next, sizes, jumper"
                      :page-sizes="[10,20,50,100]"
@@ -49,7 +55,7 @@
                      v-model:current-page="listQuery.page"
                      :total="listRes.total">
       </el-pagination>
-    </el-card>
+    </page-section>
   </div>
 </template>
 
@@ -60,6 +66,8 @@
   import { remove, list, batchDelete } from '@/api/share_record'
   import { ElMessage, ElMessageBox } from 'element-plus'
   import { useRepositories } from '@/views/share_record/index'
+  import PageHeader from '@/components/ui/PageHeader.vue'
+  import PageSection from '@/components/ui/PageSection.vue'
 
   const { allUsers, getAllUsers } = loadAllUsers()
   getAllUsers()
