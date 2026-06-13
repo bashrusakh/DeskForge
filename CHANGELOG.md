@@ -4,7 +4,39 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased] - 2026-06-13
+## [Unreleased] - 2026-06-14
+
+### Added (admin-ui UI rework foundation — PR #3, 2026-06-14)
+- **Design tokens + theme system** (`admin-ui/src/styles/style.scss`, `src/store/app.js`):
+  добавлены light/dark tokens для surface/text/border/status colors, radius, shadows,
+  typography; режим темы `auto` / `light` / `dark` хранится в `localStorage` как
+  `theme-mode` и применяется через `html[data-theme]` + `html.dark` для Element Plus.
+- **Новые UI primitives**:
+  - `admin-ui/src/components/ui/ConnectionPulse.vue` — продуктовый индикатор статуса
+    для shell/dashboard/auth/OAuth экранов;
+  - `admin-ui/src/components/ui/ThemeSwitch.vue` — общий переключатель темы.
+- **Shell/layout refresh**:
+  - sidebar/header/menu/settings переведены с hardcoded `#2d3a4b` / `#3f454b` на tokens;
+  - always-visible tags bar убран из основного layout;
+  - sidebar brand использует общий `--sidebar-brand-height`;
+  - mobile navigation теперь открывается через `el-drawer`, desktop toggle по-прежнему
+    сворачивает sidebar.
+- **Dashboard refresh** (`admin-ui/src/views/index/index.vue`): добавлен Quick Connect
+  panel с native `rustdesk://id`, web client `/webclient2/#/{id}` и переходом к devices.
+- **Auth/OAuth visual refresh**: login, register, OAuth approve и OAuth bind экраны
+  переведены на token-based визуальный язык, поддерживают theme switch и Connection Pulse.
+- **Review/verification**:
+  - `ocr review` по рабочей копии: high/medium findings нет; единственный low nit про
+    magic number исправлен через `--sidebar-brand-height`;
+  - `npm run build` проходит; остаются только существующие Vite/Rollup warnings про
+    крупные чанки и `@vueuse` pure annotations.
+
+### Known Follow-ups (admin-ui UI rework)
+- Полное i18n-покрытие нового dashboard/auth hero copy.
+- Shared components: `PageHeader`, `DataTable`, `FilterBar`, `AppDialog`, `AppDrawer`,
+  `FormSection`, `EmptyState`, `LoadingState`, `DangerZone`.
+- Таблицы, формы, dialogs/drawers и CRUD-экраны всё ещё требуют унификации.
+- Devices/Monitoring/Server danger-zone screens нужно проходить отдельными фазами.
 
 ### 🟢 Done (§8.9 Custom Preset — фактически 3 бага склейки UI↔backend, 2026-06-13)
 Расширение модели не потребовалось: все поля уже в `custom_json` text-blob. При разборе

@@ -477,6 +477,32 @@ prod-API (Linux) и win-build (Windows). Варианты: общий сетев
   | `api/` (lejianwen/rustdesk-api) | MIT |
   | `admin-ui/` (lejianwen/rustdesk-api-web) | MIT (база vue-manage-system MIT) |
   | `rdgen/` (bryangerlach/rdgen) | GPL-3.0 — но у нас не запущен как сервис, берём только воркфлоу-патчи |
+
+- [~] **8.13. admin-ui UI rework — FOUNDATION В PR #3.** Цель — превратить admin-ui из
+  типовой CRUD-админки в операционную консоль удалённого доступа (см. `ui-rework.md`).
+  ✅ Сделано в PR #3 / ветка `ui-refract`:
+  - design tokens для light/dark surface/text/border/status colors, radius, shadows,
+    typography (`admin-ui/src/styles/style.scss`);
+  - theme system `auto` / `light` / `dark` через `html[data-theme]`, `localStorage`
+    (`theme-mode`) и Element Plus dark class sync;
+  - `ConnectionPulse` и `ThemeSwitch` как первые shared UI primitives;
+  - shell refresh: sidebar/header/menu/settings на tokens, без всегда включённой tags bar;
+  - mobile navigation через `el-drawer`, desktop collapse сохранён;
+  - dashboard Quick Connect: `rustdesk://id`, web client `/webclient2/#/{id}`, переход к devices;
+  - login/register/OAuth approve/OAuth bind переведены на token-based auth layout;
+  - `ocr review`: high/medium findings нет; low nit исправлен;
+  - `npm run build` проходит.
+
+  Осталось следующими фазами:
+  - [ ] i18n для нового dashboard/auth hero copy;
+  - [ ] shared components: `PageHeader`, `DataTable`, `FilterBar`, `AppDialog`, `AppDrawer`,
+        `FormSection`, `EmptyState`, `LoadingState`, `DangerZone`;
+  - [ ] унификация таблиц, фильтров, пагинации, empty/loading states;
+  - [ ] Devices page: ConnectionPulse status, compact actions, copyable ID, web/native connect;
+  - [ ] Monitoring: общий filter model/date/user/peer/type/export/danger toolbar;
+  - [ ] Server commands: Simple/Advanced/Danger Zone + terminal output;
+  - [ ] Users/Security/Access CRUD screens перевести на новые компоненты;
+  - [ ] ручная проверка responsive UI в браузере, не только `npm run build`.
 - [x] **8.9. Custom Preset — ЗАКРЫТО.**
   Расширение модели НЕ потребовалось (все поля уже в `custom_json` text-blob). Фактически
   исправил 3 бага, которые ломали бы реальный билд через GUI-форму:
@@ -564,6 +590,9 @@ prod-API (Linux) и win-build (Windows). Варианты: общий сетев
 - admin-ui форкнут из `lejianwen/rustdesk-api-web`, англ. по умолчанию, навигация
   перестроена (Dashboard, Devices, Users, Groups, Address Book, Security, Monitoring,
   Custom Client, Server, My Profile). ✅
+- admin-ui UI rework foundation: design tokens, `auto/light/dark` theme mode,
+  `ConnectionPulse`, `ThemeSwitch`, refreshed shell/sidebar/header/menu/settings,
+  dashboard Quick Connect, token-based login/register/OAuth screens, mobile drawer nav. ✅ PR #3.
 - Dashboard API+UI, Server Config UI, `GET /api/admin/config/all`. ✅
 - Custom Client UI (форма + история), Presets CRUD, Logo/Icon upload. ✅
 - Go API: модели/сервисы/контроллеры CustomBuild + CustomPreset, AutoMigrate,
