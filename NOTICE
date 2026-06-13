@@ -1,0 +1,26 @@
+DeskForge
+Copyright (c) 2026 bashrusakh and contributors
+
+This product includes software developed by:
+
+* rustdesk-server (AGPL-3.0)
+  Copyright (c) 2020-2026 Purslane Ltd.
+  https://github.com/rustdesk/rustdesk-server
+
+* lejianwen/rustdesk-api (MIT)
+  Copyright (c) 2024-present Lejianwen and contributors
+  https://github.com/lejianwen/rustdesk-api
+
+* lejianwen/rustdesk-api-web (MIT)
+  Copyright (c) 2024-present Lejianwen and contributors
+  Base: vue-manage-system (MIT) © 2016-2021 vue-manage-system
+  https://github.com/lejianwen/rustdesk-api-web
+
+* bryangerlach/rdgen (GPL-3.0)
+  https://github.com/bryangerlach/rdgen
+  Used as reference: build workflow patches (not as a running service).
+
+The combined work is distributed under AGPL-3.0 (because server/ is AGPL-3.0).
+Per-component LICENSE files retained in their respective subdirectories.
+
+This is a modified version. Original RustDesk: https://github.com/rustdesk/rustdesk
