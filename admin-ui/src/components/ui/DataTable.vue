@@ -34,7 +34,7 @@
             :key="column.key || column.prop || column.label"
             v-bind="getColumnProps(column)"
         >
-          <template v-if="column.slot || $slots[column.slot]" #default="scope">
+          <template v-if="column.slot && $slots[column.slot]" #default="scope">
             <slot
                 :name="column.slot || 'cell'"
                 v-bind="{

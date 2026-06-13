@@ -48,7 +48,7 @@ $primaryColor: #2563eb;
 html[data-theme="dark"],
 html[data-theme="auto"].dark {
   --basicBlack: #ffffff;
-  --basicWhite: #ffffff;
+  --basicWhite: #000000;
   --primaryColor: #60a5fa;
   --color-bg: #0b1020;
   --color-surface: #111827;
@@ -163,7 +163,3 @@ body {
   }
 }
 
-html.dark {
-  --tag-bg-color: var(--color-surface-2);
-  --basicBlack: #ffffff;
-}

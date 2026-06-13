@@ -66,7 +66,7 @@ import { T } from '@/utils/i18n'
 import { ArrowDown } from '@element-plus/icons-vue'
 import PageSection from './PageSection.vue'
 
-defineProps({
+const props = defineProps({
   title: { type: String, default: 'Filters' },
   subtitle: { type: String, default: '' },
   fields: {
@@ -91,19 +91,19 @@ defineProps({
   },
 })
 
-defineEmits(['filter', 'update:collapsed'])
+const emit = defineEmits(['filter', 'update:collapsed'])
 
 const hasFilters = computed(() => {
-  return Object.values(filters).some(v => v !== null && v !== undefined && v !== '')
+  return Object.values(props.filters).some(v => v !== null && v !== undefined && v !== '')
 })
 
 const activeFilterCount = computed(() => {
-  return Object.values(filters).filter(v => v !== null && v !== undefined && v !== '').length
+  return Object.values(props.filters).filter(v => v !== null && v !== undefined && v !== '').length
 })
 
 const resetFilters = () => {
-  Object.keys(filters).forEach(key => {
-    filters[key] = null
+  Object.keys(props.filters).forEach(key => {
+    props.filters[key] = null
   })
   emit('filter')
 }
