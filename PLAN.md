@@ -339,11 +339,12 @@ prod-API (Linux) и win-build (Windows). Варианты: общий сетев
         encrypted_test_pass, что был зашифрован на хосте. **Формат openssl AES-256-CBC +
         PBKDF2 совместим с Go-реализацией** (PBKDF2 sha256, iter=10000, salt+IV выводится
         из 48-байтного derived buffer, `Salted__` prefix + 8-byte salt + ciphertext).
-    - [ ] (6) save_custom_client на сервер (требует доступности сервера снаружи).
+    - [x] (6) save_custom_client на сервер — ✅ РАБОТАЕТ. Артефакт передаётся через
+      GH token, после билда попадает в UI.
 
-  - [~] **8.8.5. Go API интеграция — СКАФФОЛД ГОТОВ, ОСТАЛАСЬ СКЛЕЙКА.**
-    Сделано (без проверки компиляции — нет go-toolchain на хосте, проверять при следующей
-    сборке/в OpenCode на Linux):
+  - [x] **8.8.5. Go API интеграция — ✅ ПОЛНОСТЬЮ РАБОТАЕТ.**
+    Go-компиляция проверена, билды прогонялись на GH. Вся цепочка admin-ui → Go API →
+    workflow_dispatch → build → артефакт → UI замкнута и работает. Детали реализации:
     - ✅ `api/model/github_build_config.go` — модель singleton (id=1) с `Repo`,
       `WorkflowFilename`, `Branch`, `Token`, `PayloadKey` + `Safe()` view без секретов.
     - ✅ `api/service/github_build_config.go` — `Get/Save`, `GeneratePayloadKey()`,
@@ -374,7 +375,7 @@ prod-API (Linux) и win-build (Windows). Варианты: общий сетев
       PUT `WORKFLOW_PAYLOAD_KEY`. Эндпоинт `/admin/github_build_config/sync_secret` + кнопка
       «Push to GitHub Secrets» на странице. PAT должен иметь scope `Secrets: read & write`
       на репо (для fine-grained PAT — раздел Repository secrets).
-    - [ ] **Компиляция Go** (на Linux в OpenCode или с установленным go-toolchain).
+    - [x] **Компиляция Go** — ✅ проверена, билды прогонялись на GitHub.
 
     - [x] **(4-polish) Переименование exe-файла — ЗАКРЫТ.** Первая попытка
       [27392847080](https://github.com/bashrusakh/rustdesk/actions/runs/27392847080) →
@@ -386,13 +387,14 @@ prod-API (Linux) и win-build (Windows). Варианты: общий сетев
       rustqs, custom_.txt рядом ✅.
     - [ ] (5) шифрование inputs (`fetch-encrypted-secrets.yml` + `ZIP_PASSWORD`);
     - [ ] (6) save_custom_client на сервер (требует доступности сервера снаружи).
-  - [ ] **8.8.4. Безопасность (ОБЯЗАТЕЛЬНО на публичном форке):** (а) бинарь → на свой
-    сервер, НЕ public release; (б) inputs (server/key/**пароль**) ШИФРОВАТЬ (rdgen
-    `fetch-encrypted-secrets`/`ZIP_PASSWORD`), расшифровка секретом из GitHub Secrets.
-    Иначе пароль quick-support утечёт в логи публичного рана.
-  - [ ] **8.8.5. Интеграция в Go API** — `service/custom_build.go`: для windows-job
-    вместо файла в очереди вызывать GitHub API `workflow_dispatch` + поллить статус рана
-    + принять бинарь на `/api/save_custom_client`. PAT-токен только через env/secret.
+  - [x] **8.8.4. Безопасность — ✅ ЗАКРЫТО.** Inputs шифруются (enc_payload, AES-256-CBC
+    PBKDF2), расшифровка секретом WORKFLOW_PAYLOAD_KEY из GitHub Secrets. Ресинк ключа
+    работает. Бинарь → на сервер по GH token, не public release.
+  - [x] **8.8.5 (дубль — см. выше). Интеграция в Go API — ✅ РАБОТАЕТ.** Цепочка замкнута.
+  - [ ] **8.8.6. Переход на prod workflow.** После завершения тестов — переключить с
+    `rustqs-windows-min-test.yml` (smoke-test) на полный `generator-windows.yml`
+    (msi, подпись, все артефакты). См. github-build/README.md — «слой 4».
+
 - [ ] **8.5. Рантайм-проверка бинарника.** Smoke-тест (запуск `--version` в
   контейнере), чтобы «успешная» сборка не оказалась нерабочей.
 - [~] **8.6. `.gitignore` + проверка секретов — ЧАСТИЧНО.**
