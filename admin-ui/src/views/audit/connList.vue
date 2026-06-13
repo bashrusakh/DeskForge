@@ -19,28 +19,33 @@
       </template>
     </filter-bar>
     <page-section class="list-body" :title="T('ConnectionHistory')" :subtitle="`${listRes.total} records`">
-      <el-table :data="listRes.list" v-loading="listRes.loading" border @selection-change="handleSelectionChange">
-        <el-table-column type="selection" align="center" width="50"/>
-        <el-table-column prop="id" label="ID" align="center" width="100"/>
-        <el-table-column :label="T('Peer')" prop="peer_id" align="center" width="120"/>
-        <el-table-column :label="T('FromPeer')" prop="from_peer" align="center" width="120"/>
-        <el-table-column :label="T('FromName')" prop="from_name" align="center" width="120"/>
-        <el-table-column :label="T('Ip')" prop="ip" align="center" width="120"/>
-        <el-table-column pop="type" :label="T('Type')" align="center" width="120">
-          <template #default="{row}">
-            <el-tag v-if="row.type === 1" type="warning">{{ T('File') }}</el-tag>
-            <el-tag v-else>{{ T('Common') }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="uuid" label="uuid" align="center" width="120" show-overflow-tooltip/>
-        <el-table-column prop="created_at" :label="T('CreatedAt')" align="center"/>
-        <el-table-column :label="T('CloseTime')" prop="close_time" align="center"/>
-        <el-table-column :label="T('Actions')" align="center" width="150">
-          <template #default="{row}">
-            <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <data-table
+          :data="listRes.list"
+          :loading="listRes.loading"
+          selectable
+          @selection-change="handleSelectionChange"
+          row-key="id"
+          :columns="[
+            { prop: 'id', label: 'ID', align: 'center', width: 100 },
+            { prop: 'peer_id', label: T('Peer'), align: 'center', width: 120 },
+            { prop: 'from_peer', label: T('FromPeer'), align: 'center', width: 120 },
+            { prop: 'from_name', label: T('FromName'), align: 'center', width: 120 },
+            { prop: 'ip', label: T('Ip'), align: 'center', width: 120 },
+            { label: T('Type'), align: 'center', width: 120, slot: 'type' },
+            { prop: 'uuid', label: 'uuid', align: 'center', width: 120, showOverflowTooltip: true },
+            { prop: 'created_at', label: T('CreatedAt'), align: 'center' },
+            { label: T('CloseTime'), prop: 'close_time', align: 'center' },
+            { label: T('Actions'), align: 'center', width: 150, slot: 'actions' }
+          ]"
+      >
+        <template #type="{ row }">
+          <el-tag v-if="row.type === 1" type="warning">{{ T('File') }}</el-tag>
+          <el-tag v-else>{{ T('Common') }}</el-tag>
+        </template>
+        <template #actions="{ row }">
+          <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
+        </template>
+      </data-table>
     </page-section>
     <page-section class="list-page">
       <el-pagination background
@@ -61,6 +66,7 @@ import { T } from '@/utils/i18n'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import PageSection from '@/components/ui/PageSection.vue'
 import FilterBar from '@/components/ui/FilterBar.vue'
+import DataTable from '@/components/ui/DataTable.vue'
 
 const {
   listRes,

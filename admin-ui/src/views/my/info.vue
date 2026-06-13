@@ -18,21 +18,24 @@
           <el-button type="danger" @click="showChangePwd">{{ T('ChangePassword') }}</el-button>
         </el-form-item>
         <el-form-item label="OIDC">
-          <el-table :data="oidcData" border fit>
-            <el-table-column :label="T('IdP')" prop="op" align="center"></el-table-column>
-            <el-table-column :label="T('Status')" prop="status" align="center">
-              <template #default="{ row }">
-                <el-tag v-if="row.status === 1" type="success">{{ T('HasBind') }}</el-tag>
-                <el-tag v-else type="danger">{{ T('NoBind') }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column :label="T('Actions')" align="center" width="200">
-              <template #default="{ row }">
-                <el-button v-if="row.status === 1" type="danger" size="small" @click="toUnBind(row)">{{ T('UnBind') }}</el-button>
-                <el-button v-else type="success" size="small" @click="toBind(row)">{{ T('ToBind') }}</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
+          <data-table
+              :data="oidcData"
+              row-key="op"
+              :columns="[
+                { prop: 'op', label: T('IdP'), align: 'center' },
+                { label: T('Status'), align: 'center', slot: 'status' },
+                { label: T('Actions'), align: 'center', width: 200, slot: 'actions' }
+              ]"
+          >
+            <template #status="{ row }">
+              <el-tag v-if="row.status === 1" type="success">{{ T('HasBind') }}</el-tag>
+              <el-tag v-else type="danger">{{ T('NoBind') }}</el-tag>
+            </template>
+            <template #actions="{ row }">
+              <el-button v-if="row.status === 1" type="danger" size="small" @click="toUnBind(row)">{{ T('UnBind') }}</el-button>
+              <el-button v-else type="success" size="small" @click="toBind(row)">{{ T('ToBind') }}</el-button>
+            </template>
+          </data-table>
         </el-form-item>
       </el-form>
     </page-section>
@@ -55,6 +58,7 @@
   import { marked } from 'marked'
   import PageHeader from '@/components/ui/PageHeader.vue'
   import PageSection from '@/components/ui/PageSection.vue'
+  import DataTable from '@/components/ui/DataTable.vue'
 
   const appStore = useAppStore()
   const userStore = useUserStore()

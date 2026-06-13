@@ -15,22 +15,27 @@
       </el-form>
     </page-section>
     <page-section class="list-body" title="My Shared Sessions" :subtitle="`${listRes.total} records`">
-      <el-table :data="listRes.list" v-loading="listRes.loading" border @selection-change="handleSelectionChange">
-        <el-table-column type="selection" align="center" width="50"/>
-        <el-table-column prop="id" label="ID" align="center" width="100"/>
-        <el-table-column prop="peer_id" :label="T('Peer')" align="center"/>
-        <el-table-column prop="created_at" :label="T('CreatedAt')" align="center"/>
-        <el-table-column :label="`${T('ExpireTime')} (${T('Second')})`" prop="expire" align="center">
-          <template #default="{row}">
-            <el-tag :type="expired(row)?'info':'success'">{{ row.expire ? row.expire : T('Forever') }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column :label="T('Actions')" align="center" width="180" fixed="right">
-          <template #default="{row}">
-            <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <data-table
+          :data="listRes.list"
+          :loading="listRes.loading"
+          selectable
+          @selection-change="handleSelectionChange"
+          row-key="id"
+          :columns="[
+            { prop: 'id', label: 'ID', align: 'center', width: 100 },
+            { prop: 'peer_id', label: T('Peer'), align: 'center' },
+            { prop: 'created_at', label: T('CreatedAt'), align: 'center' },
+            { label: T('ExpireTime') + ' (' + T('Second') + ')', align: 'center', slot: 'expire' },
+            { label: T('Actions'), align: 'center', width: 180, fixed: 'right', slot: 'actions' }
+          ]"
+      >
+        <template #expire="{ row }">
+          <el-tag :type="expired(row)?'info':'success'">{{ row.expire ? row.expire : T('Forever') }}</el-tag>
+        </template>
+        <template #actions="{ row }">
+          <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
+        </template>
+      </data-table>
     </page-section>
     <page-section class="list-page">
       <el-pagination background
@@ -50,6 +55,7 @@
   import { useRepositories } from '@/views/share_record'
   import PageHeader from '@/components/ui/PageHeader.vue'
   import PageSection from '@/components/ui/PageSection.vue'
+  import DataTable from '@/components/ui/DataTable.vue'
 
   const {
     listRes,
