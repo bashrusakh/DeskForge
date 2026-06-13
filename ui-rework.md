@@ -931,7 +931,7 @@ Before considering the rework complete:
 - [ ] Dashboard has Quick Connect.
 - [ ] Devices page shows clear online/offline status.
 - [ ] Monitoring pages share one filter model.
-- [ ] Server commands have danger confirmations.
+- [x] Server commands have danger confirmations.
 - [ ] Login/Register are redesigned.
 - [ ] Mobile layout works.
 - [ ] i18n still works.
@@ -940,7 +940,7 @@ Before considering the rework complete:
 
 ## 29. Current Implementation Status
 
-As of 2026-06-13 UI rework pass:
+As of 2026-06-14 UI rework pass:
 
 - Foundation pass started in `admin-ui/`.
 - Global design tokens were added in `src/styles/style.scss` for light/dark surfaces, text, borders, status colors, radius, shadows, and typography.
@@ -951,9 +951,12 @@ As of 2026-06-13 UI rework pass:
 - `src/components/ui/ThemeSwitch.vue` was added and used in the header and public auth screens.
 - `src/components/ui/CopyableText.vue` was added and used for device IDs.
 - `src/components/ui/PageHeader.vue` and `src/components/ui/PageSection.vue` were added and used on Monitoring pages.
+- `src/components/ui/DangerZone.vue` was added and used for advanced Server Commands.
 - The dashboard now has a Quick Connect panel for native `rustdesk://` launch, web client launch, and device-list navigation.
 - The admin Devices page now has a persistent Status column, ConnectionPulse online/offline state, copyable IDs, and compact Connect/More actions.
 - Monitoring pages now share a page header/section structure across login history, connection history, file transfers, and shared sessions.
+- Server Commands, Server Config, and GitHub Build settings now share the page header/section structure.
+- Advanced Server Commands are visually separated in a Danger Zone and require confirmation before sending custom commands.
 - Login, register, OAuth approval, and OAuth binding screens were moved to the token-based visual direction and support the theme switch.
 - Mobile navigation now uses an `el-drawer`; the header toggle opens the drawer on mobile and collapses the sidebar on desktop.
 - `npm run build` passes after installing `admin-ui` dependencies.
@@ -963,6 +966,7 @@ Still pending:
 - `DataTable`, `FilterBar`, `AppDialog`, and the rest of the shared design-system components.
 - Full table/form/dialog unification across CRUD views.
 - Full i18n coverage for new dashboard/auth hero copy.
+- Server command terminal output polishing.
 
 ## 30. Recommended First Implementation Step
 

@@ -1,12 +1,13 @@
 <template>
   <div class="app-container">
-    <el-card>
-      <template #header>
-        <div class="card-header">
-          <strong>GitHub Build Integration</strong>
-          <span class="hint">Settings for building Windows clients via GitHub Actions (rustqs)</span>
-        </div>
-      </template>
+    <page-header
+        title="GitHub Build Integration"
+        subtitle="Settings for building Windows clients via GitHub Actions and receiving rustqs artifacts back on this server."
+        eyebrow="Server"
+        pulse="warning"
+    />
+
+    <page-section title="Workflow settings" subtitle="Repository, workflow, branch, PAT, and encrypted payload key.">
 
       <el-form ref="formRef" :model="form" label-position="top" v-loading="loading">
         <el-form-item label="Repository (owner/name)">
@@ -91,7 +92,7 @@
           <div v-else>{{ dispatchResult.message || dispatchResult.error || 'Unknown error' }}</div>
         </el-alert>
       </el-form>
-    </el-card>
+    </page-section>
   </div>
 </template>
 
@@ -100,6 +101,8 @@ import { ref, onMounted, reactive } from 'vue'
 import axios from 'axios'
 import { Loading } from '@element-plus/icons-vue'
 import * as api from '@/api/github_build_config'
+import PageHeader from '@/components/ui/PageHeader.vue'
+import PageSection from '@/components/ui/PageSection.vue'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -227,10 +230,9 @@ onMounted(load)
 </script>
 
 <style scoped>
-.card-header { display: flex; align-items: baseline; gap: 12px; }
 .hint { color: var(--color-muted); font-size: 0.9em; }
 .hint-text { color: var(--color-muted); font-size: 0.85em; margin-top: 4px; }
-.generated-key { margin-top: 12px; padding: 8px; background: #f4f8fb; border-radius: 4px; }
-.warn { color: #c00; margin-top: 4px; font-size: 0.85em; }
-code { background: #eef; padding: 1px 4px; border-radius: 2px; }
+.generated-key { margin-top: 12px; padding: 12px; background: var(--color-code-bg); border-radius: 12px; }
+.warn { color: var(--color-danger); margin-top: 4px; font-size: 0.85em; }
+code { background: var(--color-code-bg); padding: 1px 4px; border-radius: 6px; }
 </style>

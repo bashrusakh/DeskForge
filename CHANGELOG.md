@@ -31,6 +31,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   переведён на `CopyableText`, action column сжата до `Connect` + `More` dropdown.
 - **Monitoring visual pass**: login history, connection history, file transfers и shared
   sessions получили общий `PageHeader`/`PageSection` layout без изменения API/composable логики.
+- **Server visual pass**: Server Commands, Server Config и GitHub Build settings получили
+  общий `PageHeader`/`PageSection` layout; advanced custom commands вынесены в `DangerZone`
+  и требуют confirm перед `sendCmd` без изменения API-контрактов.
 - **Auth/OAuth visual refresh**: login, register, OAuth approve и OAuth bind экраны
   переведены на token-based визуальный язык, поддерживают theme switch и Connection Pulse.
 - **Review/verification**:
@@ -42,9 +45,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Known Follow-ups (admin-ui UI rework)
 - Полное i18n-покрытие нового dashboard/auth hero copy.
 - Shared components: `PageHeader`, `DataTable`, `FilterBar`, `AppDialog`, `AppDrawer`,
-  `FormSection`, `EmptyState`, `LoadingState`, `DangerZone`.
+  `FormSection`, `EmptyState`, `LoadingState`.
 - Таблицы, формы, dialogs/drawers и CRUD-экраны всё ещё требуют унификации.
-- Monitoring filters/toolbars и Server danger-zone screens нужно проходить отдельными фазами.
+- Monitoring filters/toolbars и Server terminal output polishing нужно проходить отдельными фазами.
 
 ### 🟢 Done (§8.9 Custom Preset — фактически 3 бага склейки UI↔backend, 2026-06-13)
 Расширение модели не потребовалось: все поля уже в `custom_json` text-blob. При разборе

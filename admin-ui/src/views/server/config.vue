@@ -1,11 +1,14 @@
 <template>
   <div class="server-config">
+    <page-header
+        :title="T('ServerConfig')"
+        subtitle="Read-only server endpoints and feature flags used by the admin UI, API, and web client."
+        eyebrow="Server"
+        pulse="online"
+    />
     <el-row :gutter="20">
-      <el-col :span="12">
-        <el-card shadow="hover">
-          <template #header>
-            <span>{{ T('ServerConfig') }}</span>
-          </template>
+      <el-col :xs="24" :lg="12">
+        <page-section :title="T('ServerConfig')" subtitle="Connection endpoints and public key material.">
           <el-descriptions :column="1" border v-loading="loading">
             <el-descriptions-item :label="T('Host')">
               <code>{{ cfg.id_server || '-' }}</code>
@@ -23,13 +26,10 @@
               <code>{{ cfg.ws_host || '-' }}</code>
             </el-descriptions-item>
           </el-descriptions>
-        </el-card>
+        </page-section>
       </el-col>
-      <el-col :span="12">
-        <el-card shadow="hover">
-          <template #header>
-            <span>{{ T('System') }}</span>
-          </template>
+      <el-col :xs="24" :lg="12">
+        <page-section :title="T('System')" subtitle="Runtime features exposed by the server.">
           <el-descriptions :column="1" border v-loading="loading">
             <el-descriptions-item label="Web Client">
               <el-tag :type="cfg.web_client === 1 ? 'success' : 'info'" size="small">{{ cfg.web_client === 1 ? T('Available') : T('NotAvailable') }}</el-tag>
@@ -50,7 +50,7 @@
               <span>{{ cfg.token_expire || '-' }}</span>
             </el-descriptions-item>
           </el-descriptions>
-        </el-card>
+        </page-section>
       </el-col>
     </el-row>
   </div>
@@ -60,9 +60,12 @@
 import { defineComponent, ref, onMounted } from 'vue'
 import { all as fetchAllConfig } from '@/api/config'
 import { T } from '@/utils/i18n'
+import PageHeader from '@/components/ui/PageHeader.vue'
+import PageSection from '@/components/ui/PageSection.vue'
 
 export default defineComponent({
   name: 'ServerConfig',
+  components: { PageHeader, PageSection },
   setup () {
     const cfg = ref({})
     const loading = ref(true)
@@ -84,3 +87,16 @@ export default defineComponent({
   },
 })
 </script>
+
+<style scoped lang="scss">
+.server-config {
+  code {
+    padding: 3px 6px;
+    border-radius: 8px;
+    background: var(--color-code-bg);
+    color: var(--color-text);
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+}
+</style>

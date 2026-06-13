@@ -1,36 +1,48 @@
 <template>
-  <div>
-    <h4 v-html="T('ServerCmdTips', {wiki: '<a target=\'_blank\' href=\'https://github.com/rustdesk/rustdesk-api/wiki/Rustdesk-Command\'>WIKI</a>'})"></h4>
-    <h5>
-      <span>ID {{ T('Status') }}: </span>
-      <el-tag v-if="canSendIdServerCmd" type="success">{{ T('Available') }}</el-tag>
-      <el-tag v-else type="danger">{{ T('NotAvailable') }}</el-tag>
-      <el-button size="small" type="text" @click="refreshCanSendIdServerCmd">{{ T('Refresh') }}</el-button>
-    </h5>
-    <h5>
-      <span>RELAY {{ T('Status') }}: </span>
-      <el-tag v-if="canSendRelayServerCmd" type="success">{{ T('Available') }}</el-tag>
-      <el-tag v-else type="danger">{{ T('NotAvailable') }}</el-tag>
-      <el-button size="small" type="text" @click="refreshCanSendRelayServerCmd">{{ T('Refresh') }}</el-button>
-    </h5>
+  <div class="server-control-page">
+    <page-header
+        :title="T('ServerCommands')"
+        subtitle="Operate ID and relay server controls. Advanced commands can affect connected clients and should be used deliberately."
+        eyebrow="Server"
+        pulse="warning"
+    />
+    <page-section title="Server command availability" subtitle="Checks whether the admin API can send commands to each RustDesk server process.">
+      <div class="server-status-grid">
+        <div class="server-status-card" :class="{ 'is-available': canSendIdServerCmd }">
+          <span>ID {{ T('Status') }}</span>
+          <strong>{{ canSendIdServerCmd ? T('Available') : T('NotAvailable') }}</strong>
+          <el-button size="small" text @click="refreshCanSendIdServerCmd">{{ T('Refresh') }}</el-button>
+        </div>
+        <div class="server-status-card" :class="{ 'is-available': canSendRelayServerCmd }">
+          <span>RELAY {{ T('Status') }}</span>
+          <strong>{{ canSendRelayServerCmd ? T('Available') : T('NotAvailable') }}</strong>
+          <el-button size="small" text @click="refreshCanSendRelayServerCmd">{{ T('Refresh') }}</el-button>
+        </div>
+      </div>
+      <p class="server-command-tip" v-html="T('ServerCmdTips', {wiki: '<a target=\'_blank\' href=\'https://github.com/rustdesk/rustdesk-api/wiki/Rustdesk-Command\'>WIKI</a>'})"></p>
+    </page-section>
     <el-tabs
         v-model="activeName"
         type="card"
+        class="server-command-tabs"
     >
       <el-tab-pane :label="T('Simple')" name="Simple">
-        <el-space wrap>
-          <RelayServers ref="rs" :can-send="canSendIdServerCmd"/>
-          <alwaysUseRelay :can-send="canSendIdServerCmd" @success="handleAlwaysUseRelaySuccess"/>
-          <mustLogin :can-send="canControlMustLogin&&canSendIdServerCmd"/>
-          <usage :can-send="canSendRelayServerCmd"/>
-          <blocklist :can-send="canSendRelayServerCmd"/>
-          <blacklist :can-send="canSendRelayServerCmd"/>
-        </el-space>
+        <page-section title="Simple controls" subtitle="Common server controls are grouped here and remain guarded by per-card availability states.">
+          <el-space wrap>
+            <RelayServers ref="rs" :can-send="canSendIdServerCmd"/>
+            <alwaysUseRelay :can-send="canSendIdServerCmd" @success="handleAlwaysUseRelaySuccess"/>
+            <mustLogin :can-send="canControlMustLogin&&canSendIdServerCmd"/>
+            <usage :can-send="canSendRelayServerCmd"/>
+            <blocklist :can-send="canSendRelayServerCmd"/>
+            <blacklist :can-send="canSendRelayServerCmd"/>
+          </el-space>
+        </page-section>
 
 
       </el-tab-pane>
       <el-tab-pane :label="T('Advanced')" name="Advanced">
-        <el-card class="list-query" shadow="hover">
+        <danger-zone title="Advanced server commands" subtitle="Custom commands are sent directly to hbbs/hbbr. Confirm each send and keep destructive operations separate from normal controls.">
+        <page-section class="list-query" title="Command toolbar">
           <el-form inline label-width="80px">
             <el-form-item>
               <el-button type="primary" @click="handlerQuery">{{ T('Filter') }}</el-button>
@@ -39,8 +51,8 @@
               <el-button type="success" :disabled="!canSendRelayServerCmd" @click="showCmd({cmd:'',option:'',target:RELAY_TARGET})">{{ T('Send') }} To Relay</el-button>
             </el-form-item>
           </el-form>
-        </el-card>
-        <el-card class="list-body" shadow="hover">
+        </page-section>
+        <page-section class="list-body" title="Custom command list" :subtitle="`${listRes.total} commands`">
           <el-table :data="listRes.list" v-loading="listRes.loading" border>
             <el-table-column prop="cmd" label="cmd" align="center"></el-table-column>
             <el-table-column prop="alias" label="alias" align="center"></el-table-column>
@@ -103,11 +115,12 @@
                 <el-button type="primary" @click="submitCmd">{{ T('Send') }}</el-button>
               </el-form-item>
               <el-form-item :label="T('Result')">
-                <el-input type="textarea" readonly disabled v-model="customCmd.res" rows="15"></el-input>
+                <el-input class="command-result" type="textarea" readonly disabled v-model="customCmd.res" rows="15"></el-input>
               </el-form-item>
             </el-form>
           </el-dialog>
-        </el-card>
+        </page-section>
+        </danger-zone>
       </el-tab-pane>
     </el-tabs>
 
@@ -127,6 +140,9 @@
   import RelayServers from '@/views/rustdesk/relay_servers.vue'
   import mustLogin from '@/views/rustdesk/must_login.vue'
   import usage from '@/views/rustdesk/usage.vue'
+  import PageHeader from '@/components/ui/PageHeader.vue'
+  import PageSection from '@/components/ui/PageSection.vue'
+  import DangerZone from '@/components/ui/DangerZone.vue'
 
   const activeName = ref('Simple')
 
@@ -271,6 +287,14 @@
     customCmd.example = `${row.cmd} ${row.option}`
   }
   const submitCmd = async () => {
+    const cf = await ElMessageBox.confirm(T('Confirm?', { param: T('SendCmd') }), {
+      confirmButtonText: T('Confirm'),
+      cancelButtonText: T('Cancel'),
+      type: 'warning',
+    }).catch(_ => false)
+    if (!cf) {
+      return false
+    }
     sendCmd(customCmd).then(res => {
       console.log(res)
       customCmd.res = res.data
@@ -285,5 +309,62 @@
   min-width: 300px;
   margin: 10px;
   min-height: 300px;
+}
+
+.server-status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.server-status-card {
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-2);
+
+  span,
+  strong {
+    display: block;
+  }
+
+  span {
+    color: var(--color-muted);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  strong {
+    margin: 8px 0 10px;
+    color: var(--color-danger);
+    font-size: 20px;
+  }
+
+  &.is-available strong {
+    color: var(--color-success);
+  }
+}
+
+.server-command-tip {
+  margin: 14px 0 0;
+  color: var(--color-muted);
+  line-height: 1.6;
+}
+
+.server-command-tabs {
+  margin-top: 18px;
+}
+
+:deep(.command-result textarea) {
+  font-family: var(--font-mono);
+}
+
+@media (max-width: 720px) {
+  .server-status-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
