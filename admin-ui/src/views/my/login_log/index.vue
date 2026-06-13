@@ -15,25 +15,30 @@
       </el-form>
     </page-section>
     <page-section class="list-body" title="My Login History" :subtitle="`${listRes.total} records`">
-      <el-table :data="listRes.list" v-loading="listRes.loading" border @selection-change="handleSelectionChange">
-        <el-table-column type="selection" align="center" width="50"/>
-        <el-table-column prop="client" label="client" align="center" width="120"/>
-        <el-table-column prop="peer.id" :label="T('Peer')" align="center">
-          <template #default="{row}">
-            {{ row.device_id ? row.device_id : peer?.id }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="uuid" label="uuid" align="center"/>
-        <el-table-column prop="ip" label="ip" align="center" width="150"/>
-        <el-table-column prop="type" label="type" align="center" width="100"/>
-        <el-table-column prop="platform" label="Platform/UA" align="center" width="120" show-overflow-tooltip/>
-        <el-table-column prop="created_at" :label="T('CreatedAt')" align="center"/>
-        <el-table-column :label="T('Actions')" align="center" width="180" fixed="right">
-          <template #default="{row}">
-            <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <data-table
+          :data="listRes.list"
+          :loading="listRes.loading"
+          selectable
+          @selection-change="handleSelectionChange"
+          row-key="id"
+          :columns="[
+            { prop: 'client', label: 'client', align: 'center', width: 120 },
+            { label: T('Peer'), align: 'center', slot: 'peer' },
+            { prop: 'uuid', label: 'uuid', align: 'center' },
+            { prop: 'ip', label: 'ip', align: 'center', width: 150 },
+            { prop: 'type', label: 'type', align: 'center', width: 100 },
+            { prop: 'platform', label: 'Platform/UA', align: 'center', width: 120, showOverflowTooltip: true },
+            { prop: 'created_at', label: T('CreatedAt'), align: 'center' },
+            { label: T('Actions'), align: 'center', width: 180, fixed: 'right', slot: 'actions' }
+          ]"
+      >
+        <template #peer="{ row }">
+          {{ row.device_id ? row.device_id : peer?.id }}
+        </template>
+        <template #actions="{ row }">
+          <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
+        </template>
+      </data-table>
     </page-section>
     <page-section class="list-page">
       <el-pagination background
@@ -53,6 +58,7 @@
   import { T } from '@/utils/i18n'
   import PageHeader from '@/components/ui/PageHeader.vue'
   import PageSection from '@/components/ui/PageSection.vue'
+  import DataTable from '@/components/ui/DataTable.vue'
 
   const {
     listRes,
