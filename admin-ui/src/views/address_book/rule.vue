@@ -1,14 +1,14 @@
 <template>
-  <div>
-    <el-card class="list-query" shadow="hover">
+  <div class="share-rules-page">
+    <page-section class="list-query" :title="T('ShareRules')" :subtitle="props.collection.name || T('AddressBookName')">
       <el-form inline label-width="80px">
         <el-form-item>
           <el-button type="primary" @click="handlerQuery">{{ T('Filter') }}</el-button>
           <el-button type="danger" @click="toAdd">{{ T('Add') }}</el-button>
         </el-form-item>
       </el-form>
-    </el-card>
-    <el-card class="list-body" shadow="hover">
+    </page-section>
+    <page-section class="list-body" title="Rules" :subtitle="`${listRes.total} rules`">
       <el-table :data="listRes.list" v-loading="listRes.loading" border>
         <el-table-column prop="rule" :label="T('Rule')" align="center">
           <template #default="{row}">
@@ -43,8 +43,8 @@
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
-    <el-card class="list-page" shadow="hover">
+    </page-section>
+    <page-section class="list-page">
       <el-pagination background
                      layout="prev, pager, next, sizes, jumper"
                      :page-sizes="[10,20,50,100]"
@@ -52,7 +52,7 @@
                      v-model:current-page="listQuery.page"
                      :total="listRes.total">
       </el-pagination>
-    </el-card>
+    </page-section>
     <el-dialog v-model="formVisible" width="800" :title="!formData.id?T('Create') :T('Update') " :close-on-click-modal="false">
       <el-form class="dialog-form" ref="form" :model="formData" label-width="120px">
         <el-form-item :label="T('AddressBookName')">
@@ -109,6 +109,7 @@
   import { T } from '@/utils/i18n'
   import { useRepositories } from '@/views/address_book/rule'
   import { onActivated, onMounted, watch } from 'vue'
+  import PageSection from '@/components/ui/PageSection.vue'
 
   const props = defineProps({
     collection: {
@@ -156,5 +157,10 @@
 </script>
 
 <style scoped lang="scss">
-
+.share-rules-page {
+  :deep(.list-page .el-card__body) {
+    display: flex;
+    justify-content: flex-end;
+  }
+}
 </style>

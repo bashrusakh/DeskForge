@@ -34,6 +34,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Server visual pass**: Server Commands, Server Config и GitHub Build settings получили
   общий `PageHeader`/`PageSection` layout; advanced custom commands вынесены в `DangerZone`
   и требуют confirm перед `sendCmd` без изменения API-контрактов.
+- **Access visual pass**: Address Book entries, collections, share rules и tags переведены
+  на общий `PageHeader`/`PageSection` layout; address book IDs используют `CopyableText`,
+  а широкие action columns сжаты через `More` dropdown без изменения composables/API.
 - **Auth/OAuth visual refresh**: login, register, OAuth approve и OAuth bind экраны
   переведены на token-based визуальный язык, поддерживают theme switch и Connection Pulse.
 - **Review/verification**:

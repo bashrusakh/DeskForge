@@ -496,6 +496,9 @@ prod-API (Linux) и win-build (Windows). Варианты: общий сетев
   - Server visual pass: Server Commands, Server Config и GitHub Build settings используют
     общий page header/section layout; advanced custom commands отделены через `DangerZone`
     и требуют confirm перед `sendCmd`;
+  - Access visual pass: Address Book entries, collections, share rules и tags используют
+    общий page header/section layout; address book IDs переведены на `CopyableText`,
+    широкие actions сжаты через `More` dropdown;
   - login/register/OAuth approve/OAuth bind переведены на token-based auth layout;
   - `ocr review`: high/medium findings нет; low nit исправлен;
   - `npm run build` проходит.
@@ -508,7 +511,8 @@ prod-API (Linux) и win-build (Windows). Варианты: общий сетев
   - [x] Devices page: ConnectionPulse status, compact actions, copyable ID, web/native connect;
   - [~] Monitoring: общий page header/section готов; filter model/date/user/peer/type/export/danger toolbar ещё унифицировать;
   - [~] Server commands: Simple/Advanced/Danger Zone готов; terminal output polishing ещё сделать;
-  - [ ] Users/Security/Access CRUD screens перевести на новые компоненты;
+  - [~] Access CRUD screens: address books/collections/share rules/tags page primitives готовы;
+        users/security/device groups ещё перевести на новые компоненты;
   - [ ] ручная проверка responsive UI в браузере, не только `npm run build`.
 - [x] **8.9. Custom Preset — ЗАКРЫТО.**
   Расширение модели НЕ потребовалось (все поля уже в `custom_json` text-blob). Фактически
@@ -600,7 +604,7 @@ prod-API (Linux) и win-build (Windows). Варианты: общий сетев
 - admin-ui UI rework foundation: design tokens, `auto/light/dark` theme mode,
   `ConnectionPulse`, `ThemeSwitch`, refreshed shell/sidebar/header/menu/settings,
   dashboard Quick Connect, token-based login/register/OAuth screens, mobile drawer nav,
-  devices/monitoring/server visual passes with shared page primitives. ✅ PR #3.
+  devices/monitoring/server/access visual passes with shared page primitives. ✅ PR #3.
 - Dashboard API+UI, Server Config UI, `GET /api/admin/config/all`. ✅
 - Custom Client UI (форма + история), Presets CRUD, Logo/Icon upload. ✅
 - Go API: модели/сервисы/контроллеры CustomBuild + CustomPreset, AutoMigrate,

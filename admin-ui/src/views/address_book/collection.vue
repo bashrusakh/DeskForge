@@ -1,6 +1,12 @@
 <template>
-  <div>
-    <el-card class="list-query" shadow="hover">
+  <div class="access-page">
+    <page-header
+        :title="T('AddressBook')"
+        subtitle="Organize address book collections and review sharing rules from one place."
+        eyebrow="Access"
+        pulse="online"
+    />
+    <page-section class="list-query" title="Filters" subtitle="Filter collections by owner before opening share rules.">
       <el-form inline label-width="80px">
         <el-form-item :label="T('Owner')">
           <el-select v-model="listQuery.user_id" clearable>
@@ -17,8 +23,8 @@
           <el-button type="danger" @click="toAdd">{{ T('Add') }}</el-button>
         </el-form-item>
       </el-form>
-    </el-card>
-    <el-card class="list-body" shadow="hover">
+    </page-section>
+    <page-section class="list-body" :title="T('AddressBook')" :subtitle="`${listRes.total} collections`">
       <el-table :data="listRes.list" v-loading="listRes.loading" border>
         <el-table-column prop="id" label="ID" align="center"/>
         <el-table-column prop="user_id" :label="T('Owner')" align="center">
@@ -29,16 +35,27 @@
         <el-table-column prop="name" :label="T('AddressBook')" align="center"/>
         <el-table-column prop="created_at" :label="T('CreatedAt')" align="center"/>
 
-        <el-table-column :label="T('Actions')" align="center" class-name="table-actions" width="600" fixed="right">
+        <el-table-column :label="T('Actions')" align="center" class-name="table-actions" width="320" fixed="right">
           <template #default="{row}">
-            <el-button type="primary" @click="showRules(row)">{{ T('ShareRules') }}</el-button>
-            <el-button @click="toEdit(row)">{{ T('Edit') }}</el-button>
-            <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
+            <el-space wrap>
+              <el-button type="primary" @click="showRules(row)">{{ T('ShareRules') }}</el-button>
+              <el-dropdown trigger="click">
+                <el-button>
+                  {{ T('More') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item @click="toEdit(row)">{{ T('Edit') }}</el-dropdown-item>
+                    <el-dropdown-item divided @click="del(row)">{{ T('Delete') }}</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </el-space>
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
-    <el-card class="list-page" shadow="hover">
+    </page-section>
+    <page-section class="list-page">
       <el-pagination background
                      layout="prev, pager, next, sizes, jumper"
                      :page-sizes="[10,20,50,100]"
@@ -46,7 +63,7 @@
                      v-model:current-page="listQuery.page"
                      :total="listRes.total">
       </el-pagination>
-    </el-card>
+    </page-section>
     <el-dialog v-model="formVisible" width="800" :title="!formData.id?T('Create') :T('Update') ">
       <el-form class="dialog-form" ref="form" :model="formData" label-width="120px">
         <el-form-item :label="T('Owner')" prop="user_id" required>
@@ -82,6 +99,9 @@
   import { onActivated, onMounted, watch } from 'vue'
   import Rule from '@/views/address_book/rule.vue'
   import { loadAllUsers } from '@/global'
+  import { ArrowDown } from '@element-plus/icons-vue'
+  import PageHeader from '@/components/ui/PageHeader.vue'
+  import PageSection from '@/components/ui/PageSection.vue'
 
   const { allUsers, getAllUsers } = loadAllUsers()
   getAllUsers()
@@ -118,5 +138,10 @@
 </script>
 
 <style scoped lang="scss">
-
+.access-page {
+  :deep(.list-page .el-card__body) {
+    display: flex;
+    justify-content: flex-end;
+  }
+}
 </style>
