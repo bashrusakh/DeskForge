@@ -959,6 +959,8 @@ As of 2026-06-14 UI rework pass:
 - Advanced Server Commands are visually separated in a Danger Zone and require confirmation before sending custom commands.
 - Address Book entries, collections, share rules, and tags now share the page header/section structure.
 - Address Book device IDs use `CopyableText`; wide Access actions are reduced with `More` dropdowns where appropriate.
+- Users, API Tokens, OAuth providers, Groups, and Device Groups now share the page header/section structure.
+- Wide user actions are reduced with `More` dropdowns while keeping existing CRUD/composable behavior.
 - Login, register, OAuth approval, and OAuth binding screens were moved to the token-based visual direction and support the theme switch.
 - Mobile navigation now uses an `el-drawer`; the header toggle opens the drawer on mobile and collapses the sidebar on desktop.
 - `npm run build` passes after installing `admin-ui` dependencies.
@@ -969,7 +971,7 @@ Still pending:
 - Full table/form/dialog unification across CRUD views.
 - Full i18n coverage for new dashboard/auth hero copy.
 - Server command terminal output polishing.
-- Users, Security, device groups, and Custom Client screens still need shared page primitives.
+- Custom Client, My Profile, and remaining form/dialog standards still need shared page primitives.
 
 ## 30. Recommended First Implementation Step
 

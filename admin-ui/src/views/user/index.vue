@@ -1,6 +1,12 @@
 <template>
-  <div>
-    <el-card class="list-query" shadow="hover">
+  <div class="security-page">
+    <page-header
+        title="Users"
+        subtitle="Manage administrator accounts, group membership, status, and account recovery actions."
+        eyebrow="Security"
+        pulse="warning"
+    />
+    <page-section class="list-query" title="Filters" subtitle="Search users by username and export the current account inventory.">
       <el-form inline label-width="80px">
         <el-form-item :label="T('Username')">
           <el-input v-model="listQuery.username"></el-input>
@@ -11,8 +17,8 @@
           <el-button type="success" @click="toExport">{{ T('Export') }}</el-button>
         </el-form-item>
       </el-form>
-    </el-card>
-    <el-card class="list-body" shadow="hover">
+    </page-section>
+    <page-section class="list-body" title="Users" :subtitle="`${listRes.total} accounts`">
       <el-table :data="listRes.list" v-loading="listRes.loading" border>
         <el-table-column prop="id" label="ID" align="center"></el-table-column>
         <el-table-column prop="username" :label="T('Username')" align="center"/>
@@ -36,18 +42,29 @@
         <el-table-column prop="remark" :label="T('Remark')" align="center"/>
         <el-table-column prop="created_at" :label="T('CreatedAt')" align="center"/>
         <el-table-column prop="updated_at" :label="T('UpdatedAt')" align="center"/>
-        <el-table-column :label="T('Actions')" align="center" width="650">
+        <el-table-column :label="T('Actions')" align="center" width="360" fixed="right">
           <template #default="{row}">
-            <el-button @click="toTag(row)">{{ T('UserTags') }}</el-button>
-            <el-button @click="toAddressBook(row)">{{ T('UserAddressBook') }}</el-button>
-            <el-button @click="toEdit(row)">{{ T('Edit') }}</el-button>
-            <el-button type="warning" @click="changePass(row)">{{ T('ResetPassword') }}</el-button>
-            <el-button type="danger" @click="remove(row)">{{ T('Delete') }}</el-button>
+            <el-space wrap>
+              <el-button @click="toTag(row)">{{ T('UserTags') }}</el-button>
+              <el-button @click="toAddressBook(row)">{{ T('UserAddressBook') }}</el-button>
+              <el-dropdown trigger="click">
+                <el-button>
+                  {{ T('More') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item @click="toEdit(row)">{{ T('Edit') }}</el-dropdown-item>
+                    <el-dropdown-item @click="changePass(row)">{{ T('ResetPassword') }}</el-dropdown-item>
+                    <el-dropdown-item divided @click="remove(row)">{{ T('Delete') }}</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </el-space>
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
-    <el-card class="list-page" shadow="hover">
+    </page-section>
+    <page-section class="list-page">
       <el-pagination background
                      layout="prev, pager, next, sizes, jumper"
                      :page-sizes="[10,20,50,100]"
@@ -55,7 +72,7 @@
                      v-model:current-page="listQuery.page"
                      :total="listRes.total">
       </el-pagination>
-    </el-card>
+    </page-section>
   </div>
 </template>
 
@@ -66,6 +83,9 @@
   import { update } from '@/api/user'
   import { ElMessageBox, ElMessage } from 'element-plus'
   import { onMounted, watch } from 'vue'
+  import { ArrowDown } from '@element-plus/icons-vue'
+  import PageHeader from '@/components/ui/PageHeader.vue'
+  import PageSection from '@/components/ui/PageSection.vue'
   //列表
   const {
     listRes,
@@ -113,5 +133,11 @@
 
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+.security-page {
+  :deep(.list-page .el-card__body) {
+    display: flex;
+    justify-content: flex-end;
+  }
+}
 </style>

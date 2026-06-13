@@ -37,6 +37,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Access visual pass**: Address Book entries, collections, share rules и tags переведены
   на общий `PageHeader`/`PageSection` layout; address book IDs используют `CopyableText`,
   а широкие action columns сжаты через `More` dropdown без изменения composables/API.
+- **Users/Security visual pass**: Users, API Tokens, OAuth providers, Groups и Device Groups
+  получили общий `PageHeader`/`PageSection` layout; широкие user actions сжаты через
+  `More` dropdown без изменения CRUD/API поведения.
 - **Auth/OAuth visual refresh**: login, register, OAuth approve и OAuth bind экраны
   переведены на token-based визуальный язык, поддерживают theme switch и Connection Pulse.
 - **Review/verification**:

@@ -1,14 +1,20 @@
 <template>
-  <div>
-    <el-card class="list-query" shadow="hover">
+  <div class="security-page">
+    <page-header
+        title="OAuth Providers"
+        subtitle="Configure GitHub, Google, LinuxDo, and OIDC providers for federated login."
+        eyebrow="Security"
+        pulse="warning"
+    />
+    <page-section class="list-query" title="Provider controls" subtitle="Refresh the provider list or add a new identity provider.">
       <el-form inline label-width="80px">
         <el-form-item>
           <el-button type="primary" @click="handlerQuery">{{ T('Filter') }}</el-button>
           <el-button type="danger" @click="toAdd">{{ T('Add') }}</el-button>
         </el-form-item>
       </el-form>
-    </el-card>
-    <el-card class="list-body" shadow="hover">
+    </page-section>
+    <page-section class="list-body" title="OAuth Providers" :subtitle="`${listRes.total} providers`">
       <el-table :data="listRes.list" v-loading="listRes.loading" border>
         <el-table-column prop="id" label="ID" align="center"/>
         <el-table-column prop="op" :label="T('IdP')" align="center"/>
@@ -18,15 +24,15 @@
         <el-table-column prop="pkce_method" :label="T('PkceMethod')" align="center"/>
         <el-table-column prop="created_at" :label="T('CreatedAt')" align="center"/>
         <el-table-column prop="updated_at" :label="T('UpdatedAt')" align="center"/>
-        <el-table-column :label="T('Actions')" align="center">
+        <el-table-column :label="T('Actions')" align="center" width="200" fixed="right">
           <template #default="{row}">
             <el-button @click="toEdit(row)">{{ T('Edit') }}</el-button>
             <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
-    <el-card class="list-page" shadow="hover">
+    </page-section>
+    <page-section class="list-page">
       <el-pagination background
                      layout="prev, pager, next, sizes, jumper"
                      :page-sizes="[10,20,50,100]"
@@ -34,7 +40,7 @@
                      v-model:current-page="listQuery.page"
                      :total="listRes.total">
       </el-pagination>
-    </el-card>
+    </page-section>
     <el-dialog v-model="formVisible" :title="!formData.id?T('Create') :T('Update')" width="800">
       <el-form class="dialog-form" ref="form" :model="formData" :rules="rules" label-width="120px">
         <el-form-item label="Type" prop="oauth_type">
@@ -108,6 +114,8 @@
   import { handleClipboard } from '@/utils/clipboard'
   import { useAppStore } from '@/store/app'
   import { CopyDocument } from '@element-plus/icons'
+  import PageHeader from '@/components/ui/PageHeader.vue'
+  import PageSection from '@/components/ui/PageSection.vue'
 
   const app = useAppStore()
 
@@ -254,5 +262,10 @@
 </script>
 
 <style scoped lang="scss">
-
+.security-page {
+  :deep(.list-page .el-card__body) {
+    display: flex;
+    justify-content: flex-end;
+  }
+}
 </style>
