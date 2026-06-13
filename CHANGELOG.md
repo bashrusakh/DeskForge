@@ -59,6 +59,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Monitoring filter pass**: Login History, Connection History, File Transfer History и Shared Sessions получили `FilterBar` primitive с collapsible panel, reset/clear, active filter count и integrated action buttons.
 - **DataTable pass**: `DataTable` wrapper applied to Users and Address Book pages with slot-based custom cells, loading state, empty state, and horizontal scroll.
 - **AppDialog/AppDrawer/FormSection pass**: Added `admin-ui/src/components/ui/AppDialog.vue`, `AppDrawer.vue`, and `FormSection.vue` shared primitives for unified dialog/drawer/form patterns.
+- **CRUD dialog unification pass**: Device Groups, Groups, Tags, and Address Book Collections migrated to `DataTable` + `AppDialog` with standardized footer actions and no inline cancel/submit buttons.
 - **Review/verification**:
   - `ocr review` по рабочей копии: high/medium findings нет; единственный low nit про
     magic number исправлен через `--sidebar-brand-height`;

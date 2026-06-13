@@ -18,24 +18,28 @@
       </el-form>
     </page-section>
     <page-section class="list-body" :title="T('Group')" :subtitle="`${listRes.total} groups`">
-      <el-table :data="listRes.list" v-loading="listRes.loading" border>
-        <el-table-column prop="id" label="ID" align="center"></el-table-column>
-        <el-table-column prop="name" :label="T('Name')" align="center"/>
-        <el-table-column prop="type" :label="T('Type')" align="center">
-          <template #default="{row}">
-            <span v-if="row.type === 1">{{ T('CommonGroup') }}</span>
-            <span v-else>{{ T('SharedGroup') }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="created_at" :label="T('CreatedAt')" align="center"/>
-        <el-table-column prop="updated_at" :label="T('UpdatedAt')" align="center"/>
-        <el-table-column :label="T('Actions')" align="center" width="200" fixed="right">
-          <template #default="{row}">
-            <el-button @click="toEdit(row)">{{ T('Edit') }}</el-button>
-            <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <data-table
+          :data="listRes.list"
+          :loading="listRes.loading"
+          row-key="id"
+          :columns="[
+            { prop: 'id', label: 'ID', align: 'center', width: 100 },
+            { prop: 'name', label: T('Name'), align: 'center' },
+            { label: T('Type'), align: 'center', slot: 'type' },
+            { prop: 'created_at', label: T('CreatedAt'), align: 'center' },
+            { prop: 'updated_at', label: T('UpdatedAt'), align: 'center' },
+            { label: T('Actions'), align: 'center', width: 200, fixed: 'right', slot: 'actions' }
+          ]"
+      >
+        <template #type="{ row }">
+          <span v-if="row.type === 1">{{ T('CommonGroup') }}</span>
+          <span v-else>{{ T('SharedGroup') }}</span>
+        </template>
+        <template #actions="{ row }">
+          <el-button @click="toEdit(row)">{{ T('Edit') }}</el-button>
+          <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
+        </template>
+      </data-table>
     </page-section>
     <page-section class="list-page">
       <el-pagination background
@@ -46,7 +50,12 @@
                      :total="listRes.total">
       </el-pagination>
     </page-section>
-    <el-dialog v-model="formVisible" :title="!formData.id?T('Create'):T('Update')" width="800">
+    <app-dialog
+        v-model="formVisible"
+        :title="!formData.id ? T('Create') : T('Update')"
+        width="800"
+        @confirm="submit"
+    >
       <el-form class="dialog-form" ref="form" :model="formData" label-width="120px">
         <el-form-item :label="T('Name')" prop="name" required>
           <el-input v-model="formData.name"></el-input>
@@ -59,12 +68,8 @@
             </el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item>
-          <el-button @click="formVisible = false">{{ T('Cancel') }}</el-button>
-          <el-button @click="submit" type="primary">{{ T('Submit') }}</el-button>
-        </el-form-item>
       </el-form>
-    </el-dialog>
+    </app-dialog>
   </div>
 </template>
 
@@ -75,6 +80,8 @@
   import { T } from '@/utils/i18n'
   import PageHeader from '@/components/ui/PageHeader.vue'
   import PageSection from '@/components/ui/PageSection.vue'
+  import DataTable from '@/components/ui/DataTable.vue'
+  import AppDialog from '@/components/ui/AppDialog.vue'
 
   const listRes = reactive({
     list: [], total: 0, loading: false,
