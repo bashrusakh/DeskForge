@@ -6,25 +6,18 @@
         eyebrow="Monitoring"
         pulse="warning"
     />
-    <page-section class="list-query" title="Filters" subtitle="Narrow login events before exporting or deleting records.">
-      <el-form inline label-width="80px">
-        <el-form-item :label="T('User')">
-          <el-select v-model="listQuery.user_id" clearable>
-            <el-option
-                v-for="item in allUsers"
-                :key="item.id"
-                :label="item.username"
-                :value="item.id"
-            ></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handlerQuery">{{ T('Filter') }}</el-button>
-          <el-button type="danger" @click="toBatchDelete">{{ T('BatchDelete') }}</el-button>
-          <el-button type="success" @click="toExport">{{ T('Export') }}</el-button>
-        </el-form-item>
-      </el-form>
-    </page-section>
+    <filter-bar
+        :title="T('Filters')"
+        :subtitle="T('Narrow login events before exporting or deleting records.')"
+        :fields="filterFields"
+        :filters="listQuery"
+        @filter="handlerQuery"
+    >
+      <template #actions>
+        <el-button type="danger" @click="toBatchDelete">{{ T('BatchDelete') }}</el-button>
+        <el-button type="success" @click="toExport">{{ T('Export') }}</el-button>
+      </template>
+    </filter-bar>
     <page-section class="list-body" title="Login events" :subtitle="`${listRes.total} records`">
       <el-table :data="listRes.list" v-loading="listRes.loading" border @selection-change="handleSelectionChange">
         <el-table-column type="selection" align="center" width="50"/>
@@ -65,7 +58,7 @@
 </template>
 
 <script setup>
-  import { onActivated, onMounted, ref, watch } from 'vue'
+  import { onActivated, onMounted, ref, watch, reactive, computed } from 'vue'
   import { loadAllUsers } from '@/global'
   import { useRepositories } from '@/views/login/log.js'
   import { T } from '@/utils/i18n'
@@ -73,6 +66,7 @@
   import { downBlob, jsonToCsv } from '@/utils/file'
   import PageHeader from '@/components/ui/PageHeader.vue'
   import PageSection from '@/components/ui/PageSection.vue'
+  import FilterBar from '@/components/ui/FilterBar.vue'
 
   const { allUsers, getAllUsers } = loadAllUsers()
   getAllUsers()
@@ -103,6 +97,21 @@
     }
     batchdel(multipleSelection.value)
   }
+
+  const filterFields = [
+    {
+      key: 'user_id',
+      label: 'User',
+      component: 'el-select',
+      clearable: true,
+      get options() {
+        return allUsers.value.map(u => ({
+          label: u.username,
+          value: u.id
+        }))
+      }
+    },
+  ]
 
 </script>
 

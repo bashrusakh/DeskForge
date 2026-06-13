@@ -55,6 +55,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   переведены на token-based визуальный язык, поддерживают theme switch и Connection Pulse.
 - **Custom Client runtime fix**: preset/upload handlers теперь возвращаются из `setup()` и
   доступны template-кнопкам без изменения backend/API контрактов.
+- **Monitoring filter pass**: Login History получил `FilterBar` primitive; остальные monitoring
+  страницы (Connection, File Transfer, Shared Sessions) следуют в следующей фазе.
 - **Review/verification**:
   - `ocr review` по рабочей копии: high/medium findings нет; единственный low nit про
     magic number исправлен через `--sidebar-brand-height`;
@@ -63,9 +65,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Known Follow-ups (admin-ui UI rework)
 - Полное i18n-покрытие нового dashboard/auth hero copy.
-- Shared components: `DataTable`, `FilterBar`, `AppDialog`, `AppDrawer`, `FormSection`.
+- Shared components: `DataTable`, `AppDialog`, `AppDrawer`, `FormSection`.
 - Таблицы, формы, dialogs/drawers и CRUD-экраны всё ещё требуют унификации.
-- Monitoring filters/toolbars нужно проходить отдельной фазой.
+- Monitoring filters/toolbars: Connection, File Transfer, Shared Sessions остаются унифицировать через FilterBar.
 
 ### 🟢 Done (§8.9 Custom Preset — фактически 3 бага склейки UI↔backend, 2026-06-13)
 Расширение модели не потребовалось: все поля уже в `custom_json` text-blob. При разборе
