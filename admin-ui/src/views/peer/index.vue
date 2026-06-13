@@ -1,6 +1,6 @@
 <template>
-  <div>
-    <el-card class="list-query" shadow="hover">
+  <div class="devices-page">
+    <el-card class="list-query device-filter-card" shadow="hover">
       <el-form inline label-width="60px">
         <el-form-item label="ID">
           <el-input v-model="listQuery.id" clearable/>
@@ -61,17 +61,29 @@
         </el-form-item>
       </el-form>
     </el-card>
-    <el-card class="list-body" shadow="hover">
-      <div style="text-align: right; margin-bottom: 10px">
-        <el-button :icon="Setting" @click="showColumnSetting"></el-button>
+    <el-card class="list-body device-table-card" shadow="hover">
+      <div class="device-table-toolbar">
+        <div>
+          <div class="device-table-title">{{ T('AllDevices') }}</div>
+          <div class="device-table-subtitle">Device status, identity, ownership, and remote access actions.</div>
+        </div>
+        <el-button :icon="Setting" @click="showColumnSetting">Columns</el-button>
       </div>
 
       <el-table :data="listRes.list" v-loading="listRes.loading" border size="small" @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" align="center"/>
+        <el-table-column :label="T('Status')" align="left" width="120">
+          <template #default="{row}">
+            <div class="device-status" :class="{ 'is-online': isOnline(row), 'is-offline': !isOnline(row) }">
+              <connection-pulse :status="isOnline(row) ? 'online' : 'offline'" :animated="isOnline(row)" />
+              <span>{{ isOnline(row) ? 'Online' : 'Offline' }}</span>
+            </div>
+          </template>
+        </el-table-column>
         <template v-for="c in visibleColumns.filter(cc => cc.visible)" :key="c">
-          <el-table-column v-if="c.name==='id'" prop="id" label="ID" align="center" width="150">
+          <el-table-column v-if="c.name==='id'" prop="id" label="ID" align="left" width="160">
             <template #default="{row}">
-              <span>{{ row.id }} <el-icon @click="handleClipboard(row.id, $event)"><CopyDocument/></el-icon></span>
+              <copyable-text :text="row.id" />
             </template>
           </el-table-column>
           <el-table-column v-if="c.name==='cpu'" prop="cpu" label="CPU" align="center" width="100" show-overflow-tooltip/>
@@ -81,7 +93,7 @@
           <el-table-column v-if="c.name==='last_online_time'" prop="last_online_time" :label="T('LastOnlineTime')" align="center" min-width="120">
             <template #default="{row}">
               <div class="last_oline_time">
-                <span> {{ row.last_online_time ? timeAgo(row.last_online_time * 1000) : '-' }}</span> <span class="dot" :class="{red: timeDis(row.last_online_time) >= 60, green: timeDis(row.last_online_time)< 60}"></span>
+                <span> {{ row.last_online_time ? timeAgo(row.last_online_time * 1000) : '-' }}</span>
               </div>
             </template>
           </el-table-column>
@@ -100,13 +112,22 @@
           <el-table-column v-if="c.name==='updated_at'" prop="updated_at" :label="T('UpdatedAt')" align="center" width="150"/>
         </template>
 
-        <el-table-column :label="T('Actions')" align="center" width="500" class-name="table-actions" fixed="right">
+        <el-table-column :label="T('Actions')" align="right" min-width="250" class-name="table-actions" fixed="right">
           <template #default="{row}">
-            <el-button type="success" @click="connectByClient(row.id)">{{ T('Link') }}</el-button>
-            <el-button v-if="appStore.setting.appConfig.web_client" type="success" @click="toWebClientLink(row)">Web Client</el-button>
-            <el-button type="primary" @click="toAddressBook(row)">{{ T('AddToAddressBook') }}</el-button>
-            <el-button @click="toEdit(row)">{{ T('Edit') }}</el-button>
-            <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
+            <div class="device-actions">
+              <el-button type="primary" @click="connectByClient(row.id)">Connect</el-button>
+              <el-dropdown trigger="click">
+                <el-button>More <el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item v-if="appStore.setting.appConfig.web_client" @click="toWebClientLink(row)">Web Client</el-dropdown-item>
+                    <el-dropdown-item @click="toAddressBook(row)">{{ T('AddToAddressBook') }}</el-dropdown-item>
+                    <el-dropdown-item @click="toEdit(row)">{{ T('Edit') }}</el-dropdown-item>
+                    <el-dropdown-item divided @click="del(row)">{{ T('Delete') }}</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -241,12 +262,13 @@
   import { loadAllUsers } from '@/global'
   import { useAppStore } from '@/store/app'
   import { connectByClient } from '@/utils/peer'
-  import { ArrowDown, ArrowUp, CopyDocument, Setting } from '@element-plus/icons'
-  import { handleClipboard } from '@/utils/clipboard'
+  import { ArrowDown, ArrowUp, Setting } from '@element-plus/icons'
   import { batchCreateFromPeers } from '@/api/address_book'
   import { useRepositories as useCollectionRepositories } from '@/views/address_book/collection'
   import createABForm from '@/views/peer/createABForm.vue'
   import { UploadFilled } from '@element-plus/icons-vue'
+  import ConnectionPulse from '@/components/ui/ConnectionPulse.vue'
+  import CopyableText from '@/components/ui/CopyableText.vue'
 
   const appStore = useAppStore()
 
@@ -368,10 +390,12 @@
   }
 
   const timeDis = (time) => {
+    if (!time) return Number.POSITIVE_INFINITY
     let now = new Date().getTime()
     let after = new Date(time * 1000).getTime()
     return (now - after) / 1000
   }
+  const isOnline = (row) => timeDis(row.last_online_time) < 60
 
   const timeFilters = computed(() => [
     { text: T('MinutesLess', { param: 1 }, 1), value: -60 },
@@ -573,25 +597,66 @@
   --el-select-width: 180px;
 }
 
+.devices-page {
+  .device-filter-card,
+  .device-table-card {
+    border-radius: var(--radius-lg);
+  }
+}
+
+.device-table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.device-table-title {
+  color: var(--color-text);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.device-table-subtitle {
+  margin-top: 4px;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
 .last_oline_time {
   display: flex;
   justify-content: center;
   align-items: center;
 }
 
-.dot {
-  width: 6px;
-  height: 6px;
-  display: block;
-  border-radius: 50%;
-  margin-left: 10px;
+.device-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--color-surface-2);
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 700;
 
-  &.red {
-    background-color: red;
+  &.is-online {
+    background: var(--color-success-soft);
+    color: var(--color-success);
   }
+}
 
-  &.green {
-    background-color: green;
+.device-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 720px) {
+  .device-table-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 </style>

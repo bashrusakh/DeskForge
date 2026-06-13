@@ -14,7 +14,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Новые UI primitives**:
   - `admin-ui/src/components/ui/ConnectionPulse.vue` — продуктовый индикатор статуса
     для shell/dashboard/auth/OAuth экранов;
-  - `admin-ui/src/components/ui/ThemeSwitch.vue` — общий переключатель темы.
+  - `admin-ui/src/components/ui/ThemeSwitch.vue` — общий переключатель темы;
+  - `admin-ui/src/components/ui/CopyableText.vue` — копируемый monospace ID/token text.
 - **Shell/layout refresh**:
   - sidebar/header/menu/settings переведены с hardcoded `#2d3a4b` / `#3f454b` на tokens;
   - always-visible tags bar убран из основного layout;
@@ -23,6 +24,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
     сворачивает sidebar.
 - **Dashboard refresh** (`admin-ui/src/views/index/index.vue`): добавлен Quick Connect
   panel с native `rustdesk://id`, web client `/webclient2/#/{id}` и переходом к devices.
+- **Devices refresh** (`admin-ui/src/views/peer/index.vue`): добавлена постоянная колонка
+  Status с `ConnectionPulse`, online/offline определяется по `last_online_time < 60s`, ID
+  переведён на `CopyableText`, action column сжата до `Connect` + `More` dropdown.
 - **Auth/OAuth visual refresh**: login, register, OAuth approve и OAuth bind экраны
   переведены на token-based визуальный язык, поддерживают theme switch и Connection Pulse.
 - **Review/verification**:
@@ -36,7 +40,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Shared components: `PageHeader`, `DataTable`, `FilterBar`, `AppDialog`, `AppDrawer`,
   `FormSection`, `EmptyState`, `LoadingState`, `DangerZone`.
 - Таблицы, формы, dialogs/drawers и CRUD-экраны всё ещё требуют унификации.
-- Devices/Monitoring/Server danger-zone screens нужно проходить отдельными фазами.
+- Monitoring/Server danger-zone screens нужно проходить отдельными фазами.
 
 ### 🟢 Done (§8.9 Custom Preset — фактически 3 бага склейки UI↔backend, 2026-06-13)
 Расширение модели не потребовалось: все поля уже в `custom_json` text-blob. При разборе

@@ -947,9 +947,11 @@ As of 2026-06-13 UI rework pass:
 - Theme mode now supports `auto`, `light`, and `dark` through `html[data-theme]`, stored in `localStorage` as `theme-mode`.
 - Header/sidebar layout colors were moved off the old hardcoded `#2d3a4b` / `#3f454b` shell palette.
 - The always-visible tags bar was removed from the main shell.
-- `src/components/ui/ConnectionPulse.vue` was added and used in the shell/dashboard.
+- `src/components/ui/ConnectionPulse.vue` was added and used in the shell/dashboard/devices.
 - `src/components/ui/ThemeSwitch.vue` was added and used in the header and public auth screens.
+- `src/components/ui/CopyableText.vue` was added and used for device IDs.
 - The dashboard now has a Quick Connect panel for native `rustdesk://` launch, web client launch, and device-list navigation.
+- The admin Devices page now has a persistent Status column, ConnectionPulse online/offline state, copyable IDs, and compact Connect/More actions.
 - Login, register, OAuth approval, and OAuth binding screens were moved to the token-based visual direction and support the theme switch.
 - Mobile navigation now uses an `el-drawer`; the header toggle opens the drawer on mobile and collapses the sidebar on desktop.
 - `npm run build` passes after installing `admin-ui` dependencies.
