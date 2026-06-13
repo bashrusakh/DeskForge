@@ -513,10 +513,11 @@ prod-API (Linux) и win-build (Windows). Варианты: общий сетев
   - `ocr review`: high/medium findings нет; low nit исправлен;
   - `npm run build` проходит.
   - Monitoring filter pass: Login History, Connection History, File Transfer History и Shared Sessions получили `FilterBar` primitive.
+  - DataTable pass: `admin-ui/src/components/ui/DataTable.vue` added; Users page migrated to DataTable with slot-based custom cells.
 
   Осталось следующими фазами:
   - [ ] i18n для нового dashboard/auth hero copy;
-  - [ ] shared components: `DataTable`, `AppDialog`, `AppDrawer`, `FormSection`;
+  - [ ] shared components: `AppDialog`, `AppDrawer`, `FormSection`;
   - [ ] унификация таблиц, фильтров, пагинации, empty/loading states;
   - [x] Devices page: ConnectionPulse status, compact actions, copyable ID, web/native connect, pagination aligned via PageSection;
   - [x] Monitoring: общий page header/section готов; Login History, Connection History, File Transfer History, Shared Sessions получили FilterBar;

@@ -19,50 +19,53 @@
       </el-form>
     </page-section>
     <page-section class="list-body" title="Users" :subtitle="`${listRes.total} accounts`">
-      <el-table :data="listRes.list" v-loading="listRes.loading" border>
-        <el-table-column prop="id" label="ID" align="center"></el-table-column>
-        <el-table-column prop="username" :label="T('Username')" align="center"/>
-        <el-table-column prop="email" :label="T('Email')" align="center"/>
-        <el-table-column prop="nickname" :label="T('Nickname')" align="center"/>
-        <el-table-column :label="T('Group')" align="center">
-          <template #default="{row}">
-            <span v-if="row.group_id"> <el-tag>{{ listRes.groups?.find(g => g.id === row.group_id)?.name }} </el-tag> </span>
-            <span v-else> - </span>
-          </template>
-        </el-table-column>
-        <el-table-column :label="T('Status')" align="center">
-          <template #default="{row}">
-            <el-switch v-model="row.status"
-                       :active-value="ENABLE_STATUS"
-                       :inactive-value="DISABLE_STATUS"
-                       @change="changeStatus(row)"
-            ></el-switch>
-          </template>
-        </el-table-column>
-        <el-table-column prop="remark" :label="T('Remark')" align="center"/>
-        <el-table-column prop="created_at" :label="T('CreatedAt')" align="center"/>
-        <el-table-column prop="updated_at" :label="T('UpdatedAt')" align="center"/>
-        <el-table-column :label="T('Actions')" align="center" width="360" fixed="right">
-          <template #default="{row}">
-            <el-space wrap>
-              <el-button @click="toTag(row)">{{ T('UserTags') }}</el-button>
-              <el-button @click="toAddressBook(row)">{{ T('UserAddressBook') }}</el-button>
-              <el-dropdown trigger="click">
-                <el-button>
-                  {{ T('More') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
-                </el-button>
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item @click="toEdit(row)">{{ T('Edit') }}</el-dropdown-item>
-                    <el-dropdown-item @click="changePass(row)">{{ T('ResetPassword') }}</el-dropdown-item>
-                    <el-dropdown-item divided @click="remove(row)">{{ T('Delete') }}</el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
-            </el-space>
-          </template>
-        </el-table-column>
-      </el-table>
+      <data-table
+          :data="listRes.list"
+          :loading="listRes.loading"
+          row-key="id"
+          :columns="[
+            { prop: 'id', label: 'ID', align: 'center', width: 100 },
+            { prop: 'username', label: T('Username'), align: 'center' },
+            { prop: 'email', label: T('Email'), align: 'center' },
+            { prop: 'nickname', label: T('Nickname'), align: 'center' },
+            { label: T('Group'), align: 'center', slot: 'group' },
+            { label: T('Status'), align: 'center', slot: 'status' },
+            { prop: 'remark', label: T('Remark'), align: 'center' },
+            { prop: 'created_at', label: T('CreatedAt'), align: 'center' },
+            { prop: 'updated_at', label: T('UpdatedAt'), align: 'center' },
+            { label: T('Actions'), align: 'center', width: 360, fixed: 'right', slot: 'actions' }
+          ]"
+      >
+        <template #group="{ row }">
+          <span v-if="row.group_id"> <el-tag>{{ listRes.groups?.find(g => g.id === row.group_id)?.name }} </el-tag> </span>
+          <span v-else> - </span>
+        </template>
+        <template #status="{ row }">
+          <el-switch v-model="row.status"
+                     :active-value="ENABLE_STATUS"
+                     :inactive-value="DISABLE_STATUS"
+                     @change="changeStatus(row)"
+          ></el-switch>
+        </template>
+        <template #actions="{ row }">
+          <el-space wrap>
+            <el-button @click="toTag(row)">{{ T('UserTags') }}</el-button>
+            <el-button @click="toAddressBook(row)">{{ T('UserAddressBook') }}</el-button>
+            <el-dropdown trigger="click">
+              <el-button>
+                {{ T('More') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item @click="toEdit(row)">{{ T('Edit') }}</el-dropdown-item>
+                  <el-dropdown-item @click="changePass(row)">{{ T('ResetPassword') }}</el-dropdown-item>
+                  <el-dropdown-item divided @click="remove(row)">{{ T('Delete') }}</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </el-space>
+        </template>
+      </data-table>
     </page-section>
     <page-section class="list-page">
       <el-pagination background
@@ -86,6 +89,7 @@
   import { ArrowDown } from '@element-plus/icons-vue'
   import PageHeader from '@/components/ui/PageHeader.vue'
   import PageSection from '@/components/ui/PageSection.vue'
+  import DataTable from '@/components/ui/DataTable.vue'
   //列表
   const {
     listRes,

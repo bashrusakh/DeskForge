@@ -954,6 +954,8 @@ As of 2026-06-14 UI rework pass:
 - `src/components/ui/DangerZone.vue` was added and used for advanced Server Commands.
 - `src/components/ui/EmptyState.vue` and `src/components/ui/LoadingState.vue` were added for upcoming table/form standardization.
 - `src/components/ui/FilterBar.vue` was added as the first table filter primitive.
+- `src/components/ui/DataTable.vue` was added as the shared table wrapper.
+- Users page now uses `DataTable` with slot-based custom cells for Group, Status, and Actions.
 - The dashboard now has a Quick Connect panel for native `rustdesk://` launch, web client launch, and device-list navigation.
 - The admin Devices page now has a persistent Status column, ConnectionPulse online/offline state, copyable IDs, and compact Connect/More actions.
 - Monitoring pages now share a page header/section structure across login history, connection history, file transfers, and shared sessions.
@@ -976,7 +978,7 @@ As of 2026-06-14 UI rework pass:
 
 Still pending:
 
-- `DataTable`, `AppDialog`, and the rest of the shared design-system components.
+- `AppDialog`, `AppDrawer`, and `FormSection` shared design-system components.
 - Full table/form/dialog unification across CRUD views.
 - Full i18n coverage for new dashboard/auth hero copy.
 - Remaining form/dialog standards still need shared primitives and validation/loading unification.

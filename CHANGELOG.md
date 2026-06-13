@@ -18,8 +18,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - `admin-ui/src/components/ui/CopyableText.vue` — копируемый monospace ID/token text;
   - `admin-ui/src/components/ui/PageHeader.vue` и `PageSection.vue` — общая структура
     заголовка и секций страниц;
-  - `admin-ui/src/components/ui/EmptyState.vue` и `LoadingState.vue` — базовые empty/loading
-    states для следующих DataTable/Form phases.
+  - `admin-ui/src/components/ui/EmptyState.vue` и `LoadingState.vue` — базовые empty/loading states;
+  - `admin-ui/src/components/ui/DataTable.vue` — shared `el-table` wrapper with loading, empty state,
+    selection/index hooks, sort/row events, compact density, nested props, and horizontal scroll.
 - **Shell/layout refresh**:
   - sidebar/header/menu/settings переведены с hardcoded `#2d3a4b` / `#3f454b` на tokens;
   - always-visible tags bar убран из основного layout;
@@ -56,6 +57,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Custom Client runtime fix**: preset/upload handlers теперь возвращаются из `setup()` и
   доступны template-кнопкам без изменения backend/API контрактов.
 - **Monitoring filter pass**: Login History, Connection History, File Transfer History и Shared Sessions получили `FilterBar` primitive с collapsible panel, reset/clear, active filter count и integrated action buttons.
+- **DataTable pass**: `DataTable` wrapper applied to Users page with slot-based custom cells (Group tag, Status switch, Actions dropdown), loading state, empty state, and horizontal scroll.
 - **Review/verification**:
   - `ocr review` по рабочей копии: high/medium findings нет; единственный low nit про
     magic number исправлен через `--sidebar-brand-height`;
@@ -64,7 +66,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Known Follow-ups (admin-ui UI rework)
 - Полное i18n-покрытие нового dashboard/auth hero copy.
-- Shared components: `DataTable`, `AppDialog`, `AppDrawer`, `FormSection`.
+- Shared components: `AppDialog`, `AppDrawer`, `FormSection`.
 - Таблицы, формы, dialogs/drawers и CRUD-экраны всё ещё требуют унификации.
 - Monitoring filters/toolbars: Connection, File Transfer, Shared Sessions остаются унифицировать через FilterBar.
 
