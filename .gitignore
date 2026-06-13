@@ -1,0 +1,55 @@
+# ============================================================================
+# .gitignore — ОБЯЗАТЕЛЕН до первого публичного push (PLAN.md §8.6).
+# Репозиторий публичный → ничего секретного/тяжёлого в историю.
+# ============================================================================
+
+# --- СЕКРЕТЫ И ДАННЫЕ (НИКОГДА не коммитить) ---
+.env
+**/.env
+!.env.example
+# приватные ключи сервера (data/server/id_ed25519 — ed25519 private key!)
+data/
+id_ed25519
+id_ed25519.pub
+*.pem
+*.key
+*.p12
+*.pfx
+# базы данных (пользовательские данные)
+*.sqlite3
+*.sqlite
+*.db
+
+# --- BUILD-ВЫВОД И JOB-ДАННЫЕ (тяжёлое, генерируемое) ---
+rdgen-data/
+rustdesk-cache/
+offline-kit/artifacts/
+**/target/
+*.exe
+*.msi
+*.apk
+*.rpm
+*.dll
+*.so
+*.dylib
+
+# --- ЗАВИСИМОСТИ ---
+node_modules/
+**/__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# --- IDE / OS / ТУЛИНГ ---
+.claude/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+
+# --- ЗАМЕТКИ ---
+# vendor/ (cargo) НЕ игнорируется здесь — он живёт в форке rustdesk, не в этом репо.
+# offline-kit/versions.env, freeze.sh, README.md — КОММИТЯТСЯ (не секреты).

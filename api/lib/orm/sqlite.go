@@ -1,0 +1,44 @@
+package orm
+
+import (
+	"fmt"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+	"time"
+)
+
+type SqliteConfig struct {
+	MaxIdleConns int
+	MaxOpenConns int
+}
+
+func NewSqlite(sqliteConf *SqliteConfig, logwriter logger.Writer) *gorm.DB {
+	db, err := gorm.Open(sqlite.Open("./data/rustdeskapi.db"), &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+		Logger: logger.New(
+			logwriter, // io writer
+			logger.Config{
+				SlowThreshold:             time.Second, // Slow SQL threshold
+				LogLevel:                  logger.Warn, // Log level
+				IgnoreRecordNotFoundError: true,        // Ignore ErrRecordNotFound error for logger
+				ParameterizedQueries:      true,        // Don't include params in the SQL log
+				Colorful:                  true,
+			},
+		),
+	})
+	if err != nil {
+		fmt.Println(err)
+	}
+	sqlDB, err2 := db.DB()
+	if err2 != nil {
+		fmt.Println(err2)
+	}
+	// SetMaxIdleConns 
+	sqlDB.SetMaxIdleConns(sqliteConf.MaxIdleConns)
+
+	// SetMaxOpenConns 。
+	sqlDB.SetMaxOpenConns(sqliteConf.MaxOpenConns)
+
+	return db
+}

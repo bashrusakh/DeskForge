@@ -1,0 +1,74 @@
+# Build Agent: Windows (.exe + .msi)
+# Cross-compiles from Linux using MinGW + NSIS
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# MinGW cross-compiler + NSIS + tools
+# - libssl-dev: openssl headers (needed by openssl-sys build script for cross-compile)
+# - libclang-dev: needed by bindgen (kcp-sys, etc.) to parse C headers
+RUN apt-get update && apt-get install -y \
+    gcc g++ gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 \
+    pkg-config libssl-dev libclang-dev clang cmake nasm ninja-build \
+    nsis imagemagick wget curl unzip zip p7zip-full git jq \
+    && rm -rf /var/lib/apt/lists/* \
+    # bindgen needs libclang.so (no version suffix) for runtime discovery
+    && ln -sf /usr/lib/x86_64-linux-gnu/libclang-14.so /usr/lib/x86_64-linux-gnu/libclang.so
+
+# Install vcpkg and prebuilt x64-mingw-static libs (libvpx, libyuv, opus, aom)
+# needed by scrap/magnum-opus. Without these, scrap's build.rs panics with
+# "Couldn't find VCPKG_ROOT" during cross-compile.
+# x64-mingw-static triplet matches our mingw-w64 cross-compile toolchain
+# (x64-windows-static requires MSVC which we don't have on Linux).
+RUN git clone --branch 2023.04.15 --depth=1 https://github.com/microsoft/vcpkg /opt/vcpkg \
+    && /opt/vcpkg/bootstrap-vcpkg.sh -disableMetrics \
+    && /opt/vcpkg/vcpkg --disable-metrics install --triplet=x64-mingw-static libvpx libyuv opus aom \
+    # scrap's build.rs hardcodes 'x64-windows-static' as the triplet name; create
+    # a symlink so it can find the libs under the mingw triplet we actually use
+    && ln -s x64-mingw-static /opt/vcpkg/installed/x64-windows-static
+ENV VCPKG_ROOT=/opt/vcpkg
+ENV VCPKG_INSTALLED_ROOT=/opt/vcpkg/installed
+
+# Rust with Windows target
+RUN curl -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+RUN rustup default stable \
+    && rustup target add x86_64-pc-windows-gnu x86_64-pc-windows-msvc
+
+# Pre-bake rustdesk source (no external clones at runtime)
+RUN git clone --depth 1 --branch master --recurse-submodules https://github.com/rustdesk/rustdesk.git /opt/rustdesk-src
+# Patch rustdesk source for Windows cross-compile.
+# We use a separate script file because complex sed patterns in Dockerfile RUN
+# suffer from bash escape issues (nested single quotes).
+COPY patch-rustdesk-for-win.sh /tmp/patch.sh
+RUN bash /tmp/patch.sh && rm /tmp/patch.sh
+
+# Vendor all crate dependencies (fully offline builds, immune to upstream disappearing)
+# cargo vendor writes the [source.crates-io] redirect + all git source mappings to stdout
+# The mingw cross-linker config is appended for the Windows build target
+# SODIUM_LIB_DIR is exported so libsodium-sys 0.2.7 uses its prebuilt mingw/win64/libsodium.a
+# (avoiding the broken cross-compile path that tries to run ./configure on a Windows target)
+RUN cd /opt/rustdesk-src && \
+    cargo vendor vendor > .cargo/config.toml 2>/dev/null && \
+    printf '\n[target.x86_64-pc-windows-gnu]\nlinker = "x86_64-w64-mingw32-gcc"\n' >> .cargo/config.toml
+ENV SODIUM_LIB_DIR=/opt/rustdesk-src/vendor/libsodium-sys/mingw/win64
+
+# Fix missing/wrong-case MinGW import libraries.
+# The `windows` crate (v0.61) generates #[link] attributes from Windows API metadata;
+# some import libraries either don't exist or have wrong case for Linux cross-linker.
+RUN cd /usr/x86_64-w64-mingw32/lib && \
+    # libNewdev.a → libnewdev.a (case mismatch on Linux)
+    ln -sf libnewdev.a libNewdev.a && \
+    # libsas.a: proper import library for sas.dll (SendSAS function).
+    # An empty stub won't work — linker needs the SendSAS symbol resolved.
+    echo "EXPORTS" > /tmp/sas.def && echo "SendSAS" >> /tmp/sas.def && \
+    x86_64-w64-mingw32-dlltool --def /tmp/sas.def --output-lib libsas.a
+
+WORKDIR /build
+COPY entrypoint-win.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+VOLUME /rdgen-data
+VOLUME /rustdesk-cache
+
+ENTRYPOINT ["/entrypoint.sh"]

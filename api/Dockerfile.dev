@@ -1,0 +1,94 @@
+# Use build arguments for Go version and architecture
+ARG GO_VERSION=1.22
+ARG BUILDARCH=amd64
+
+# Stage 1: Builder Stage
+# FROM golang:${GO_VERSION}-alpine AS builder
+FROM crazymax/xgo:${GO_VERSION} AS builder-backend
+
+# Set up working directory
+WORKDIR /app
+
+# Step 1: Copy the source code
+COPY . .
+
+# use --mount=type=cache,target=/go/pkg/mod to cache the go mod
+# Step 2: Download dependencies
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod tidy && go mod download && go install github.com/swaggo/swag/cmd/swag@latest
+
+# Step 3: Run swag build script
+RUN --mount=type=cache,target=/go/pkg/mod \
+    swag init -g cmd/apimain.go --output docs/api --instanceName api --exclude http/controller/admin && \
+    swag init -g cmd/apimain.go --output docs/admin --instanceName admin --exclude http/controller/api 
+
+# Step 4: Build the Go application with CGO enabled and specified ldflags
+RUN --mount=type=cache,target=/go/pkg/mod \
+    CGO_ENABLED=1 GOOS=linux go build -a \
+    -ldflags "-s -w --extldflags '-static -fpic'" \
+    -installsuffix cgo -o release/apimain cmd/apimain.go
+
+# Stage 2: Frontend Build Stage (builder2)
+FROM node:18-alpine AS builder-admin-frontend
+
+# Set working directory
+WORKDIR /frontend
+
+ARG COUNTRY
+# Install required tools without caching index to minimize image size
+RUN if [ "$COUNTRY" = "CN" ] ; then \
+        echo "It is in China, updating the repositories"; \
+        sed -i 's#https\?://dl-cdn.alpinelinux.org/alpine#https://mirrors.tuna.tsinghua.edu.cn/alpine#g' /etc/apk/repositories; \
+    fi && \
+    apk update && apk add --no-cache git
+
+ARG FRONTEND_GIT_REPO=https://github.com/rustdesk/rustdesk-api-web.git
+ARG FRONTEND_GIT_BRANCH=master
+# Clone the frontend repository
+
+RUN git clone -b $FRONTEND_GIT_BRANCH $FRONTEND_GIT_REPO .
+
+# Install required tools without caching index to minimize image size
+RUN if [ "$COUNTRY" = "CN" ] ; then \
+        echo "It is in China, updating NPM_CONFIG_REGISTRY"; \
+        export NPM_CONFIG_REGISTRY="https://mirrors.huaweicloud.com/repository/npm/"; \
+    fi && \
+    npm install && npm run build
+
+
+# Stage 2: Final Image
+FROM alpine:latest
+
+# Set up working directory
+WORKDIR /app
+
+# Install necessary runtime dependencies
+# Install required tools without caching index to minimize image size
+ARG COUNTRY
+RUN if [ "$COUNTRY" = "CN" ] ; then \
+        echo "It is in China, updating the repositories"; \
+        sed -i 's#https\?://dl-cdn.alpinelinux.org/alpine#https://mirrors.tuna.tsinghua.edu.cn/alpine#g' /etc/apk/repositories; \
+    fi && \
+    apk update && apk add --no-cache tzdata file
+
+# Copy the built application and resources from the builder stage
+COPY --from=builder-backend /app/release /app/
+COPY --from=builder-backend /app/conf /app/conf/
+COPY --from=builder-backend /app/resources /app/resources/
+COPY --from=builder-backend /app/docs /app/docs/
+# Copy frontend build from builder2 stage
+COPY --from=builder-admin-frontend /frontend/dist/ /app/resources/admin/
+
+# Ensure the binary is correctly built and linked
+RUN file /app/apimain && \
+    mkdir -p /app/data && \
+    mkdir -p /app/runtime
+
+# Set up a volume for persistent data
+VOLUME /app/data
+
+# Expose the necessary port
+EXPOSE 21114
+
+# Define the command to run the application
+CMD ["./apimain"]

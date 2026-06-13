@@ -1,0 +1,60 @@
+networks:
+  rustdesk-net:
+    external: false
+
+volumes:
+  rdgen-data:
+  rustdesk-cache:
+
+services:
+  rustdesk:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - 21114:21114
+      - 21115:21115
+      - 21116:21116
+      - 21116:21116/udp
+      - 21117:21117
+      - 21118:21118
+    environment:
+      - RELAY=localhost:21117
+      - ENCRYPTED_ONLY=N
+      - MUST_LOGIN=N
+      - TZ=UTC
+      - RUSTDESK_API_RUSTDESK_ID_SERVER=localhost:21116
+      - RUSTDESK_API_RUSTDESK_RELAY_SERVER=localhost:21117
+      - RUSTDESK_API_RUSTDESK_API_SERVER=http://localhost:21114
+      - RUSTDESK_API_RUSTDESK_WS_HOST=ws://localhost:21118
+      - RUSTDESK_API_KEY_FILE=/data/id_ed25519.pub
+      - RUSTDESK_API_JWT_KEY=your-secret-jwt-key-change-this
+    volumes:
+      - ../data/server:/data
+      - ../data/api:/app/data
+      - rdgen-data:/rdgen-data
+    networks:
+      - rustdesk-net
+    restart: unless-stopped
+
+  build-linux:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.build-linux
+    volumes:
+      - rdgen-data:/rdgen-data
+      - rustdesk-cache:/rustdesk-cache
+    networks:
+      - rustdesk-net
+    restart: unless-stopped
+
+  build-win:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.build-win
+    volumes:
+      - rdgen-data:/rdgen-data
+      - rustdesk-cache:/rustdesk-cache
+    networks:
+      - rustdesk-net
+    restart: unless-stopped

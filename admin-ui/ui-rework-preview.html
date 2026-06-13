@@ -1,0 +1,651 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UI Rework Preview</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --font-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --bg: #f5f7fb;
+      --surface: #ffffff;
+      --surface-2: #eef3f8;
+      --surface-3: #f8fafc;
+      --text: #111827;
+      --muted: #64748b;
+      --border: #d9e2ec;
+      --primary: #2563eb;
+      --primary-soft: #dbeafe;
+      --success: #16a34a;
+      --success-soft: #dcfce7;
+      --warning: #f59e0b;
+      --warning-soft: #fef3c7;
+      --danger: #dc2626;
+      --danger-soft: #fee2e2;
+      --shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+      --sidebar: 260px;
+      --radius: 18px;
+    }
+
+    [data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #0b1020;
+      --surface: #111827;
+      --surface-2: #182235;
+      --surface-3: #1f2937;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --border: #263244;
+      --primary: #60a5fa;
+      --primary-soft: rgba(96, 165, 250, 0.16);
+      --success: #22c55e;
+      --success-soft: rgba(34, 197, 94, 0.16);
+      --warning: #fbbf24;
+      --warning-soft: rgba(251, 191, 36, 0.16);
+      --danger: #f87171;
+      --danger-soft: rgba(248, 113, 113, 0.16);
+      --shadow: 0 22px 48px rgba(0, 0, 0, 0.28);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top left, rgba(37, 99, 235, 0.14), transparent 34rem), var(--bg);
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: 14px;
+    }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+
+    .app {
+      display: grid;
+      grid-template-columns: var(--sidebar) 1fr;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 20px 14px;
+      border-right: 1px solid var(--border);
+      background: color-mix(in srgb, var(--surface) 94%, transparent);
+      backdrop-filter: blur(18px);
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 8px 8px;
+    }
+
+    .brand img {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      padding: 6px;
+      background: var(--surface-2);
+    }
+
+    .brand strong { display: block; font-size: 15px; line-height: 1.1; }
+    .brand span { color: var(--muted); font-size: 12px; }
+
+    .nav-title {
+      margin: 12px 12px 4px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .nav {
+      display: grid;
+      gap: 5px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .nav button {
+      width: 100%;
+      border: 0;
+      border-radius: 12px;
+      background: transparent;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      text-align: left;
+      transition: 150ms ease;
+    }
+
+    .nav button::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: currentColor;
+      opacity: 0.75;
+    }
+
+    .nav button:hover { background: var(--surface-2); color: var(--text); }
+    .nav button.active { background: var(--primary-soft); color: var(--primary); font-weight: 700; }
+
+    .sidebar-card {
+      margin-top: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      background: linear-gradient(145deg, var(--primary-soft), var(--surface));
+    }
+
+    .sidebar-card strong { display: block; margin-bottom: 6px; }
+    .sidebar-card p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+
+    .main { min-width: 0; }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      height: 68px;
+      padding: 0 28px;
+      border-bottom: 1px solid var(--border);
+      background: color-mix(in srgb, var(--bg) 86%, transparent);
+      backdrop-filter: blur(18px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    .search {
+      width: min(440px, 42vw);
+      height: 42px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--text);
+      outline: none;
+      padding: 0 16px;
+    }
+
+    .search:focus { border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-soft); }
+
+    .top-actions { display: flex; align-items: center; gap: 10px; }
+
+    .theme-switch {
+      display: inline-flex;
+      gap: 4px;
+      padding: 4px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface);
+    }
+
+    .theme-switch button {
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      padding: 7px 10px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .theme-switch button.active { background: var(--primary); color: #fff; }
+
+    .user-pill {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-height: 40px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface);
+      padding: 0 12px;
+    }
+
+    .avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, var(--primary), #7c3aed);
+      color: #fff;
+      font-weight: 800;
+      font-size: 12px;
+    }
+
+    .content {
+      width: min(1440px, 100%);
+      margin: 0 auto;
+      padding: 28px;
+    }
+
+    .page-section { display: none; }
+    .page-section.active { display: block; }
+
+    .hero {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 20px;
+    }
+
+    .kicker {
+      color: var(--primary);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1 { margin: 6px 0 8px; font-size: clamp(28px, 4vw, 42px); line-height: 1.04; letter-spacing: -0.045em; }
+    h2 { margin: 0; font-size: 18px; letter-spacing: -0.025em; }
+    h3 { margin: 0; font-size: 15px; }
+    p { color: var(--muted); line-height: 1.5; }
+
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .btn {
+      min-height: 40px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+      color: var(--text);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 0 14px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .btn.primary { border-color: transparent; background: var(--primary); color: #fff; box-shadow: 0 10px 24px rgba(37, 99, 235, 0.22); }
+    .btn.danger { background: var(--danger-soft); color: var(--danger); border-color: color-mix(in srgb, var(--danger) 32%, transparent); }
+    .btn.soft { background: var(--primary-soft); color: var(--primary); border-color: transparent; }
+
+    .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+    .stack { display: grid; gap: 16px; }
+
+    .card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+      padding: 18px;
+    }
+
+    .feature-card {
+      min-height: 122px;
+      background: linear-gradient(145deg, var(--surface), var(--surface-3));
+    }
+
+    .card-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .quick-connect {
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      background: linear-gradient(135deg, var(--primary-soft), var(--surface));
+      box-shadow: var(--shadow);
+      padding: 22px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .quick-connect::after {
+      content: "";
+      position: absolute;
+      right: -80px;
+      top: -90px;
+      width: 240px;
+      height: 240px;
+      border-radius: 999px;
+      background: radial-gradient(circle, color-mix(in srgb, var(--primary) 24%, transparent), transparent 68%);
+    }
+
+    .quick-form {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .input, select {
+      min-height: 42px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+      color: var(--text);
+      outline: none;
+      padding: 0 12px;
+    }
+
+    .input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-soft); }
+
+    .stat {
+      min-height: 126px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .stat-label { color: var(--muted); font-size: 13px; font-weight: 700; }
+    .stat-value { margin-top: 14px; font-size: 34px; line-height: 1; letter-spacing: -0.055em; font-weight: 850; }
+    .stat-foot { margin-top: 8px; color: var(--muted); font-size: 12px; }
+
+    .table-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); }
+    table { width: 100%; min-width: 780px; border-collapse: collapse; }
+    th, td { padding: 12px 13px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }
+    th { background: var(--surface-2); color: var(--muted); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; }
+    tr:last-child td { border-bottom: 0; }
+    tbody tr:hover { background: var(--surface-2); }
+
+    .toolbar { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+    .filters { display: flex; gap: 8px; flex-wrap: wrap; }
+    .mono { font-family: var(--font-mono); letter-spacing: -0.03em; }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 5px 9px;
+      font-size: 12px;
+      font-weight: 800;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+    .tag.blue { color: var(--primary); background: var(--primary-soft); border-color: color-mix(in srgb, var(--primary) 24%, transparent); }
+    .tag.green { color: var(--success); background: var(--success-soft); border-color: color-mix(in srgb, var(--success) 24%, transparent); }
+    .tag.orange { color: var(--warning); background: var(--warning-soft); border-color: color-mix(in srgb, var(--warning) 24%, transparent); }
+    .tag.red { color: var(--danger); background: var(--danger-soft); border-color: color-mix(in srgb, var(--danger) 24%, transparent); }
+
+    .status { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 800; }
+    .dot { width: 9px; height: 9px; border-radius: 999px; background: var(--success); box-shadow: 0 0 0 5px var(--success-soft); }
+    .dot.off { background: var(--muted); box-shadow: none; }
+    .dot.warn { background: var(--warning); box-shadow: 0 0 0 5px var(--warning-soft); }
+    .dot.danger { background: var(--danger); box-shadow: 0 0 0 5px var(--danger-soft); }
+
+    .mini-list { display: grid; gap: 10px; }
+    .mini-row { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-3); }
+    .mini-row span { color: var(--muted); font-size: 12px; }
+
+    .danger-zone { border-color: color-mix(in srgb, var(--danger) 34%, var(--border)); background: linear-gradient(145deg, var(--danger-soft), var(--surface)); }
+    .terminal { min-height: 138px; border-radius: 14px; background: #0a0f1c; color: #c7f7d1; padding: 14px; font-family: var(--font-mono); font-size: 12px; overflow: auto; }
+
+    .preview-note {
+      border: 1px dashed color-mix(in srgb, var(--primary) 46%, var(--border));
+      border-radius: 16px;
+      padding: 12px 14px;
+      background: var(--primary-soft);
+      color: var(--primary);
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+
+    .toast {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      z-index: 50;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--surface);
+      color: var(--text);
+      padding: 12px 14px;
+      box-shadow: var(--shadow);
+      opacity: 0;
+      transform: translateY(12px);
+      pointer-events: none;
+      transition: 160ms ease;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 1200px) {
+      .app { grid-template-columns: 1fr; }
+      .sidebar { position: static; height: auto; }
+      .nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .sidebar-card { display: none; }
+      .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
+      .search { width: 100%; }
+      .topbar { height: auto; align-items: stretch; flex-direction: column; padding: 14px 18px; }
+    }
+
+    @media (max-width: 680px) {
+      .content { padding: 18px; }
+      .hero { flex-direction: column; }
+      .quick-form { grid-template-columns: 1fr; }
+      .nav { grid-template-columns: 1fr; }
+      .top-actions { justify-content: space-between; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <img src="./src/assets/logo.png" alt="RustDesk Server Admin">
+        <div><strong>RustDesk Server</strong><span>Admin UI rework</span></div>
+      </div>
+
+      <nav class="nav" aria-label="Main navigation">
+        <div class="nav-title">Core</div>
+        <button class="active" data-section="dashboard">Dashboard</button>
+        <button data-section="devices">Devices</button>
+        <button data-section="access">Access / Address Book</button>
+        <button data-section="groups">Groups</button>
+        <div class="nav-title">Ops</div>
+        <button data-section="monitoring">Monitoring</button>
+        <button data-section="security">Security / Users</button>
+        <button data-section="server">Server</button>
+        <button data-section="client-builder">Client Builder</button>
+        <div class="nav-title">Account</div>
+        <button data-section="my-profile">My Profile</button>
+      </nav>
+
+      <div class="sidebar-card">
+        <strong>Feature parity preview</strong>
+        <p>Все старые функции сохранены как разделы, но сгруппированы более понятно.</p>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <input class="search" placeholder="Search devices, users, IPs, sessions, tokens">
+        <div class="top-actions">
+          <div class="theme-switch">
+            <button class="active" data-theme-choice="auto">Auto</button>
+            <button data-theme-choice="light">Light</button>
+            <button data-theme-choice="dark">Dark</button>
+          </div>
+          <button class="user-pill" data-section-shortcut="my-profile"><span class="avatar">A</span><span>Admin</span></button>
+        </div>
+      </header>
+
+      <div class="content">
+        <section id="dashboard" class="page-section active">
+          <div class="hero">
+            <div>
+              <div class="kicker">Remote access control center</div>
+              <h1>Server operations, simplified.</h1>
+              <p>Quick connect, server health, online devices, recent sessions, and clear feature coverage.</p>
+            </div>
+            <div class="actions"><button class="btn primary">Add device</button><button class="btn">Export report</button></div>
+          </div>
+
+          <div class="preview-note">Этот прототип теперь включает все старые смысловые разделы: Users, Groups, Address Book, My Profile, Client Builder, Server, Security, Monitoring.</div>
+
+          <div class="grid-2">
+            <div class="quick-connect">
+              <h2>Quick Connect</h2>
+              <p>Enter RustDesk ID and connect with native client or Web Client.</p>
+              <form class="quick-form" id="quickForm">
+                <input class="input mono" id="quickId" placeholder="RustDesk ID, e.g. 410 228 901">
+                <button class="btn primary" type="submit">Connect</button>
+                <button class="btn" id="webClient" type="button">Web Client</button>
+              </form>
+            </div>
+
+            <div class="card">
+              <div class="card-head"><h2>Server Health</h2><span class="tag green">Healthy</span></div>
+              <div class="mini-list">
+                <div class="mini-row"><div><strong>ID Server</strong><br><span>21116 TCP/UDP</span></div><span class="status"><span class="dot"></span>Online</span></div>
+                <div class="mini-row"><div><strong>Relay Server</strong><br><span>21117 TCP</span></div><span class="status"><span class="dot"></span>Online</span></div>
+                <div class="mini-row"><div><strong>API Server</strong><br><span>21114 TCP</span></div><span class="status"><span class="dot"></span>Online</span></div>
+                <div class="mini-row"><div><strong>Web Client</strong><br><span>Browser access enabled</span></div><span class="status"><span class="dot warn"></span>Enabled</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid-4" style="margin-top:16px">
+            <div class="card stat"><div class="stat-label">Online Devices</div><div><div class="stat-value">128</div><div class="stat-foot">12 changed in 1h</div></div></div>
+            <div class="card stat"><div class="stat-label">Users</div><div><div class="stat-value">42</div><div class="stat-foot">3 admins</div></div></div>
+            <div class="card stat"><div class="stat-label">Address Books</div><div><div class="stat-value">19</div><div class="stat-foot">7 shared</div></div></div>
+            <div class="card stat"><div class="stat-label">Recent Sessions</div><div><div class="stat-value">17</div><div class="stat-foot">4 active</div></div></div>
+          </div>
+        </section>
+
+        <section id="devices" class="page-section">
+          <div class="hero"><div><div class="kicker">Devices</div><h1>All devices and device groups.</h1><p>Device management keeps Connect, Web Client, Add to Address Book, edit, import, export, and batch actions.</p></div><div class="actions"><button class="btn primary">Add device</button><button class="btn">Import CSV</button></div></div>
+          <div class="grid-3">
+            <div class="card feature-card"><h2>All Devices</h2><p>Unified table, status pulse, compact actions, column manager.</p><span class="tag blue">/admin/peer/list</span></div>
+            <div class="card feature-card"><h2>Device Groups</h2><p>Separate from user groups. Used for device organization.</p><span class="tag blue">/admin/device_group/list</span></div>
+            <div class="card feature-card"><h2>CSV Import / Export</h2><p>Preserves current import/export flow from old admin.</p><span class="tag green">Kept</span></div>
+          </div>
+          <div class="card" style="margin-top:16px">
+            <div class="toolbar"><h2>Devices Table</h2><div class="filters"><input class="input" placeholder="ID / hostname / user"><select><option>All groups</option><option>Support</option><option>Ops</option></select><button class="btn">Filter</button><button class="btn danger">Batch Delete</button></div></div>
+            <div class="table-wrap"><table><thead><tr><th><input type="checkbox"></th><th>Status</th><th>ID</th><th>Hostname</th><th>User</th><th>OS</th><th>Group</th><th>Last Online</th><th>Actions</th></tr></thead><tbody><tr><td><input type="checkbox"></td><td><span class="status"><span class="dot"></span>Online</span></td><td class="mono">410 228 901</td><td>WIN-HELPDESK-01</td><td>alex</td><td>Windows 11</td><td><span class="tag blue">Support</span></td><td>now</td><td><button class="btn soft">Connect</button></td></tr><tr><td><input type="checkbox"></td><td><span class="status"><span class="dot warn"></span>Idle</span></td><td class="mono">772 901 118</td><td>LNX-BACKUP-02</td><td>ops</td><td>Ubuntu</td><td><span class="tag orange">Ops</span></td><td>18m ago</td><td><button class="btn">Details</button></td></tr></tbody></table></div>
+          </div>
+        </section>
+
+        <section id="access" class="page-section">
+          <div class="hero"><div><div class="kicker">Access</div><h1>Address Book, collections, tags, shares.</h1><p>Everything related to who can access which remote devices.</p></div><div class="actions"><button class="btn primary">Create contact</button><button class="btn">Create collection</button></div></div>
+          <div class="grid-4">
+            <div class="card feature-card"><h2>Address Book</h2><p>Contacts, aliases, hostnames, peer IDs, tags.</p><span class="tag blue">/admin/address_book/list</span></div>
+            <div class="card feature-card"><h2>Collections</h2><p>Named address book groups and ownership.</p><span class="tag blue">/admin/address_book_collection/list</span></div>
+            <div class="card feature-card"><h2>Tags</h2><p>Colored contact labels with unified tag style.</p><span class="tag green">/admin/tag/list</span></div>
+            <div class="card feature-card"><h2>Share Rules</h2><p>Rules for sharing collections to users/groups.</p><span class="tag orange">Rules</span></div>
+          </div>
+          <div class="grid-2" style="margin-top:16px">
+            <div class="card"><div class="card-head"><h2>Address Book</h2><button class="btn primary">Add contact</button></div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Alias</th><th>Owner</th><th>Collection</th><th>Tags</th><th>Actions</th></tr></thead><tbody><tr><td class="mono">410 228 901</td><td>Helpdesk PC</td><td>alex</td><td>Support</td><td><span class="tag blue">Work</span></td><td><button class="btn">Edit</button></td></tr><tr><td class="mono">884 102 337</td><td>Design Mac</td><td>maria</td><td>Design</td><td><span class="tag green">Mac</span></td><td><button class="btn">Share</button></td></tr></tbody></table></div></div>
+            <div class="card"><div class="card-head"><h2>Share Rules</h2><button class="btn">Manage</button></div><div class="mini-list"><div class="mini-row"><div><strong>Support collection</strong><br><span>Shared to Support group</span></div><span class="tag green">Active</span></div><div class="mini-row"><div><strong>Ops collection</strong><br><span>Shared to admin users only</span></div><span class="tag orange">Restricted</span></div><div class="mini-row"><div><strong>Design collection</strong><br><span>Shared to maria.k</span></div><span class="tag blue">User</span></div></div></div>
+          </div>
+        </section>
+
+        <section id="groups" class="page-section">
+          <div class="hero"><div><div class="kicker">Groups</div><h1>User groups and device groups.</h1><p>Old admin had both concepts. The rework keeps both, but makes the difference explicit.</p></div><div class="actions"><button class="btn primary">Create group</button></div></div>
+          <div class="grid-2">
+            <div class="card"><div class="card-head"><h2>User Groups</h2><span class="tag blue">/admin/group/list</span></div><div class="mini-list"><div class="mini-row"><div><strong>Administrators</strong><br><span>Full route access</span></div><button class="btn">Edit</button></div><div class="mini-row"><div><strong>Support</strong><br><span>Devices + address book</span></div><button class="btn">Edit</button></div><div class="mini-row"><div><strong>Auditors</strong><br><span>Monitoring read-only</span></div><button class="btn">Edit</button></div></div></div>
+            <div class="card"><div class="card-head"><h2>Device Groups</h2><span class="tag green">/admin/device_group/list</span></div><div class="mini-list"><div class="mini-row"><div><strong>Support machines</strong><br><span>34 devices</span></div><button class="btn">Edit</button></div><div class="mini-row"><div><strong>Production servers</strong><br><span>12 devices</span></div><button class="btn">Edit</button></div><div class="mini-row"><div><strong>Finance workstations</strong><br><span>8 devices</span></div><button class="btn">Edit</button></div></div></div>
+          </div>
+        </section>
+
+        <section id="monitoring" class="page-section">
+          <div class="hero"><div><div class="kicker">Monitoring</div><h1>Audit console.</h1><p>Login history, connection history, file transfer history, and shared sessions.</p></div><div class="actions"><button class="btn">Export</button><button class="btn danger">Batch Delete</button></div></div>
+          <div class="grid-4"><div class="card feature-card"><h2>Login History</h2><p>User, device, platform, IP.</p><span class="tag blue">/login_log</span></div><div class="card feature-card"><h2>Connections</h2><p>Peer, from peer, close time, type.</p><span class="tag green">/audit_conn</span></div><div class="card feature-card"><h2>File Transfers</h2><p>Files, path, size, direction.</p><span class="tag orange">/audit_file</span></div><div class="card feature-card"><h2>Shared Sessions</h2><p>Temporary shares and expiry.</p><span class="tag blue">/share_record</span></div></div>
+          <div class="card" style="margin-top:16px"><div class="toolbar"><h2>Recent Events</h2><div class="filters"><input class="input" placeholder="user / peer / ip"><select><option>All event types</option><option>Login</option><option>Connection</option><option>File</option></select><button class="btn">Filter</button></div></div><div class="table-wrap"><table><thead><tr><th>Type</th><th>User</th><th>Peer</th><th>IP</th><th>Result</th><th>Time</th><th>Actions</th></tr></thead><tbody><tr><td><span class="tag green">Login</span></td><td>alex</td><td class="mono">410 228 901</td><td class="mono">10.18.0.24</td><td>Success</td><td>2m ago</td><td><button class="btn">Details</button></td></tr><tr><td><span class="tag blue">Connection</span></td><td>maria</td><td class="mono">884 102 337</td><td class="mono">10.18.0.41</td><td>Active</td><td>9m ago</td><td><button class="btn">Details</button></td></tr></tbody></table></div></div>
+        </section>
+
+        <section id="security" class="page-section">
+          <div class="hero"><div><div class="kicker">Security</div><h1>Users, tokens, OAuth, block policies.</h1><p>The old Users/Security pages are preserved here with clearer grouping.</p></div><div class="actions"><button class="btn primary">Create user</button><button class="btn">Create token</button></div></div>
+          <div class="grid-4"><div class="card feature-card"><h2>Users</h2><p>User list, status, group, admin flag, password reset.</p><span class="tag blue">/admin/user/list</span></div><div class="card feature-card"><h2>User Groups</h2><p>Permission groups and route access.</p><span class="tag green">/admin/group/list</span></div><div class="card feature-card"><h2>API Tokens</h2><p>Owner, token, expiry, revoke.</p><span class="tag orange">/user_token</span></div><div class="card feature-card"><h2>OAuth / SSO</h2><p>OIDC, GitHub, Google, auto register.</p><span class="tag blue">/oauth</span></div></div>
+          <div class="grid-2" style="margin-top:16px"><div class="card"><div class="card-head"><h2>Users</h2><button class="btn primary">Add user</button></div><div class="table-wrap"><table><thead><tr><th>User</th><th>Email</th><th>Group</th><th>Status</th><th>Admin</th><th>Actions</th></tr></thead><tbody><tr><td>admin</td><td>admin@example.local</td><td><span class="tag blue">Administrators</span></td><td><span class="tag green">Enabled</span></td><td>Yes</td><td><button class="btn">Edit</button></td></tr><tr><td>support01</td><td>support@example.local</td><td><span class="tag green">Support</span></td><td><span class="tag green">Enabled</span></td><td>No</td><td><button class="btn">Edit</button></td></tr></tbody></table></div></div><div class="card"><div class="card-head"><h2>Block Policies</h2><button class="btn danger">Add block</button></div><div class="mini-list"><div class="mini-row"><div><strong>IP blocklist</strong><br><span>185.22.14.91 blocked after failed logins</span></div><span class="tag red">Blocked</span></div><div class="mini-row"><div><strong>Peer blacklist</strong><br><span>119 744 032 restricted</span></div><span class="tag orange">Restricted</span></div></div></div></div>
+        </section>
+
+        <section id="server" class="page-section">
+          <div class="hero"><div><div class="kicker">Server</div><h1>Configuration and commands.</h1><p>Server config, relay settings, must-login, usage, commands, and danger zone.</p></div><div class="actions"><button class="btn">Refresh</button><button class="btn danger">Danger Zone</button></div></div>
+          <div class="grid-3"><div class="card feature-card"><h2>Server Config</h2><p>ID server, relay, API, key, WebSocket.</p><span class="tag blue">/config/server</span></div><div class="card feature-card"><h2>Simple Controls</h2><p>Relay servers, must-login, always-use-relay, usage.</p><span class="tag green">Safe</span></div><div class="card feature-card danger-zone"><h2>Advanced Commands</h2><p>Command sending stays available but isolated and confirmed.</p><span class="tag red">Danger</span></div></div>
+          <div class="grid-2" style="margin-top:16px"><div class="card"><div class="card-head"><h2>Config</h2><button class="btn">Copy client config</button></div><div class="mini-list"><div class="mini-row"><div><strong>ID Server</strong><br><span class="mono">remote.example.com:21116</span></div><span class="tag green">OK</span></div><div class="mini-row"><div><strong>Relay Server</strong><br><span class="mono">remote.example.com:21117</span></div><span class="tag green">OK</span></div><div class="mini-row"><div><strong>API Server</strong><br><span class="mono">https://remote.example.com</span></div><span class="tag green">OK</span></div></div></div><div class="card danger-zone"><div class="card-head"><h2>Send Command</h2><button class="btn danger">Confirm and send</button></div><div class="filters" style="margin-bottom:12px"><input class="input mono" value="reload" aria-label="command"><select><option>ID Server</option><option>Relay Server</option></select></div><pre class="terminal">$ hbbs reload
+        </section>
+
+        <section id="client-builder" class="page-section">
+          <div class="hero"><div><div class="kicker">Client Builder</div><h1>Custom client builds.</h1><p>Preserves the old custom-client and GitHub build features, but presents them as a build pipeline.</p></div><div class="actions"><button class="btn primary">Start build</button><button class="btn">GitHub settings</button></div></div>
+          <div class="grid-3"><div class="card feature-card"><h2>Branding</h2><p>App name, logo, icons, presets, platform assets.</p><span class="tag blue">Custom Preset</span></div><div class="card feature-card"><h2>Platforms</h2><p>Windows, macOS, Linux, Android package settings.</p><span class="tag green">Build matrix</span></div><div class="card feature-card"><h2>GitHub Workflow</h2><p>Repository, branch, workflow file, encrypted payload.</p><span class="tag orange">CI</span></div></div>
+          <div class="card" style="margin-top:16px"><div class="toolbar"><h2>Builds</h2><div class="filters"><select><option>All platforms</option><option>Windows</option><option>macOS</option><option>Linux</option></select><button class="btn">Refresh</button></div></div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Platform</th><th>Version</th><th>App Name</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead><tbody><tr><td>#1042</td><td>Windows</td><td>1.3.1</td><td>Remote Desk</td><td><span class="tag green">Ready</span></td><td>Today</td><td><button class="btn">Download</button></td></tr><tr><td>#1041</td><td>macOS</td><td>1.3.1</td><td>Remote Desk</td><td><span class="tag orange">Building</span></td><td>12m ago</td><td><button class="btn">Logs</button></td></tr></tbody></table></div></div>
+        </section>
+
+        <section id="my-profile" class="page-section">
+          <div class="hero"><div><div class="kicker">My Profile</div><h1>Personal self-service area.</h1><p>Moved out of the crowded sidebar in final UI, but preserved as a full feature area.</p></div><div class="actions"><button class="btn primary">Change password</button><button class="btn">Logout</button></div></div>
+          <div class="grid-4"><div class="card feature-card"><h2>Account Info</h2><p>Username, email, OAuth bindings, password.</p><span class="tag blue">/my/info</span></div><div class="card feature-card"><h2>My Devices</h2><p>Personal device list and address book actions.</p><span class="tag green">/my/peer/list</span></div><div class="card feature-card"><h2>My Address Book</h2><p>Contacts, collections, tags.</p><span class="tag orange">/my/address_book</span></div><div class="card feature-card"><h2>My Activity</h2><p>My shares and login history.</p><span class="tag blue">/my/login_log</span></div></div>
+          <div class="grid-2" style="margin-top:16px"><div class="card"><div class="card-head"><h2>Account</h2><span class="tag green">Active</span></div><div class="mini-list"><div class="mini-row"><div><strong>Username</strong><br><span>admin</span></div><button class="btn">Edit</button></div><div class="mini-row"><div><strong>Email</strong><br><span>admin@example.local</span></div><button class="btn">Update</button></div><div class="mini-row"><div><strong>OAuth</strong><br><span>GitHub linked</span></div><button class="btn">Manage</button></div></div></div><div class="card"><div class="card-head"><h2>My Login History</h2><button class="btn">View all</button></div><div class="table-wrap"><table><thead><tr><th>Client</th><th>IP</th><th>Platform</th><th>Time</th></tr></thead><tbody><tr><td>webadmin</td><td class="mono">10.18.0.12</td><td>Chrome / Linux</td><td>2m ago</td></tr><tr><td>webadmin</td><td class="mono">10.18.0.14</td><td>Edge / Windows</td><td>Yesterday</td></tr></tbody></table></div></div></div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    const root = document.documentElement;
+    const navButtons = document.querySelectorAll('[data-section]');
+    const sections = document.querySelectorAll('.page-section');
+    const themeButtons = document.querySelectorAll('[data-theme-choice]');
+    const toast = document.getElementById('toast');
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(showToast.timer);
+      showToast.timer = setTimeout(() => toast.classList.remove('show'), 2400);
+    }
+
+    function showSection(id) {
+      sections.forEach(section => section.classList.toggle('active', section.id === id));
+      navButtons.forEach(button => button.classList.toggle('active', button.dataset.section === id));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    navButtons.forEach(button => button.addEventListener('click', () => showSection(button.dataset.section)));
+    document.querySelectorAll('[data-section-shortcut]').forEach(button => button.addEventListener('click', () => showSection(button.dataset.sectionShortcut)));
+
+    function applyTheme(mode) {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      root.dataset.theme = mode === 'dark' || (mode === 'auto' && prefersDark) ? 'dark' : 'light';
+      themeButtons.forEach(button => button.classList.toggle('active', button.dataset.themeChoice === mode));
+    }
+
+    const savedTheme = localStorage.getItem('ui-rework-theme') || 'auto';
+    applyTheme(savedTheme);
+    themeButtons.forEach(button => button.addEventListener('click', () => {
+      localStorage.setItem('ui-rework-theme', button.dataset.themeChoice);
+      applyTheme(button.dataset.themeChoice);
+    }));
+
+    const quickForm = document.getElementById('quickForm');
+    const quickId = document.getElementById('quickId');
+    const webClient = document.getElementById('webClient');
+
+    quickForm.addEventListener('submit', event => {
+      event.preventDefault();
+      const id = quickId.value.trim();
+      showToast(id ? `Connect request prepared for ${id}.` : 'Enter RustDesk ID first.');
+    });
+
+    webClient.addEventListener('click', () => {
+      const id = quickId.value.trim();
+      showToast(id ? `Web Client prepared for ${id}.` : 'Enter RustDesk ID first.');
+    });
+  </script>
+</body>
+</html>

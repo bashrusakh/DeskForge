@@ -1,0 +1,357 @@
+name: rustqs windows min test
+# Минимальный workflow сборки rustqs.exe (Flutter Windows) в форке rustdesk.
+# Шаги — копия build-for-windows-flutter@1.4.7 + workflow_dispatch + три слоя вшивания
+# (L1 config.rs server+key, L2 allowCustom+custom_.txt, L3 brand+rename exe).
+#
+# Два режима передачи параметров (через workflow inputs):
+#   1) enc_payload — base64(openssl aes-256-cbc -pbkdf2 -pass pass:$SECRET) от JSON
+#      {server,key,app_name,custom_txt}. Recommended для prod: значения не утекают в
+#      логи публичного рана. Требует GitHub Secret WORKFLOW_PAYLOAD_KEY в форке.
+#   2) Открытые server/key/app_name/custom_txt — для дебага и тестирования.
+#      Удобно, но значения видны в логах рана. Не использовать на проде.
+#
+# Запуск из gh:
+#   gh api repos/$REPO/actions/workflows/rustqs-windows-min-test.yml/dispatches -X POST \
+#     -f ref=rustqs/min-test -f inputs[enc_payload]=$BLOB
+
+on:
+  workflow_dispatch:
+    inputs:
+      enc_payload:
+        description: 'Encrypted payload (base64 openssl aes-256-cbc -pbkdf2). Overrides open inputs below.'
+        required: false
+        type: string
+        default: ''
+      server:
+        description: '[Debug] RustDesk server (rendezvous host:port). Ignored if enc_payload set.'
+        required: false
+        type: string
+        default: ''
+      key:
+        description: '[Debug] RustDesk server public key (base64). Ignored if enc_payload set.'
+        required: false
+        type: string
+        default: ''
+      app_name:
+        description: '[Debug] Brand name. Ignored if enc_payload set.'
+        required: false
+        type: string
+        default: ''
+      custom_txt:
+        description: '[Debug] Base64 custom_.txt payload. Ignored if enc_payload set.'
+        required: false
+        type: string
+        default: ''
+
+env:
+  RUST_VERSION: "1.75"
+  LLVM_VERSION: "15.0.6"
+  FLUTTER_VERSION: "3.24.5"
+  VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  VERSION: "1.4.7"
+
+jobs:
+  bridge:
+    uses: ./.github/workflows/bridge.yml
+
+  topmost:
+    uses: ./.github/workflows/third-party-RustDeskTempTopMostWindow.yml
+    with:
+      upload-artifact: true
+      target: windows-2022
+      configuration: Release
+      platform: x64
+      target_version: Windows10
+
+  build:
+    needs: [bridge, topmost]
+    runs-on: windows-2022
+    steps:
+      - name: Export GitHub Actions cache environment variables
+        uses: actions/github-script@v6
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # Разрешение параметров сборки: либо расшифровать enc_payload (prod),
+      # либо взять открытые inputs (debug). На выходе — env vars RQS_*, скрытые
+      # из логов через ::add-mask::.
+      - name: 'Resolve build config (decrypt or pass-through)'
+        shell: bash
+        env:
+          ENC: ${{ inputs.enc_payload }}
+          PAYLOAD_KEY: ${{ secrets.WORKFLOW_PAYLOAD_KEY }}
+          IN_SERVER: ${{ inputs.server }}
+          IN_KEY: ${{ inputs.key }}
+          IN_APP: ${{ inputs.app_name }}
+          IN_CT: ${{ inputs.custom_txt }}
+        run: |
+          set -eu
+
+          if [ -n "${ENC:-}" ]; then
+            if [ -z "${PAYLOAD_KEY:-}" ]; then
+              echo "::error::enc_payload provided but secret WORKFLOW_PAYLOAD_KEY is not set in this repo"
+              exit 1
+            fi
+            echo "Resolve mode: ENCRYPTED (enc_payload, len ${#ENC})"
+            # base64 → openssl decrypt с PBKDF2 → JSON
+            decrypted=$(printf '%s' "$ENC" | base64 -d \
+              | openssl enc -d -aes-256-cbc -pbkdf2 -pass "pass:${PAYLOAD_KEY}")
+            RQS_SERVER=$(printf '%s' "$decrypted" | jq -r '.server // ""')
+            RQS_KEY=$(printf '%s' "$decrypted" | jq -r '.key // ""')
+            RQS_APP=$(printf '%s' "$decrypted" | jq -r '.app_name // ""')
+            RQS_CT=$(printf '%s' "$decrypted" | jq -r '.custom_txt // ""')
+          else
+            echo "Resolve mode: OPEN inputs (debug)"
+            RQS_SERVER="${IN_SERVER:-}"
+            RQS_KEY="${IN_KEY:-}"
+            RQS_APP="${IN_APP:-}"
+            RQS_CT="${IN_CT:-}"
+          fi
+
+          # Маскируем чувствительные значения в логах ДО экспорта в $GITHUB_ENV.
+          # add-mask распространяется на всё содержимое логов до конца job'a.
+          for v in "$RQS_KEY" "$RQS_CT"; do
+            if [ -n "$v" ]; then echo "::add-mask::$v"; fi
+          done
+
+          {
+            echo "RQS_SERVER=$RQS_SERVER"
+            echo "RQS_KEY=$RQS_KEY"
+            echo "RQS_APP_NAME=$RQS_APP"
+            echo "RQS_CUSTOM_TXT=$RQS_CT"
+          } >> "$GITHUB_ENV"
+
+          # сводка (без значений): что задано, что пусто
+          echo "config: server=$([ -n "$RQS_SERVER" ] && echo SET || echo empty)"
+          echo "config: key=$([ -n "$RQS_KEY" ] && echo SET || echo empty)"
+          echo "config: app_name=$([ -n "$RQS_APP" ] && echo SET || echo empty)"
+          echo "config: custom_txt=$([ -n "$RQS_CT" ] && echo SET || echo empty)"
+
+      # L1: вшить сервер+ключ в config.rs ДО любой сборки. Опционально.
+      - name: 'L1 inject: server + key into hbb_common/config.rs'
+        if: env.RQS_SERVER != '' || env.RQS_KEY != ''
+        shell: bash
+        run: |
+          set -eu
+          f=libs/hbb_common/src/config.rs
+          if [ -n "${RQS_SERVER:-}" ]; then
+            echo "L1: server -> (masked)"
+            esc=$(printf '%s' "$RQS_SERVER" | sed -e 's/[\/&]/\\&/g')
+            sed -i "s/rs-ny\.rustdesk\.com/${esc}/" "$f"
+            grep -F -q -- "$RQS_SERVER" "$f" || { echo "L1: server marker not found after sed"; exit 1; }
+          fi
+          if [ -n "${RQS_KEY:-}" ]; then
+            echo "L1: key embedded (len ${#RQS_KEY})"
+            esc=$(printf '%s' "$RQS_KEY" | sed -e 's/[\/&]/\\&/g')
+            sed -i "s|OeVuKk5nlHiXp+APNn0Y3pC1Iwpwn44JGqrQCsWqmBw=|${esc}|" "$f"
+            grep -F -q -- "$RQS_KEY" "$f" || { echo "L1: key marker not found after sed"; exit 1; }
+          fi
+
+      # L2 step A (PRE-BUILD): allowCustom — снять проверку подписи custom.txt + переименовать на custom_.txt
+      - name: 'L2 patch: allowCustom (remove signature check, custom.txt → custom_.txt)'
+        if: env.RQS_CUSTOM_TXT != ''
+        shell: bash
+        run: |
+          set -eu
+          python3 .github/patches/rdgen-allowCustom.py
+          if grep -q '5Qbwsde3unUcJBtrx9ZkvUmwFNoExHzpryHuPUdqlWM=' src/common.rs; then
+            echo "L2: allowCustom FAILED — signature key still present"; exit 1
+          fi
+          echo "L2: allowCustom applied (src/common.rs patched)"
+          grep -c 'custom_\.txt' src/common.rs || true
+
+      # L3: брендинг RustDesk → app_name (sed по тем же файлам что rdgen + flutter CMakeLists)
+      - name: 'L3 brand: rename RustDesk → app_name'
+        if: env.RQS_APP_NAME != ''
+        shell: bash
+        run: |
+          set -eu
+          APP="$RQS_APP_NAME"
+          esc=$(printf '%s' "$APP" | sed -e 's/[\/&]/\\&/g')
+
+          for f in Cargo.toml libs/portable/Cargo.toml; do
+            sed -i -e "s|description = \"RustDesk Remote Desktop\"|description = \"${esc}\"|" \
+                   -e "s|ProductName = \"RustDesk\"|ProductName = \"${esc}\"|" \
+                   -e "s|FileDescription = \"RustDesk Remote Desktop\"|FileDescription = \"${esc}\"|" \
+                   -e "s|OriginalFilename = \"rustdesk.exe\"|OriginalFilename = \"${esc}.exe\"|" "$f"
+          done
+
+          sed -i -e "s|const APP_PREFIX: \&str = \"rustdesk\";|const APP_PREFIX: \&str = \"${esc}\";|" libs/portable/src/main.rs
+
+          sed -i -e "s|\"RustDesk Remote Desktop\"|\"${esc}\"|" \
+                 -e "s|VALUE \"InternalName\", \"rustdesk\" \"\\\\0\"|VALUE \"InternalName\", \"${esc}\" \"\\\\0\"|" \
+                 -e "s|\"rustdesk.exe\"|\"${esc}.exe\"|" \
+                 -e "s|\"RustDesk\"|\"${esc}\"|" flutter/windows/runner/Runner.rc
+
+          # ВАЖНО: НЕ менять BINARY_NAME в flutter/windows/CMakeLists.txt!
+          # libs/portable/generate.py hard-coded ищет внутри Release/ файл с именем
+          # `rustdesk.exe` (см. вызов в build.py). Если переименовать — packer не найдёт
+          # exe и build упадёт. Метаданные (ProductName/FileDescription/etc) уже
+          # установлены через sed Runner.rc/Cargo.toml выше — этого достаточно для
+          # отображения "rustqs" в свойствах файла. Финальный self-extract single-exe
+          # переименовывается в "${appname}.exe" уже после packer'a (см. Portable-pack).
+          echo "L3: brand → ${APP} (BINARY_NAME left as 'rustdesk' for packer)"
+
+      - name: Restore bridge files
+        uses: actions/download-artifact@v8
+        with:
+          name: bridge-artifact
+          path: ./
+
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v1
+        with:
+          version: ${{ env.LLVM_VERSION }}
+
+      - name: Install flutter
+        uses: subosito/flutter-action@v2.12.0
+        with:
+          channel: "stable"
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+
+      - name: Replace engine with rustdesk custom flutter engine
+        run: |
+          flutter doctor -v
+          flutter precache --windows
+          Invoke-WebRequest -Uri https://github.com/bashrusakh/rustdesk/releases/download/offline-assets-1.4.7/windows-x64-release.zip -OutFile windows-x64-release.zip
+          Expand-Archive -Path windows-x64-release.zip -DestinationPath windows-x64-release
+          mv -Force windows-x64-release/* C:/hostedtoolcache/windows/flutter/stable-${{ env.FLUTTER_VERSION }}-x64/bin/cache/artifacts/engine/windows-x64-release/
+
+      - name: Patch flutter
+        shell: bash
+        run: |
+          cp .github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff $(dirname $(dirname $(which flutter)))
+          cd $(dirname $(dirname $(which flutter)))
+          [[ "3.24.5" == ${{env.FLUTTER_VERSION}} ]] && git apply flutter_3.24.4_dropdown_menu_enableFilter.diff
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-pc-windows-msvc
+          components: "rustfmt"
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: windows-2022
+
+      - name: Setup vcpkg with Github Actions binary cache
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: C:\vcpkg
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
+
+      - name: Install vcpkg dependencies
+        env:
+          VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static
+        shell: bash
+        run: |
+          if ! $VCPKG_ROOT/vcpkg install --triplet x64-windows-static --x-install-root="$VCPKG_ROOT/installed"; then
+            find "${VCPKG_ROOT}/" -name "*.log" | while read -r f; do echo "=== $f ==="; cat "$f"; done
+            exit 1
+          fi
+
+      - name: Build rustdesk (Flutter Windows) + bring in native deps
+        run: |
+          # --skip-portable-pack: packer запускаем сами в отдельном шаге, чтобы
+          # положить custom_.txt + native deps в Release/ ДО упаковки.
+          # НЕ переименовываем Release/ → ./rustdesk — packer ищет именно по этому пути
+          # (libs/portable/generate.py вызывается с -f ../../flutter/build/windows/x64/runner/Release/).
+          python3 .\build.py --portable --hwcodec --flutter --vram --skip-portable-pack
+          $RELEASE = "flutter/build/windows/x64/runner/Release"
+
+          # usbmmidd_v2 — виртуальный дисплей. Из release ФОРКА (суверенно). → в Release/
+          Invoke-WebRequest -Uri https://github.com/bashrusakh/rustdesk/releases/download/offline-assets-1.4.7/usbmmidd_v2.zip -OutFile usbmmidd_v2.zip
+          Expand-Archive usbmmidd_v2.zip -DestinationPath .
+          Remove-Item -Path usbmmidd_v2\Win32 -Recurse
+          Remove-Item -Path "usbmmidd_v2\deviceinstaller64.exe", "usbmmidd_v2\deviceinstaller.exe", "usbmmidd_v2\usbmmidd.bat"
+          mv -Force .\usbmmidd_v2 "$RELEASE/"
+
+          # Printer driver + adapter из release форка. → в Release/
+          try {
+            Invoke-WebRequest -Uri https://github.com/bashrusakh/rustdesk/releases/download/offline-assets-1.4.7/rustdesk_printer_driver_v4-1.4.zip -OutFile rustdesk_printer_driver_v4-1.4.zip
+            Invoke-WebRequest -Uri https://github.com/bashrusakh/rustdesk/releases/download/offline-assets-1.4.7/printer_driver_adapter.zip -OutFile printer_driver_adapter.zip
+            Invoke-WebRequest -Uri https://github.com/bashrusakh/rustdesk/releases/download/offline-assets-1.4.7/sha256sums -OutFile sha256sums
+
+            $checksum_driver = (Select-String -Path .\sha256sums -Pattern '^([a-fA-F0-9]{64}) \*rustdesk_printer_driver_v4-1.4\.zip$').Matches.Groups[1].Value
+            $downloadsum_driver = Get-FileHash -Path rustdesk_printer_driver_v4-1.4.zip -Algorithm SHA256
+            $checksum_adapter = (Select-String -Path .\sha256sums -Pattern '^([a-fA-F0-9]{64}) \*printer_driver_adapter\.zip$').Matches.Groups[1].Value
+            $downloadsum_adapter = Get-FileHash -Path printer_driver_adapter.zip -Algorithm SHA256
+            if ($checksum_driver -eq $downloadsum_driver.Hash -and $checksum_adapter -eq $downloadsum_adapter.Hash) {
+                Write-Output "printer driver+adapter checksums match, extracting"
+                Expand-Archive rustdesk_printer_driver_v4-1.4.zip -DestinationPath .
+                mkdir "$RELEASE/drivers"
+                mv -Force .\rustdesk_printer_driver_v4-1.4 "$RELEASE/drivers/RustDeskPrinterDriver"
+                Expand-Archive printer_driver_adapter.zip -DestinationPath .
+                mv -Force .\printer_driver_adapter.dll "$RELEASE/"
+            } else {
+                Write-Output "checksum mismatch — ignoring printer files"
+            }
+          } catch {
+              Write-Host "Ignore the printer driver error."
+          }
+
+      - name: Download RustDeskTempTopMostWindow artifacts (→ Release/)
+        uses: actions/download-artifact@v8
+        with:
+          name: topmostwindow-artifacts
+          path: "./flutter/build/windows/x64/runner/Release"
+
+      # L2-B: положить custom_.txt в Release/ ДО запуска packer'a, чтобы он
+      # попал ВНУТРЬ single-exe. После self-extract клиента, custom_.txt будет лежать
+      # рядом с rustdesk.exe в TEMP-папке (там его и читает read_custom_client).
+      - name: 'L2 payload: place custom_.txt into Release/ (will be packed inside exe)'
+        if: env.RQS_CUSTOM_TXT != ''
+        shell: bash
+        run: |
+          set -eu
+          dst=flutter/build/windows/x64/runner/Release/custom_.txt
+          printf '%s' "$RQS_CUSTOM_TXT" > "$dst"
+          ls -la "$dst"
+          echo "L2: custom_.txt placed inside Release/ (size $(wc -c < "$dst"))"
+
+      # L4: portable-pack (single self-extracting exe).
+      # generate.py сжимает ВСЁ из -f папки в data.bin → embedded в Rust packer-binary.
+      # Финал: target/release/rustdesk-portable-packer.exe (~30 MB). Переименуем в
+      # {appname}.exe и положим в ./output/ для upload-artifact.
+      - name: 'L4 portable-pack: build single-binary self-extracting exe'
+        shell: bash
+        run: |
+          set -eu
+          APP="${RQS_APP_NAME:-rustdesk}"
+          ls flutter/build/windows/x64/runner/Release/ | head
+          pushd libs/portable
+          pip3 install -r requirements.txt
+          # тот же CLI что вызывает build.py (когда --portable БЕЗ --skip-portable-pack).
+          # generate.py сам в конце вызывает `cargo build --locked --release` для
+          # portable-packer Rust-проекта (см. build_portable() в generate.py).
+          python3 ./generate.py \
+            -f ../../flutter/build/windows/x64/runner/Release/ \
+            -o . \
+            -e ../../flutter/build/windows/x64/runner/Release/rustdesk.exe
+          popd
+          mkdir -p ./output
+          src="./target/release/rustdesk-portable-packer.exe"
+          if [ ! -f "$src" ]; then
+            # Cargo мог быть в libs/portable/target — fallback
+            src="./libs/portable/target/release/rustdesk-portable-packer.exe"
+          fi
+          ls -lh "$src" || { echo "FAIL: portable-packer.exe not found"; find . -name "rustdesk-portable-packer.exe" 2>/dev/null; exit 1; }
+          cp "$src" "./output/${APP}.exe"
+          ls -lh "./output/"
+          echo "L4: ${APP}.exe size = $(stat -c%s "./output/${APP}.exe" 2>/dev/null || wc -c < "./output/${APP}.exe")"
+
+      - name: Upload unsigned
+        uses: actions/upload-artifact@v7
+        with:
+          name: rustdesk-min-test-windows
+          path: output

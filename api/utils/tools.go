@@ -1,0 +1,115 @@
+package utils
+
+import (
+	"crypto/md5"
+	crand "crypto/rand"
+	"encoding/json"
+	"fmt"
+	"reflect"
+	"runtime/debug"
+	"strings"
+)
+
+func Md5(str string) string {
+	t := md5.Sum(([]byte)(str))
+	return fmt.Sprintf("%x", t)
+}
+
+func CopyStructByJson(src, dst interface{}) {
+	str, _ := json.Marshal(src)
+	err := json.Unmarshal(str, dst)
+	if err != nil {
+		return
+	}
+}
+
+// CopyStructToMap map
+func CopyStructToMap(src interface{}) map[string]interface{} {
+	var res = map[string]interface{}{}
+	str, _ := json.Marshal(src)
+	err := json.Unmarshal(str, &res)
+	if err != nil {
+		return nil
+	}
+	return res
+}
+
+// SafeGo is a common function to recover panic for goroutines
+func SafeGo(f interface{}, params ...interface{}) {
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				fmt.Printf("Recovered in SafeGo: %v\n", r)
+				debug.PrintStack()
+			}
+		}()
+
+		// Convert f to a reflect.Value
+		funcValue := reflect.ValueOf(f)
+
+		// Check if the f is a function
+		if funcValue.Kind() != reflect.Func {
+			fmt.Println("SafeGo: value is not a function")
+			return
+		}
+
+		// Convert params to reflect.Value
+		paramsValue := make([]reflect.Value, len(params))
+		for i, param := range params {
+			paramsValue[i] = reflect.ValueOf(param)
+		}
+
+		// Call the function f with params
+		funcValue.Call(paramsValue)
+	}()
+}
+
+// RandomString 
+func RandomString(n int) string {
+	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	length := len(letterBytes)
+	b := make([]byte, n)
+	randomBytes := make([]byte, n)
+	if _, err := crand.Read(randomBytes); err != nil {
+		return ""
+	}
+	for i, rb := range randomBytes {
+		b[i] = letterBytes[int(rb)%length]
+	}
+	return string(b)
+}
+
+// Keys ，K ，V 
+func Keys[K comparable, V any](m map[K]V) []K {
+	keys := make([]K, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+// Values ，K ，V 
+func Values[K comparable, V any](m map[K]V) []V {
+	values := make([]V, 0, len(m))
+	for _, v := range m {
+		values = append(values, v)
+	}
+	return values
+}
+
+func InArray(k string, arr []string) bool {
+	for _, v := range arr {
+		if k == v {
+			return true
+		}
+	}
+	return false
+}
+
+func StringConcat(strs ...string) string {
+	var builder strings.Builder
+	for _, str := range strs {
+		builder.WriteString(str)
+	}
+	return builder.String()
+}

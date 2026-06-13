@@ -1,0 +1,135 @@
+﻿package admin
+
+import (
+	"encoding/json"
+	"rustdesk-server/api/model"
+)
+
+type AddressBookForm struct {
+	RowId            uint     `json:"row_id"`
+	Id               string   `json:"id" validate:"required"`
+	Username         string   `json:"username" `
+	Password         string   `json:"password" `
+	Hostname         string   `json:"hostname" `
+	Alias            string   `json:"alias" `
+	Platform         string   `json:"platform" `
+	Tags             []string `json:"tags"`
+	Hash             string   `json:"hash"`
+	UserId           uint     `json:"user_id"`
+	UserIds          []uint   `json:"user_ids"`
+	ForceAlwaysRelay bool     `json:"forceAlwaysRelay"`
+	RdpPort          string   `json:"rdpPort"`
+	RdpUsername      string   `json:"rdpUsername"`
+	Online           bool     `json:"online"`
+	LoginName        string   `json:"loginName" `
+	SameServer       bool     `json:"sameServer"`
+	CollectionId     uint     `json:"collection_id"`
+}
+
+func (a AddressBookForm) ToAddressBook() *model.AddressBook {
+	//tags
+	tags, _ := json.Marshal(a.Tags)
+
+	return &model.AddressBook{
+		RowId:            a.RowId,
+		Id:               a.Id,
+		Username:         a.Username,
+		Password:         a.Password,
+		Hostname:         a.Hostname,
+		Alias:            a.Alias,
+		Platform:         a.Platform,
+		Tags:             tags,
+		Hash:             a.Hash,
+		UserId:           a.UserId,
+		ForceAlwaysRelay: a.ForceAlwaysRelay,
+		RdpPort:          a.RdpPort,
+		RdpUsername:      a.RdpUsername,
+		Online:           a.Online,
+		LoginName:        a.LoginName,
+		SameServer:       a.SameServer,
+		CollectionId:     a.CollectionId,
+	}
+
+}
+func (a AddressBookForm) ToAddressBooks() []*model.AddressBook {
+	//tags
+	tags, _ := json.Marshal(a.Tags)
+
+	abs := make([]*model.AddressBook, 0, len(a.UserIds))
+	for _, userId := range a.UserIds {
+		abs = append(abs, &model.AddressBook{
+			RowId:            a.RowId,
+			Id:               a.Id,
+			Username:         a.Username,
+			Password:         a.Password,
+			Hostname:         a.Hostname,
+			Alias:            a.Alias,
+			Platform:         a.Platform,
+			Tags:             tags,
+			Hash:             a.Hash,
+			UserId:           userId,
+			ForceAlwaysRelay: a.ForceAlwaysRelay,
+			RdpPort:          a.RdpPort,
+			RdpUsername:      a.RdpUsername,
+			Online:           a.Online,
+			LoginName:        a.LoginName,
+			SameServer:       a.SameServer,
+			CollectionId:     a.CollectionId,
+		})
+	}
+	return abs
+}
+
+type AddressBookQuery struct {
+	UserId       int    `form:"user_id"`
+	CollectionId *int   `form:"collection_id"`
+	IsMy         int    `form:"is_my"`
+	Username     string `form:"username"`
+	Hostname     string `form:"hostname"`
+	Id           string `form:"id"`
+	PageQuery
+}
+
+type ShareByWebClientForm struct {
+	Id           string `json:"id" validate:"required"`
+	PasswordType string `json:"password_type" validate:"required,oneof=once fixed"` //once,fixed
+	Password     string `json:"password" validate:"required"`
+	Expire       int64  `json:"expire"`
+}
+
+func (sbwcf ShareByWebClientForm) ToShareRecord() *model.ShareRecord {
+	return &model.ShareRecord{
+		UserId:       0,
+		PeerId:       sbwcf.Id,
+		PasswordType: sbwcf.PasswordType,
+		Password:     sbwcf.Password,
+		Expire:       sbwcf.Expire,
+	}
+}
+
+type AddressBookCollectionQuery struct {
+	UserId int `form:"user_id"`
+	IsMy   int `form:"is_my"`
+	PageQuery
+}
+
+type AddressBookCollectionSimpleListQuery struct {
+	UserIds []uint `form:"user_ids"`
+}
+type AddressBookCollectionRuleQuery struct {
+	UserId       int `form:"user_id"`
+	CollectionId int `form:"collection_id"`
+	IsMy         int `form:"is_my"`
+	PageQuery
+}
+
+type BatchCreateFromPeersForm struct {
+	CollectionId uint     `json:"collection_id"`
+	PeerIds      []uint   `json:"peer_ids"`
+	Tags         []string `json:"tags"`
+	UserId       uint     `json:"user_id"`
+}
+type BatchUpdateTagsForm struct {
+	RowIds []uint   `json:"row_ids"`
+	Tags   []string `json:"tags"`
+}

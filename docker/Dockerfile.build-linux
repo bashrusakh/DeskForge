@@ -1,0 +1,70 @@
+# Build Agent: Linux (.rpm) + Android (.apk)
+# Expects build jobs as JSON files in /rdgen-data/jobs/
+# Outputs binaries to /rdgen-data/output/{config_id}/
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# System deps for Rust + Flutter + Android
+# - libssl-dev: openssl headers (needed by openssl-sys)
+# - libpam0g-dev: PAM headers (needed by pam-sys)
+# - libgstreamer-plugins-base1.0-dev: gstreamer-app needed by rustdesk
+# - libgstrtspserver-1.0-dev: gstreamer rtsp server
+# - libvpx-dev / libopus-dev / libaom-dev: video/audio codecs
+# - libyuv-dev: YUV conversion library (Ubuntu package lacks .pc, see below)
+RUN apt-get update && apt-get install -y \
+    clang cmake gcc g++ nasm ninja-build pkg-config \
+    libssl-dev libgtk-3-dev libayatana-appindicator3-dev \
+    libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstrtspserver-1.0-dev \
+    libpulse-dev libva-dev \
+    libvpx-dev libopus-dev libaom-dev libyuv-dev libpam0g-dev \
+    libxcb-*-dev libxdo-dev libxfixes-dev llvm-dev \
+    imagemagick potrace libarchive-tools libfuse2 \
+    python3 rpm unzip wget curl git jq \
+    openjdk-17-jdk-headless \
+    && rm -rf /var/lib/apt/lists/*
+
+# Ubuntu's libyuv-dev package doesn't ship a pkg-config .pc file.
+# Rustdesk's scrap/magnum-opus need it for linux-pkg-config builds.
+RUN printf 'prefix=/usr\nexec_prefix=/usr\nlibdir=/usr/lib/x86_64-linux-gnu\nincludedir=/usr/include\n\nName: libyuv\nDescription: Library for YUV scaling\nVersion: 0.0.1807\nLibs: -L/usr/lib/x86_64-linux-gnu -lyuv\nCflags: -I/usr/include\n' \
+    > /usr/lib/x86_64-linux-gnu/pkgconfig/libyuv.pc
+
+# Rust
+RUN curl -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+RUN rustup default stable \
+    && rustup target add x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu
+
+# Flutter
+RUN wget -q https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.24.5-stable.tar.xz \
+    && tar xf flutter_linux_3.24.5-stable.tar.xz -C /opt \
+    && rm flutter_*.tar.xz
+ENV PATH="/opt/flutter/bin:${PATH}"
+RUN flutter config --no-analytics && flutter precache
+
+# Android SDK + NDK
+RUN mkdir -p /opt/android-sdk && cd /opt/android-sdk \
+    && wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip \
+    && unzip commandlinetools-*.zip \
+    && yes | ./cmdline-tools/bin/sdkmanager --sdk_root=/opt/android-sdk \
+        "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125"
+ENV ANDROID_HOME=/opt/android-sdk
+ENV ANDROID_NDK_HOME=/opt/android-sdk/ndk/26.1.10909125
+ENV PATH="${ANDROID_HOME}/cmdline-tools/latest/bin:${PATH}"
+
+# Pre-bake rustdesk source (no external clones at runtime)
+RUN git clone --depth 1 --branch master --recurse-submodules https://github.com/rustdesk/rustdesk.git /opt/rustdesk-src
+
+# Vendor all crate dependencies (fully offline builds, immune to upstream disappearing)
+# cargo vendor writes the [source.crates-io] redirect + all git source mappings to stdout
+RUN cd /opt/rustdesk-src && \
+    cargo vendor vendor > .cargo/config.toml 2>/dev/null
+
+WORKDIR /build
+COPY docker/entrypoint-linux.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+VOLUME /rdgen-data
+VOLUME /rustdesk-cache
+
+ENTRYPOINT ["/entrypoint.sh"]

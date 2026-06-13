@@ -1,0 +1,35 @@
+package model
+
+type User struct {
+	IdModel
+	Username string `json:"username" gorm:"default:'';not null;uniqueIndex"`
+	Email    string `json:"email" gorm:"default:'';not null;index"`
+	// Email	string     	`json:"email" `
+	Password string     `json:"-" gorm:"default:'';not null;"`
+	Nickname string     `json:"nickname" gorm:"default:'';not null;"`
+	Avatar   string     `json:"avatar" gorm:"default:'';not null;"`
+	GroupId  uint       `json:"group_id" gorm:"default:0;not null;index"`
+	IsAdmin  *bool      `json:"is_admin" gorm:"default:0;not null;"`
+	Status   StatusCode `json:"status" gorm:"default:1;not null;"`
+	Remark   string     `json:"remark" gorm:"default:'';not null;"`
+	TimeModel
+}
+
+// BeforeSave  email 
+//func (u *User) BeforeSave(tx *gorm.DB) (err error) {
+//	//  email ，
+//	if u.Email == "" {
+//		u.Email = fmt.Sprintf("%s@example.com", u.Username)
+//	}
+//	return nil
+//}
+
+type UserList struct {
+	Users []*User `json:"list,omitempty"`
+	Pagination
+}
+
+var UserRouteNames = []string{
+	"MyTagList", "MyAddressBookList", "MyInfo", "MyAddressBookCollection", "MyPeer", "MyShareRecordList", "MyLoginLog",
+}
+var AdminRouteNames = []string{"*"}

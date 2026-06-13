@@ -1,0 +1,4023 @@
+basePath: /api
+definitions:
+  admin.AddressBookForm:
+    properties:
+      alias:
+        type: string
+      collection_id:
+        type: integer
+      forceAlwaysRelay:
+        type: boolean
+      hash:
+        type: string
+      hostname:
+        type: string
+      id:
+        type: string
+      loginName:
+        type: string
+      online:
+        type: boolean
+      password:
+        type: string
+      platform:
+        type: string
+      rdpPort:
+        type: string
+      rdpUsername:
+        type: string
+      row_id:
+        type: integer
+      sameServer:
+        type: boolean
+      tags:
+        items:
+          type: string
+        type: array
+      user_id:
+        type: integer
+      user_ids:
+        items:
+          type: integer
+        type: array
+      username:
+        type: string
+    required:
+    - id
+    type: object
+  admin.AuditConnLogIds:
+    properties:
+      ids:
+        items:
+          type: integer
+        type: array
+    required:
+    - ids
+    type: object
+  admin.AuditFileLogIds:
+    properties:
+      ids:
+        items:
+          type: integer
+        type: array
+    required:
+    - ids
+    type: object
+  admin.ChangeCurPasswordForm:
+    properties:
+      new_password:
+        maxLength: 32
+        minLength: 4
+        type: string
+      old_password:
+        maxLength: 32
+        minLength: 4
+        type: string
+    required:
+    - new_password
+    - old_password
+    type: object
+  admin.DeviceGroupForm:
+    properties:
+      id:
+        type: integer
+      name:
+        type: string
+    required:
+    - name
+    type: object
+  admin.GroupForm:
+    properties:
+      id:
+        type: integer
+      name:
+        type: string
+      type:
+        type: integer
+    required:
+    - name
+    type: object
+  admin.LoginLogIds:
+    properties:
+      ids:
+        items:
+          type: integer
+        type: array
+    required:
+    - ids
+    type: object
+  admin.LoginPayload:
+    properties:
+      avatar:
+        type: string
+      email:
+        type: string
+      nickname:
+        type: string
+      route_names:
+        items:
+          type: string
+        type: array
+      token:
+        type: string
+      username:
+        type: string
+    type: object
+  admin.OauthForm:
+    properties:
+      auto_register:
+        type: boolean
+      client_id:
+        type: string
+      client_secret:
+        type: string
+      id:
+        type: integer
+      issuer:
+        type: string
+      oauth_type:
+        type: string
+      op:
+        type: string
+      pkce_enable:
+        type: boolean
+      pkce_method:
+        type: string
+      scopes:
+        type: string
+    required:
+    - client_id
+    - client_secret
+    - oauth_type
+    type: object
+  admin.PeerBatchDeleteForm:
+    properties:
+      row_ids:
+        items:
+          type: integer
+        type: array
+    required:
+    - row_ids
+    type: object
+  admin.PeerForm:
+    properties:
+      cpu:
+        type: string
+      group_id:
+        type: integer
+      hostname:
+        type: string
+      id:
+        type: string
+      memory:
+        type: string
+      os:
+        type: string
+      row_id:
+        type: integer
+      username:
+        type: string
+      uuid:
+        type: string
+      version:
+        type: string
+    type: object
+  admin.PeerShareRecordBatchDeleteForm:
+    properties:
+      ids:
+        items:
+          type: integer
+        type: array
+    required:
+    - ids
+    type: object
+  admin.ShareByWebClientForm:
+    properties:
+      expire:
+        type: integer
+      id:
+        type: string
+      password:
+        type: string
+      password_type:
+        description: 只能是once,fixed
+        enum:
+        - once
+        - fixed
+        type: string
+    required:
+    - id
+    - password
+    - password_type
+    type: object
+  admin.ShareRecordForm:
+    properties:
+      id:
+        type: integer
+      user_id:
+        type: integer
+    type: object
+  admin.TagForm:
+    properties:
+      collection_id:
+        type: integer
+      color:
+        type: integer
+      id:
+        type: integer
+      name:
+        type: string
+      user_id:
+        type: integer
+    required:
+    - color
+    - name
+    type: object
+  admin.UserForm:
+    properties:
+      avatar:
+        type: string
+      email:
+        description: validate:"required,email" email不强制
+        type: string
+      group_id:
+        type: integer
+      id:
+        type: integer
+      is_admin:
+        type: boolean
+      nickname:
+        description: Password string           `json:"password" validate:"required,gte=4,lte=20"`
+        type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/model.StatusCode'
+        minimum: 0
+      username:
+        maxLength: 32
+        minLength: 2
+        type: string
+    required:
+    - group_id
+    - status
+    - username
+    type: object
+  admin.UserOauthItem:
+    properties:
+      op:
+        type: string
+      status:
+        type: integer
+    type: object
+  admin.UserPasswordForm:
+    properties:
+      id:
+        type: integer
+      password:
+        maxLength: 32
+        minLength: 4
+        type: string
+    required:
+    - id
+    - password
+    type: object
+  admin.UserTokenBatchDeleteForm:
+    properties:
+      ids:
+        items:
+          type: integer
+        type: array
+    required:
+    - ids
+    type: object
+  github_com_lejianwen_rustdesk-api_v2_http_request_admin.Login:
+    properties:
+      captcha:
+        type: string
+      captcha_id:
+        type: string
+      password:
+        type: string
+      platform:
+        type: string
+      username:
+        type: string
+    required:
+    - password
+    - username
+    type: object
+  model.AddressBook:
+    properties:
+      alias:
+        type: string
+      collection:
+        $ref: '#/definitions/model.AddressBookCollection'
+      collection_id:
+        type: integer
+      created_at:
+        type: string
+      forceAlwaysRelay:
+        type: boolean
+      hash:
+        type: string
+      hostname:
+        type: string
+      id:
+        type: string
+      loginName:
+        type: string
+      online:
+        type: boolean
+      password:
+        type: string
+      platform:
+        type: string
+      rdpPort:
+        type: string
+      rdpUsername:
+        type: string
+      row_id:
+        type: integer
+      sameServer:
+        type: boolean
+      tags:
+        items:
+          type: string
+        type: array
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+      username:
+        type: string
+    type: object
+  model.AddressBookCollection:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    required:
+    - name
+    type: object
+  model.AddressBookCollectionList:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/model.AddressBookCollection'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+    type: object
+  model.AddressBookCollectionRule:
+    properties:
+      collection_id:
+        type: integer
+      created_at:
+        type: string
+      id:
+        type: integer
+      rule:
+        description: '0: 无 1: 读 2: 读写  3: 完全控制'
+        maximum: 3
+        minimum: 1
+        type: integer
+      to_id:
+        type: integer
+      type:
+        description: '1: 个人 2: 群组'
+        maximum: 2
+        minimum: 1
+        type: integer
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    required:
+    - collection_id
+    - rule
+    - to_id
+    - type
+    type: object
+  model.AddressBookList:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/model.AddressBook'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+    type: object
+  model.AuditConn:
+    properties:
+      action:
+        type: string
+      close_time:
+        type: integer
+      conn_id:
+        type: integer
+      created_at:
+        type: string
+      from_name:
+        type: string
+      from_peer:
+        type: string
+      id:
+        type: integer
+      ip:
+        type: string
+      peer_id:
+        type: string
+      session_id:
+        type: string
+      type:
+        type: integer
+      updated_at:
+        type: string
+      uuid:
+        type: string
+    type: object
+  model.AuditConnList:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/model.AuditConn'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+    type: object
+  model.AuditFile:
+    properties:
+      created_at:
+        type: string
+      from_name:
+        type: string
+      from_peer:
+        type: string
+      id:
+        type: integer
+      info:
+        type: string
+      ip:
+        type: string
+      is_file:
+        type: boolean
+      num:
+        type: integer
+      path:
+        type: string
+      peer_id:
+        type: string
+      type:
+        type: integer
+      updated_at:
+        type: string
+      uuid:
+        type: string
+    type: object
+  model.AuditFileList:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/model.AuditFile'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+    type: object
+  model.DeviceGroup:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  model.Group:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      type:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  model.GroupList:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/model.Group'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+    type: object
+  model.LoginLog:
+    properties:
+      client:
+        description: webadmin,webclient,app,
+        type: string
+      created_at:
+        type: string
+      device_id:
+        type: string
+      id:
+        type: integer
+      ip:
+        type: string
+      is_deleted:
+        type: integer
+      platform:
+        description: windows,linux,mac,android,ios
+        type: string
+      type:
+        description: account,oauth
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+      user_token_id:
+        type: integer
+      uuid:
+        type: string
+    type: object
+  model.LoginLogList:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/model.LoginLog'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+    type: object
+  model.Oauth:
+    properties:
+      auto_register:
+        type: boolean
+      client_id:
+        type: string
+      client_secret:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      issuer:
+        type: string
+      oauth_type:
+        type: string
+      op:
+        type: string
+      pkce_enable:
+        type: boolean
+      pkce_method:
+        type: string
+      scopes:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  model.OauthList:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/model.Oauth'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+    type: object
+  model.Peer:
+    properties:
+      cpu:
+        type: string
+      created_at:
+        type: string
+      group_id:
+        type: integer
+      hostname:
+        type: string
+      id:
+        type: string
+      last_online_ip:
+        type: string
+      last_online_time:
+        type: integer
+      memory:
+        type: string
+      os:
+        type: string
+      row_id:
+        type: integer
+      updated_at:
+        type: string
+      user:
+        $ref: '#/definitions/model.User'
+      user_id:
+        type: integer
+      username:
+        type: string
+      uuid:
+        type: string
+      version:
+        type: string
+    type: object
+  model.PeerList:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/model.Peer'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+    type: object
+  model.StatusCode:
+    enum:
+    - 1
+    - 2
+    type: integer
+    x-enum-comments:
+      COMMON_STATUS_DISABLED: 通用状态 禁用
+      COMMON_STATUS_ENABLE: 通用状态 启用
+    x-enum-varnames:
+    - COMMON_STATUS_ENABLE
+    - COMMON_STATUS_DISABLED
+  model.Tag:
+    properties:
+      collection:
+        $ref: '#/definitions/model.AddressBookCollection'
+      collection_id:
+        type: integer
+      color:
+        description: color 是flutter的颜色值,从0x00000000 到 0xFFFFFFFF; 前两位表示透明度，后面6位表示颜色,
+          可以转成rgba
+        type: integer
+      created_at:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  model.TagList:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/model.Tag'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+    type: object
+  model.User:
+    properties:
+      avatar:
+        type: string
+      created_at:
+        type: string
+      email:
+        type: string
+      group_id:
+        type: integer
+      id:
+        type: integer
+      is_admin:
+        type: boolean
+      nickname:
+        type: string
+      status:
+        $ref: '#/definitions/model.StatusCode'
+      updated_at:
+        type: string
+      username:
+        type: string
+    type: object
+  model.UserList:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/model.User'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+    type: object
+  model.UserToken:
+    properties:
+      created_at:
+        type: string
+      device_id:
+        type: string
+      device_uuid:
+        type: string
+      expired_at:
+        type: integer
+      id:
+        type: integer
+      token:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  model.UserTokenList:
+    properties:
+      list:
+        items:
+          $ref: '#/definitions/model.UserToken'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+    type: object
+  response.ErrorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+  response.Response:
+    properties:
+      code:
+        type: integer
+      data: {}
+      message:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: 接口
+  title: 管理系统API
+  version: "1.0"
+paths:
+  /admin/address_book/batchCreate:
+    post:
+      consumes:
+      - application/json
+      description: 批量创建地址簿
+      parameters:
+      - description: 地址簿信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.AddressBookForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.AddressBook'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 批量创建地址簿
+      tags:
+      - 地址簿
+  /admin/address_book/create:
+    post:
+      consumes:
+      - application/json
+      description: 创建地址簿
+      parameters:
+      - description: 地址簿信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.AddressBookForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.AddressBook'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 创建地址簿
+      tags:
+      - 地址簿
+  /admin/address_book/delete:
+    post:
+      consumes:
+      - application/json
+      description: 地址簿删除
+      parameters:
+      - description: 地址簿信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.AddressBookForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 地址簿删除
+      tags:
+      - 地址簿
+  /admin/address_book/detail/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 地址簿详情
+      parameters:
+      - description: ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.AddressBook'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 地址簿详情
+      tags:
+      - 地址簿
+  /admin/address_book/list:
+    get:
+      consumes:
+      - application/json
+      description: 地址簿列表
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        type: integer
+      - description: 用户id
+        in: query
+        name: user_id
+        type: integer
+      - description: 是否是我的
+        in: query
+        name: is_my
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.AddressBookList'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 地址簿列表
+      tags:
+      - 地址簿
+  /admin/address_book/share:
+    post:
+      consumes:
+      - application/json
+      description: 地址簿分享
+      parameters:
+      - description: 地址簿信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.ShareByWebClientForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 地址簿分享
+      tags:
+      - 地址簿
+  /admin/address_book/update:
+    post:
+      consumes:
+      - application/json
+      description: 地址簿编辑
+      parameters:
+      - description: 地址簿信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.AddressBookForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.AddressBook'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 地址簿编辑
+      tags:
+      - 地址簿
+  /admin/address_book_collection/create:
+    post:
+      consumes:
+      - application/json
+      description: 创建地址簿名称
+      parameters:
+      - description: 地址簿名称信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.AddressBookCollection'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.AddressBookCollection'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 创建地址簿名称
+      tags:
+      - 地址簿名称
+  /admin/address_book_collection/delete:
+    post:
+      consumes:
+      - application/json
+      description: 地址簿名称删除
+      parameters:
+      - description: 地址簿名称信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.AddressBookCollection'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 地址簿名称删除
+      tags:
+      - 地址簿名称
+  /admin/address_book_collection/detail/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 地址簿名称详情
+      parameters:
+      - description: ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.AddressBookCollection'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 地址簿名称详情
+      tags:
+      - 地址簿名称
+  /admin/address_book_collection/list:
+    get:
+      consumes:
+      - application/json
+      description: 地址簿名称列表
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        type: integer
+      - description: 是否是我的
+        in: query
+        name: is_my
+        type: integer
+      - description: 用户id
+        in: query
+        name: user_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.AddressBookCollectionList'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 地址簿名称列表
+      tags:
+      - 地址簿名称
+  /admin/address_book_collection/update:
+    post:
+      consumes:
+      - application/json
+      description: 地址簿名称编辑
+      parameters:
+      - description: 地址簿名称信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.AddressBookCollection'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.AddressBookCollection'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 地址簿名称编辑
+      tags:
+      - 地址簿名称
+  /admin/address_book_collection_rule/create:
+    post:
+      consumes:
+      - application/json
+      description: 创建地址簿规则
+      parameters:
+      - description: 地址簿规则信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.AddressBookCollectionRule'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.AddressBookCollection'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 创建地址簿规则
+      tags:
+      - 地址簿规则
+  /admin/address_book_collection_rule/delete:
+    post:
+      consumes:
+      - application/json
+      description: 地址簿规则删除
+      parameters:
+      - description: 地址簿规则信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.AddressBookCollectionRule'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 地址簿规则删除
+      tags:
+      - 地址簿规则
+  /admin/address_book_collection_rule/detail/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 地址簿规则详情
+      parameters:
+      - description: ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.AddressBookCollectionRule'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 地址簿规则详情
+      tags:
+      - 地址簿规则
+  /admin/address_book_collection_rule/list:
+    get:
+      consumes:
+      - application/json
+      description: 地址簿规则列表
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        type: integer
+      - description: 是否是我的
+        in: query
+        name: is_my
+        type: integer
+      - description: 用户id
+        in: query
+        name: user_id
+        type: integer
+      - description: 地址簿集合id
+        in: query
+        name: collection_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.AddressBookCollectionList'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 地址簿规则列表
+      tags:
+      - 地址簿规则
+  /admin/address_book_collection_rule/update:
+    post:
+      consumes:
+      - application/json
+      description: 地址簿规则编辑
+      parameters:
+      - description: 地址簿规则信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.AddressBookCollectionRule'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.AddressBookCollection'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 地址簿规则编辑
+      tags:
+      - 地址簿规则
+  /admin/audit_conn/batchDelete:
+    post:
+      consumes:
+      - application/json
+      description: 链接日志批量删除
+      parameters:
+      - description: 链接日志
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.AuditConnLogIds'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 链接日志批量删除
+      tags:
+      - 链接日志
+  /admin/audit_conn/delete:
+    post:
+      consumes:
+      - application/json
+      description: 链接日志删除
+      parameters:
+      - description: 链接日志信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.AuditConn'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 链接日志删除
+      tags:
+      - 链接日志
+  /admin/audit_conn/list:
+    get:
+      consumes:
+      - application/json
+      description: 链接日志列表
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        type: integer
+      - description: 目标设备
+        in: query
+        name: peer_id
+        type: integer
+      - description: 来源设备
+        in: query
+        name: from_peer
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.AuditConnList'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 链接日志列表
+      tags:
+      - 链接日志
+  /admin/audit_file/batchDelete:
+    post:
+      consumes:
+      - application/json
+      description: 文件日志批量删除
+      parameters:
+      - description: 文件日志
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.AuditFileLogIds'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 文件日志批量删除
+      tags:
+      - 文件日志
+  /admin/audit_file/delete:
+    post:
+      consumes:
+      - application/json
+      description: 文件日志删除
+      parameters:
+      - description: 文件日志信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.AuditFile'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 文件日志删除
+      tags:
+      - 文件日志
+  /admin/audit_file/list:
+    get:
+      consumes:
+      - application/json
+      description: 文件日志列表
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        type: integer
+      - description: 目标设备
+        in: query
+        name: peer_id
+        type: integer
+      - description: 来源设备
+        in: query
+        name: from_peer
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.AuditFileList'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 文件日志列表
+      tags:
+      - 文件日志
+  /admin/config/admin:
+    get:
+      consumes:
+      - application/json
+      description: ADMIN服务配置
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: ADMIN服务配置
+      tags:
+      - ADMIN
+  /admin/config/app:
+    get:
+      consumes:
+      - application/json
+      description: APP服务配置
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: APP服务配置
+      tags:
+      - ADMIN
+  /admin/config/server:
+    get:
+      consumes:
+      - application/json
+      description: 服务配置,给webclient提供api-server
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: RUSTDESK服务配置
+      tags:
+      - ADMIN
+  /admin/device_group/create:
+    post:
+      consumes:
+      - application/json
+      description: 创建设备群组
+      parameters:
+      - description: 设备群组信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.DeviceGroupForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.DeviceGroup'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 创建设备群组
+      tags:
+      - 设备群组
+  /admin/device_group/delete:
+    post:
+      consumes:
+      - application/json
+      description: 设备群组删除
+      parameters:
+      - description: 群组信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.DeviceGroupForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 设备群组删除
+      tags:
+      - 设备群组
+  /admin/device_group/detail/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 设备群组详情
+      parameters:
+      - description: ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Group'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 设备群组详情
+      tags:
+      - 设备群组
+  /admin/device_group/list:
+    get:
+      consumes:
+      - application/json
+      description: 群组列表
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.GroupList'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 群组列表
+      tags:
+      - 群组
+  /admin/device_group/update:
+    post:
+      consumes:
+      - application/json
+      description: 设备群组编辑
+      parameters:
+      - description: 群组信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.DeviceGroupForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Group'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 设备群组编辑
+      tags:
+      - 设备群组
+  /admin/file/oss_token:
+    get:
+      consumes:
+      - application/json
+      description: 获取ossToken
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 获取ossToken
+      tags:
+      - 文件
+  /admin/file/upload:
+    post:
+      consumes:
+      - multipart/form-data
+      description: 上传文件到本地
+      parameters:
+      - description: 上传文件示例
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 上传文件到本地
+      tags:
+      - 文件
+  /admin/group/create:
+    post:
+      consumes:
+      - application/json
+      description: 创建群组
+      parameters:
+      - description: 群组信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.GroupForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Group'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 创建群组
+      tags:
+      - 群组
+  /admin/group/delete:
+    post:
+      consumes:
+      - application/json
+      description: 群组删除
+      parameters:
+      - description: 群组信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.GroupForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 群组删除
+      tags:
+      - 群组
+  /admin/group/detail/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 群组详情
+      parameters:
+      - description: ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Group'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 群组详情
+      tags:
+      - 群组
+  /admin/group/list:
+    get:
+      consumes:
+      - application/json
+      description: 群组列表
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.GroupList'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 群组列表
+      tags:
+      - 群组
+  /admin/group/update:
+    post:
+      consumes:
+      - application/json
+      description: 群组编辑
+      parameters:
+      - description: 群组信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.GroupForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Group'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 群组编辑
+      tags:
+      - 群组
+  /admin/login:
+    post:
+      consumes:
+      - application/json
+      description: 登录
+      parameters:
+      - description: 登录信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_lejianwen_rustdesk-api_v2_http_request_admin.Login'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/admin.LoginPayload'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 登录
+      tags:
+      - 登录
+  /admin/login-options:
+    post:
+      consumes:
+      - application/json
+      description: 登录选项
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: string
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.ErrorResponse'
+      summary: 登录选项
+      tags:
+      - 登录
+  /admin/login_log/batchDelete:
+    post:
+      consumes:
+      - application/json
+      description: 登录日志批量删除
+      parameters:
+      - description: 登录日志
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.LoginLogIds'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 登录日志批量删除
+      tags:
+      - 登录日志
+  /admin/login_log/delete:
+    post:
+      consumes:
+      - application/json
+      description: 登录日志删除
+      parameters:
+      - description: 登录日志信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.LoginLog'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 登录日志删除
+      tags:
+      - 登录日志
+  /admin/login_log/detail/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 登录日志详情
+      parameters:
+      - description: ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.LoginLog'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 登录日志详情
+      tags:
+      - 登录日志
+  /admin/login_log/list:
+    get:
+      consumes:
+      - application/json
+      description: 登录日志列表
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        type: integer
+      - description: 用户ID
+        in: query
+        name: user_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.LoginLogList'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 登录日志列表
+      tags:
+      - 登录日志
+  /admin/logout:
+    post:
+      consumes:
+      - application/json
+      description: 登出
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 登出
+      tags:
+      - 登录
+  /admin/my/address_book/create:
+    post:
+      consumes:
+      - application/json
+      description: 创建地址簿
+      parameters:
+      - description: 地址簿信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.AddressBookForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.AddressBook'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 创建地址簿
+      tags:
+      - 我的地址簿
+  /admin/my/address_book/delete:
+    post:
+      consumes:
+      - application/json
+      description: 地址簿删除
+      parameters:
+      - description: 地址簿信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.AddressBookForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 地址簿删除
+      tags:
+      - 我的地址簿
+  /admin/my/address_book/list:
+    get:
+      consumes:
+      - application/json
+      description: 地址簿列表
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        type: integer
+      - description: 用户id
+        in: query
+        name: user_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.AddressBookList'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 地址簿列表
+      tags:
+      - 我的地址簿
+  /admin/my/address_book/update:
+    post:
+      consumes:
+      - application/json
+      description: 地址簿编辑
+      parameters:
+      - description: 地址簿信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.AddressBookForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.AddressBook'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 地址簿编辑
+      tags:
+      - 我的地址簿
+  /admin/my/address_book_collection/create:
+    post:
+      consumes:
+      - application/json
+      description: 创建地址簿名称
+      parameters:
+      - description: 地址簿名称信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.AddressBookCollection'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.AddressBookCollection'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 创建地址簿名称
+      tags:
+      - 我的地址簿名称
+  /admin/my/address_book_collection/delete:
+    post:
+      consumes:
+      - application/json
+      description: 地址簿名称删除
+      parameters:
+      - description: 地址簿名称信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.AddressBookCollection'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 地址簿名称删除
+      tags:
+      - 我的地址簿名称
+  /admin/my/address_book_collection/list:
+    get:
+      consumes:
+      - application/json
+      description: 地址簿名称列表
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.AddressBookCollectionList'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 地址簿名称列表
+      tags:
+      - 我的地址簿名称
+  /admin/my/address_book_collection/update:
+    post:
+      consumes:
+      - application/json
+      description: 地址簿名称编辑
+      parameters:
+      - description: 地址簿名称信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.AddressBookCollection'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.AddressBookCollection'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 地址簿名称编辑
+      tags:
+      - 我的地址簿名称
+  /admin/my/address_book_collection_rule/create:
+    post:
+      consumes:
+      - application/json
+      description: 创建地址簿规则
+      parameters:
+      - description: 地址簿规则信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.AddressBookCollectionRule'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.AddressBookCollection'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 创建地址簿规则
+      tags:
+      - 我的地址簿规则
+  /admin/my/address_book_collection_rule/delete:
+    post:
+      consumes:
+      - application/json
+      description: 地址簿规则删除
+      parameters:
+      - description: 地址簿规则信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.AddressBookCollectionRule'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 地址簿规则删除
+      tags:
+      - 我的地址簿规则
+  /admin/my/address_book_collection_rule/list:
+    get:
+      consumes:
+      - application/json
+      description: 地址簿规则列表
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        type: integer
+      - description: 是否是我的
+        in: query
+        name: is_my
+        type: integer
+      - description: 用户id
+        in: query
+        name: user_id
+        type: integer
+      - description: 地址簿集合id
+        in: query
+        name: collection_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.AddressBookCollectionList'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 地址簿规则列表
+      tags:
+      - 我的地址簿规则
+  /admin/my/address_book_collection_rule/update:
+    post:
+      consumes:
+      - application/json
+      description: 地址簿规则编辑
+      parameters:
+      - description: 地址簿规则信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.AddressBookCollectionRule'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.AddressBookCollection'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 地址簿规则编辑
+      tags:
+      - 我的地址簿规则
+  /admin/my/login_log/batchDelete:
+    post:
+      consumes:
+      - application/json
+      description: 登录日志批量删除
+      parameters:
+      - description: 登录日志
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.LoginLogIds'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 登录日志批量删除
+      tags:
+      - 我的登录日志
+  /admin/my/login_log/delete:
+    post:
+      consumes:
+      - application/json
+      description: 登录日志删除
+      parameters:
+      - description: 登录日志信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.LoginLog'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 登录日志删除
+      tags:
+      - 我的登录日志
+  /admin/my/login_log/list:
+    get:
+      consumes:
+      - application/json
+      description: 登录日志列表
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        type: integer
+      - description: 用户ID
+        in: query
+        name: user_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.LoginLogList'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 登录日志列表
+      tags:
+      - 我的登录日志
+  /admin/my/peer/list:
+    get:
+      consumes:
+      - application/json
+      description: 设备列表
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        type: integer
+      - description: 时间
+        in: query
+        name: time_ago
+        type: integer
+      - description: ID
+        in: query
+        name: id
+        type: string
+      - description: 主机名
+        in: query
+        name: hostname
+        type: string
+      - description: uuids 用逗号分隔
+        in: query
+        name: uuids
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.PeerList'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 设备列表
+      tags:
+      - 我的设备
+  /admin/my/share_record/batchDelete:
+    post:
+      consumes:
+      - application/json
+      description: 批量删除我的分享记录
+      parameters:
+      - description: id
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.PeerShareRecordBatchDeleteForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 批量删除我的分享记录
+      tags:
+      - 我的
+  /admin/my/share_record/delete:
+    post:
+      consumes:
+      - application/json
+      description: 分享记录删除
+      parameters:
+      - description: 分享记录信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.ShareRecordForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 分享记录删除
+      tags:
+      - 我的分享记录
+  /admin/my/share_record/list:
+    get:
+      consumes:
+      - application/json
+      description: 分享记录列表
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 分享记录列表
+      tags:
+      - 我的分享记录
+  /admin/my/tag/create:
+    post:
+      consumes:
+      - application/json
+      description: 创建标签
+      parameters:
+      - description: 标签信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.TagForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Tag'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 创建标签
+      tags:
+      - 我的标签
+  /admin/my/tag/delete:
+    post:
+      consumes:
+      - application/json
+      description: 标签删除
+      parameters:
+      - description: 标签信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.TagForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 标签删除
+      tags:
+      - 标签
+  /admin/my/tag/list:
+    get:
+      consumes:
+      - application/json
+      description: 标签列表
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        type: integer
+      - description: 是否是我的
+        in: query
+        name: is_my
+        type: integer
+      - description: 用户id
+        in: query
+        name: user_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.TagList'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 标签列表
+      tags:
+      - 我的标签
+  /admin/my/tag/update:
+    post:
+      consumes:
+      - application/json
+      description: 标签编辑
+      parameters:
+      - description: 标签信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.TagForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Tag'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 标签编辑
+      tags:
+      - 我的标签
+  /admin/oauth/create:
+    post:
+      consumes:
+      - application/json
+      description: 创建Oauth
+      parameters:
+      - description: Oauth信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.OauthForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Oauth'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 创建Oauth
+      tags:
+      - Oauth
+  /admin/oauth/delete:
+    post:
+      consumes:
+      - application/json
+      description: Oauth删除
+      parameters:
+      - description: Oauth信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.OauthForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: Oauth删除
+      tags:
+      - Oauth
+  /admin/oauth/detail/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Oauth详情
+      parameters:
+      - description: ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Oauth'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: Oauth详情
+      tags:
+      - Oauth
+  /admin/oauth/list:
+    get:
+      consumes:
+      - application/json
+      description: Oauth列表
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.OauthList'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: Oauth列表
+      tags:
+      - Oauth
+  /admin/oauth/update:
+    post:
+      consumes:
+      - application/json
+      description: Oauth编辑
+      parameters:
+      - description: Oauth信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.OauthForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.OauthList'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: Oauth编辑
+      tags:
+      - Oauth
+  /admin/oidc/auth:
+    post:
+      consumes:
+      - application/json
+      description: OidcAuth
+      produces:
+      - application/json
+      responses: {}
+      summary: OidcAuth
+      tags:
+      - Oauth
+  /admin/oidc/auth-query:
+    get:
+      consumes:
+      - application/json
+      description: OidcAuthQuery
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/admin.LoginPayload'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: OidcAuthQuery
+      tags:
+      - Oauth
+  /admin/peer/batchDelete:
+    post:
+      consumes:
+      - application/json
+      description: 批量设备删除
+      parameters:
+      - description: 设备id
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.PeerBatchDeleteForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 批量设备删除
+      tags:
+      - 设备
+  /admin/peer/create:
+    post:
+      consumes:
+      - application/json
+      description: 创建设备
+      parameters:
+      - description: 设备信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.PeerForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Peer'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 创建设备
+      tags:
+      - 设备
+  /admin/peer/delete:
+    post:
+      consumes:
+      - application/json
+      description: 设备删除
+      parameters:
+      - description: 设备信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.PeerForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 设备删除
+      tags:
+      - 设备
+  /admin/peer/detail/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 设备详情
+      parameters:
+      - description: ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Peer'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 设备详情
+      tags:
+      - 设备
+  /admin/peer/list:
+    get:
+      consumes:
+      - application/json
+      description: 设备列表
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        type: integer
+      - description: 时间
+        in: query
+        name: time_ago
+        type: integer
+      - description: ID
+        in: query
+        name: id
+        type: string
+      - description: 主机名
+        in: query
+        name: hostname
+        type: string
+      - description: uuids 用逗号分隔
+        in: query
+        name: uuids
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.PeerList'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 设备列表
+      tags:
+      - 设备
+  /admin/peer/update:
+    post:
+      consumes:
+      - application/json
+      description: 设备编辑
+      parameters:
+      - description: 设备信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.PeerForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Peer'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 设备编辑
+      tags:
+      - 设备
+  /admin/share_record/batchDelete:
+    post:
+      consumes:
+      - application/json
+      description: 批量分享记录
+      parameters:
+      - description: id
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.PeerShareRecordBatchDeleteForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 批量分享记录
+      tags:
+      - 分享记录
+  /admin/share_record/delete:
+    post:
+      consumes:
+      - application/json
+      description: 分享记录删除
+      parameters:
+      - description: 分享记录信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.ShareRecordForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 分享记录删除
+      tags:
+      - 分享记录
+  /admin/share_record/list:
+    get:
+      consumes:
+      - application/json
+      description: 分享记录列表
+      parameters:
+      - description: 用户ID
+        in: query
+        name: user_id
+        type: integer
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 分享记录列表
+      tags:
+      - 分享记录
+  /admin/tag/create:
+    post:
+      consumes:
+      - application/json
+      description: 创建标签
+      parameters:
+      - description: 标签信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.TagForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Tag'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 创建标签
+      tags:
+      - 标签
+  /admin/tag/delete:
+    post:
+      consumes:
+      - application/json
+      description: 标签删除
+      parameters:
+      - description: 标签信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.TagForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 标签删除
+      tags:
+      - 标签
+  /admin/tag/detail/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 标签详情
+      parameters:
+      - description: ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Tag'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 标签详情
+      tags:
+      - 标签
+  /admin/tag/list:
+    get:
+      consumes:
+      - application/json
+      description: 标签列表
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        type: integer
+      - description: 是否是我的
+        in: query
+        name: is_my
+        type: integer
+      - description: 用户id
+        in: query
+        name: user_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.TagList'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 标签列表
+      tags:
+      - 标签
+  /admin/tag/update:
+    post:
+      consumes:
+      - application/json
+      description: 标签编辑
+      parameters:
+      - description: 标签信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.TagForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Tag'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 标签编辑
+      tags:
+      - 标签
+  /admin/user/changeCurPwd:
+    post:
+      consumes:
+      - application/json
+      description: 修改当前用户密码
+      parameters:
+      - description: 用户信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.ChangeCurPasswordForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 修改当前用户密码
+      tags:
+      - 用户
+  /admin/user/create:
+    post:
+      consumes:
+      - application/json
+      description: 创建管理员
+      parameters:
+      - description: 管理员信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.UserForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.User'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 创建管理员
+      tags:
+      - 用户
+  /admin/user/current:
+    get:
+      consumes:
+      - application/json
+      description: 当前用户
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/admin.LoginPayload'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 当前用户
+      tags:
+      - 用户
+  /admin/user/delete:
+    post:
+      consumes:
+      - application/json
+      description: 管理员编删除
+      parameters:
+      - description: 用户信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.UserForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 管理员删除
+      tags:
+      - 用户
+  /admin/user/detail/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 管理员详情
+      parameters:
+      - description: ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.User'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 管理员详情
+      tags:
+      - 用户
+  /admin/user/list:
+    get:
+      consumes:
+      - application/json
+      description: 管理员列表
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        type: integer
+      - description: 账户
+        in: query
+        name: username
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.UserList'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 管理员列表
+      tags:
+      - 用户
+  /admin/user/myOauth:
+    get:
+      consumes:
+      - application/json
+      description: 我的授权
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/admin.UserOauthItem'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 我的授权
+      tags:
+      - 用户
+  /admin/user/update:
+    post:
+      consumes:
+      - application/json
+      description: 管理员编辑
+      parameters:
+      - description: 用户信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.UserForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.User'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 管理员编辑
+      tags:
+      - 用户
+  /admin/user/updatePassword:
+    post:
+      consumes:
+      - application/json
+      description: 修改密码
+      parameters:
+      - description: 用户信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.UserPasswordForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 修改密码
+      tags:
+      - 用户
+  /admin/user_token/batchDelete:
+    post:
+      consumes:
+      - application/json
+      description: 登录凭证批量删除
+      parameters:
+      - description: 登录凭证信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/admin.UserTokenBatchDeleteForm'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 登录凭证批量删除
+      tags:
+      - 登录凭证
+  /admin/user_token/delete:
+    post:
+      consumes:
+      - application/json
+      description: 登录凭证删除
+      parameters:
+      - description: 登录凭证信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/model.UserToken'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 登录凭证删除
+      tags:
+      - 登录凭证
+  /admin/user_token/list:
+    get:
+      consumes:
+      - application/json
+      description: 登录凭证列表
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 页大小
+        in: query
+        name: page_size
+        type: integer
+      - description: 用户ID
+        in: query
+        name: user_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.UserTokenList'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - token: []
+      summary: 登录凭证列表
+      tags:
+      - 登录凭证
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+  token:
+    in: header
+    name: api-token
+    type: apiKey
+swagger: "2.0"

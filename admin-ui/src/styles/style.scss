@@ -1,0 +1,51 @@
+$basicBlack: #000000;
+$basicWhite: #ffffff;
+
+$primaryColor: #409eff;
+
+:root {
+  --basicBlack: #000000;
+  --basicWhite: #ffffff;
+  --primaryColor: #409eff;
+  --tag-bg-color: #efefef;
+}
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+    "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+}
+
+.list-body {
+  margin: 10px 0;
+}
+
+.dialog-form {
+  max-width: 600px;
+  margin: 20px auto;
+}
+
+.list-query {
+  .el-select {
+    --el-select-width: 160px;
+  }
+
+  .el-input {
+    --el-input-width: 160px;
+  }
+}
+
+.table-actions {
+  .el-button {
+    margin-top: 5px;
+    margin-bottom: 5px;
+    margin-left: 5px;
+    margin-right: 5px;
+  }
+}
+
+html.dark {
+  /* 自定义深色背景颜色 */
+  //--el-bg-color: #626aef;
+  --tag-bg-color: #24252b;
+  --basicBlack: #fff;
+}
