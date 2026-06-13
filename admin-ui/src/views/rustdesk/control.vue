@@ -53,21 +53,29 @@
           </el-form>
         </page-section>
         <page-section class="list-body" title="Custom command list" :subtitle="`${listRes.total} commands`">
-          <el-table :data="listRes.list" v-loading="listRes.loading" border>
-            <el-table-column prop="cmd" label="cmd" align="center"></el-table-column>
-            <el-table-column prop="alias" label="alias" align="center"></el-table-column>
-            <el-table-column prop="option" label="option" align="center"></el-table-column>
-            <el-table-column prop="explain" label="explain" align="center"></el-table-column>
-            <el-table-column label="actions" align="center">
-              <template #default="{row}">
-                <el-button type="success" :disabled="!canSendCmd(row.target)" @click="showCmd(row)">{{ T('Send') }}</el-button>
-                <el-button v-if="row.id" type="primary" @click="toUpdate(row)">{{ T('Edit') }}</el-button>
-                <el-button v-if="row.id" type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
+          <data-table
+              :data="listRes.list"
+              :loading="listRes.loading"
+              row-key="id"
+              :columns="[
+                { prop: 'cmd', label: 'cmd', align: 'center' },
+                { prop: 'alias', label: 'alias', align: 'center' },
+                { prop: 'option', label: 'option', align: 'center' },
+                { prop: 'explain', label: 'explain', align: 'center' },
+                { label: 'actions', align: 'center', slot: 'actions' }
+              ]"
+          >
+            <template #actions="{ row }">
+              <el-button type="success" :disabled="!canSendCmd(row.target)" @click="showCmd(row)">{{ T('Send') }}</el-button>
+              <el-button v-if="row.id" type="primary" @click="toUpdate(row)">{{ T('Edit') }}</el-button>
+              <el-button v-if="row.id" type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
+            </template>
+          </data-table>
 
-          <el-dialog v-model="formVisible">
+          <app-dialog
+              v-model="formVisible"
+              @confirm="submit"
+          >
             <el-form label-width="150">
               <el-form-item label="cmd">
                 <el-input v-model="formData.cmd"></el-input>
@@ -87,14 +95,15 @@
               <el-form-item label="explain">
                 <el-input v-model="formData.explain"></el-input>
               </el-form-item>
-              <el-form-item>
-                <el-button type="primary" @click="submit">{{ T('Submit') }}</el-button>
-                <el-button @click="cancel">{{ T('Cancel') }}</el-button>
-              </el-form-item>
             </el-form>
-          </el-dialog>
+          </app-dialog>
 
-          <el-dialog :title="T('SendCmd')" v-model="showCmdForm">
+          <app-dialog
+              v-model="showCmdForm"
+              :title="T('SendCmd')"
+              :show-confirm="false"
+              :hide-footer="true"
+          >
             <el-form label-width="150" :disabled="!canSendCmd(customCmd.target)">
               <el-alert
                   class="command-target-alert"
@@ -115,12 +124,6 @@
                   <el-text type="primary">{{ customCmd.example }}</el-text>
                 </el-text>
               </el-form-item>
-              <!--              <el-form-item label="target">
-                              <el-radio-group v-model="customCmd.target">
-                                <el-radio label="id_server" value="21115"></el-radio>
-                                <el-radio label="relay_server" value="21117"></el-radio>
-                              </el-radio-group>
-                            </el-form-item>-->
               <el-form-item>
                 <el-button type="primary" @click="submitCmd">{{ T('Send') }}</el-button>
               </el-form-item>
@@ -137,7 +140,7 @@
                 </div>
               </el-form-item>
             </el-form>
-          </el-dialog>
+          </app-dialog>
         </page-section>
         </danger-zone>
       </el-tab-pane>
@@ -162,6 +165,8 @@
   import PageHeader from '@/components/ui/PageHeader.vue'
   import PageSection from '@/components/ui/PageSection.vue'
   import DangerZone from '@/components/ui/DangerZone.vue'
+  import DataTable from '@/components/ui/DataTable.vue'
+  import AppDialog from '@/components/ui/AppDialog.vue'
 
   const activeName = ref('Simple')
 
