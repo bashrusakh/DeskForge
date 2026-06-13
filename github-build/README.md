@@ -110,3 +110,66 @@ upstream), а cargo берёт зависимости из `vendor/` (заком
 - [ ] 8.8.3 репойнт URL в generator-windows.yml (таблица выше)
 - [ ] 8.8.4 настроить GitHub Secrets (механизм уже в воркфлоу)
 - [ ] 8.8.5 Go API: workflow_dispatch backend (код — при наличии форка для теста)
+
+---
+
+## Где живут workflow-файлы (карта для агентов)
+
+Workflow'ы существуют в **трёх местах**. Это не дублирование — у каждого своя роль.
+Перед тем как редактировать любой .yml, разберись, к какому слою он относится.
+
+| Слой | Путь | Что это | Где исполняется |
+|---|---|---|---|
+| 1. Апстрим-референс | `rdgen/.github/workflows/*.yml` | Вендоренная копия из `bryangerlach/rdgen`. Источник истины для логики (3 слоя инъекции, шифр-secrets, save_custom_client). **Не исполняется** в этом репо. | — (только чтение) |
+| 2. Локальная staging-копия | `github-build/windows-min-test.yml` | Снимок активного воркфлоу для код-ревью и истории. **Не исполняется** на GitHub. | — (только для diff) |
+| 3. Активный воркфлоу (тест) | `bashrusakh/rustdesk:rustqs/min-test/.github/workflows/rustqs-windows-min-test.yml` | Smoke-test текущего этапа §8.8: минимальный воркфлоу для проверки 3 слоёв инъекции + шифрования. Запускается через `workflow_dispatch`. Туда же — `bridge.yml` и `third-party-RustDeskTempTopMostWindow.yml`. **Временный** — будет заменён слоем 4. | GitHub Actions, форк rustdesk |
+| 4. Целевой воркфлоу (prod) | `bashrusakh/rustdesk:rustqs/<prod-branch>/.github/workflows/generator-windows.yml` (планируется) | Полный rdgen-воркфлоу: msi, подпись, save_custom_client, все артефакты. На этот файл перейдём из min-test, когда схема инъекций и Go API будут стабильны. | GitHub Actions, форк rustdesk |
+
+### Правила синхронизации
+
+1. **Изменил логику сборки?** Меняй сначала в форке (слой 3, ветка `rustqs/min-test`).
+   Локальный `github-build/windows-min-test.yml` (слой 2) обновляй вслед — это снимок,
+   а не источник. Коммить локально только когда форк уже зелёный.
+2. **Апстрим rdgen прислал обновление?** Слой 1 (`rdgen/.github/workflows/*`) обновляется
+   как чистый vendor-pull (через `git subtree` или ручной cherry-pick). После этого
+   **отдельным проходом** решай — переносить ли изменения в слой 3 (форк). Не делай это
+   автоматически: воркфлоу в форке сильно упрощён (только windows, плюс 3 слоя инъекции
+   на env-переменных, без сторонних эндпоинтов rdgen).
+3. **Bump версии actions (`@v4 → @v7`, `setup-msbuild@v2 → @v3` и т.п.).** Применяй
+   независимо в каждом слое — это локальные solutions, между слоями не переносятся
+   автоматически. В форке (слой 3) держим SHA-pinned (`@<sha> # vN`) по соображениям
+   безопасности публичной репы. В rdgen-vendor (слой 1) — что прислал апстрим, не правим.
+
+### Что НЕ делать
+
+- Не редактировать `rdgen/.github/workflows/*` руками (см. §1 правил выше).
+- Не пушить локальный `github-build/windows-min-test.yml` в форк через `gh api PUT` —
+  файлы расходятся по структуре (имена jobs, env-переменные); это не дроп-ин копия.
+- Не путать `windows-min-test.yml` (слой 2, "оригинальный rdgen-вариант для референса")
+  и `rustqs-windows-min-test.yml` (слой 3, реально исполняющийся в форке).
+- Не наращивать функциональность в `rustqs-windows-min-test.yml` (слой 3) до состояния
+  prod. Когда min-test выполнил свою роль (3 слоя инъекции + шифрование подтверждены),
+  переход на prod = отдельный воркфлоу-файл на основе `generator-windows.yml` (слой 4),
+  а не разрастание min-test. min-test остаётся как лёгкий smoke на будущее.
+
+### Как обновить файл в форке (слой 3) без git clone
+
+```powershell
+# 1. получить sha и base64-content
+gh api repos/bashrusakh/rustdesk/contents/.github/workflows/<file>.yml?ref=rustqs/min-test --jq "{sha, content}" > meta.json
+
+# 2. декодировать, отредактировать локально
+#    (decode base64 → правка → encode base64)
+
+# 3. PUT обратно — payload БЕЗ BOM (важно: Set-Content в PS 5.1 добавит BOM, JSON не распарсится).
+#    Используй [System.IO.File]::WriteAllText с UTF8Encoding($false).
+gh api -X PUT repos/bashrusakh/rustdesk/contents/.github/workflows/<file>.yml --input payload.json
+```
+
+### Журнал bump'ов в форке
+
+- **2026-06-13** — `microsoft/setup-msbuild` v2 → v3 (SHA `30375c6…`) в
+  `third-party-RustDeskTempTopMostWindow.yml`. Параллельный bump в rdgen-vendor:
+  [DeskForge#904e9fa](https://github.com/bashrusakh/DeskForge/commit/904e9faefe091af03da5c40bfc753358e653be69).
+  Bump'ы `upload-artifact` из того же коммита **не переносились** — в форке уже стояла
+  более новая v7 (SHA-pinned), а rdgen-vendor поднял только до v4.
