@@ -21,34 +21,36 @@
       </el-form>
     </page-section>
     <page-section class="list-body" title="My Tags" :subtitle="`${listRes.total} tags`">
-      <el-table :data="listRes.list" v-loading="listRes.loading" border>
-        <el-table-column prop="id" label="ID" align="center"/>
-        <el-table-column prop="collection_id" :label="T('AddressBook')" align="center" width="150">
-          <template #default="{row}">
-            <span v-if="row.collection_id === 0">{{ T('MyAddressBook') }}</span>
-            <span v-else>{{ collectionListRes.list.find(c => c.id === row.collection_id)?.name }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="name" :label="T('Name')" align="center"/>
-        <el-table-column prop="color" :label="T('Color')" align="center">
-          <template #default="{row}">
-            <div class="colors">
-              <div style="background-color: var(--tag-bg-color)" class="colorbox">
-                <div :style="{backgroundColor: row.color}" class="dot">
-                </div>
-              </div>
+      <data-table
+          :data="listRes.list"
+          :loading="listRes.loading"
+          row-key="id"
+          :columns="[
+            { prop: 'id', label: 'ID', align: 'center', width: 100 },
+            { label: T('AddressBook'), align: 'center', width: 150, slot: 'collection' },
+            { prop: 'name', label: T('Name'), align: 'center' },
+            { label: T('Color'), align: 'center', slot: 'color' },
+            { prop: 'created_at', label: T('CreatedAt'), align: 'center' },
+            { prop: 'updated_at', label: T('UpdatedAt'), align: 'center' },
+            { label: T('Actions'), align: 'center', slot: 'actions' }
+          ]"
+      >
+        <template #collection="{ row }">
+          <span v-if="row.collection_id === 0">{{ T('MyAddressBook') }}</span>
+          <span v-else>{{ collectionListRes.list.find(c => c.id === row.collection_id)?.name }}</span>
+        </template>
+        <template #color="{ row }">
+          <div class="colors">
+            <div style="background-color: var(--tag-bg-color)" class="colorbox">
+              <div :style="{backgroundColor: row.color}" class="dot"></div>
             </div>
-          </template>
-        </el-table-column>
-        <el-table-column prop="created_at" :label="T('CreatedAt')" align="center"/>
-        <el-table-column prop="updated_at" :label="T('UpdatedAt')" align="center"/>
-        <el-table-column :label="T('Actions')" align="center">
-          <template #default="{row}">
-            <el-button @click="toEdit(row)">{{ T('Edit') }}</el-button>
-            <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+          </div>
+        </template>
+        <template #actions="{ row }">
+          <el-button @click="toEdit(row)">{{ T('Edit') }}</el-button>
+          <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
+        </template>
+      </data-table>
     </page-section>
     <page-section class="list-page">
       <el-pagination background
@@ -59,7 +61,12 @@
                      :total="listRes.total">
       </el-pagination>
     </page-section>
-    <el-dialog v-model="formVisible" :title="!formData.id?T('Create'):T('Update')" width="800">
+    <app-dialog
+        v-model="formVisible"
+        :title="!formData.id ? T('Create') : T('Update')"
+        width="800"
+        @confirm="submit"
+    >
       <el-form class="dialog-form" ref="form" :model="formData" label-width="120px">
         <el-form-item :label="T('AddressBookName')">
           <el-select v-model="formData.collection_id" clearable>
@@ -74,17 +81,12 @@
           <el-color-picker v-model="formData.color" show-alpha @active-change="activeChange"></el-color-picker>
           <div class="colors">
             <div style="background-color: var(--tag-bg-color)" class="colorbox">
-              <div :style="{backgroundColor: currentColor}" class="dot">
-              </div>
+              <div :style="{backgroundColor: currentColor}" class="dot"></div>
             </div>
           </div>
         </el-form-item>
-        <el-form-item>
-          <el-button @click="formVisible = false">{{ T('Cancel') }}</el-button>
-          <el-button @click="submit" type="primary">{{ T('Submit') }}</el-button>
-        </el-form-item>
       </el-form>
-    </el-dialog>
+    </app-dialog>
   </div>
 </template>
 
@@ -94,6 +96,8 @@
   import { T } from '@/utils/i18n'
   import PageHeader from '@/components/ui/PageHeader.vue'
   import PageSection from '@/components/ui/PageSection.vue'
+  import DataTable from '@/components/ui/DataTable.vue'
+  import AppDialog from '@/components/ui/AppDialog.vue'
 
   const {
     listRes,

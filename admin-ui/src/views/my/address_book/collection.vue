@@ -16,32 +16,35 @@
     </page-section>
     <page-section class="list-body" title="My Address Book Collections" :subtitle="`${listRes.total} collections`">
       <el-tag type="danger" effect="light" style="margin-bottom: 10px">{{ T('MyAddressBookTips') }}</el-tag>
-      <el-table :data="list" v-loading="listRes.loading" border>
-        <!--        <el-table-column prop="id" label="ID" align="center"/>-->
-        <el-table-column prop="name" :label="T('Name')" align="center"/>
-        <el-table-column prop="created_at" :label="T('CreatedAt')" align="center"/>
-
-        <el-table-column :label="T('Actions')" align="center" class-name="table-actions" width="320" fixed="right">
-          <template #default="{row}">
-            <template v-if="row.id>0">
-              <el-space wrap>
-                <el-button type="primary" @click="showRules(row)">{{ T('ShareRules') }}</el-button>
-                <el-dropdown trigger="click">
-                  <el-button>
-                    {{ T('More') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
-                  </el-button>
-                  <template #dropdown>
-                    <el-dropdown-menu>
-                      <el-dropdown-item @click="toEdit(row)">{{ T('Edit') }}</el-dropdown-item>
-                      <el-dropdown-item divided @click="del(row)">{{ T('Delete') }}</el-dropdown-item>
-                    </el-dropdown-menu>
-                  </template>
-                </el-dropdown>
-              </el-space>
-            </template>
+      <data-table
+          :data="list"
+          :loading="listRes.loading"
+          row-key="id"
+          :columns="[
+            { prop: 'name', label: T('Name'), align: 'center' },
+            { prop: 'created_at', label: T('CreatedAt'), align: 'center' },
+            { label: T('Actions'), align: 'center', className: 'table-actions', width: 320, fixed: 'right', slot: 'actions' }
+          ]"
+      >
+        <template #actions="{ row }">
+          <template v-if="row.id>0">
+            <el-space wrap>
+              <el-button type="primary" @click="showRules(row)">{{ T('ShareRules') }}</el-button>
+              <el-dropdown trigger="click">
+                <el-button>
+                  {{ T('More') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item @click="toEdit(row)">{{ T('Edit') }}</el-dropdown-item>
+                    <el-dropdown-item divided @click="del(row)">{{ T('Delete') }}</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </el-space>
           </template>
-        </el-table-column>
-      </el-table>
+        </template>
+      </data-table>
     </page-section>
     <page-section class="list-page">
       <el-pagination background
@@ -52,20 +55,27 @@
                      :total="listRes.total">
       </el-pagination>
     </page-section>
-    <el-dialog v-model="formVisible" width="800" :title="!formData.id?T('Create') :T('Update') ">
+    <app-dialog
+        v-model="formVisible"
+        :title="!formData.id ? T('Create') : T('Update')"
+        width="800"
+        @confirm="submit"
+    >
       <el-form class="dialog-form" ref="form" :model="formData" label-width="120px">
         <el-form-item :label="T('Name')" prop="name" required>
           <el-input v-model="formData.name"></el-input>
         </el-form-item>
-        <el-form-item>
-          <el-button @click="formVisible = false">{{ T('Cancel') }}</el-button>
-          <el-button @click="submit" type="primary">{{ T('Submit') }}</el-button>
-        </el-form-item>
       </el-form>
-    </el-dialog>
-    <el-dialog v-model="rulesVisible" :title="T('ShareRules')" destroy-on-close top="5vh" width="80%">
+    </app-dialog>
+    <app-dialog
+        v-model="rulesVisible"
+        :title="T('ShareRules')"
+        width="80%"
+        destroy-on-close
+        :hide-footer="true"
+    >
       <Rule :collection="clickRow" :is_my="1"></Rule>
-    </el-dialog>
+    </app-dialog>
 
   </div>
 </template>
@@ -79,6 +89,8 @@
   import { ArrowDown } from '@element-plus/icons-vue'
   import PageHeader from '@/components/ui/PageHeader.vue'
   import PageSection from '@/components/ui/PageSection.vue'
+  import DataTable from '@/components/ui/DataTable.vue'
+  import AppDialog from '@/components/ui/AppDialog.vue'
 
   const {
     listRes,

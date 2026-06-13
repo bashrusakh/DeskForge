@@ -80,7 +80,12 @@
                      :total="listRes.total">
       </el-pagination>
     </page-section>
-    <el-dialog v-model="formVisible" :title="T('Information')" width="800" :style="{ textAlign: 'center' }">
+    <app-dialog
+        v-model="formVisible"
+        :title="T('Information')"
+        width="800"
+        :show-confirm="false"
+    >
       <el-form class="dialog-form" ref="form" :model="formData" label-width="120px">
         <el-form-item label="ID" prop="id">
           <el-input v-model="formData.id" disabled></el-input>
@@ -107,9 +112,14 @@
           <el-input v-model="formData.version" disabled></el-input>
         </el-form-item>
       </el-form>
-    </el-dialog>
+    </app-dialog>
 
-    <el-dialog v-model="ABFormVisible" width="800" :title="T('Create')">
+    <app-dialog
+        v-model="ABFormVisible"
+        :title="T('Create')"
+        width="800"
+        @confirm="ABSubmit"
+    >
       <el-form class="dialog-form" ref="form" :model="ABFormData" label-width="120px">
         <el-form-item :label="T('AddressBookName')" required prop="collection_id">
           <el-select v-model="ABFormData.collection_id" clearable @change="changeCollectionForUpdate">
@@ -150,14 +160,15 @@
             ></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button @click="ABFormVisible = false">{{ T('Cancel') }}</el-button>
-          <el-button @click="ABSubmit" type="primary">{{ T('Submit') }}</el-button>
-        </el-form-item>
       </el-form>
-    </el-dialog>
+    </app-dialog>
 
-    <el-dialog v-model="batchABFormVisible" width="800" :title="T('Create')">
+    <app-dialog
+        v-model="batchABFormVisible"
+        :title="T('Create')"
+        width="800"
+        @confirm="submitBatchAddToAB"
+    >
       <el-form class="dialog-form" ref="form" :model="batchABFormData" label-width="120px">
         <el-form-item :label="T('AddressBookName')" required prop="collection_id">
           <el-select v-model="batchABFormData.collection_id" clearable @change="changeCollectionForBatchCreateAB">
@@ -175,12 +186,8 @@
             ></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button @click="batchABFormVisible = false">{{ T('Cancel') }}</el-button>
-          <el-button @click="submitBatchAddToAB" type="primary">{{ T('Submit') }}</el-button>
-        </el-form-item>
       </el-form>
-    </el-dialog>
+    </app-dialog>
   </div>
 </template>
 
@@ -199,6 +206,8 @@
   import PageHeader from '@/components/ui/PageHeader.vue'
   import PageSection from '@/components/ui/PageSection.vue'
   import CopyableText from '@/components/ui/CopyableText.vue'
+  import DataTable from '@/components/ui/DataTable.vue'
+  import AppDialog from '@/components/ui/AppDialog.vue'
 
   const appStore = useAppStore()
   const listRes = reactive({
