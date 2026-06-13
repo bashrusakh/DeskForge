@@ -517,7 +517,6 @@ prod-API (Linux) и win-build (Windows). Варианты: общий сетев
 
   Осталось следующими фазами:
   - [ ] i18n для нового dashboard/auth hero copy;
-  - [ ] shared components: `AppDialog`, `AppDrawer`, `FormSection`;
   - [ ] унификация таблиц, фильтров, пагинации, empty/loading states;
   - [x] Devices page: ConnectionPulse status, compact actions, copyable ID, web/native connect, pagination aligned via PageSection;
   - [x] Monitoring: общий page header/section готов; Login History, Connection History, File Transfer History, Shared Sessions получили FilterBar;

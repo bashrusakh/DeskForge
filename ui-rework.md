@@ -955,6 +955,9 @@ As of 2026-06-14 UI rework pass:
 - `src/components/ui/EmptyState.vue` and `src/components/ui/LoadingState.vue` were added for upcoming table/form standardization.
 - `src/components/ui/FilterBar.vue` was added as the first table filter primitive.
 - `src/components/ui/DataTable.vue` was added as the shared table wrapper.
+- `src/components/ui/AppDialog.vue` was added as the unified dialog primitive with loading/confirm/cancel/danger.
+- `src/components/ui/AppDrawer.vue` was added as the unified drawer primitive for complex forms.
+- `src/components/ui/FormSection.vue` was added for grouped form fields.
 - Users page now uses `DataTable` with slot-based custom cells for Group, Status, and Actions.
 - Address Book page now uses `DataTable` with slot-based custom cells for ID (PlatformIcons + CopyableText), Owner, Collection, and Actions.
 - The dashboard now has a Quick Connect panel for native `rustdesk://` launch, web client launch, and device-list navigation.
@@ -979,8 +982,7 @@ As of 2026-06-14 UI rework pass:
 
 Still pending:
 
-- `AppDialog`, `AppDrawer`, and `FormSection` shared design-system components.
-- Full table/form/dialog unification across CRUD views.
+- Full table/form/dialog unification across CRUD views using the new shared primitives.
 - Full i18n coverage for new dashboard/auth hero copy.
 - Remaining form/dialog standards still need shared primitives and validation/loading unification.
 
