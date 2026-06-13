@@ -1,6 +1,12 @@
 <template>
-  <div>
-    <el-card class="list-query" shadow="hover">
+  <div class="workspace-page">
+    <page-header
+        title="My Devices"
+        subtitle="Review your own devices, connection status, and address book actions."
+        eyebrow="Workspace"
+        pulse="online"
+    />
+    <page-section class="list-query" title="Filters" subtitle="Filter devices by ID, hostname, or last online time.">
       <el-form inline label-width="150px">
         <el-form-item label="ID">
           <el-input v-model="listQuery.id" clearable/>
@@ -27,13 +33,13 @@
 
         </el-form-item>
       </el-form>
-    </el-card>
-    <el-card class="list-body" shadow="hover">
+    </page-section>
+    <page-section class="list-body" title="My Devices" :subtitle="`${listRes.total} devices`">
       <el-table :data="listRes.list" v-loading="listRes.loading" border size="small" @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" align="center"/>
         <el-table-column prop="id" label="ID" align="center" width="150">
           <template #default="{row}">
-            <span>{{ row.id }} <el-icon @click="handleClipboard(row.id, $event)"><CopyDocument/></el-icon></span>
+            <copyable-text :text="row.id" />
           </template>
         </el-table-column>
         <el-table-column prop="cpu" label="CPU" align="center" width="100" show-overflow-tooltip/>
@@ -64,8 +70,8 @@
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
-    <el-card class="list-page" shadow="hover">
+    </page-section>
+    <page-section class="list-page">
       <el-pagination background
                      layout="prev, pager, next, sizes, jumper"
                      :page-sizes="[10,20,50,100]"
@@ -73,7 +79,7 @@
                      v-model:current-page="listQuery.page"
                      :total="listRes.total">
       </el-pagination>
-    </el-card>
+    </page-section>
     <el-dialog v-model="formVisible" :title="T('Information')" width="800" :style="{ textAlign: 'center' }">
       <el-form class="dialog-form" ref="form" :model="formData" label-width="120px">
         <el-form-item label="ID" prop="id">
@@ -189,9 +195,10 @@
   import { useRepositories as useABRepositories } from '@/views/address_book/index'
   import { useAppStore } from '@/store/app'
   import { connectByClient } from '@/utils/peer'
-  import { CopyDocument } from '@element-plus/icons'
-  import { handleClipboard } from '@/utils/clipboard'
   import { batchCreateFromPeers } from '@/api/my/address_book'
+  import PageHeader from '@/components/ui/PageHeader.vue'
+  import PageSection from '@/components/ui/PageSection.vue'
+  import CopyableText from '@/components/ui/CopyableText.vue'
 
   const appStore = useAppStore()
   const listRes = reactive({
@@ -380,6 +387,13 @@
 <style scoped lang="scss">
 .list-query .el-select {
   --el-select-width: 180px;
+}
+
+.workspace-page {
+  :deep(.list-page .el-card__body) {
+    display: flex;
+    justify-content: flex-end;
+  }
 }
 
 .last_oline_time {

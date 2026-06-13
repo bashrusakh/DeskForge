@@ -1,6 +1,12 @@
 <template>
-  <div>
-    <el-card class="list-query" shadow="hover">
+  <div class="workspace-page">
+    <page-header
+        title="My Address Book"
+        subtitle="Manage your personal saved devices, tags, and quick connection actions."
+        eyebrow="Workspace"
+        pulse="online"
+    />
+    <page-section class="list-query" title="Filters" subtitle="Filter personal address book entries by collection, device ID, username, or hostname.">
       <el-form inline label-width="120px">
         <el-form-item :label="T('AddressBookName')">
           <el-select v-model="listQuery.collection_id" clearable>
@@ -23,18 +29,15 @@
           <el-button type="primary" @click="showBatchEditTags">{{ T('BatchEditTags') }}</el-button>
         </el-form-item>
       </el-form>
-    </el-card>
-    <el-card class="list-body" shadow="hover">
+    </page-section>
+    <page-section class="list-body" title="My Address Book" :subtitle="`${listRes.total} entries`">
       <el-table :data="listRes.list" v-loading="listRes.loading" border @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="50" align="center"></el-table-column>
         <el-table-column prop="id" label="ID" align="center" width="200">
           <template #default="{row}">
-            <div>
+            <div class="device-id-cell">
               <PlatformIcons :name="platformList.find(p=>p.label===row.platform)?.icon" style="width: 20px;height: 20px;display: inline-block" color="var(--basicBlack)"/>
-              {{ row.id }}
-              <el-icon @click="handleClipboard(row.id, $event)">
-                <CopyDocument/>
-              </el-icon>
+              <copyable-text :text="row.id" />
             </div>
           </template>
         </el-table-column>
@@ -52,18 +55,29 @@
         <el-table-column prop="alias" :label="T('Alias')" align="center" width="150"/>
         <el-table-column prop="peer.version" :label="T('Version')" align="center" width="100"/>
         <el-table-column prop="hash" :label="T('Hash')" align="center" width="150" show-overflow-tooltip/>
-        <el-table-column :label="T('Actions')" align="center" class-name="table-actions" width="600" fixed="right">
+        <el-table-column :label="T('Actions')" align="center" class-name="table-actions" width="420" fixed="right">
           <template #default="{row}">
-            <el-button type="success" @click="connectByClient(row.id)">{{ T('Link') }}</el-button>
-            <el-button v-if="appStore.setting.appConfig.web_client" type="success" @click="toWebClientLink(row)">Web Client</el-button>
-            <el-button v-if="appStore.setting.appConfig.web_client" type="primary" @click="toShowShare(row)">{{ T('ShareByWebClient') }}</el-button>
-            <el-button @click="toEdit(row)">{{ T('Edit') }}</el-button>
-            <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
+            <el-space wrap>
+              <el-button type="success" @click="connectByClient(row.id)">{{ T('Link') }}</el-button>
+              <el-button v-if="appStore.setting.appConfig.web_client" type="primary" @click="toWebClientLink(row)">Web Client</el-button>
+              <el-dropdown trigger="click">
+                <el-button>
+                  {{ T('More') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item v-if="appStore.setting.appConfig.web_client" @click="toShowShare(row)">{{ T('ShareByWebClient') }}</el-dropdown-item>
+                    <el-dropdown-item @click="toEdit(row)">{{ T('Edit') }}</el-dropdown-item>
+                    <el-dropdown-item divided @click="del(row)">{{ T('Delete') }}</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </el-space>
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
-    <el-card class="list-page" shadow="hover">
+    </page-section>
+    <page-section class="list-page">
       <el-pagination background
                      layout="prev, pager, next, sizes, jumper"
                      :page-sizes="[10,20,50,100]"
@@ -71,7 +85,7 @@
                      v-model:current-page="listQuery.page"
                      :total="listRes.total">
       </el-pagination>
-    </el-card>
+    </page-section>
     <el-dialog v-model="formVisible" width="800" :title="!formData.row_id?T('Create') :T('Update') ">
       <el-form class="dialog-form" ref="form" :model="formData" label-width="120px">
         <el-form-item :label="T('AddressBookName')" required prop="collection_id">
@@ -166,9 +180,11 @@
   import shareByWebClient from '@/views/address_book/components/shareByWebClient.vue'
   import { useAppStore } from '@/store/app'
   import { connectByClient } from '@/utils/peer'
-  import { handleClipboard } from '@/utils/clipboard'
-  import { CopyDocument } from '@element-plus/icons'
+  import { ArrowDown } from '@element-plus/icons-vue'
   import PlatformIcons from '@/components/icons/platform.vue'
+  import PageHeader from '@/components/ui/PageHeader.vue'
+  import PageSection from '@/components/ui/PageSection.vue'
+  import CopyableText from '@/components/ui/CopyableText.vue'
 
   const appStore = useAppStore()
   const {
@@ -241,6 +257,20 @@
 </script>
 
 <style scoped lang="scss">
+
+.workspace-page {
+  :deep(.list-page .el-card__body) {
+    display: flex;
+    justify-content: flex-end;
+  }
+}
+
+.device-id-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
 
 .colors {
   display: flex;

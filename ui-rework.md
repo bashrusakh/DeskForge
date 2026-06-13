@@ -963,6 +963,8 @@ As of 2026-06-14 UI rework pass:
 - Wide user actions are reduced with `More` dropdowns while keeping existing CRUD/composable behavior.
 - Custom Client Builder and My Profile now share the page header/section structure.
 - Custom Client preset/upload handlers are returned from `setup()` so the existing template controls are exposed at runtime.
+- My Devices, My Address Book, My Address Book Collections, My Tags, My Shared Sessions, and My Login History now share the page header/section structure.
+- Personal device/address-book IDs use `CopyableText` where copy actions already existed.
 - Login, register, OAuth approval, and OAuth binding screens were moved to the token-based visual direction and support the theme switch.
 - Mobile navigation now uses an `el-drawer`; the header toggle opens the drawer on mobile and collapses the sidebar on desktop.
 - `npm run build` passes after installing `admin-ui` dependencies.

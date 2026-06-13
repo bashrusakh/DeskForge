@@ -42,6 +42,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `More` dropdown без изменения CRUD/API поведения.
 - **Client Builder/Profile visual pass**: Custom Client Builder и My Profile получили общий
   `PageHeader`/`PageSection` layout; build history pagination выровнен с остальными страницами.
+- **My Workspace visual pass**: My Devices, My Address Book, My Address Book Collections,
+  My Tags, My Shared Sessions и My Login History получили общий page header/section layout;
+  персональные device/address-book ID переведены на `CopyableText`.
 - **Auth/OAuth visual refresh**: login, register, OAuth approve и OAuth bind экраны
   переведены на token-based визуальный язык, поддерживают theme switch и Connection Pulse.
 - **Custom Client runtime fix**: preset/upload handlers теперь возвращаются из `setup()` и

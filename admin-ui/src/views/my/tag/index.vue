@@ -1,6 +1,12 @@
 <template>
-  <div>
-    <el-card class="list-query" shadow="hover">
+  <div class="workspace-page">
+    <page-header
+        title="My Tags"
+        subtitle="Manage personal address book tags for your remote devices."
+        eyebrow="Workspace"
+        pulse="online"
+    />
+    <page-section class="list-query" title="Filters" subtitle="Filter personal tags by address book.">
       <el-form inline label-width="120px">
         <el-form-item :label="T('AddressBookName')">
           <el-select v-model="listQuery.collection_id" clearable>
@@ -13,8 +19,8 @@
           <el-button type="danger" @click="toAdd">{{ T('Add') }}</el-button>
         </el-form-item>
       </el-form>
-    </el-card>
-    <el-card class="list-body" shadow="hover">
+    </page-section>
+    <page-section class="list-body" title="My Tags" :subtitle="`${listRes.total} tags`">
       <el-table :data="listRes.list" v-loading="listRes.loading" border>
         <el-table-column prop="id" label="ID" align="center"/>
         <el-table-column prop="collection_id" :label="T('AddressBook')" align="center" width="150">
@@ -43,8 +49,8 @@
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
-    <el-card class="list-page" shadow="hover">
+    </page-section>
+    <page-section class="list-page">
       <el-pagination background
                      layout="prev, pager, next, sizes, jumper"
                      :page-sizes="[10,20,50,100]"
@@ -52,7 +58,7 @@
                      v-model:current-page="listQuery.page"
                      :total="listRes.total">
       </el-pagination>
-    </el-card>
+    </page-section>
     <el-dialog v-model="formVisible" :title="!formData.id?T('Create'):T('Update')" width="800">
       <el-form class="dialog-form" ref="form" :model="formData" label-width="120px">
         <el-form-item :label="T('AddressBookName')">
@@ -86,6 +92,8 @@
   import { onMounted, watch, onActivated } from 'vue'
   import { useRepositories } from '@/views/tag'
   import { T } from '@/utils/i18n'
+  import PageHeader from '@/components/ui/PageHeader.vue'
+  import PageSection from '@/components/ui/PageSection.vue'
 
   const {
     listRes,
@@ -123,6 +131,13 @@
 <style scoped lang="scss">
 .list-query .el-select {
   --el-select-width: 160px;
+}
+
+.workspace-page {
+  :deep(.list-page .el-card__body) {
+    display: flex;
+    justify-content: flex-end;
+  }
 }
 
 .colors {
