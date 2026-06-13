@@ -57,7 +57,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Custom Client runtime fix**: preset/upload handlers теперь возвращаются из `setup()` и
   доступны template-кнопкам без изменения backend/API контрактов.
 - **Monitoring filter pass**: Login History, Connection History, File Transfer History и Shared Sessions получили `FilterBar` primitive с collapsible panel, reset/clear, active filter count и integrated action buttons.
-- **DataTable pass**: `DataTable` wrapper applied to Users page with slot-based custom cells (Group tag, Status switch, Actions dropdown), loading state, empty state, and horizontal scroll.
+- **DataTable pass**: `DataTable` wrapper applied to Users and Address Book pages with slot-based custom cells, loading state, empty state, and horizontal scroll.
 - **Review/verification**:
   - `ocr review` по рабочей копии: high/medium findings нет; единственный low nit про
     magic number исправлен через `--sidebar-brand-height`;

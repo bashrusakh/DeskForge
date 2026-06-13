@@ -40,55 +40,54 @@
       </el-form>
     </page-section>
     <page-section class="list-body" :title="T('AddressBook')" :subtitle="`${listRes.total} entries`">
-
-      <el-table :data="listRes.list" v-loading="listRes.loading" border>
-        <el-table-column prop="id" label="ID" align="center" width="200">
-          <template #default="{row}">
-            <div class="device-id-cell">
-              <PlatformIcons :name="platformList.find(p=>p.label===row.platform)?.icon" style="width: 20px;height: 20px;display: inline-block" color="var(--basicBlack)"/>
-              <copyable-text :text="row.id" />
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column :label="T('Owner')" align="center" width="200">
-          <template #default="{row}">
-            <span v-if="row.user_id"> <el-tag>{{ allUsers?.find(u => u.id === row.user_id)?.username }}</el-tag> </span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="collection_id" :label="T('AddressBookName')" align="center" width="150">
-          <template #default="{row}">
-            <span v-if="row.collection_id === 0">{{ T('MyAddressBook') }}</span>
-            <span v-else>{{ row.collection?.name }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="username" :label="T('Username')" align="center" width="150"/>
-        <el-table-column prop="hostname" :label="T('Hostname')" align="center" width="150"/>
-        <el-table-column prop="tags" :label="T('Tags')" align="center"/>
-
-        <el-table-column prop="alias" :label="T('Alias')" align="center" width="150"/>
-        <el-table-column prop="peer.version" :label="T('Version')" align="center" width="100"/>
-        <el-table-column prop="hash" :label="T('Hash')" align="center" width="150" show-overflow-tooltip/>
-        <el-table-column :label="T('Actions')" align="center" class-name="table-actions" width="360" fixed="right">
-          <template #default="{row}">
-            <el-space wrap>
-              <el-button type="success" @click="connectByClient(row.id)">{{ T('Link') }}</el-button>
-              <el-button v-if="appStore.setting.appConfig.web_client" type="primary" @click="toWebClientLink(row)">Web Client</el-button>
-              <!--            <el-button type="primary" @click="toShowShare(row)">{{ T('ShareByWebClient') }}</el-button>-->
-              <el-dropdown trigger="click">
-                <el-button>
-                  {{ T('More') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
-                </el-button>
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item @click="toEdit(row)">{{ T('Edit') }}</el-dropdown-item>
-                    <el-dropdown-item divided @click="del(row)">{{ T('Delete') }}</el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
-            </el-space>
-          </template>
-        </el-table-column>
-      </el-table>
+      <data-table
+          :data="listRes.list"
+          :loading="listRes.loading"
+          row-key="id"
+          :columns="[
+            { label: 'ID', align: 'center', width: 200, slot: 'id' },
+            { label: T('Owner'), align: 'center', width: 200, slot: 'owner' },
+            { label: T('AddressBookName'), align: 'center', width: 150, slot: 'collection' },
+            { prop: 'username', label: T('Username'), align: 'center', width: 150 },
+            { prop: 'hostname', label: T('Hostname'), align: 'center', width: 150 },
+            { prop: 'tags', label: T('Tags'), align: 'center' },
+            { prop: 'alias', label: T('Alias'), align: 'center', width: 150 },
+            { prop: 'peer.version', label: T('Version'), align: 'center', width: 100 },
+            { prop: 'hash', label: T('Hash'), align: 'center', width: 150, showOverflowTooltip: true },
+            { label: T('Actions'), align: 'center', className: 'table-actions', width: 360, fixed: 'right', slot: 'actions' }
+          ]"
+      >
+        <template #id="{ row }">
+          <div class="device-id-cell">
+            <PlatformIcons :name="platformList.find(p=>p.label===row.platform)?.icon" style="width: 20px;height: 20px;display: inline-block" color="var(--basicBlack)"/>
+            <copyable-text :text="row.id" />
+          </div>
+        </template>
+        <template #owner="{ row }">
+          <span v-if="row.user_id"> <el-tag>{{ allUsers?.find(u => u.id === row.user_id)?.username }}</el-tag> </span>
+        </template>
+        <template #collection="{ row }">
+          <span v-if="row.collection_id === 0">{{ T('MyAddressBook') }}</span>
+          <span v-else>{{ row.collection?.name }}</span>
+        </template>
+        <template #actions="{ row }">
+          <el-space wrap>
+            <el-button type="success" @click="connectByClient(row.id)">{{ T('Link') }}</el-button>
+            <el-button v-if="appStore.setting.appConfig.web_client" type="primary" @click="toWebClientLink(row)">Web Client</el-button>
+            <el-dropdown trigger="click">
+              <el-button>
+                {{ T('More') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item @click="toEdit(row)">{{ T('Edit') }}</el-dropdown-item>
+                  <el-dropdown-item divided @click="del(row)">{{ T('Delete') }}</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </el-space>
+        </template>
+      </data-table>
     </page-section>
     <page-section class="list-page">
       <el-pagination background
@@ -190,6 +189,7 @@
   import PageHeader from '@/components/ui/PageHeader.vue'
   import PageSection from '@/components/ui/PageSection.vue'
   import CopyableText from '@/components/ui/CopyableText.vue'
+  import DataTable from '@/components/ui/DataTable.vue'
 
   const appStore = useAppStore()
   const route = useRoute()
