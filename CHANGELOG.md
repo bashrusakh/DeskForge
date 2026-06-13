@@ -35,7 +35,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   sessions получили общий `PageHeader`/`PageSection` layout без изменения API/composable логики.
 - **Server visual pass**: Server Commands, Server Config и GitHub Build settings получили
   общий `PageHeader`/`PageSection` layout; advanced custom commands вынесены в `DangerZone`
-  и требуют confirm перед `sendCmd` без изменения API-контрактов.
+  и требуют confirm перед `sendCmd` без изменения API-контрактов; terminal output получил
+  readonly console styling, target hint, Copy/Clear controls и empty-output placeholder.
 - **Access visual pass**: Address Book entries, collections, share rules и tags переведены
   на общий `PageHeader`/`PageSection` layout; address book IDs используют `CopyableText`,
   а широкие action columns сжаты через `More` dropdown без изменения composables/API.
@@ -63,7 +64,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Полное i18n-покрытие нового dashboard/auth hero copy.
 - Shared components: `DataTable`, `FilterBar`, `AppDialog`, `AppDrawer`, `FormSection`.
 - Таблицы, формы, dialogs/drawers и CRUD-экраны всё ещё требуют унификации.
-- Monitoring filters/toolbars и Server terminal output polishing нужно проходить отдельными фазами.
+- Monitoring filters/toolbars нужно проходить отдельной фазой.
 
 ### 🟢 Done (§8.9 Custom Preset — фактически 3 бага склейки UI↔backend, 2026-06-13)
 Расширение модели не потребовалось: все поля уже в `custom_json` text-blob. При разборе

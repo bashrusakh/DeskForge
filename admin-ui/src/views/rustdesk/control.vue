@@ -96,6 +96,16 @@
 
           <el-dialog :title="T('SendCmd')" v-model="showCmdForm">
             <el-form label-width="150" :disabled="!canSendCmd(customCmd.target)">
+              <el-alert
+                  class="command-target-alert"
+                  :closable="false"
+                  type="warning"
+                  show-icon
+              >
+                <template #title>
+                  {{ customCmd.target === ID_TARGET ? 'ID server' : 'Relay server' }} command target
+                </template>
+              </el-alert>
               <el-form-item label="cmd">
                 <el-input v-model="customCmd.cmd"></el-input>
               </el-form-item>
@@ -115,7 +125,16 @@
                 <el-button type="primary" @click="submitCmd">{{ T('Send') }}</el-button>
               </el-form-item>
               <el-form-item :label="T('Result')">
-                <el-input class="command-result" type="textarea" readonly disabled v-model="customCmd.res" rows="15"></el-input>
+                <div class="command-result-wrap">
+                  <div class="command-result-toolbar">
+                    <span>{{ customCmd.res ? `${customCmd.res.length} chars` : 'Waiting for output' }}</span>
+                    <div>
+                      <el-button size="small" :disabled="!customCmd.res" @click="copyCmdResult">Copy</el-button>
+                      <el-button size="small" :disabled="!customCmd.res" @click="clearCmdResult">Clear</el-button>
+                    </div>
+                  </div>
+                  <el-input class="command-result" type="textarea" readonly v-model="customCmd.res" rows="15" placeholder="Command output will appear here."></el-input>
+                </div>
               </el-form-item>
             </el-form>
           </el-dialog>
@@ -301,6 +320,18 @@
       ElMessage.success(T('OperationSuccess'))
     })
   }
+  const clearCmdResult = () => {
+    customCmd.res = ''
+  }
+  const copyCmdResult = async () => {
+    if (!customCmd.res) return
+    try {
+      await navigator.clipboard.writeText(customCmd.res)
+      ElMessage.success(T('CopySuccess'))
+    } catch (_) {
+      ElMessage.error(T('CopyFailed'))
+    }
+  }
 
 </script>
 
@@ -359,7 +390,38 @@
 }
 
 :deep(.command-result textarea) {
+  min-height: 260px !important;
+  border-color: transparent;
+  background: #0b1020;
+  color: #d1e7ff;
   font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.command-target-alert {
+  margin-bottom: 16px;
+}
+
+.command-result-wrap {
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: #0b1020;
+}
+
+.command-result-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.92);
+  color: #94a3b8;
+  font-family: var(--font-mono);
+  font-size: 12px;
 }
 
 @media (max-width: 720px) {

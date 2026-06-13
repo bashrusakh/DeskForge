@@ -496,7 +496,8 @@ prod-API (Linux) и win-build (Windows). Варианты: общий сетев
     используют общий page header/section layout;
   - Server visual pass: Server Commands, Server Config и GitHub Build settings используют
     общий page header/section layout; advanced custom commands отделены через `DangerZone`
-    и требуют confirm перед `sendCmd`;
+    и требуют confirm перед `sendCmd`; terminal output получил readonly console styling,
+    target hint, Copy/Clear controls и empty-output placeholder;
   - Access visual pass: Address Book entries, collections, share rules и tags используют
     общий page header/section layout; address book IDs переведены на `CopyableText`,
     широкие actions сжаты через `More` dropdown;
@@ -518,7 +519,7 @@ prod-API (Linux) и win-build (Windows). Варианты: общий сетев
   - [ ] унификация таблиц, фильтров, пагинации, empty/loading states;
   - [x] Devices page: ConnectionPulse status, compact actions, copyable ID, web/native connect;
   - [~] Monitoring: общий page header/section готов; filter model/date/user/peer/type/export/danger toolbar ещё унифицировать;
-  - [~] Server commands: Simple/Advanced/Danger Zone готов; terminal output polishing ещё сделать;
+  - [x] Server commands: Simple/Advanced/Danger Zone + terminal output polishing готовы;
   - [~] Access/Security CRUD screens: address books/collections/share rules/tags, users,
         API tokens, OAuth providers, groups и device groups page primitives готовы;
         custom client/my profile/my workspace page primitives готовы; remaining form/dialog standards ещё унифицировать;

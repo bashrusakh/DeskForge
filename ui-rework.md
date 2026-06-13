@@ -958,6 +958,7 @@ As of 2026-06-14 UI rework pass:
 - Monitoring pages now share a page header/section structure across login history, connection history, file transfers, and shared sessions.
 - Server Commands, Server Config, and GitHub Build settings now share the page header/section structure.
 - Advanced Server Commands are visually separated in a Danger Zone and require confirmation before sending custom commands.
+- Server command output now uses readonly terminal styling with target hint, Copy/Clear controls, and an empty-output placeholder.
 - Address Book entries, collections, share rules, and tags now share the page header/section structure.
 - Address Book device IDs use `CopyableText`; wide Access actions are reduced with `More` dropdowns where appropriate.
 - Users, API Tokens, OAuth providers, Groups, and Device Groups now share the page header/section structure.
@@ -976,7 +977,6 @@ Still pending:
 - `DataTable`, `FilterBar`, `AppDialog`, and the rest of the shared design-system components.
 - Full table/form/dialog unification across CRUD views.
 - Full i18n coverage for new dashboard/auth hero copy.
-- Server command terminal output polishing.
 - Remaining form/dialog standards still need shared primitives and validation/loading unification.
 
 ## 30. Recommended First Implementation Step
