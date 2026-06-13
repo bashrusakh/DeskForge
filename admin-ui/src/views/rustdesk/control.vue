@@ -88,8 +88,8 @@
               </el-form-item>
               <el-form-item label="target">
                 <el-radio-group v-model="formData.target">
-                  <el-radio label="id_server" value="21115"></el-radio>
-                  <el-radio label="relay_server" value="21117"></el-radio>
+                  <el-radio label="id_server" :value="ID_TARGET"></el-radio>
+                  <el-radio label="relay_server" :value="RELAY_TARGET"></el-radio>
                 </el-radio-group>
               </el-form-item>
               <el-form-item label="explain">

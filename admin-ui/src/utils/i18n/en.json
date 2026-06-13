@@ -897,5 +897,26 @@
   },
   "OauthBind": {
     "One": "OAuth Bind"
+  },
+  "DangerZone": {
+    "One": "Danger Zone"
+  },
+  "DangerousActions": {
+    "One": "Dangerous actions"
+  },
+  "FilterActive": {
+    "One": "filter active"
+  },
+  "FiltersActive": {
+    "One": "filters active"
+  },
+  "ShowFilters": {
+    "One": "Show filters"
+  },
+  "HideFilters": {
+    "One": "Hide filters"
+  },
+  "ClearFilters": {
+    "One": "Clear filters"
   }
 }

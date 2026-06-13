@@ -2,8 +2,8 @@
   <el-card class="danger-zone" shadow="hover">
     <div class="danger-zone__header">
       <div>
-        <div class="danger-zone__eyebrow">Danger Zone</div>
-        <div class="danger-zone__title">{{ title }}</div>
+        <div class="danger-zone__eyebrow">{{ T('DangerZone') }}</div>
+        <div class="danger-zone__title">{{ title || T('DangerousActions') }}</div>
         <div v-if="subtitle" class="danger-zone__subtitle">{{ subtitle }}</div>
       </div>
       <slot name="actions"></slot>
@@ -13,10 +13,12 @@
 </template>
 
 <script setup>
+  import { T } from '@/utils/i18n'
+
   defineProps({
     title: {
       type: String,
-      default: 'Dangerous actions',
+      default: undefined,
     },
     subtitle: {
       type: String,

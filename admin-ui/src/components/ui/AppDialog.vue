@@ -7,7 +7,7 @@
       :close-on-click-modal="closeOnClickModal"
       :close-on-press-escape="closeOnPressEscape"
       :show-close="showClose"
-      :destroy-on-destroy="destroyOnClose"
+      :destroy-on-close="destroyOnClose"
       class="app-dialog"
       :class="{ 'app-dialog--danger': danger }"
       @open="$emit('open')"
@@ -19,14 +19,14 @@
     <template v-if="!hideFooter" #footer>
       <div class="app-dialog__footer">
         <slot name="footer">
-          <el-button @click="$emit('update:modelValue', false)">{{ cancelText }}</el-button>
+          <el-button @click="$emit('update:modelValue', false)">{{ cancelText || T('Cancel') }}</el-button>
           <el-button
               v-if="showConfirm"
               :type="danger ? 'danger' : 'primary'"
               :loading="loading"
               @click="$emit('confirm')"
           >
-            {{ confirmText }}
+            {{ confirmText || T('Confirm') }}
           </el-button>
         </slot>
       </div>
@@ -35,6 +35,8 @@
 </template>
 
 <script setup>
+import { T } from '@/utils/i18n'
+
 defineProps({
   modelValue: {
     type: Boolean,
@@ -58,11 +60,11 @@ defineProps({
   },
   confirmText: {
     type: String,
-    default: 'Confirm',
+    default: undefined,
   },
   cancelText: {
     type: String,
-    default: 'Cancel',
+    default: undefined,
   },
   showConfirm: {
     type: Boolean,
