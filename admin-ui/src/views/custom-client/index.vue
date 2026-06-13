@@ -53,7 +53,13 @@
         <el-row :gutter="20">
           <el-col :span="8">
             <el-form-item :label="T('Host')">
-              <el-input v-model="form.server_ip" placeholder="e.g. your-server.com" />
+              <el-input v-model="form.server_ip" placeholder="e.g. your-server.com" @blur="stripServerPort">
+                <template #append>
+                  <el-tooltip :content="T('HostnameOnlyHint')" placement="top">
+                    <el-icon><InfoFilled /></el-icon>
+                  </el-tooltip>
+                </template>
+              </el-input>
             </el-form-item>
           </el-col>
           <el-col :span="8">
@@ -313,6 +319,7 @@ import { all as fetchConfig } from '@/api/config'
 import { upload as uploadFile } from '@/api/file'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { T } from '@/utils/i18n'
+import { InfoFilled } from '@element-plus/icons-vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import PageSection from '@/components/ui/PageSection.vue'
 import DataTable from '@/components/ui/DataTable.vue'
@@ -321,7 +328,7 @@ const VERSIONS = ['1.4.7','1.4.6','1.4.5','1.4.4','1.4.3','1.4.2','1.4.1','1.4.0
 
 export default defineComponent({
   name: 'CustomClientBuilds',
-  components: { PageHeader, PageSection, DataTable },
+  components: { PageHeader, PageSection, DataTable, InfoFilled },
   setup () {
     const form = reactive({
       platform: 'windows',
@@ -363,6 +370,9 @@ export default defineComponent({
       app_logo_url: '',
       privacy_screen_url: '',
     })
+
+    const stripPort = (host) => host ? host.replace(/:\d+$/, '').trim() : ''
+    const stripServerPort = () => { form.server_ip = stripPort(form.server_ip) }
 
     const builds = ref([])
     const loading = ref(false)
@@ -507,6 +517,7 @@ export default defineComponent({
     }
 
     const submitBuild = async () => {
+      form.server_ip = stripPort(form.server_ip)
       submitting.value = true
       try {
         const customJson = JSON.stringify({
@@ -643,7 +654,7 @@ export default defineComponent({
       try {
         const res = await fetchConfig()
         if (res?.data) {
-          form.server_ip = res.data.id_server || ''
+          form.server_ip = stripPort(res.data.id_server || '')
           form.key = res.data.key || ''
           form.api_server = res.data.api_server || ''
           form.relay_server = res.data.relay_server || ''
@@ -655,7 +666,7 @@ export default defineComponent({
 
     return {
       form, builds, loading, submitting, page, pageSize, total, versions,
-      submitBuild, deleteBuild, resetForm, downloadBuild,
+      submitBuild, deleteBuild, resetForm, downloadBuild, stripServerPort,
       statusType, statusLabel, T,
       presets, selectedPresetId, onPresetSelect, saveCurrentAsPreset, deletePreset, uploadImage,
     }
