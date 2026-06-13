@@ -40,8 +40,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Users/Security visual pass**: Users, API Tokens, OAuth providers, Groups и Device Groups
   получили общий `PageHeader`/`PageSection` layout; широкие user actions сжаты через
   `More` dropdown без изменения CRUD/API поведения.
+- **Client Builder/Profile visual pass**: Custom Client Builder и My Profile получили общий
+  `PageHeader`/`PageSection` layout; build history pagination выровнен с остальными страницами.
 - **Auth/OAuth visual refresh**: login, register, OAuth approve и OAuth bind экраны
   переведены на token-based визуальный язык, поддерживают theme switch и Connection Pulse.
+- **Custom Client runtime fix**: preset/upload handlers теперь возвращаются из `setup()` и
+  доступны template-кнопкам без изменения backend/API контрактов.
 - **Review/verification**:
   - `ocr review` по рабочей копии: high/medium findings нет; единственный low nit про
     magic number исправлен через `--sidebar-brand-height`;

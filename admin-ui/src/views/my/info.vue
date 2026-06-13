@@ -1,6 +1,12 @@
 <template>
-  <div>
-    <el-card :title="T('Userinfo')" shadow="hover">
+  <div class="profile-page">
+    <page-header
+        :title="T('Userinfo')"
+        subtitle="Review account details, change your password, and manage connected OIDC identities."
+        eyebrow="Profile"
+        pulse="online"
+    />
+    <page-section :title="T('Userinfo')" subtitle="Account identity and authentication bindings.">
       <el-form class="info-form" ref="form" label-width="120px" label-suffix="：">
         <el-form-item :label="T('Username')">
           <div>{{ userStore.username }}</div>
@@ -29,10 +35,10 @@
           </el-table>
         </el-form-item>
       </el-form>
-    </el-card>
-    <el-card shadow="hover" style="margin-top: 20px">
+    </page-section>
+    <page-section class="hello-section" title="Welcome">
       <div v-html="html"></div>
-    </el-card>
+    </page-section>
     <changePwdDialog v-model:visible="changePwdVisible"></changePwdDialog>
   </div>
 </template>
@@ -47,6 +53,8 @@
   import { ElMessageBox } from 'element-plus'
   import { T } from '@/utils/i18n'
   import { marked } from 'marked'
+  import PageHeader from '@/components/ui/PageHeader.vue'
+  import PageSection from '@/components/ui/PageSection.vue'
 
   const appStore = useAppStore()
   const userStore = useUserStore()
@@ -92,8 +100,12 @@
 
 <style scoped lang="scss">
 .info-form {
-  width: 600px;
+  max-width: 720px;
   margin: 0 auto;
 
+}
+
+.hello-section {
+  margin-top: 20px;
 }
 </style>

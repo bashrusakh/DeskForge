@@ -1,9 +1,12 @@
 <template>
   <div class="custom-client">
-    <el-card shadow="hover" class="mb-20">
-      <template #header>
-        <span>{{ T('NewBuild') }}</span>
-      </template>
+    <page-header
+        title="Custom Client Builder"
+        subtitle="Create branded RustDesk-compatible client builds with pinned server, security, permissions, and branding settings."
+        eyebrow="Client Builder"
+        pulse="warning"
+    />
+    <page-section class="mb-20" :title="T('NewBuild')" subtitle="Configure the build payload and optionally save or load reusable presets.">
       <el-form :model="form" label-width="180px" v-loading="submitting">
         <el-row :gutter="20" class="mb-10">
           <el-col :span="12">
@@ -267,12 +270,9 @@
           <el-button @click="resetForm">{{ T('Reset') }}</el-button>
         </el-form-item>
       </el-form>
-    </el-card>
+    </page-section>
 
-    <el-card shadow="hover">
-      <template #header>
-        <span>{{ T('BuildHistory') }}</span>
-      </template>
+    <page-section class="build-history" :title="T('BuildHistory')" :subtitle="`${total} builds`">
       <el-table :data="builds" v-loading="loading" border>
         <el-table-column prop="id" label="ID" width="60" align="center" />
         <el-table-column :label="T('Platform')" prop="platform" width="120" align="center" />
@@ -295,9 +295,9 @@
                      layout="prev, pager, next, sizes, jumper"
                      :page-sizes="[10,20,50,100]"
                      v-model:page-size="pageSize"
-                     v-model:current-page="page"
-                     :total="total" />
-    </el-card>
+                      v-model:current-page="page"
+                      :total="total" />
+    </page-section>
   </div>
 </template>
 
@@ -309,11 +309,14 @@ import { all as fetchConfig } from '@/api/config'
 import { upload as uploadFile } from '@/api/file'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { T } from '@/utils/i18n'
+import PageHeader from '@/components/ui/PageHeader.vue'
+import PageSection from '@/components/ui/PageSection.vue'
 
 const VERSIONS = ['1.4.7','1.4.6','1.4.5','1.4.4','1.4.3','1.4.2','1.4.1','1.4.0','1.3.9','1.3.8','1.3.7','1.3.6','1.3.5','1.3.4','1.3.3']
 
 export default defineComponent({
   name: 'CustomClientBuilds',
+  components: { PageHeader, PageSection },
   setup () {
     const form = reactive({
       platform: 'windows',
@@ -649,13 +652,21 @@ export default defineComponent({
       form, builds, loading, submitting, page, pageSize, total, versions,
       submitBuild, deleteBuild, resetForm, downloadBuild,
       statusType, statusLabel, T,
+      presets, selectedPresetId, onPresetSelect, saveCurrentAsPreset, deletePreset, uploadImage,
     }
   },
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .mb-20 {
   margin-bottom: 20px;
+}
+
+.build-history {
+  :deep(.el-pagination) {
+    justify-content: flex-end;
+    margin-top: 16px;
+  }
 }
 </style>
