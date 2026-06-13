@@ -60,7 +60,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **DataTable pass**: `DataTable` wrapper applied to Users and Address Book pages with slot-based custom cells, loading state, empty state, and horizontal scroll.
 - **AppDialog/AppDrawer/FormSection pass**: Added `admin-ui/src/components/ui/AppDialog.vue`, `AppDrawer.vue`, and `FormSection.vue` shared primitives for unified dialog/drawer/form patterns.
 - **CRUD dialog unification pass**: ALL remaining `el-dialog` usages migrated to `AppDialog`. Zero raw `el-dialog` remain in views.
-- **DataTable migration pass**: All remaining `el-table` usages migrated to `DataTable` with slot-based custom cells, selection support, and loading state. Pages: API Tokens, Connection History, Shared Sessions, My Shared Sessions, My OIDC bindings, Login Logs, My Login Logs, Usage stats.
+- **DataTable migration COMPLETE**: All `el-table` usages migrated to `DataTable` across all view pages. Only remaining `el-table` is one nested inline table in `audit/fileList.vue` (directory file listing within a cell) and unused `my/address_book/indexv2.vue`. Dynamic column visibility in `peer/index.vue` now works via computed `tableColumns`.
 - **Review/verification**:
   - `ocr review` по рабочей копии: high/medium findings нет; единственный low nit про
     magic number исправлен через `--sidebar-brand-height`;

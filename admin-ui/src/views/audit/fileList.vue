@@ -19,60 +19,58 @@
       </template>
     </filter-bar>
     <page-section class="list-body" :title="T('FileTransferHistory')" :subtitle="`${listRes.total} records`">
-      <el-table :data="listRes.list" v-loading="listRes.loading" border max-height="750" @selection-change="handleSelectionChange">
-        <el-table-column type="selection" align="center" width="50"/>
-        <el-table-column prop="id" label="ID" align="center" width="100"/>
-        <el-table-column :label="T('Peer')" prop="peer_id" align="center" width="120"/>
-        <el-table-column :label="T('FromPeer')" prop="from_peer" align="center" width="120"/>
-        <el-table-column :label="T('FromName')" prop="from_name" align="center" width="120"/>
-        <el-table-column :label="T('Ip')" prop="ip" align="center" width="120"/>
-        <el-table-column prop="type" :label="T('Type')" align="center" width="200">
-          <template #default="{row}">
-            <el-tag v-if="row.type === 1" type="warning"> {{ T('ToRemote') }}:
-              <el-icon>
-                <Right/>
-              </el-icon>
-              {{ row.peer_id }}
-            </el-tag>
-            <el-tag v-else>{{ T('ToLocal') }}:
-              <el-icon>
-                <Right/>
-              </el-icon>
-              {{ row.from_peer }}
-            </el-tag>
+      <data-table
+          :data="listRes.list"
+          :loading="listRes.loading"
+          selectable
+          @selection-change="handleSelectionChange"
+          row-key="id"
+          maxHeight="750"
+          :columns="[
+            { prop: 'id', label: 'ID', align: 'center', width: 100 },
+            { label: T('Peer'), prop: 'peer_id', align: 'center', width: 120 },
+            { label: T('FromPeer'), prop: 'from_peer', align: 'center', width: 120 },
+            { label: T('FromName'), prop: 'from_name', align: 'center', width: 120 },
+            { label: T('Ip'), prop: 'ip', align: 'center', width: 120 },
+            { label: T('Type'), align: 'center', width: 200, slot: 'type' },
+            { label: T('Num'), prop: 'num', align: 'center', width: 100 },
+            { label: T('FileInfo'), align: 'center', width: 300, slot: 'fileInfo' },
+            { label: T('Path'), prop: 'path', align: 'center', width: 150, showOverflowTooltip: true },
+            { label: 'uuid', prop: 'uuid', align: 'center', width: 120, showOverflowTooltip: true },
+            { label: T('CreatedAt'), prop: 'created_at', align: 'center', minWidth: 120 },
+            { label: T('Actions'), align: 'center', width: 150, fixed: 'right', slot: 'actions' }
+          ]"
+      >
+        <template #type="{ row }">
+          <el-tag v-if="row.type === 1" type="warning"> {{ T('ToRemote') }}:
+            <el-icon><Right/></el-icon> {{ row.peer_id }}
+          </el-tag>
+          <el-tag v-else>{{ T('ToLocal') }}:
+            <el-icon><Right/></el-icon> {{ row.from_peer }}
+          </el-tag>
+        </template>
+        <template #fileInfo="{ row }">
+          <template v-if="!row.is_file">
+            <el-table size="small" :data="row.info?.files?.filter((v,k) => k<showDirFileNum)" fit>
+              <el-table-column prop="0" :label="T('FileName')" align="center" width="150" show-overflow-tooltip></el-table-column>
+              <el-table-column prop="1" :label="T('Size')" align="center">
+                <template #default="{row:_row}">
+                  {{ sizeFormat(_row[1]) }}
+                </template>
+              </el-table-column>
+            </el-table>
+            <el-button size="small" v-if="row.info.files.length>showDirFileNum" style="width: 100%;margin-top: 5px" type="primary" @click="showAllFile(row.info.files)">
+              {{ T('More') }}({{ row.info.files.length - showDirFileNum }})
+            </el-button>
           </template>
-        </el-table-column>
-        <el-table-column prop="num" :label="T('Num')" align="center" width="100"/>
-        <el-table-column :label="T('FileInfo')" align="center" width="300">
-          <template #default="{row}">
-            <template v-if="!row.is_file">
-              <el-table size="small" :data="row.info?.files?.filter((v,k) => k<showDirFileNum)" fit>
-                <el-table-column prop="0" :label="T('FileName')" align="center" width="150" show-overflow-tooltip></el-table-column>
-                <el-table-column prop="1" :label="T('Size')" align="center">
-                  <template #default="{row:_row}">
-                    {{ sizeFormat(_row[1]) }}
-                  </template>
-                </el-table-column>
-              </el-table>
-              <el-button size="small" v-if="row.info.files.length>showDirFileNum" style="width: 100%;margin-top: 5px" type="primary" @click="showAllFile(row.info.files)">
-                {{ T('More') }}({{ row.info.files.length - showDirFileNum }})
-              </el-button>
-            </template>
-            <div v-else>
-              {{ sizeFormat(row.info.files[0][1]) }}
-            </div>
-
-          </template>
-        </el-table-column>
-        <el-table-column prop="path" :label="T('Path')" align="center" width="150" show-overflow-tooltip/>
-        <el-table-column prop="uuid" label="uuid" align="center" width="120" show-overflow-tooltip/>
-        <el-table-column prop="created_at" :label="T('CreatedAt')" align="center" min-width="120"/>
-        <el-table-column :label="T('Actions')" align="center" width="150" fixed="right">
-          <template #default="{row}">
-            <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+          <div v-else>
+            {{ sizeFormat(row.info.files[0][1]) }}
+          </div>
+        </template>
+        <template #actions="{ row }">
+          <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
+        </template>
+      </data-table>
     </page-section>
     <page-section class="list-page">
       <el-pagination background
@@ -89,15 +87,20 @@
         :show-confirm="false"
         :hide-footer="true"
     >
-      <el-table :data="showFiles" max-height="800px">
-        <el-table-column type="index" :label="T('IndexNum')" width="120" align="center"></el-table-column>
-        <el-table-column prop="0" :label="T('FileName')" align="center"></el-table-column>
-        <el-table-column prop="1" :label="T('Size')" align="center">
-          <template #default="{row:_row}">
-            {{ sizeFormat(_row[1]) }}
-          </template>
-        </el-table-column>
-      </el-table>
+      <data-table
+          :data="showFiles"
+          maxHeight="800"
+          row-key="0"
+          :columns="[
+            { type: 'index', label: T('IndexNum'), width: 120, align: 'center' },
+            { prop: '0', label: T('FileName'), align: 'center' },
+            { prop: '1', label: T('Size'), align: 'center', slot: 'size' }
+          ]"
+      >
+        <template #size="{ row: _row }">
+          {{ sizeFormat(_row[1]) }}
+        </template>
+      </data-table>
       <el-button @click="allFilesVisible=false" style="margin-top: 20px;width: 100%" type="primary">{{ T('Close') }}</el-button>
     </app-dialog>
   </div>
@@ -113,6 +116,7 @@ import PageHeader from '@/components/ui/PageHeader.vue'
 import PageSection from '@/components/ui/PageSection.vue'
 import FilterBar from '@/components/ui/FilterBar.vue'
 import AppDialog from '@/components/ui/AppDialog.vue'
+import DataTable from '@/components/ui/DataTable.vue'
 
 const showDirFileNum = 3
 const {

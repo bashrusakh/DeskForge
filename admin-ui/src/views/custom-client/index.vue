@@ -273,24 +273,28 @@
     </page-section>
 
     <page-section class="build-history" :title="T('BuildHistory')" :subtitle="`${total} builds`">
-      <el-table :data="builds" v-loading="loading" border>
-        <el-table-column prop="id" label="ID" width="60" align="center" />
-        <el-table-column :label="T('Platform')" prop="platform" width="120" align="center" />
-        <el-table-column :label="T('Version')" prop="version" width="100" align="center" />
-        <el-table-column :label="T('AppName')" prop="app_name" min-width="140" />
-        <el-table-column :label="T('BuildStatus')" width="120" align="center">
-          <template #default="{row}">
-            <el-tag :type="statusType(row.status)" size="small">{{ T(statusLabel(row.status)) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column :label="T('CreatedAt')" prop="created_at" width="160" align="center" />
-        <el-table-column :label="T('Actions')" width="200" align="center">
-          <template #default="{row}">
-            <el-button v-if="row.status === 'done'" type="success" size="small" @click="downloadBuild(row)">{{ T('Download') }}</el-button>
-            <el-button type="danger" size="small" @click="deleteBuild(row)">{{ T('Delete') }}</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <data-table
+          :data="builds"
+          :loading="loading"
+          row-key="id"
+          :columns="[
+            { prop: 'id', label: 'ID', width: 60, align: 'center' },
+            { label: T('Platform'), prop: 'platform', width: 120, align: 'center' },
+            { label: T('Version'), prop: 'version', width: 100, align: 'center' },
+            { label: T('AppName'), prop: 'app_name', minWidth: 140 },
+            { label: T('BuildStatus'), width: 120, align: 'center', slot: 'status' },
+            { label: T('CreatedAt'), prop: 'created_at', width: 160, align: 'center' },
+            { label: T('Actions'), width: 200, align: 'center', slot: 'actions' }
+          ]"
+      >
+        <template #status="{ row }">
+          <el-tag :type="statusType(row.status)" size="small">{{ T(statusLabel(row.status)) }}</el-tag>
+        </template>
+        <template #actions="{ row }">
+          <el-button v-if="row.status === 'done'" type="success" size="small" @click="downloadBuild(row)">{{ T('Download') }}</el-button>
+          <el-button type="danger" size="small" @click="deleteBuild(row)">{{ T('Delete') }}</el-button>
+        </template>
+      </data-table>
       <el-pagination background
                      layout="prev, pager, next, sizes, jumper"
                      :page-sizes="[10,20,50,100]"
@@ -311,12 +315,13 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { T } from '@/utils/i18n'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import PageSection from '@/components/ui/PageSection.vue'
+import DataTable from '@/components/ui/DataTable.vue'
 
 const VERSIONS = ['1.4.7','1.4.6','1.4.5','1.4.4','1.4.3','1.4.2','1.4.1','1.4.0','1.3.9','1.3.8','1.3.7','1.3.6','1.3.5','1.3.4','1.3.3']
 
 export default defineComponent({
   name: 'CustomClientBuilds',
-  components: { PageHeader, PageSection },
+  components: { PageHeader, PageSection, DataTable },
   setup () {
     const form = reactive({
       platform: 'windows',

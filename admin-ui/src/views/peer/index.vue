@@ -70,67 +70,51 @@
         <el-button :icon="Setting" @click="showColumnSetting">Columns</el-button>
       </div>
 
-      <el-table :data="listRes.list" v-loading="listRes.loading" border size="small" @selection-change="handleSelectionChange">
-        <el-table-column type="selection" width="55" align="center"/>
-        <el-table-column :label="T('Status')" align="left" width="120">
-          <template #default="{row}">
-            <div class="device-status" :class="{ 'is-online': isOnline(row), 'is-offline': !isOnline(row) }">
-              <connection-pulse :status="isOnline(row) ? 'online' : 'offline'" :animated="isOnline(row)" />
-              <span>{{ isOnline(row) ? 'Online' : 'Offline' }}</span>
-            </div>
-          </template>
-        </el-table-column>
-        <template v-for="c in visibleColumns.filter(cc => cc.visible)" :key="c">
-          <el-table-column v-if="c.name==='id'" prop="id" label="ID" align="left" width="160">
-            <template #default="{row}">
-              <copyable-text :text="row.id" />
-            </template>
-          </el-table-column>
-          <el-table-column v-if="c.name==='cpu'" prop="cpu" label="CPU" align="center" width="100" show-overflow-tooltip/>
-          <el-table-column v-if="c.name==='hostname'" prop="hostname" :label="T('Hostname')" align="center" width="120"/>
-          <el-table-column v-if="c.name==='memory'" prop="memory" :label="T('Memory')" align="center" width="120"/>
-          <el-table-column v-if="c.name==='os'" prop="os" :label="T('Os')" align="center" width="120" show-overflow-tooltip/>
-          <el-table-column v-if="c.name==='last_online_time'" prop="last_online_time" :label="T('LastOnlineTime')" align="center" min-width="120">
-            <template #default="{row}">
-              <div class="last_oline_time">
-                <span> {{ row.last_online_time ? timeAgo(row.last_online_time * 1000) : '-' }}</span>
-              </div>
-            </template>
-          </el-table-column>
-          <el-table-column v-if="c.name==='last_online_ip'" prop="last_online_ip" :label="T('LastOnlineIp')" align="center" min-width="120"/>
-          <el-table-column v-if="c.name==='username'" prop="username" :label="T('Username')" align="center" width="120"/>
-          <el-table-column v-if="c.name==='group_id'" prop="group_id" :label="T('Group')" align="center" width="120">
-            <template #default="{row}">
-              <span v-if="row.group_id"> <el-tag>{{ groupListRes.list?.find(g => g.id === row.group_id)?.name }} </el-tag> </span>
-              <span v-else> - </span>
-            </template>
-          </el-table-column>
-          <el-table-column v-if="c.name==='uuid'" prop="uuid" :label="T('Uuid')" align="center" width="120" show-overflow-tooltip/>
-          <el-table-column v-if="c.name==='version'" prop="version" :label="T('Version')" align="center" width="80"/>
-          <el-table-column v-if="c.name==='alias'" prop="alias" :label="T('Alias')" align="center" width="80"/>
-          <el-table-column v-if="c.name==='created_at'" prop="created_at" :label="T('CreatedAt')" align="center" width="150"/>
-          <el-table-column v-if="c.name==='updated_at'" prop="updated_at" :label="T('UpdatedAt')" align="center" width="150"/>
+      <data-table
+          :data="listRes.list"
+          :loading="listRes.loading"
+          border
+          size="small"
+          selectable
+          @selection-change="handleSelectionChange"
+          row-key="id"
+          :columns="tableColumns"
+      >
+        <template #status="{ row }">
+          <div class="device-status" :class="{ 'is-online': isOnline(row), 'is-offline': !isOnline(row) }">
+            <connection-pulse :status="isOnline(row) ? 'online' : 'offline'" :animated="isOnline(row)" />
+            <span>{{ isOnline(row) ? 'Online' : 'Offline' }}</span>
+          </div>
         </template>
-
-        <el-table-column :label="T('Actions')" align="right" min-width="250" class-name="table-actions" fixed="right">
-          <template #default="{row}">
-            <div class="device-actions">
-              <el-button type="primary" @click="connectByClient(row.id)">Connect</el-button>
-              <el-dropdown trigger="click">
-                <el-button>More <el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item v-if="appStore.setting.appConfig.web_client" @click="toWebClientLink(row)">Web Client</el-dropdown-item>
-                    <el-dropdown-item @click="toAddressBook(row)">{{ T('AddToAddressBook') }}</el-dropdown-item>
-                    <el-dropdown-item @click="toEdit(row)">{{ T('Edit') }}</el-dropdown-item>
-                    <el-dropdown-item divided @click="del(row)">{{ T('Delete') }}</el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
-            </div>
-          </template>
-        </el-table-column>
-      </el-table>
+        <template #id="{ row }">
+          <copyable-text :text="row.id" />
+        </template>
+        <template #lastOnlineTime="{ row }">
+          <div class="last_oline_time">
+            <span> {{ row.last_online_time ? timeAgo(row.last_online_time * 1000) : '-' }}</span>
+          </div>
+        </template>
+        <template #group="{ row }">
+          <span v-if="row.group_id"> <el-tag>{{ groupListRes.list?.find(g => g.id === row.group_id)?.name }} </el-tag> </span>
+          <span v-else> - </span>
+        </template>
+        <template #actions="{ row }">
+          <div class="device-actions">
+            <el-button type="primary" @click="connectByClient(row.id)">Connect</el-button>
+            <el-dropdown trigger="click">
+              <el-button>More <el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item v-if="appStore.setting.appConfig.web_client" @click="toWebClientLink(row)">Web Client</el-dropdown-item>
+                  <el-dropdown-item @click="toAddressBook(row)">{{ T('AddToAddressBook') }}</el-dropdown-item>
+                  <el-dropdown-item @click="toEdit(row)">{{ T('Edit') }}</el-dropdown-item>
+                  <el-dropdown-item divided @click="del(row)">{{ T('Delete') }}</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
+        </template>
+      </data-table>
     </el-card>
     <page-section class="list-page">
       <el-pagination background
@@ -569,6 +553,32 @@
     { name: 'updated_at', visible: true, label: 'UpdatedAt' },
   ])
   const visibleColumns = ref(JSON.parse(localStorage.getItem('peer_visible_columns')) || allColumns.value)
+
+  const columnProps = {
+    id: { prop: 'id', label: 'ID', align: 'left', width: 160, slot: 'id' },
+    cpu: { prop: 'cpu', label: 'CPU', align: 'center', width: 100, showOverflowTooltip: true },
+    hostname: { prop: 'hostname', label: T('Hostname'), align: 'center', width: 120 },
+    memory: { prop: 'memory', label: T('Memory'), align: 'center', width: 120 },
+    os: { prop: 'os', label: T('Os'), align: 'center', width: 120, showOverflowTooltip: true },
+    last_online_time: { label: T('LastOnlineTime'), align: 'center', minWidth: 120, slot: 'lastOnlineTime' },
+    last_online_ip: { prop: 'last_online_ip', label: T('LastOnlineIp'), align: 'center', minWidth: 120 },
+    username: { prop: 'username', label: T('Username'), align: 'center', width: 120 },
+    group_id: { prop: 'group_id', label: T('Group'), align: 'center', width: 120, slot: 'group' },
+    uuid: { prop: 'uuid', label: T('Uuid'), align: 'center', width: 120, showOverflowTooltip: true },
+    version: { prop: 'version', label: T('Version'), align: 'center', width: 80 },
+    alias: { prop: 'alias', label: T('Alias'), align: 'center', width: 80 },
+    created_at: { prop: 'created_at', label: T('CreatedAt'), align: 'center', width: 150 },
+    updated_at: { prop: 'updated_at', label: T('UpdatedAt'), align: 'center', width: 150 },
+  }
+
+  const tableColumns = computed(() => {
+    const statusCol = { label: T('Status'), align: 'left', width: 120, slot: 'status' }
+    const actionCol = { label: T('Actions'), align: 'right', minWidth: 250, fixed: 'right', slot: 'actions' }
+    const dynamicCols = visibleColumns.value
+        .filter(c => c.visible)
+        .map(c => columnProps[c.name] || { prop: c.name, label: c.label || c.name })
+    return [statusCol, ...dynamicCols, actionCol]
+  })
   const showColumnSetting = () => {
     columnSettingVisible.value = true
   }
