@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased] - 2026-06-14
 
+### Added (dashboard server health)
+- **Backend `GET /api/admin/dashboard/health`** (`api/http/controller/admin/dashboard.go`, `router/admin.go`): new endpoint that checks ID server and relay server availability via local socket commands (`h`), retrieves relay usage data (`u`), and reads bandwidth limits (`total-bandwidth`, `single-bandwidth`, `limit-speed`). Returns structured JSON with status, top-5 connections, and bandwidth values.
+- **Frontend `ServerHealth.vue`** (`admin-ui/src/components/dashboard/ServerHealth.vue`): new dashboard component showing ID/Relay server status with ConnectionPulse, active sessions count, bandwidth progress bars, top-5 connections table, and 15-second auto-refresh with countdown timer.
+- **Dashboard integration** (`admin-ui/src/views/index/index.vue`): added `<server-health/>` block between Quick Connect and stat cards.
+- **Removed duplicate status block** (`admin-ui/src/views/rustdesk/control.vue`): deleted the "Server command availability" section (ID Status / RELAY Status cards) since the same information now lives on the dashboard. The underlying `canSendIdServerCmd`/`canSendRelayServerCmd` check logic is preserved for child component `:can-send` props.
+
 ### Added (admin-ui UI rework foundation - PR #3, 2026-06-14)
 - **Design tokens + theme system** (`admin-ui/src/styles/style.scss`, `src/store/app.js`): added light/dark tokens for surface/text/border/status colors, radius, shadows, and typography; theme mode `auto` / `light` / `dark` is stored in `localStorage` as `theme-mode` and applied through `html[data-theme]` + `html.dark` for Element Plus.
 - **New UI primitives**:

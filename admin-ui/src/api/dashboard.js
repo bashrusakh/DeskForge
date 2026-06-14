@@ -6,3 +6,10 @@ export function stats () {
     method: 'get',
   })
 }
+
+export function health () {
+  return request({
+    url: '/dashboard/health',
+    method: 'get',
+  })
+}

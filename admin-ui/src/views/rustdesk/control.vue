@@ -6,21 +6,6 @@
         eyebrow="Server"
         pulse="warning"
     />
-    <page-section title="Server command availability" subtitle="Checks whether the admin API can send commands to each RustDesk server process.">
-      <div class="server-status-grid">
-        <div class="server-status-card" :class="{ 'is-available': canSendIdServerCmd }">
-          <span>ID {{ T('Status') }}</span>
-          <strong>{{ canSendIdServerCmd ? T('Available') : T('NotAvailable') }}</strong>
-          <el-button size="small" text @click="refreshCanSendIdServerCmd">{{ T('Refresh') }}</el-button>
-        </div>
-        <div class="server-status-card" :class="{ 'is-available': canSendRelayServerCmd }">
-          <span>RELAY {{ T('Status') }}</span>
-          <strong>{{ canSendRelayServerCmd ? T('Available') : T('NotAvailable') }}</strong>
-          <el-button size="small" text @click="refreshCanSendRelayServerCmd">{{ T('Refresh') }}</el-button>
-        </div>
-      </div>
-      <p class="server-command-tip" v-html="T('ServerCmdTips', {wiki: '<a target=\'_blank\' href=\'https://github.com/rustdesk/rustdesk-api/wiki/Rustdesk-Command\'>WIKI</a>'})"></p>
-    </page-section>
     <el-tabs
         v-model="activeName"
         type="card"
@@ -347,49 +332,6 @@
   min-height: 300px;
 }
 
-.server-status-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.server-status-card {
-  padding: 16px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface-2);
-
-  span,
-  strong {
-    display: block;
-  }
-
-  span {
-    color: var(--color-muted);
-    font-family: var(--font-mono);
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
-
-  strong {
-    margin: 8px 0 10px;
-    color: var(--color-danger);
-    font-size: 20px;
-  }
-
-  &.is-available strong {
-    color: var(--color-success);
-  }
-}
-
-.server-command-tip {
-  margin: 14px 0 0;
-  color: var(--color-muted);
-  line-height: 1.6;
-}
-
 .server-command-tabs {
   margin-top: 18px;
 }
@@ -429,9 +371,5 @@
   font-size: 12px;
 }
 
-@media (max-width: 720px) {
-  .server-status-grid {
-    grid-template-columns: 1fr;
-  }
-}
+
 </style>

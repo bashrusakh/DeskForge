@@ -338,6 +338,7 @@ func MyBind(rg *gin.RouterGroup) {
 func DashboardBind(rg *gin.RouterGroup) {
 	cont := &admin.Dashboard{}
 	rg.GET("/dashboard/stats", cont.Stats)
+	rg.GET("/dashboard/health", cont.Health)
 }
 
 func ShareRecordBind(rg *gin.RouterGroup) {
