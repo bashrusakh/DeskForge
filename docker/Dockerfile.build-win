@@ -40,7 +40,7 @@ RUN git clone --depth 1 --branch master --recurse-submodules https://github.com/
 # Patch rustdesk source for Windows cross-compile.
 # We use a separate script file because complex sed patterns in Dockerfile RUN
 # suffer from bash escape issues (nested single quotes).
-COPY patch-rustdesk-for-win.sh /tmp/patch.sh
+COPY docker/patch-rustdesk-for-win.sh /tmp/patch.sh
 RUN bash /tmp/patch.sh && rm /tmp/patch.sh
 
 # Vendor all crate dependencies (fully offline builds, immune to upstream disappearing)
@@ -65,7 +65,7 @@ RUN cd /usr/x86_64-w64-mingw32/lib && \
     x86_64-w64-mingw32-dlltool --def /tmp/sas.def --output-lib libsas.a
 
 WORKDIR /build
-COPY entrypoint-win.sh /entrypoint.sh
+COPY docker/entrypoint-win.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 VOLUME /rdgen-data
