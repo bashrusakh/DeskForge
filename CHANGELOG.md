@@ -122,12 +122,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `rdgen-data/`, `rustdesk-cache/`, `**/target/`, `*.exe|*.dll|*.apk|*.msi`,
   `offline-kit/artifacts/` из build-контекста. Без него build-контекст тащил
   155 МБ `node_modules` и хост-зависимые файлы.
-- **Dockerfile: web-builder заменён на pre-built dist.** npm 10.8.2 в `node:20-alpine`
-  падает с `Exit handler never called!` (известный баг musl), плюс при COPY
-  `admin-ui/` перетирается хостовый `node_modules` без execute-бита. Сборка admin-ui
-  теперь делается на хосте (`npm install && npm run build`), в контейнер копируется
-  готовый `dist/` через `FROM scratch AS web-dist`. Rust+Go слои — без изменений
-  (кеш работает, пересборка ~10 сек).
+- **Docker build fix**: production `docker/Dockerfile` now builds `admin-ui` from source inside a `node:20-bookworm` stage and no longer requires a pre-existing `admin-ui/dist/`; `.dockerignore` excludes host `node_modules/` and stale `admin-ui/dist/`.
 - **Пароль админа** сброшен на `admin123` через `apimain reset-admin-pwd` —
   первоначальный пароль из логов первого запуска был утерян после рестарта.
 
