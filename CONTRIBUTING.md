@@ -41,13 +41,67 @@ Branch prefixes (loose convention, not enforced):
 
 ## Commit messages
 
-Short, in English, present tense. No required format, but readable:
+Commits should use one standard template.
 
+Template:
+
+```text
+<scope>: <imperative summary>
 ```
+
+Rules:
+
+- English only
+- lowercase scope
+- short imperative summary
+- no trailing period
+- keep it specific to one logical change
+
+Preferred scopes are based on the touched area:
+
+| Scope | When |
+|---|---|
+| `admin-ui` | Vue admin panel changes |
+| `api` | Go backend/API changes |
+| `server` | Rust hbbs/hbbr changes |
+| `docker` | Dockerfiles / compose |
+| `workflow` | GitHub Actions / CI |
+| `docs` | docs only |
+| `fix(<area>)` | focused bug fix when that reads better |
+
+Examples:
+
+```text
+admin-ui: migrate remaining tables to DataTable
+docker: fix build-win copy paths
 api: add nocache middleware for /admin/*
-workflow: switch packer to single-binary output
+fix(custom-client): enforce hostname-only server_ip
 docs: clarify L2 custom_.txt flow
 ```
+
+## Pull Request titles
+
+Pull Request titles should follow the same template as commit messages.
+
+Template:
+
+```text
+<scope>: <imperative summary>
+```
+
+Examples:
+
+```text
+admin-ui: remove remaining legacy table and dialog remnants
+docker: build admin-ui inside production image
+workflow: switch packer to single-binary output
+```
+
+PR body is free-form, but should usually include:
+
+- summary
+- why
+- validation
 
 Co-author trailers welcome when AI agents contributed:
 
