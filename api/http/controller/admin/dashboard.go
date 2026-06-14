@@ -101,6 +101,8 @@ func (ct *Dashboard) Health(c *gin.Context) {
 
 	usage := []usageRow{}
 	activeConns := 0
+	currentTotalKbps := 0.0
+	currentPeakKbps := 0.0
 	if usageRaw != "" {
 		for _, line := range strings.Split(strings.TrimSpace(usageRaw), "\n") {
 			parts := strings.Fields(line)
@@ -117,6 +119,10 @@ func (ct *Dashboard) Health(c *gin.Context) {
 				IP: ip, Time: timeVal, Total: totalVal,
 				Highest: highestVal, Avg: avgVal, Speed: speedVal,
 			})
+			currentTotalKbps += speedVal
+			if speedVal > currentPeakKbps {
+				currentPeakKbps = speedVal
+			}
 		}
 		activeConns = len(usage)
 		sort.Slice(usage, func(i, j int) bool {
@@ -138,6 +144,8 @@ func (ct *Dashboard) Health(c *gin.Context) {
 		},
 		"usage":              usage,
 		"active_connections": activeConns,
+		"current_total_kbps": currentTotalKbps,
+		"current_peak_kbps":  currentPeakKbps,
 		"total_bandwidth":    parseRelayValue(totalBWRaw),
 		"single_bandwidth":   parseRelayValue(singleBWRaw),
 		"limit_speed":        parseRelayValue(limitRaw),

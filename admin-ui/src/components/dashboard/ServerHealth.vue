@@ -49,19 +49,28 @@
             <div class="big-number">{{ activeConnections }}</div>
           </div>
           <div>
-            <div class="stat-label-sm">Relay Limits</div>
-            <div class="limits-list">
-              <div class="limit-row">
-                <span class="limit-key">Total bandwidth</span>
-                <span class="limit-val">{{ fmtMbps(totalBW) }}</span>
+            <div class="stat-label-sm">Live Bandwidth</div>
+            <div class="bw-list">
+              <div class="bw-row">
+                <div class="bw-label">
+                  <span>TOTAL</span>
+                  <span>{{ totalBW > 0 ? `${fmtKbps(currentTotalKbps)} / ${fmtMbps(totalBW)}` : fmtKbps(currentTotalKbps) }}</span>
+                </div>
+                <div v-if="totalBW > 0" class="bw-track">
+                  <div class="bw-fill bw-total" :style="{ width: bwPct(currentTotalKbps, totalBW) + '%' }"></div>
+                </div>
               </div>
-              <div class="limit-row">
-                <span class="limit-key">Per connection</span>
-                <span class="limit-val">{{ fmtMbps(singleBW) }}</span>
+              <div class="bw-row">
+                <div class="bw-label">
+                  <span>PEAK / CONN</span>
+                  <span>{{ singleBW > 0 ? `${fmtKbps(currentPeakKbps)} / ${fmtMbps(singleBW)}` : fmtKbps(currentPeakKbps) }}</span>
+                </div>
+                <div v-if="singleBW > 0" class="bw-track">
+                  <div class="bw-fill bw-single" :style="{ width: bwPct(currentPeakKbps, singleBW) + '%' }"></div>
+                </div>
               </div>
-              <div class="limit-row">
-                <span class="limit-key">Downgrade threshold</span>
-                <span class="limit-val">{{ fmtMbps(limitSpeed) }}</span>
+              <div v-if="limitSpeed > 0" class="bw-footnote">
+                Downgrade threshold: {{ fmtMbps(limitSpeed) }}
               </div>
             </div>
           </div>
@@ -128,6 +137,8 @@ export default defineComponent({
     const totalBW = ref(0)
     const singleBW = ref(0)
     const limitSpeed = ref(0)
+    const currentTotalKbps = ref(0)
+    const currentPeakKbps = ref(0)
     const usage = ref([])
     const extraCount = ref(0)
     const loading = ref(true)
@@ -150,6 +161,8 @@ export default defineComponent({
         totalBW.value = d.total_bandwidth || 0
         singleBW.value = d.single_bandwidth || 0
         limitSpeed.value = d.limit_speed || 0
+        currentTotalKbps.value = d.current_total_kbps || 0
+        currentPeakKbps.value = d.current_peak_kbps || 0
         usage.value = d.usage || []
         extraCount.value = Math.max(0, activeConnections.value - usage.value.length)
         error.value = false
@@ -192,6 +205,17 @@ export default defineComponent({
       return v.toFixed(v < 10 ? 1 : 0) + ' Mb/s'
     }
 
+    const fmtKbps = (kbps) => {
+      if (!kbps) return '0 kb/s'
+      if (kbps >= 1024) return (kbps / 1024).toFixed(1) + ' Mb/s'
+      return Math.round(kbps) + ' kb/s'
+    }
+
+    const bwPct = (kbps, limitMbps) => {
+      if (!limitMbps) return 0
+      return Math.min(100, Math.round((kbps / (limitMbps * 1024)) * 100))
+    }
+
     onMounted(() => {
       load()
       tickInterval = setInterval(() => {
@@ -211,9 +235,10 @@ export default defineComponent({
       idOnline, relayOnline, activeConnections,
       totalBW, singleBW, limitSpeed,
       usage, extraCount, loading, error,
+      currentTotalKbps, currentPeakKbps,
       idPort, relayPort,
       countdown, refreshNow,
-      fmtDuration, fmtTotal, fmtSpeed, fmtMbps, T,
+      fmtDuration, fmtTotal, fmtSpeed, fmtMbps, fmtKbps, bwPct, T,
     }
   },
 })
@@ -358,34 +383,54 @@ export default defineComponent({
   color: var(--color-primary);
 }
 
-.limits-list {
+.bw-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
   margin-top: 4px;
 }
 
-.limit-row {
+.bw-label {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
   font-size: 12px;
-  padding: 6px 0;
-  border-bottom: 1px dashed var(--color-border);
+  margin-bottom: 4px;
 }
 
-.limit-row:last-child {
-  border-bottom: none;
-}
-
-.limit-key {
+.bw-label span:first-child {
+  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: .04em;
   color: var(--color-muted);
 }
 
-.limit-val {
+.bw-label span:last-child {
   font-family: var(--font-mono);
-  font-weight: 600;
   color: var(--color-text);
+}
+
+.bw-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-surface-2);
+  overflow: hidden;
+}
+
+.bw-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width .6s ease;
+}
+
+.bw-total { background: var(--color-primary); }
+.bw-single { background: var(--color-warning); }
+
+.bw-footnote {
+  font-size: 11px;
+  color: var(--color-muted);
+  margin-top: 2px;
+  font-family: var(--font-mono);
 }
 
 .top-connections {
