@@ -7,10 +7,10 @@
           Connection Pulse
         </div>
         <h1>Connect to a device</h1>
-        <p>Enter a RustDesk ID to open the native client, launch the web client, or jump to the device list.</p>
+        <p>Enter a DeskForge ID to open the native client, launch the web client, or jump to the device list.</p>
       </div>
       <div class="quick-connect-form">
-        <el-input v-model="quickId" clearable placeholder="RustDesk ID" class="quick-id-input" @keyup.enter="connectNative">
+        <el-input v-model="quickId" clearable placeholder="DeskForge ID" class="quick-id-input" @keyup.enter="connectNative">
           <template #prefix>
             <el-icon><Connection /></el-icon>
           </template>

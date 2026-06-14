@@ -29,7 +29,7 @@ export const useAppStore = defineStore({
   id: 'App',
   state: () => ({
     setting: {
-      title: 'RustDesk Server Admin',
+      title: 'DeskForge Admin',
       hello: '',
       sideIsCollapse: false,
       isMobile: mobileViewport.matches,
