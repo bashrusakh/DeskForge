@@ -1,6 +1,12 @@
 <template>
-  <div>
-    <el-card class="list-query" shadow="hover">
+  <div class="access-page">
+    <page-header
+        :title="T('Tags')"
+        subtitle="Maintain color-coded address book tags used to group and find remote devices faster."
+        eyebrow="Access"
+        pulse="online"
+    />
+    <page-section class="list-query" title="Filters" subtitle="Filter tags by owner and address book.">
       <el-form inline label-width="120px">
         <el-form-item :label="T('Owner')">
           <el-select v-model="listQuery.user_id" clearable @change="changeUser">
@@ -23,43 +29,44 @@
           <el-button type="danger" @click="toAdd">{{ T('Add') }}</el-button>
         </el-form-item>
       </el-form>
-    </el-card>
-    <el-card class="list-body" shadow="hover">
-      <el-table :data="listRes.list" v-loading="listRes.loading" border>
-        <el-table-column prop="id" label="ID" align="center"/>
-        <el-table-column :label="T('Owner')" align="center">
-          <template #default="{row}">
-            <span v-if="row.user_id"> <el-tag>{{ allUsers?.find(u => u.id === row.user_id)?.username }}</el-tag> </span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="collection_id" :label="T('AddressBookName')" align="center" width="150">
-          <template #default="{row}">
-            <span v-if="row.collection_id === 0">{{ T('MyAddressBook') }}</span>
-            <span v-else>{{ row.collection?.name }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="name" :label="T('Name')" align="center"/>
-        <el-table-column prop="color" :label="T('Color')" align="center">
-          <template #default="{row}">
-            <div class="colors">
-              <div style="background-color: var(--tag-bg-color)" class="colorbox">
-                <div :style="{backgroundColor: row.color}" class="dot">
-                </div>
-              </div>
+    </page-section>
+    <page-section class="list-body" :title="T('Tags')" :subtitle="`${listRes.total} tags`">
+      <data-table
+          :data="listRes.list"
+          :loading="listRes.loading"
+          row-key="id"
+          :columns="[
+            { prop: 'id', label: 'ID', align: 'center', width: 100 },
+            { label: T('Owner'), align: 'center', slot: 'owner' },
+            { label: T('AddressBookName'), align: 'center', width: 150, slot: 'collection' },
+            { prop: 'name', label: T('Name'), align: 'center' },
+            { label: T('Color'), align: 'center', slot: 'color' },
+            { prop: 'created_at', label: T('CreatedAt'), align: 'center' },
+            { prop: 'updated_at', label: T('UpdatedAt'), align: 'center' },
+            { label: T('Actions'), align: 'center', width: 250, slot: 'actions' }
+          ]"
+      >
+        <template #owner="{ row }">
+          <span v-if="row.user_id"> <el-tag>{{ allUsers?.find(u => u.id === row.user_id)?.username }}</el-tag> </span>
+        </template>
+        <template #collection="{ row }">
+          <span v-if="row.collection_id === 0">{{ T('MyAddressBook') }}</span>
+          <span v-else>{{ row.collection?.name }}</span>
+        </template>
+        <template #color="{ row }">
+          <div class="colors">
+            <div style="background-color: var(--tag-bg-color)" class="colorbox">
+              <div :style="{backgroundColor: row.color}" class="dot"></div>
             </div>
-          </template>
-        </el-table-column>
-        <el-table-column prop="created_at" :label="T('CreatedAt')" align="center"/>
-        <el-table-column prop="updated_at" :label="T('UpdatedAt')" align="center"/>
-        <el-table-column :label="T('Actions')" align="center" width="250">
-          <template #default="{row}">
-            <el-button @click="toEdit(row)">{{ T('Edit') }}</el-button>
-            <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
-    <el-card class="list-page" shadow="hover">
+          </div>
+        </template>
+        <template #actions="{ row }">
+          <el-button @click="toEdit(row)">{{ T('Edit') }}</el-button>
+          <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
+        </template>
+      </data-table>
+    </page-section>
+    <page-section class="list-page">
       <el-pagination background
                      layout="prev, pager, next, sizes, jumper"
                      :page-sizes="[10,20,50,100]"
@@ -67,8 +74,13 @@
                      v-model:current-page="listQuery.page"
                      :total="listRes.total">
       </el-pagination>
-    </el-card>
-    <el-dialog v-model="formVisible" :title="!formData.id?T('Create'):T('Update')" width="800">
+    </page-section>
+    <app-dialog
+        v-model="formVisible"
+        :title="!formData.id ? T('Create') : T('Update')"
+        width="800"
+        @confirm="submit"
+    >
       <el-form class="dialog-form" ref="form" :model="formData" label-width="120px">
         <el-form-item :label="T('Owner')" prop="user_id" required>
           <el-select v-model="formData.user_id" @change="changeUserForUpdate">
@@ -93,17 +105,12 @@
           <el-color-picker v-model="formData.color" show-alpha @active-change="activeChange"></el-color-picker>
           <div class="colors">
             <div style="background-color: var(--tag-bg-color)" class="colorbox">
-              <div :style="{backgroundColor: currentColor}" class="dot">
-              </div>
+              <div :style="{backgroundColor: currentColor}" class="dot"></div>
             </div>
           </div>
         </el-form-item>
-        <el-form-item>
-          <el-button @click="formVisible = false">{{ T('Cancel') }}</el-button>
-          <el-button @click="submit" type="primary">{{ T('Submit') }}</el-button>
-        </el-form-item>
       </el-form>
-    </el-dialog>
+    </app-dialog>
   </div>
 </template>
 
@@ -112,6 +119,10 @@
   import { useRepositories } from '@/views/tag/index'
   import { T } from '@/utils/i18n'
   import { loadAllUsers } from '@/global'
+  import PageHeader from '@/components/ui/PageHeader.vue'
+  import PageSection from '@/components/ui/PageSection.vue'
+  import DataTable from '@/components/ui/DataTable.vue'
+  import AppDialog from '@/components/ui/AppDialog.vue'
 
   const { allUsers, getAllUsers } = loadAllUsers()
   onMounted(getAllUsers)
@@ -151,6 +162,13 @@
 <style scoped lang="scss">
 .list-query .el-select {
   --el-select-width: 160px;
+}
+
+.access-page {
+  :deep(.list-page .el-card__body) {
+    display: flex;
+    justify-content: flex-end;
+  }
 }
 
 .colors {

@@ -1,50 +1,47 @@
 <template>
-  <div>
-    <el-card class="list-query" shadow="hover">
+  <div class="share-rules-page">
+    <page-section class="list-query" :title="T('ShareRules')" :subtitle="props.collection.name || T('AddressBookName')">
       <el-form inline label-width="80px">
         <el-form-item>
           <el-button type="primary" @click="handlerQuery">{{ T('Filter') }}</el-button>
           <el-button type="danger" @click="toAdd">{{ T('Add') }}</el-button>
         </el-form-item>
       </el-form>
-    </el-card>
-    <el-card class="list-body" shadow="hover">
-      <el-table :data="listRes.list" v-loading="listRes.loading" border>
-        <el-table-column prop="rule" :label="T('Rule')" align="center">
-          <template #default="{row}">
-            <div>
-              {{ rules.find(r => r.value === row.rule)?.label }}
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column prop="type" :label="T('Type')" align="center">
-          <template #default="{row}">
-            <div>
-              {{ types.find(t => t.value === row.type)?.label }}
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column prop="to_id" :label="T('ShareTo')" align="center">
-          <template #default="{row}">
-            <div v-if="row.type===TYPE_U">
-              {{ users.find(u => u.id === row.to_id)?.username }}
-            </div>
-            <div v-else-if="row.type===TYPE_G">
-              {{ groups.find(g => g.id === row.to_id)?.name }}
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column prop="created_at" :label="T('CreatedAt')" align="center"/>
-
-        <el-table-column :label="T('Actions')" align="center" class-name="table-actions" width="300" fixed="right">
-          <template #default="{row}">
-            <el-button @click="toEdit(row)">{{ T('Edit') }}</el-button>
-            <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
-    <el-card class="list-page" shadow="hover">
+    </page-section>
+    <page-section class="list-body" title="Rules" :subtitle="`${listRes.total} rules`">
+      <data-table
+          :data="listRes.list"
+          :loading="listRes.loading"
+          row-key="id"
+          :columns="[
+            { label: T('Rule'), align: 'center', slot: 'rule' },
+            { label: T('Type'), align: 'center', slot: 'type' },
+            { label: T('ShareTo'), align: 'center', slot: 'shareTo' },
+            { prop: 'created_at', label: T('CreatedAt'), align: 'center' },
+            { label: T('Actions'), align: 'center', className: 'table-actions', width: 300, fixed: 'right', slot: 'actions' }
+          ]"
+      >
+        <template #rule="{ row }">
+          {{ rules.find(r => r.value === row.rule)?.label }}
+        </template>
+        <template #type="{ row }">
+          {{ types.find(t => t.value === row.type)?.label }}
+        </template>
+        <template #shareTo="{ row }">
+          <div v-if="row.type===TYPE_U">
+            {{ users.find(u => u.id === row.to_id)?.username }}
+          </div>
+          <div v-else-if="row.type===TYPE_G">
+            {{ groups.find(g => g.id === row.to_id)?.name }}
+          </div>
+        </template>
+        <template #actions="{ row }">
+          <el-button @click="toEdit(row)">{{ T('Edit') }}</el-button>
+          <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
+        </template>
+      </data-table>
+    </page-section>
+    <page-section class="list-page">
       <el-pagination background
                      layout="prev, pager, next, sizes, jumper"
                      :page-sizes="[10,20,50,100]"
@@ -52,8 +49,13 @@
                      v-model:current-page="listQuery.page"
                      :total="listRes.total">
       </el-pagination>
-    </el-card>
-    <el-dialog v-model="formVisible" width="800" :title="!formData.id?T('Create') :T('Update') " :close-on-click-modal="false">
+    </page-section>
+    <app-dialog
+        v-model="formVisible"
+        :title="!formData.id ? T('Create') : T('Update')"
+        width="800"
+        @confirm="submit"
+    >
       <el-form class="dialog-form" ref="form" :model="formData" label-width="120px">
         <el-form-item :label="T('AddressBookName')">
           {{ props.collection.name }}
@@ -73,7 +75,6 @@
           </el-radio-group>
         </el-form-item>
         <el-form-item :label="T('ShareTo')" prop="g_id" required>
-          <!--          <el-input-number v-model="formData.to_id"></el-input-number>-->
           <div style="width: 30%">
             <el-select v-model="formData.g_id" @change="changeGId">
               <el-option
@@ -95,12 +96,8 @@
             </el-select>
           </div>
         </el-form-item>
-        <el-form-item>
-          <el-button @click="formVisible = false">{{ T('Cancel') }}</el-button>
-          <el-button @click="submit" type="primary">{{ T('Submit') }}</el-button>
-        </el-form-item>
       </el-form>
-    </el-dialog>
+    </app-dialog>
   </div>
 </template>
 
@@ -109,6 +106,9 @@
   import { T } from '@/utils/i18n'
   import { useRepositories } from '@/views/address_book/rule'
   import { onActivated, onMounted, watch } from 'vue'
+  import PageSection from '@/components/ui/PageSection.vue'
+  import DataTable from '@/components/ui/DataTable.vue'
+  import AppDialog from '@/components/ui/AppDialog.vue'
 
   const props = defineProps({
     collection: {
@@ -156,5 +156,10 @@
 </script>
 
 <style scoped lang="scss">
-
+.share-rules-page {
+  :deep(.list-page .el-card__body) {
+    display: flex;
+    justify-content: flex-end;
+  }
+}
 </style>

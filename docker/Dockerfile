@@ -50,11 +50,13 @@ RUN go mod download
 # Build the API binary
 RUN CGO_ENABLED=1 GOOS=linux go build -ldflags "-s -w" -o apimain ./cmd/apimain.go
 
-# Stage 3: Web Admin (Vue 3 + Element Plus) — pre-built on host
-# We copy the pre-built dist/ directly to avoid npm bugs in Alpine/musl.
-# To rebuild: cd admin-ui && rm -rf node_modules package-lock.json && npm install && npm run build
-FROM scratch AS web-dist
-COPY admin-ui/dist /dist
+# Stage 3: Web Admin (Vue 3 + Element Plus) — build from source inside Docker
+FROM node:20-bookworm AS admin-ui-builder
+WORKDIR /build/admin-ui
+COPY admin-ui/package*.json ./
+RUN npm ci
+COPY admin-ui/ ./
+RUN npm run build
 
 # Stage 4: Get s6-overlay from official image
 FROM rustdesk/rustdesk-server-s6:latest AS s6-source
@@ -81,7 +83,7 @@ COPY --from=go-builder /build/api/apimain /app/apimain
 COPY api/resources /app/resources
 
 # Copy Web Admin files LAST so they always overwrite any stale admin files from api/resources
-COPY --from=web-dist /dist /app/resources/admin/
+COPY --from=admin-ui-builder /build/admin-ui/dist /app/resources/admin/
 
 # Create empty web2 dir (Gin serves it when web-client=1, prevents crash)
 RUN mkdir -p /app/resources/web2

@@ -1,6 +1,12 @@
 <template>
-  <div>
-    <el-card class="list-query" shadow="hover">
+  <div class="access-page">
+    <page-header
+        :title="T('AddressBook')"
+        subtitle="Manage saved devices, owners, aliases, tags, and quick connection actions."
+        eyebrow="Access"
+        pulse="online"
+    />
+    <page-section class="list-query" title="Filters" subtitle="Narrow entries by owner, address book, device ID, username, or hostname.">
       <el-form inline label-width="120px">
         <el-form-item :label="T('Owner')">
           <el-select v-model="listQuery.user_id" clearable @change="changeQueryUser">
@@ -32,51 +38,58 @@
           <el-button type="danger" @click="toAdd">{{ T('Add') }}</el-button>
         </el-form-item>
       </el-form>
-    </el-card>
-    <el-card class="list-body" shadow="hover">
-
-      <el-table :data="listRes.list" v-loading="listRes.loading" border>
-        <el-table-column prop="id" label="ID" align="center" width="200">
-          <template #default="{row}">
-            <div>
-              <PlatformIcons :name="platformList.find(p=>p.label===row.platform)?.icon" style="width: 20px;height: 20px;display: inline-block" color="var(--basicBlack)"/>
-              {{ row.id }}
-              <el-icon @click="handleClipboard(row.id, $event)">
-                <CopyDocument/>
-              </el-icon>
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column :label="T('Owner')" align="center" width="200">
-          <template #default="{row}">
-            <span v-if="row.user_id"> <el-tag>{{ allUsers?.find(u => u.id === row.user_id)?.username }}</el-tag> </span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="collection_id" :label="T('AddressBookName')" align="center" width="150">
-          <template #default="{row}">
-            <span v-if="row.collection_id === 0">{{ T('MyAddressBook') }}</span>
-            <span v-else>{{ row.collection?.name }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="username" :label="T('Username')" align="center" width="150"/>
-        <el-table-column prop="hostname" :label="T('Hostname')" align="center" width="150"/>
-        <el-table-column prop="tags" :label="T('Tags')" align="center"/>
-
-        <el-table-column prop="alias" :label="T('Alias')" align="center" width="150"/>
-        <el-table-column prop="peer.version" :label="T('Version')" align="center" width="100"/>
-        <el-table-column prop="hash" :label="T('Hash')" align="center" width="150" show-overflow-tooltip/>
-        <el-table-column :label="T('Actions')" align="center" class-name="table-actions" width="500" fixed="right">
-          <template #default="{row}">
+    </page-section>
+    <page-section class="list-body" :title="T('AddressBook')" :subtitle="`${listRes.total} entries`">
+      <data-table
+          :data="listRes.list"
+          :loading="listRes.loading"
+          row-key="id"
+          :columns="[
+            { label: 'ID', align: 'center', width: 200, slot: 'id' },
+            { label: T('Owner'), align: 'center', width: 200, slot: 'owner' },
+            { label: T('AddressBookName'), align: 'center', width: 150, slot: 'collection' },
+            { prop: 'username', label: T('Username'), align: 'center', width: 150 },
+            { prop: 'hostname', label: T('Hostname'), align: 'center', width: 150 },
+            { prop: 'tags', label: T('Tags'), align: 'center' },
+            { prop: 'alias', label: T('Alias'), align: 'center', width: 150 },
+            { prop: 'peer.version', label: T('Version'), align: 'center', width: 100 },
+            { prop: 'hash', label: T('Hash'), align: 'center', width: 150, showOverflowTooltip: true },
+            { label: T('Actions'), align: 'center', className: 'table-actions', width: 360, fixed: 'right', slot: 'actions' }
+          ]"
+      >
+        <template #id="{ row }">
+          <div class="device-id-cell">
+            <PlatformIcons :name="platformList.find(p=>p.label===row.platform)?.icon" style="width: 20px;height: 20px;display: inline-block" color="var(--basicBlack)"/>
+            <copyable-text :text="row.id" />
+          </div>
+        </template>
+        <template #owner="{ row }">
+          <span v-if="row.user_id"> <el-tag>{{ allUsers?.find(u => u.id === row.user_id)?.username }}</el-tag> </span>
+        </template>
+        <template #collection="{ row }">
+          <span v-if="row.collection_id === 0">{{ T('MyAddressBook') }}</span>
+          <span v-else>{{ row.collection?.name }}</span>
+        </template>
+        <template #actions="{ row }">
+          <el-space wrap>
             <el-button type="success" @click="connectByClient(row.id)">{{ T('Link') }}</el-button>
-            <el-button v-if="appStore.setting.appConfig.web_client" type="success" @click="toWebClientLink(row)">Web Client</el-button>
-            <!--            <el-button type="primary" @click="toShowShare(row)">{{ T('ShareByWebClient') }}</el-button>-->
-            <el-button @click="toEdit(row)">{{ T('Edit') }}</el-button>
-            <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
-    <el-card class="list-page" shadow="hover">
+            <el-button v-if="appStore.setting.appConfig.web_client" type="primary" @click="toWebClientLink(row)">Web Client</el-button>
+            <el-dropdown trigger="click">
+              <el-button>
+                {{ T('More') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item @click="toEdit(row)">{{ T('Edit') }}</el-dropdown-item>
+                  <el-dropdown-item divided @click="del(row)">{{ T('Delete') }}</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </el-space>
+        </template>
+      </data-table>
+    </page-section>
+    <page-section class="list-page">
       <el-pagination background
                      layout="prev, pager, next, sizes, jumper"
                      :page-sizes="[10,20,50,100]"
@@ -84,8 +97,13 @@
                      v-model:current-page="listQuery.page"
                      :total="listRes.total">
       </el-pagination>
-    </el-card>
-    <el-dialog v-model="formVisible" width="800" :title="!formData.row_id?T('Create') :T('Update') ">
+    </page-section>
+    <app-dialog
+        v-model="formVisible"
+        :title="!formData.row_id ? T('Create') : T('Update')"
+        width="800"
+        @confirm="submit"
+    >
       <el-form class="dialog-form" ref="form" :model="formData" label-width="120px">
         <el-form-item :label="T('Owner')" prop="user_id" required>
           <el-select v-model="formData.user_id" @change="changeUserForUpdate">
@@ -118,12 +136,6 @@
         <el-form-item :label="T('Hostname')" prop="hostname">
           <el-input v-model="formData.hostname"></el-input>
         </el-form-item>
-        <!--        <el-form-item :label="T('LoginName')" prop="loginName">
-                  <el-input v-model="formData.loginName"></el-input>
-                </el-form-item>
-                <el-form-item :label="T('Password')" prop="password">
-                  <el-input v-model="formData.password"></el-input>
-                </el-form-item>-->
         <el-form-item :label="T('Platform')" prop="platform">
           <el-select v-model="formData.platform">
             <el-option
@@ -145,14 +157,8 @@
             ></el-option>
           </el-select>
         </el-form-item>
-
-
-        <el-form-item>
-          <el-button @click="formVisible = false">{{ T('Cancel') }}</el-button>
-          <el-button @click="submit" type="primary">{{ T('Submit') }}</el-button>
-        </el-form-item>
       </el-form>
-    </el-dialog>
+    </app-dialog>
     <!--    <el-dialog v-model="shareToWebClientVisible" width="900" :close-on-click-modal="false">
           <shareByWebClient :id="shareToWebClientForm.id"
                             :hash="shareToWebClientForm.hash"
@@ -170,10 +176,14 @@
   import { useRoute } from 'vue-router'
   import { connectByClient } from '@/utils/peer'
   import { useAppStore } from '@/store/app'
-  import { handleClipboard } from '@/utils/clipboard'
-  import { CopyDocument } from '@element-plus/icons'
+  import { ArrowDown } from '@element-plus/icons-vue'
   import PlatformIcons from '@/components/icons/platform.vue'
   import { loadAllUsers } from '@/global'
+  import PageHeader from '@/components/ui/PageHeader.vue'
+  import PageSection from '@/components/ui/PageSection.vue'
+  import CopyableText from '@/components/ui/CopyableText.vue'
+  import DataTable from '@/components/ui/DataTable.vue'
+  import AppDialog from '@/components/ui/AppDialog.vue'
 
   const appStore = useAppStore()
   const route = useRoute()
@@ -218,6 +228,20 @@
 <style scoped lang="scss">
 .list-query .el-select {
   --el-select-width: 160px;
+}
+
+.access-page {
+  :deep(.list-page .el-card__body) {
+    display: flex;
+    justify-content: flex-end;
+  }
+}
+
+.device-id-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .colors {

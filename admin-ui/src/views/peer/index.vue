@@ -1,6 +1,6 @@
 <template>
-  <div>
-    <el-card class="list-query" shadow="hover">
+  <div class="devices-page">
+    <el-card class="list-query device-filter-card" shadow="hover">
       <el-form inline label-width="60px">
         <el-form-item label="ID">
           <el-input v-model="listQuery.id" clearable/>
@@ -61,57 +61,62 @@
         </el-form-item>
       </el-form>
     </el-card>
-    <el-card class="list-body" shadow="hover">
-      <div style="text-align: right; margin-bottom: 10px">
-        <el-button :icon="Setting" @click="showColumnSetting"></el-button>
+    <el-card class="list-body device-table-card" shadow="hover">
+      <div class="device-table-toolbar">
+        <div>
+          <div class="device-table-title">{{ T('AllDevices') }}</div>
+          <div class="device-table-subtitle">Device status, identity, ownership, and remote access actions.</div>
+        </div>
+        <el-button :icon="Setting" @click="showColumnSetting">Columns</el-button>
       </div>
 
-      <el-table :data="listRes.list" v-loading="listRes.loading" border size="small" @selection-change="handleSelectionChange">
-        <el-table-column type="selection" width="55" align="center"/>
-        <template v-for="c in visibleColumns.filter(cc => cc.visible)" :key="c">
-          <el-table-column v-if="c.name==='id'" prop="id" label="ID" align="center" width="150">
-            <template #default="{row}">
-              <span>{{ row.id }} <el-icon @click="handleClipboard(row.id, $event)"><CopyDocument/></el-icon></span>
-            </template>
-          </el-table-column>
-          <el-table-column v-if="c.name==='cpu'" prop="cpu" label="CPU" align="center" width="100" show-overflow-tooltip/>
-          <el-table-column v-if="c.name==='hostname'" prop="hostname" :label="T('Hostname')" align="center" width="120"/>
-          <el-table-column v-if="c.name==='memory'" prop="memory" :label="T('Memory')" align="center" width="120"/>
-          <el-table-column v-if="c.name==='os'" prop="os" :label="T('Os')" align="center" width="120" show-overflow-tooltip/>
-          <el-table-column v-if="c.name==='last_online_time'" prop="last_online_time" :label="T('LastOnlineTime')" align="center" min-width="120">
-            <template #default="{row}">
-              <div class="last_oline_time">
-                <span> {{ row.last_online_time ? timeAgo(row.last_online_time * 1000) : '-' }}</span> <span class="dot" :class="{red: timeDis(row.last_online_time) >= 60, green: timeDis(row.last_online_time)< 60}"></span>
-              </div>
-            </template>
-          </el-table-column>
-          <el-table-column v-if="c.name==='last_online_ip'" prop="last_online_ip" :label="T('LastOnlineIp')" align="center" min-width="120"/>
-          <el-table-column v-if="c.name==='username'" prop="username" :label="T('Username')" align="center" width="120"/>
-          <el-table-column v-if="c.name==='group_id'" prop="group_id" :label="T('Group')" align="center" width="120">
-            <template #default="{row}">
-              <span v-if="row.group_id"> <el-tag>{{ groupListRes.list?.find(g => g.id === row.group_id)?.name }} </el-tag> </span>
-              <span v-else> - </span>
-            </template>
-          </el-table-column>
-          <el-table-column v-if="c.name==='uuid'" prop="uuid" :label="T('Uuid')" align="center" width="120" show-overflow-tooltip/>
-          <el-table-column v-if="c.name==='version'" prop="version" :label="T('Version')" align="center" width="80"/>
-          <el-table-column v-if="c.name==='alias'" prop="alias" :label="T('Alias')" align="center" width="80"/>
-          <el-table-column v-if="c.name==='created_at'" prop="created_at" :label="T('CreatedAt')" align="center" width="150"/>
-          <el-table-column v-if="c.name==='updated_at'" prop="updated_at" :label="T('UpdatedAt')" align="center" width="150"/>
+      <data-table
+          :data="listRes.list"
+          :loading="listRes.loading"
+          border
+          size="small"
+          selectable
+          @selection-change="handleSelectionChange"
+          row-key="id"
+          :columns="tableColumns"
+      >
+        <template #status="{ row }">
+          <div class="device-status" :class="{ 'is-online': isOnline(row), 'is-offline': !isOnline(row) }">
+            <connection-pulse :status="isOnline(row) ? 'online' : 'offline'" :animated="isOnline(row)" />
+            <span>{{ isOnline(row) ? 'Online' : 'Offline' }}</span>
+          </div>
         </template>
-
-        <el-table-column :label="T('Actions')" align="center" width="500" class-name="table-actions" fixed="right">
-          <template #default="{row}">
-            <el-button type="success" @click="connectByClient(row.id)">{{ T('Link') }}</el-button>
-            <el-button v-if="appStore.setting.appConfig.web_client" type="success" @click="toWebClientLink(row)">Web Client</el-button>
-            <el-button type="primary" @click="toAddressBook(row)">{{ T('AddToAddressBook') }}</el-button>
-            <el-button @click="toEdit(row)">{{ T('Edit') }}</el-button>
-            <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+        <template #id="{ row }">
+          <copyable-text :text="row.id" />
+        </template>
+        <template #lastOnlineTime="{ row }">
+          <div class="last_oline_time">
+            <span> {{ row.last_online_time ? timeAgo(row.last_online_time * 1000) : '-' }}</span>
+          </div>
+        </template>
+        <template #group="{ row }">
+          <span v-if="row.group_id"> <el-tag>{{ groupListRes.list?.find(g => g.id === row.group_id)?.name }} </el-tag> </span>
+          <span v-else> - </span>
+        </template>
+        <template #actions="{ row }">
+          <div class="device-actions">
+            <el-button type="primary" @click="connectByClient(row.id)">Connect</el-button>
+            <el-dropdown trigger="click">
+              <el-button>More <el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item v-if="appStore.setting.appConfig.web_client" @click="toWebClientLink(row)">Web Client</el-dropdown-item>
+                  <el-dropdown-item @click="toAddressBook(row)">{{ T('AddToAddressBook') }}</el-dropdown-item>
+                  <el-dropdown-item @click="toEdit(row)">{{ T('Edit') }}</el-dropdown-item>
+                  <el-dropdown-item divided @click="del(row)">{{ T('Delete') }}</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
+        </template>
+      </data-table>
     </el-card>
-    <el-card class="list-page" shadow="hover">
+    <page-section class="list-page">
       <el-pagination background
                      layout="prev, pager, next, sizes, jumper"
                      :page-sizes="[10,20,50,100]"
@@ -119,8 +124,13 @@
                      v-model:current-page="listQuery.page"
                      :total="listRes.total">
       </el-pagination>
-    </el-card>
-    <el-dialog v-model="formVisible" :title="!formData.row_id?T('Create'):T('Update')" width="800">
+    </page-section>
+    <app-dialog
+        v-model="formVisible"
+        :title="!formData.row_id ? T('Create') : T('Update')"
+        width="800"
+        @confirm="submit"
+    >
       <el-form class="dialog-form" ref="form" :model="formData" label-width="120px">
         <el-form-item label="ID" prop="id" required>
           <el-input v-model="formData.id"></el-input>
@@ -159,18 +169,26 @@
         <el-form-item :label="T('Alias')" prop="alias">
           <el-input v-model="formData.alias"></el-input>
         </el-form-item>
-        <el-form-item>
-          <el-button @click="formVisible = false">{{ T('Cancel') }}</el-button>
-          <el-button @click="submit" type="primary">{{ T('Submit') }}</el-button>
-        </el-form-item>
       </el-form>
-    </el-dialog>
+    </app-dialog>
 
-    <el-dialog v-model="ABFormVisible" width="800" :title="T('Create')" destroy-on-close>
+    <app-dialog
+        v-model="ABFormVisible"
+        :title="T('Create')"
+        width="800"
+        destroy-on-close
+        :show-confirm="false"
+        :hide-footer="true"
+    >
       <createABForm :peer="clickRow" @success="ABFormVisible=false" @cancel="ABFormVisible=false"></createABForm>
-    </el-dialog>
+    </app-dialog>
 
-    <el-dialog v-model="batchABFormVisible" width="800" :title="T('Create')">
+    <app-dialog
+        v-model="batchABFormVisible"
+        :title="T('Create')"
+        width="800"
+        @confirm="submitBatchAddToAB"
+    >
       <el-form class="dialog-form" ref="form" :model="batchABFormData" label-width="120px">
         <el-form-item :label="T('Owner')" prop="user_id" required>
           <el-select v-model="batchABFormData.user_id" @change="changeUserForBatchCreateAB">
@@ -188,24 +206,14 @@
             <el-option v-for="c in collectionListResForBatchCreateAB.list" :key="c.id" :label="c.name" :value="c.id"></el-option>
           </el-select>
         </el-form-item>
-        <!--        <el-form-item :label="T('Tags')" prop="tags">
-                  <el-select v-model="batchABFormData.tags" multiple>
-                    <el-option
-                        v-for="item in tagListRes.list"
-                        :key="item.name"
-                        :label="item.name"
-                        :value="item.name"
-                    ></el-option>
-                  </el-select>
-                </el-form-item>-->
-        <el-form-item>
-          <el-button @click="batchABFormVisible = false">{{ T('Cancel') }}</el-button>
-          <el-button @click="submitBatchAddToAB" type="primary">{{ T('Submit') }}</el-button>
-        </el-form-item>
       </el-form>
-    </el-dialog>
+    </app-dialog>
 
-    <el-dialog v-model="columnSettingVisible" title="Column Setting">
+    <app-dialog
+        v-model="columnSettingVisible"
+        :title="T('ColumnSetting')"
+        @confirm="saveColumnSetting"
+    >
       <div v-for="(row, key) in visibleColumns" :key="key" style="margin-bottom: 10px;display: flex;align-items: center">
         <div style="width: 200px">
           <el-checkbox v-model="row.visible" :label="true">{{ T(row.label) }}</el-checkbox>
@@ -221,11 +229,7 @@
           </el-icon>
         </div>
       </div>
-      <span slot="footer" class="dialog-footer">
-        <el-button @click="columnSettingVisible = false">{{ T('Cancel') }}</el-button>
-        <el-button type="primary" @click="saveColumnSetting">{{ T('Save') }}</el-button>
-      </span>
-    </el-dialog>
+    </app-dialog>
   </div>
 </template>
 
@@ -241,12 +245,16 @@
   import { loadAllUsers } from '@/global'
   import { useAppStore } from '@/store/app'
   import { connectByClient } from '@/utils/peer'
-  import { ArrowDown, ArrowUp, CopyDocument, Setting } from '@element-plus/icons'
-  import { handleClipboard } from '@/utils/clipboard'
+  import { ArrowDown, ArrowUp, Setting } from '@element-plus/icons-vue'
   import { batchCreateFromPeers } from '@/api/address_book'
   import { useRepositories as useCollectionRepositories } from '@/views/address_book/collection'
   import createABForm from '@/views/peer/createABForm.vue'
   import { UploadFilled } from '@element-plus/icons-vue'
+  import ConnectionPulse from '@/components/ui/ConnectionPulse.vue'
+  import CopyableText from '@/components/ui/CopyableText.vue'
+  import PageSection from '@/components/ui/PageSection.vue'
+  import DataTable from '@/components/ui/DataTable.vue'
+  import AppDialog from '@/components/ui/AppDialog.vue'
 
   const appStore = useAppStore()
 
@@ -368,10 +376,12 @@
   }
 
   const timeDis = (time) => {
+    if (!time) return Number.POSITIVE_INFINITY
     let now = new Date().getTime()
     let after = new Date(time * 1000).getTime()
     return (now - after) / 1000
   }
+  const isOnline = (row) => timeDis(row.last_online_time) < 60
 
   const timeFilters = computed(() => [
     { text: T('MinutesLess', { param: 1 }, 1), value: -60 },
@@ -543,6 +553,32 @@
     { name: 'updated_at', visible: true, label: 'UpdatedAt' },
   ])
   const visibleColumns = ref(JSON.parse(localStorage.getItem('peer_visible_columns')) || allColumns.value)
+
+  const columnProps = {
+    id: { prop: 'id', label: 'ID', align: 'left', width: 160, slot: 'id' },
+    cpu: { prop: 'cpu', label: 'CPU', align: 'center', width: 100, showOverflowTooltip: true },
+    hostname: { prop: 'hostname', label: T('Hostname'), align: 'center', width: 120 },
+    memory: { prop: 'memory', label: T('Memory'), align: 'center', width: 120 },
+    os: { prop: 'os', label: T('Os'), align: 'center', width: 120, showOverflowTooltip: true },
+    last_online_time: { label: T('LastOnlineTime'), align: 'center', minWidth: 120, slot: 'lastOnlineTime' },
+    last_online_ip: { prop: 'last_online_ip', label: T('LastOnlineIp'), align: 'center', minWidth: 120 },
+    username: { prop: 'username', label: T('Username'), align: 'center', width: 120 },
+    group_id: { prop: 'group_id', label: T('Group'), align: 'center', width: 120, slot: 'group' },
+    uuid: { prop: 'uuid', label: T('Uuid'), align: 'center', width: 120, showOverflowTooltip: true },
+    version: { prop: 'version', label: T('Version'), align: 'center', width: 80 },
+    alias: { prop: 'alias', label: T('Alias'), align: 'center', width: 80 },
+    created_at: { prop: 'created_at', label: T('CreatedAt'), align: 'center', width: 150 },
+    updated_at: { prop: 'updated_at', label: T('UpdatedAt'), align: 'center', width: 150 },
+  }
+
+  const tableColumns = computed(() => {
+    const statusCol = { label: T('Status'), align: 'left', width: 120, slot: 'status' }
+    const actionCol = { label: T('Actions'), align: 'right', minWidth: 250, fixed: 'right', slot: 'actions' }
+    const dynamicCols = visibleColumns.value
+        .filter(c => c.visible)
+        .map(c => columnProps[c.name] || { prop: c.name, label: c.label || c.name })
+    return [statusCol, ...dynamicCols, actionCol]
+  })
   const showColumnSetting = () => {
     columnSettingVisible.value = true
   }
@@ -573,25 +609,71 @@
   --el-select-width: 180px;
 }
 
+.devices-page {
+  .device-filter-card,
+  .device-table-card {
+    border-radius: var(--radius-lg);
+  }
+
+  :deep(.list-page .el-card__body) {
+    display: flex;
+    justify-content: flex-end;
+  }
+}
+
+.device-table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.device-table-title {
+  color: var(--color-text);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.device-table-subtitle {
+  margin-top: 4px;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
 .last_oline_time {
   display: flex;
   justify-content: center;
   align-items: center;
 }
 
-.dot {
-  width: 6px;
-  height: 6px;
-  display: block;
-  border-radius: 50%;
-  margin-left: 10px;
+.device-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--color-surface-2);
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 700;
 
-  &.red {
-    background-color: red;
+  &.is-online {
+    background: var(--color-success-soft);
+    color: var(--color-success);
   }
+}
 
-  &.green {
-    background-color: green;
+.device-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 720px) {
+  .device-table-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 </style>

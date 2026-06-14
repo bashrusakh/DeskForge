@@ -477,6 +477,59 @@ prod-API (Linux) и win-build (Windows). Варианты: общий сетев
   | `api/` (lejianwen/rustdesk-api) | MIT |
   | `admin-ui/` (lejianwen/rustdesk-api-web) | MIT (база vue-manage-system MIT) |
   | `rdgen/` (bryangerlach/rdgen) | GPL-3.0 — но у нас не запущен как сервис, берём только воркфлоу-патчи |
+
+- [~] **8.13. admin-ui UI rework — FOUNDATION В PR #3.** Цель — превратить admin-ui из
+  типовой CRUD-админки в операционную консоль удалённого доступа (см. `ui-rework.md`).
+  ✅ Сделано в PR #3 / ветка `ui-refract`:
+  - design tokens для light/dark surface/text/border/status colors, radius, shadows,
+    typography (`admin-ui/src/styles/style.scss`);
+  - theme system `auto` / `light` / `dark` через `html[data-theme]`, `localStorage`
+    (`theme-mode`) и Element Plus dark class sync;
+  - `ConnectionPulse`, `ThemeSwitch`, `CopyableText`, `PageHeader`, `PageSection`,
+    `DangerZone`, `EmptyState`, `LoadingState` как первые shared UI primitives;
+  - shell refresh: sidebar/header/menu/settings на tokens, без всегда включённой tags bar;
+  - mobile navigation через `el-drawer`, desktop collapse сохранён;
+  - dashboard Quick Connect: `rustdesk://id`, web client `/webclient2/#/{id}`, переход к devices;
+  - Devices page: постоянная колонка Status, ConnectionPulse online/offline по `last_online_time`,
+    copyable ID, компактные действия Connect + More;
+  - Monitoring visual pass: login history, connection history, file transfers и shared sessions
+    используют общий page header/section layout;
+  - Server visual pass: Server Commands, Server Config и GitHub Build settings используют
+    общий page header/section layout; advanced custom commands отделены через `DangerZone`
+    и требуют confirm перед `sendCmd`; terminal output получил readonly console styling,
+    target hint, Copy/Clear controls и empty-output placeholder;
+  - Access visual pass: Address Book entries, collections, share rules и tags используют
+    общий page header/section layout; address book IDs переведены на `CopyableText`,
+    широкие actions сжаты через `More` dropdown;
+  - Users/Security visual pass: Users, API Tokens, OAuth providers, Groups и Device Groups
+    используют общий page header/section layout; широкие user actions сжаты через `More` dropdown;
+  - Client Builder/Profile visual pass: Custom Client Builder и My Profile используют общий
+    page header/section layout; build history pagination выровнен;
+  - My Workspace visual pass: My Devices, My Address Book, My Address Book Collections,
+    My Tags, My Shared Sessions и My Login History используют общий page header/section layout;
+  - 404 refresh: standalone empty-state экран с возвратом на dashboard;
+  - Custom Client runtime fix: preset/upload handlers возвращаются из `setup()` и доступны template;
+  - login/register/OAuth approve/OAuth bind переведены на token-based auth layout;
+  - `ocr review`: high/medium findings нет; low nit исправлен;
+  - `npm run build` проходит.
+  - Monitoring filter pass: Login History, Connection History, File Transfer History и Shared Sessions получили `FilterBar` primitive.
+  - DataTable pass: `admin-ui/src/components/ui/DataTable.vue` added; Users page migrated to DataTable with slot-based custom cells.
+
+  Осталось следующими фазами:
+  - [ ] i18n для нового dashboard/auth hero copy;
+  - [x] унификация таблиц, фильтров, пагинации, empty/loading states;
+  - [x] Devices page: ConnectionPulse status, compact actions, copyable ID, web/native connect, pagination aligned via PageSection;
+  - [x] Monitoring: общий page header/section готов; Login History, Connection History, File Transfer History, Shared Sessions получили FilterBar;
+  - [x] Server commands: Simple/Advanced/Danger Zone + terminal output polishing готовы;
+  - [x] CRUD dialogs unified with AppDialog (zero raw el-dialog in views);
+  - [x] DataTable applied to ALL view pages (zero raw el-table except nested inline in fileList);
+  - [x] My Profile added to user dropdown menu;
+  - [x] Hardcoded colors in control.vue and login.vue replaced with CSS variables;
+  - [~] Access/Security CRUD screens: address books/collections/share rules/tags, users,
+        API tokens, OAuth providers, groups и device groups page primitives готовы;
+        custom client/my profile/my workspace page primitives готовы; remaining form/dialog standards ещё унифицировать;
+  - [x] 404 page: tokenized empty-state экран готов;
+  - [ ] ручная проверка responsive UI в браузере, не только `npm run build`.
 - [x] **8.9. Custom Preset — ЗАКРЫТО.**
   Расширение модели НЕ потребовалось (все поля уже в `custom_json` text-blob). Фактически
   исправил 3 бага, которые ломали бы реальный билд через GUI-форму:
@@ -564,6 +617,11 @@ prod-API (Linux) и win-build (Windows). Варианты: общий сетев
 - admin-ui форкнут из `lejianwen/rustdesk-api-web`, англ. по умолчанию, навигация
   перестроена (Dashboard, Devices, Users, Groups, Address Book, Security, Monitoring,
   Custom Client, Server, My Profile). ✅
+- admin-ui UI rework foundation: design tokens, `auto/light/dark` theme mode,
+  `ConnectionPulse`, `ThemeSwitch`, refreshed shell/sidebar/header/menu/settings,
+  dashboard Quick Connect, token-based login/register/OAuth screens, mobile drawer nav,
+  devices/monitoring/server/access/security/client-builder/profile/my-workspace visual passes,
+  refreshed 404 and shared empty/loading primitives. ✅ PR #3.
 - Dashboard API+UI, Server Config UI, `GET /api/admin/config/all`. ✅
 - Custom Client UI (форма + история), Presets CRUD, Logo/Icon upload. ✅
 - Go API: модели/сервисы/контроллеры CustomBuild + CustomPreset, AutoMigrate,

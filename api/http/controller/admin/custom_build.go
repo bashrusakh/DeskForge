@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -219,6 +220,12 @@ func (ct *CustomBuild) tryGithubDispatch(b *model.CustomBuild) bool {
 				params["server"] = v
 			} else if v, ok := raw["server_ip"]; ok {
 				params["server"] = v
+			}
+			// Strip port — client appends ports automatically.
+			if s, ok := params["server"].(string); ok {
+				if i := strings.LastIndex(s, ":"); i > 0 {
+					params["server"] = s[:i]
+				}
 			}
 			if v, ok := raw["key"]; ok {
 				params["key"] = v

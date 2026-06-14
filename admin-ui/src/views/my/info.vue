@@ -1,6 +1,12 @@
 <template>
-  <div>
-    <el-card :title="T('Userinfo')" shadow="hover">
+  <div class="profile-page">
+    <page-header
+        :title="T('Userinfo')"
+        subtitle="Review account details, change your password, and manage connected OIDC identities."
+        eyebrow="Profile"
+        pulse="online"
+    />
+    <page-section :title="T('Userinfo')" subtitle="Account identity and authentication bindings.">
       <el-form class="info-form" ref="form" label-width="120px" label-suffix="：">
         <el-form-item :label="T('Username')">
           <div>{{ userStore.username }}</div>
@@ -12,27 +18,30 @@
           <el-button type="danger" @click="showChangePwd">{{ T('ChangePassword') }}</el-button>
         </el-form-item>
         <el-form-item label="OIDC">
-          <el-table :data="oidcData" border fit>
-            <el-table-column :label="T('IdP')" prop="op" align="center"></el-table-column>
-            <el-table-column :label="T('Status')" prop="status" align="center">
-              <template #default="{ row }">
-                <el-tag v-if="row.status === 1" type="success">{{ T('HasBind') }}</el-tag>
-                <el-tag v-else type="danger">{{ T('NoBind') }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column :label="T('Actions')" align="center" width="200">
-              <template #default="{ row }">
-                <el-button v-if="row.status === 1" type="danger" size="small" @click="toUnBind(row)">{{ T('UnBind') }}</el-button>
-                <el-button v-else type="success" size="small" @click="toBind(row)">{{ T('ToBind') }}</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
+          <data-table
+              :data="oidcData"
+              row-key="op"
+              :columns="[
+                { prop: 'op', label: T('IdP'), align: 'center' },
+                { label: T('Status'), align: 'center', slot: 'status' },
+                { label: T('Actions'), align: 'center', width: 200, slot: 'actions' }
+              ]"
+          >
+            <template #status="{ row }">
+              <el-tag v-if="row.status === 1" type="success">{{ T('HasBind') }}</el-tag>
+              <el-tag v-else type="danger">{{ T('NoBind') }}</el-tag>
+            </template>
+            <template #actions="{ row }">
+              <el-button v-if="row.status === 1" type="danger" size="small" @click="toUnBind(row)">{{ T('UnBind') }}</el-button>
+              <el-button v-else type="success" size="small" @click="toBind(row)">{{ T('ToBind') }}</el-button>
+            </template>
+          </data-table>
         </el-form-item>
       </el-form>
-    </el-card>
-    <el-card shadow="hover" style="margin-top: 20px">
+    </page-section>
+    <page-section class="hello-section" title="Welcome">
       <div v-html="html"></div>
-    </el-card>
+    </page-section>
     <changePwdDialog v-model:visible="changePwdVisible"></changePwdDialog>
   </div>
 </template>
@@ -47,6 +56,9 @@
   import { ElMessageBox } from 'element-plus'
   import { T } from '@/utils/i18n'
   import { marked } from 'marked'
+  import PageHeader from '@/components/ui/PageHeader.vue'
+  import PageSection from '@/components/ui/PageSection.vue'
+  import DataTable from '@/components/ui/DataTable.vue'
 
   const appStore = useAppStore()
   const userStore = useUserStore()
@@ -92,8 +104,12 @@
 
 <style scoped lang="scss">
 .info-form {
-  width: 600px;
+  max-width: 720px;
   margin: 0 auto;
 
+}
+
+.hello-section {
+  margin-top: 20px;
 }
 </style>

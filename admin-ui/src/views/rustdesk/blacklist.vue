@@ -15,19 +15,19 @@
         <el-button @click="showForm('delete')" type="danger">{{ T('Delete') }}</el-button>
       </el-form-item>
     </el-form>
-    <el-dialog v-model="form.form_visible" :title="form.form_type">
+    <app-dialog
+        v-model="form.form_visible"
+        :title="form.form_type"
+        @confirm="form.form_type === 'add' ? add() : remove()"
+    >
       <el-form label-width="100px">
         <el-form-item label="IP">
           <el-input v-model="form.form_input"></el-input>
           <div>Separate multiple IPs with |</div>
           <div v-if="form.form_type==='delete'">. Use <strong>all</strong> for all entries</div>
         </el-form-item>
-        <el-form-item>
-          <el-button @click="form.form_visible=false">{{ T('Cancel') }}</el-button>
-          <el-button @click="form.form_type === 'add' ? add() : remove()" type="primary">{{ T('Submit') }}</el-button>
-        </el-form-item>
       </el-form>
-    </el-dialog>
+    </app-dialog>
   </el-card>
 </template>
 <script setup>
@@ -37,6 +37,7 @@
   import { sendCmd } from '@/api/rustdesk'
   import { ElMessage } from 'element-plus'
   import { RELAY_TARGET } from '@/views/rustdesk/options'
+  import AppDialog from '@/components/ui/AppDialog.vue'
 
   const props = defineProps({
     canSend: Boolean,

@@ -7,14 +7,19 @@
     </template>
     <el-form :disabled="!canSend">
       <el-form-item>
-        <el-table :data="form.list" size="small">
-          <el-table-column prop="0" label="IP"></el-table-column>
-          <el-table-column prop="1" label="TIME"></el-table-column>
-          <el-table-column prop="2" label="TOTAL"></el-table-column>
-          <el-table-column prop="3" label="HIGHEST"></el-table-column>
-          <el-table-column prop="4" label="AVG"></el-table-column>
-          <el-table-column prop="5" label="SPEED"></el-table-column>
-        </el-table>
+          <data-table
+              :data="form.list"
+              row-key="0"
+              :columns="[
+                { prop: '0', label: 'IP' },
+                { prop: '1', label: 'TIME' },
+                { prop: '2', label: 'TOTAL' },
+                { prop: '3', label: 'HIGHEST' },
+                { prop: '4', label: 'AVG' },
+                { prop: '5', label: 'SPEED' }
+              ]"
+              size="small"
+          />
       </el-form-item>
       <el-form-item>
         <el-button @click="getList">{{ T('Refresh') }}</el-button>
@@ -28,6 +33,7 @@
   import { reactive, watch } from 'vue'
   import { sendCmd } from '@/api/rustdesk'
   import { RELAY_TARGET } from '@/views/rustdesk/options'
+  import DataTable from '@/components/ui/DataTable.vue'
 
   const props = defineProps({
     canSend: Boolean,

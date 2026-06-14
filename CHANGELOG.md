@@ -4,7 +4,74 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased] - 2026-06-13
+## [Unreleased] - 2026-06-14
+
+### Added (admin-ui UI rework foundation — PR #3, 2026-06-14)
+- **Design tokens + theme system** (`admin-ui/src/styles/style.scss`, `src/store/app.js`):
+  добавлены light/dark tokens для surface/text/border/status colors, radius, shadows,
+  typography; режим темы `auto` / `light` / `dark` хранится в `localStorage` как
+  `theme-mode` и применяется через `html[data-theme]` + `html.dark` для Element Plus.
+- **Новые UI primitives**:
+  - `admin-ui/src/components/ui/ConnectionPulse.vue` — продуктовый индикатор статуса
+    для shell/dashboard/auth/OAuth экранов;
+  - `admin-ui/src/components/ui/ThemeSwitch.vue` — общий переключатель темы;
+  - `admin-ui/src/components/ui/CopyableText.vue` — копируемый monospace ID/token text;
+  - `admin-ui/src/components/ui/PageHeader.vue` и `PageSection.vue` — общая структура
+    заголовка и секций страниц;
+  - `admin-ui/src/components/ui/EmptyState.vue` и `LoadingState.vue` — базовые empty/loading states;
+  - `admin-ui/src/components/ui/DataTable.vue` — shared `el-table` wrapper with loading, empty state,
+    selection/index hooks, sort/row events, compact density, nested props, and horizontal scroll.
+- **Shell/layout refresh**:
+  - sidebar/header/menu/settings переведены с hardcoded `#2d3a4b` / `#3f454b` на tokens;
+  - always-visible tags bar убран из основного layout;
+  - sidebar brand использует общий `--sidebar-brand-height`;
+  - mobile navigation теперь открывается через `el-drawer`, desktop toggle по-прежнему
+    сворачивает sidebar.
+- **Dashboard refresh** (`admin-ui/src/views/index/index.vue`): добавлен Quick Connect
+  panel с native `rustdesk://id`, web client `/webclient2/#/{id}` и переходом к devices.
+- **Devices refresh** (`admin-ui/src/views/peer/index.vue`): добавлена постоянная колонка
+  Status с `ConnectionPulse`, online/offline определяется по `last_online_time < 60s`, ID
+  переведён на `CopyableText`, action column сжата до `Connect` + `More` dropdown; pagination
+  выровнен через `PageSection`.
+- **Monitoring visual pass**: login history, connection history, file transfers и shared
+  sessions получили общий `PageHeader`/`PageSection` layout без изменения API/composable логики.
+- **Server visual pass**: Server Commands, Server Config и GitHub Build settings получили
+  общий `PageHeader`/`PageSection` layout; advanced custom commands вынесены в `DangerZone`
+  и требуют confirm перед `sendCmd` без изменения API-контрактов; terminal output получил
+  readonly console styling, target hint, Copy/Clear controls и empty-output placeholder.
+- **Access visual pass**: Address Book entries, collections, share rules и tags переведены
+  на общий `PageHeader`/`PageSection` layout; address book IDs используют `CopyableText`,
+  а широкие action columns сжаты через `More` dropdown без изменения composables/API.
+- **Users/Security visual pass**: Users, API Tokens, OAuth providers, Groups и Device Groups
+  получили общий `PageHeader`/`PageSection` layout; широкие user actions сжаты через
+  `More` dropdown без изменения CRUD/API поведения.
+- **Client Builder/Profile visual pass**: Custom Client Builder и My Profile получили общий
+  `PageHeader`/`PageSection` layout; build history pagination выровнен с остальными страницами.
+- **My Workspace visual pass**: My Devices, My Address Book, My Address Book Collections,
+  My Tags, My Shared Sessions и My Login History получили общий page header/section layout;
+  персональные device/address-book ID переведены на `CopyableText`.
+- **404 refresh**: минимальная `404` страница заменена на tokenized empty-state экран с
+  возвратом на dashboard.
+- **Auth/OAuth visual refresh**: login, register, OAuth approve и OAuth bind экраны
+  переведены на token-based визуальный язык, поддерживают theme switch и Connection Pulse.
+- **Custom Client runtime fix**: preset/upload handlers теперь возвращаются из `setup()` и
+  доступны template-кнопкам без изменения backend/API контрактов.
+- **Monitoring filter pass**: Login History, Connection History, File Transfer History и Shared Sessions получили `FilterBar` primitive с collapsible panel, reset/clear, active filter count и integrated action buttons.
+- **DataTable pass**: `DataTable` wrapper applied to Users and Address Book pages with slot-based custom cells, loading state, empty state, and horizontal scroll.
+- **AppDialog/AppDrawer/FormSection pass**: Added `admin-ui/src/components/ui/AppDialog.vue`, `AppDrawer.vue`, and `FormSection.vue` shared primitives for unified dialog/drawer/form patterns.
+- **CRUD dialog unification pass**: ALL remaining `el-dialog` usages migrated to `AppDialog`. Zero raw `el-dialog` remain in views.
+- **DataTable migration COMPLETE**: All `el-table` usages migrated to `DataTable` across all view pages. Only remaining `el-table` is one nested inline table in `audit/fileList.vue` (directory file listing within a cell) and unused `my/address_book/indexv2.vue`. Dynamic column visibility in `peer/index.vue` now works via computed `tableColumns`.
+- **Element Plus icons cleanup**: replaced deprecated `@element-plus/icons` imports and dependency with current `@element-plus/icons-vue`; build passes without the deprecation warning.
+- **Review/verification**:
+  - `ocr review` по рабочей копии: high/medium findings нет; единственный low nit про
+    magic number исправлен через `--sidebar-brand-height`;
+  - `npm run build` проходит; остаются только существующие Vite/Rollup warnings про
+    крупные чанки и `@vueuse` pure annotations.
+
+### Known Follow-ups (admin-ui UI rework)
+- Полное i18n-покрытие нового dashboard/auth hero copy.
+- Таблицы, формы, dialogs/drawers и CRUD-экраны всё ещё требуют унификации через новые примитивы.
+- Monitoring filters/toolbars: Connection, File Transfer, Shared Sessions остаются унифицировать через FilterBar.
 
 ### 🟢 Done (§8.9 Custom Preset — фактически 3 бага склейки UI↔backend, 2026-06-13)
 Расширение модели не потребовалось: все поля уже в `custom_json` text-blob. При разборе
@@ -55,12 +122,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `rdgen-data/`, `rustdesk-cache/`, `**/target/`, `*.exe|*.dll|*.apk|*.msi`,
   `offline-kit/artifacts/` из build-контекста. Без него build-контекст тащил
   155 МБ `node_modules` и хост-зависимые файлы.
-- **Dockerfile: web-builder заменён на pre-built dist.** npm 10.8.2 в `node:20-alpine`
-  падает с `Exit handler never called!` (известный баг musl), плюс при COPY
-  `admin-ui/` перетирается хостовый `node_modules` без execute-бита. Сборка admin-ui
-  теперь делается на хосте (`npm install && npm run build`), в контейнер копируется
-  готовый `dist/` через `FROM scratch AS web-dist`. Rust+Go слои — без изменений
-  (кеш работает, пересборка ~10 сек).
+- **Docker build fix**: production `docker/Dockerfile` now builds `admin-ui` from source inside a `node:20-bookworm` stage and no longer requires a pre-existing `admin-ui/dist/`; `.dockerignore` excludes host `node_modules/` and stale `admin-ui/dist/`.
 - **Пароль админа** сброшен на `admin123` через `apimain reset-admin-pwd` —
   первоначальный пароль из логов первого запуска был утерян после рестарта.
 

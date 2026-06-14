@@ -1,6 +1,12 @@
 <template>
-  <div>
-    <el-card class="list-query" shadow="hover">
+  <div class="access-page">
+    <page-header
+        :title="T('AddressBook')"
+        subtitle="Organize address book collections and review sharing rules from one place."
+        eyebrow="Access"
+        pulse="online"
+    />
+    <page-section class="list-query" title="Filters" subtitle="Filter collections by owner before opening share rules.">
       <el-form inline label-width="80px">
         <el-form-item :label="T('Owner')">
           <el-select v-model="listQuery.user_id" clearable>
@@ -17,28 +23,42 @@
           <el-button type="danger" @click="toAdd">{{ T('Add') }}</el-button>
         </el-form-item>
       </el-form>
-    </el-card>
-    <el-card class="list-body" shadow="hover">
-      <el-table :data="listRes.list" v-loading="listRes.loading" border>
-        <el-table-column prop="id" label="ID" align="center"/>
-        <el-table-column prop="user_id" :label="T('Owner')" align="center">
-          <template #default="{row}">
-            <span v-if="row.user_id"> <el-tag>{{ allUsers?.find(u => u.id === row.user_id)?.username }}</el-tag> </span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="name" :label="T('AddressBook')" align="center"/>
-        <el-table-column prop="created_at" :label="T('CreatedAt')" align="center"/>
-
-        <el-table-column :label="T('Actions')" align="center" class-name="table-actions" width="600" fixed="right">
-          <template #default="{row}">
+    </page-section>
+    <page-section class="list-body" :title="T('AddressBook')" :subtitle="`${listRes.total} collections`">
+      <data-table
+          :data="listRes.list"
+          :loading="listRes.loading"
+          row-key="id"
+          :columns="[
+            { prop: 'id', label: 'ID', align: 'center', width: 100 },
+            { label: T('Owner'), align: 'center', slot: 'owner' },
+            { prop: 'name', label: T('AddressBook'), align: 'center' },
+            { prop: 'created_at', label: T('CreatedAt'), align: 'center' },
+            { label: T('Actions'), align: 'center', className: 'table-actions', width: 320, fixed: 'right', slot: 'actions' }
+          ]"
+      >
+        <template #owner="{ row }">
+          <span v-if="row.user_id"> <el-tag>{{ allUsers?.find(u => u.id === row.user_id)?.username }}</el-tag> </span>
+        </template>
+        <template #actions="{ row }">
+          <el-space wrap>
             <el-button type="primary" @click="showRules(row)">{{ T('ShareRules') }}</el-button>
-            <el-button @click="toEdit(row)">{{ T('Edit') }}</el-button>
-            <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
-    <el-card class="list-page" shadow="hover">
+            <el-dropdown trigger="click">
+              <el-button>
+                {{ T('More') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item @click="toEdit(row)">{{ T('Edit') }}</el-dropdown-item>
+                  <el-dropdown-item divided @click="del(row)">{{ T('Delete') }}</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </el-space>
+        </template>
+      </data-table>
+    </page-section>
+    <page-section class="list-page">
       <el-pagination background
                      layout="prev, pager, next, sizes, jumper"
                      :page-sizes="[10,20,50,100]"
@@ -46,8 +66,13 @@
                      v-model:current-page="listQuery.page"
                      :total="listRes.total">
       </el-pagination>
-    </el-card>
-    <el-dialog v-model="formVisible" width="800" :title="!formData.id?T('Create') :T('Update') ">
+    </page-section>
+    <app-dialog
+        v-model="formVisible"
+        :title="!formData.id ? T('Create') : T('Update')"
+        width="800"
+        @confirm="submit"
+    >
       <el-form class="dialog-form" ref="form" :model="formData" label-width="120px">
         <el-form-item :label="T('Owner')" prop="user_id" required>
           <el-select v-model="formData.user_id">
@@ -62,15 +87,17 @@
         <el-form-item :label="T('Name')" prop="name" required>
           <el-input v-model="formData.name"></el-input>
         </el-form-item>
-        <el-form-item>
-          <el-button @click="formVisible = false">{{ T('Cancel') }}</el-button>
-          <el-button @click="submit" type="primary">{{ T('Submit') }}</el-button>
-        </el-form-item>
       </el-form>
-    </el-dialog>
-    <el-dialog v-model="rulesVisible" :title="T('ShareRules')" destroy-on-close top="5vh" width="80%">
+    </app-dialog>
+    <app-dialog
+        v-model="rulesVisible"
+        :title="T('ShareRules')"
+        width="80%"
+        destroy-on-close
+        :hide-footer="true"
+    >
       <Rule :collection="clickRow" :is_my="0"></Rule>
-    </el-dialog>
+    </app-dialog>
 
   </div>
 </template>
@@ -82,6 +109,11 @@
   import { onActivated, onMounted, watch } from 'vue'
   import Rule from '@/views/address_book/rule.vue'
   import { loadAllUsers } from '@/global'
+  import { ArrowDown } from '@element-plus/icons-vue'
+  import PageHeader from '@/components/ui/PageHeader.vue'
+  import PageSection from '@/components/ui/PageSection.vue'
+  import DataTable from '@/components/ui/DataTable.vue'
+  import AppDialog from '@/components/ui/AppDialog.vue'
 
   const { allUsers, getAllUsers } = loadAllUsers()
   getAllUsers()
@@ -118,5 +150,10 @@
 </script>
 
 <style scoped lang="scss">
-
+.access-page {
+  :deep(.list-page .el-card__body) {
+    display: flex;
+    justify-content: flex-end;
+  }
+}
 </style>

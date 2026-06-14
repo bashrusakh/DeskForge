@@ -1,9 +1,12 @@
 <template>
   <div class="custom-client">
-    <el-card shadow="hover" class="mb-20">
-      <template #header>
-        <span>{{ T('NewBuild') }}</span>
-      </template>
+    <page-header
+        title="Custom Client Builder"
+        subtitle="Create branded RustDesk-compatible client builds with pinned server, security, permissions, and branding settings."
+        eyebrow="Client Builder"
+        pulse="warning"
+    />
+    <page-section class="mb-20" :title="T('NewBuild')" subtitle="Configure the build payload and optionally save or load reusable presets.">
       <el-form :model="form" label-width="180px" v-loading="submitting">
         <el-row :gutter="20" class="mb-10">
           <el-col :span="12">
@@ -50,7 +53,13 @@
         <el-row :gutter="20">
           <el-col :span="8">
             <el-form-item :label="T('Host')">
-              <el-input v-model="form.server_ip" placeholder="e.g. your-server.com" />
+              <el-input v-model="form.server_ip" placeholder="e.g. your-server.com" @blur="stripServerPort">
+                <template #append>
+                  <el-tooltip :content="T('HostnameOnlyHint')" placement="top">
+                    <el-icon><InfoFilled /></el-icon>
+                  </el-tooltip>
+                </template>
+              </el-input>
             </el-form-item>
           </el-col>
           <el-col :span="8">
@@ -267,37 +276,38 @@
           <el-button @click="resetForm">{{ T('Reset') }}</el-button>
         </el-form-item>
       </el-form>
-    </el-card>
+    </page-section>
 
-    <el-card shadow="hover">
-      <template #header>
-        <span>{{ T('BuildHistory') }}</span>
-      </template>
-      <el-table :data="builds" v-loading="loading" border>
-        <el-table-column prop="id" label="ID" width="60" align="center" />
-        <el-table-column :label="T('Platform')" prop="platform" width="120" align="center" />
-        <el-table-column :label="T('Version')" prop="version" width="100" align="center" />
-        <el-table-column :label="T('AppName')" prop="app_name" min-width="140" />
-        <el-table-column :label="T('BuildStatus')" width="120" align="center">
-          <template #default="{row}">
-            <el-tag :type="statusType(row.status)" size="small">{{ T(statusLabel(row.status)) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column :label="T('CreatedAt')" prop="created_at" width="160" align="center" />
-        <el-table-column :label="T('Actions')" width="200" align="center">
-          <template #default="{row}">
-            <el-button v-if="row.status === 'done'" type="success" size="small" @click="downloadBuild(row)">{{ T('Download') }}</el-button>
-            <el-button type="danger" size="small" @click="deleteBuild(row)">{{ T('Delete') }}</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+    <page-section class="build-history" :title="T('BuildHistory')" :subtitle="`${total} builds`">
+      <data-table
+          :data="builds"
+          :loading="loading"
+          row-key="id"
+          :columns="[
+            { prop: 'id', label: 'ID', width: 60, align: 'center' },
+            { label: T('Platform'), prop: 'platform', width: 120, align: 'center' },
+            { label: T('Version'), prop: 'version', width: 100, align: 'center' },
+            { label: T('AppName'), prop: 'app_name', minWidth: 140 },
+            { label: T('BuildStatus'), width: 120, align: 'center', slot: 'status' },
+            { label: T('CreatedAt'), prop: 'created_at', width: 160, align: 'center' },
+            { label: T('Actions'), width: 200, align: 'center', slot: 'actions' }
+          ]"
+      >
+        <template #status="{ row }">
+          <el-tag :type="statusType(row.status)" size="small">{{ T(statusLabel(row.status)) }}</el-tag>
+        </template>
+        <template #actions="{ row }">
+          <el-button v-if="row.status === 'done'" type="success" size="small" @click="downloadBuild(row)">{{ T('Download') }}</el-button>
+          <el-button type="danger" size="small" @click="deleteBuild(row)">{{ T('Delete') }}</el-button>
+        </template>
+      </data-table>
       <el-pagination background
                      layout="prev, pager, next, sizes, jumper"
                      :page-sizes="[10,20,50,100]"
                      v-model:page-size="pageSize"
-                     v-model:current-page="page"
-                     :total="total" />
-    </el-card>
+                      v-model:current-page="page"
+                      :total="total" />
+    </page-section>
   </div>
 </template>
 
@@ -309,11 +319,16 @@ import { all as fetchConfig } from '@/api/config'
 import { upload as uploadFile } from '@/api/file'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { T } from '@/utils/i18n'
+import { InfoFilled } from '@element-plus/icons-vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
+import PageSection from '@/components/ui/PageSection.vue'
+import DataTable from '@/components/ui/DataTable.vue'
 
 const VERSIONS = ['1.4.7','1.4.6','1.4.5','1.4.4','1.4.3','1.4.2','1.4.1','1.4.0','1.3.9','1.3.8','1.3.7','1.3.6','1.3.5','1.3.4','1.3.3']
 
 export default defineComponent({
   name: 'CustomClientBuilds',
+  components: { PageHeader, PageSection, DataTable, InfoFilled },
   setup () {
     const form = reactive({
       platform: 'windows',
@@ -355,6 +370,9 @@ export default defineComponent({
       app_logo_url: '',
       privacy_screen_url: '',
     })
+
+    const stripPort = (host) => host ? host.replace(/:\d+$/, '').trim() : ''
+    const stripServerPort = () => { form.server_ip = stripPort(form.server_ip) }
 
     const builds = ref([])
     const loading = ref(false)
@@ -499,6 +517,7 @@ export default defineComponent({
     }
 
     const submitBuild = async () => {
+      form.server_ip = stripPort(form.server_ip)
       submitting.value = true
       try {
         const customJson = JSON.stringify({
@@ -635,7 +654,7 @@ export default defineComponent({
       try {
         const res = await fetchConfig()
         if (res?.data) {
-          form.server_ip = res.data.id_server || ''
+          form.server_ip = stripPort(res.data.id_server || '')
           form.key = res.data.key || ''
           form.api_server = res.data.api_server || ''
           form.relay_server = res.data.relay_server || ''
@@ -647,15 +666,23 @@ export default defineComponent({
 
     return {
       form, builds, loading, submitting, page, pageSize, total, versions,
-      submitBuild, deleteBuild, resetForm, downloadBuild,
+      submitBuild, deleteBuild, resetForm, downloadBuild, stripServerPort,
       statusType, statusLabel, T,
+      presets, selectedPresetId, onPresetSelect, saveCurrentAsPreset, deletePreset, uploadImage,
     }
   },
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .mb-20 {
   margin-bottom: 20px;
+}
+
+.build-history {
+  :deep(.el-pagination) {
+    justify-content: flex-end;
+    margin-top: 16px;
+  }
 }
 </style>

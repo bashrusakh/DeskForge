@@ -1,6 +1,12 @@
 <template>
-  <div>
-    <el-card class="list-query" shadow="hover">
+  <div class="workspace-page">
+    <page-header
+        title="My Devices"
+        subtitle="Review your own devices, connection status, and address book actions."
+        eyebrow="Workspace"
+        pulse="online"
+    />
+    <page-section class="list-query" title="Filters" subtitle="Filter devices by ID, hostname, or last online time.">
       <el-form inline label-width="150px">
         <el-form-item label="ID">
           <el-input v-model="listQuery.id" clearable/>
@@ -27,45 +33,50 @@
 
         </el-form-item>
       </el-form>
-    </el-card>
-    <el-card class="list-body" shadow="hover">
-      <el-table :data="listRes.list" v-loading="listRes.loading" border size="small" @selection-change="handleSelectionChange">
-        <el-table-column type="selection" width="55" align="center"/>
-        <el-table-column prop="id" label="ID" align="center" width="150">
-          <template #default="{row}">
-            <span>{{ row.id }} <el-icon @click="handleClipboard(row.id, $event)"><CopyDocument/></el-icon></span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="cpu" label="CPU" align="center" width="100" show-overflow-tooltip/>
-        <el-table-column prop="hostname" :label="T('Hostname')" align="center" width="120"/>
-        <el-table-column prop="memory" :label="T('Memory')" align="center" width="120"/>
-        <el-table-column prop="os" :label="T('Os')" align="center" width="120" show-overflow-tooltip/>
-        <el-table-column prop="last_online_time" :label="T('LastOnlineTime')" align="center" min-width="120">
-          <template #default="{row}">
-            <div class="last_oline_time">
-              <span> {{ row.last_online_time ? timeAgo(row.last_online_time * 1000) : '-' }}</span> <span class="dot" :class="{red: timeDis(row.last_online_time) >= 60, green: timeDis(row.last_online_time)< 60}"></span>
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column prop="last_online_ip" :label="T('LastOnlineIp')" align="center" min-width="120"/>
-        <el-table-column prop="username" :label="T('Username')" align="center" width="120"/>
-        <el-table-column prop="uuid" :label="T('Uuid')" align="center" width="120" show-overflow-tooltip/>
-        <el-table-column prop="version" :label="T('Version')" align="center" width="80"/>
-        <el-table-column prop="alias" :label="T('Alias')" align="center" width="80"/>
-        <el-table-column prop="created_at" :label="T('CreatedAt')" align="center" width="150"/>
-        <el-table-column prop="updated_at" :label="T('UpdatedAt')" align="center" width="150"/>
-        <el-table-column :label="T('Actions')" align="center" width="500" class-name="table-actions" fixed="right">
-          <template #default="{row}">
-            <el-button type="success" @click="connectByClient(row.id)">{{ T('Link') }}</el-button>
-            <el-button v-if="appStore.setting.appConfig.web_client" type="success" @click="toWebClientLink(row)">Web Client</el-button>
-            <el-button type="primary" @click="toAddressBook(row)">{{ T('AddToAddressBook') }}</el-button>
-            <el-button @click="toView(row)">{{ T('View') }}</el-button>
-            <!--            <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>-->
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
-    <el-card class="list-page" shadow="hover">
+    </page-section>
+    <page-section class="list-body" title="My Devices" :subtitle="`${listRes.total} devices`">
+      <data-table
+          :data="listRes.list"
+          :loading="listRes.loading"
+          size="small"
+          selectable
+          @selection-change="handleSelectionChange"
+          row-key="id"
+          :columns="[
+            { prop: 'id', label: 'ID', align: 'center', width: 150, slot: 'id' },
+            { prop: 'cpu', label: 'CPU', align: 'center', width: 100, showOverflowTooltip: true },
+            { prop: 'hostname', label: T('Hostname'), align: 'center', width: 120 },
+            { prop: 'memory', label: T('Memory'), align: 'center', width: 120 },
+            { prop: 'os', label: T('Os'), align: 'center', width: 120, showOverflowTooltip: true },
+            { label: T('LastOnlineTime'), align: 'center', minWidth: 120, slot: 'lastOnlineTime' },
+            { prop: 'last_online_ip', label: T('LastOnlineIp'), align: 'center', minWidth: 120 },
+            { prop: 'username', label: T('Username'), align: 'center', width: 120 },
+            { prop: 'uuid', label: T('Uuid'), align: 'center', width: 120, showOverflowTooltip: true },
+            { prop: 'version', label: T('Version'), align: 'center', width: 80 },
+            { prop: 'alias', label: T('Alias'), align: 'center', width: 80 },
+            { prop: 'created_at', label: T('CreatedAt'), align: 'center', width: 150 },
+            { prop: 'updated_at', label: T('UpdatedAt'), align: 'center', width: 150 },
+            { label: T('Actions'), align: 'center', width: 500, fixed: 'right', slot: 'actions' }
+          ]"
+      >
+        <template #id="{ row }">
+          <copyable-text :text="row.id" />
+        </template>
+        <template #lastOnlineTime="{ row }">
+          <div class="last_oline_time">
+            <span> {{ row.last_online_time ? timeAgo(row.last_online_time * 1000) : '-' }}</span>
+            <span class="dot" :class="{red: timeDis(row.last_online_time) >= 60, green: timeDis(row.last_online_time)< 60}"></span>
+          </div>
+        </template>
+        <template #actions="{ row }">
+          <el-button type="success" @click="connectByClient(row.id)">{{ T('Link') }}</el-button>
+          <el-button v-if="appStore.setting.appConfig.web_client" type="success" @click="toWebClientLink(row)">Web Client</el-button>
+          <el-button type="primary" @click="toAddressBook(row)">{{ T('AddToAddressBook') }}</el-button>
+          <el-button @click="toView(row)">{{ T('View') }}</el-button>
+        </template>
+      </data-table>
+    </page-section>
+    <page-section class="list-page">
       <el-pagination background
                      layout="prev, pager, next, sizes, jumper"
                      :page-sizes="[10,20,50,100]"
@@ -73,8 +84,13 @@
                      v-model:current-page="listQuery.page"
                      :total="listRes.total">
       </el-pagination>
-    </el-card>
-    <el-dialog v-model="formVisible" :title="T('Information')" width="800" :style="{ textAlign: 'center' }">
+    </page-section>
+    <app-dialog
+        v-model="formVisible"
+        :title="T('Information')"
+        width="800"
+        :show-confirm="false"
+    >
       <el-form class="dialog-form" ref="form" :model="formData" label-width="120px">
         <el-form-item label="ID" prop="id">
           <el-input v-model="formData.id" disabled></el-input>
@@ -101,9 +117,14 @@
           <el-input v-model="formData.version" disabled></el-input>
         </el-form-item>
       </el-form>
-    </el-dialog>
+    </app-dialog>
 
-    <el-dialog v-model="ABFormVisible" width="800" :title="T('Create')">
+    <app-dialog
+        v-model="ABFormVisible"
+        :title="T('Create')"
+        width="800"
+        @confirm="ABSubmit"
+    >
       <el-form class="dialog-form" ref="form" :model="ABFormData" label-width="120px">
         <el-form-item :label="T('AddressBookName')" required prop="collection_id">
           <el-select v-model="ABFormData.collection_id" clearable @change="changeCollectionForUpdate">
@@ -144,14 +165,15 @@
             ></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button @click="ABFormVisible = false">{{ T('Cancel') }}</el-button>
-          <el-button @click="ABSubmit" type="primary">{{ T('Submit') }}</el-button>
-        </el-form-item>
       </el-form>
-    </el-dialog>
+    </app-dialog>
 
-    <el-dialog v-model="batchABFormVisible" width="800" :title="T('Create')">
+    <app-dialog
+        v-model="batchABFormVisible"
+        :title="T('Create')"
+        width="800"
+        @confirm="submitBatchAddToAB"
+    >
       <el-form class="dialog-form" ref="form" :model="batchABFormData" label-width="120px">
         <el-form-item :label="T('AddressBookName')" required prop="collection_id">
           <el-select v-model="batchABFormData.collection_id" clearable @change="changeCollectionForBatchCreateAB">
@@ -169,12 +191,8 @@
             ></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item>
-          <el-button @click="batchABFormVisible = false">{{ T('Cancel') }}</el-button>
-          <el-button @click="submitBatchAddToAB" type="primary">{{ T('Submit') }}</el-button>
-        </el-form-item>
       </el-form>
-    </el-dialog>
+    </app-dialog>
   </div>
 </template>
 
@@ -189,9 +207,12 @@
   import { useRepositories as useABRepositories } from '@/views/address_book/index'
   import { useAppStore } from '@/store/app'
   import { connectByClient } from '@/utils/peer'
-  import { CopyDocument } from '@element-plus/icons'
-  import { handleClipboard } from '@/utils/clipboard'
   import { batchCreateFromPeers } from '@/api/my/address_book'
+  import PageHeader from '@/components/ui/PageHeader.vue'
+  import PageSection from '@/components/ui/PageSection.vue'
+  import CopyableText from '@/components/ui/CopyableText.vue'
+  import DataTable from '@/components/ui/DataTable.vue'
+  import AppDialog from '@/components/ui/AppDialog.vue'
 
   const appStore = useAppStore()
   const listRes = reactive({
@@ -380,6 +401,13 @@
 <style scoped lang="scss">
 .list-query .el-select {
   --el-select-width: 180px;
+}
+
+.workspace-page {
+  :deep(.list-page .el-card__body) {
+    display: flex;
+    justify-content: flex-end;
+  }
 }
 
 .last_oline_time {

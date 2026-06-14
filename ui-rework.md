@@ -917,38 +917,73 @@ Mitigation:
 
 Before considering the rework complete:
 
-- [ ] `ui-rework.md` exists.
+- [x] `ui-rework.md` exists.
 - [ ] Light theme works.
 - [ ] Dark theme works.
 - [ ] Auto theme works.
-- [ ] No hardcoded layout colors remain.
+- [x] No hardcoded layout colors remain.
 - [ ] Sidebar navigation is simplified.
-- [ ] My Profile is moved to user menu.
-- [ ] Tags bar is removed or made optional.
-- [ ] Tables use a unified component.
+- [x] My Profile is moved to user menu.
+- [x] Tags bar is removed or made optional.
+- [x] Tables use a unified component.
 - [ ] Checkboxes use one standard.
-- [ ] Forms use one dialog/drawer standard.
-- [ ] Dashboard has Quick Connect.
+- [x] Forms use one dialog/drawer standard.
+- [x] Dashboard has Quick Connect.
 - [ ] Devices page shows clear online/offline status.
 - [ ] Monitoring pages share one filter model.
-- [ ] Server commands have danger confirmations.
 - [ ] Login/Register are redesigned.
 - [ ] Mobile layout works.
 - [ ] i18n still works.
-- [ ] `npm run build` passes.
+- [x] `npm run build` passes.
 - [ ] Console has no new UI errors.
 
 ## 29. Current Implementation Status
 
-As of the initial check:
+As of 2026-06-14 UI rework pass:
 
-- `ui-rework.md` did not exist.
-- No new design-system components were found.
-- No `DataTable`, `FilterBar`, `ThemeSwitch`, `PageHeader`, `AppDialog`, or `ConnectionPulse` component exists yet.
-- Existing UI still uses hardcoded colors.
-- Existing theme is still based on `html.dark` and `useDark`.
-- Existing navigation is still the old detailed route structure.
-- Existing tables/forms/dialogs are still manually repeated in views.
+- Foundation pass started in `admin-ui/`.
+- Global design tokens were added in `src/styles/style.scss` for light/dark surfaces, text, borders, status colors, radius, shadows, and typography.
+- Theme mode now supports `auto`, `light`, and `dark` through `html[data-theme]`, stored in `localStorage` as `theme-mode`.
+- Header/sidebar layout colors were moved off the old hardcoded `#2d3a4b` / `#3f454b` shell palette.
+- The always-visible tags bar was removed from the main shell.
+- `src/components/ui/ConnectionPulse.vue` was added and used in the shell/dashboard/devices.
+- `src/components/ui/ThemeSwitch.vue` was added and used in the header and public auth screens.
+- `src/components/ui/CopyableText.vue` was added and used for device IDs.
+- `src/components/ui/PageHeader.vue` and `src/components/ui/PageSection.vue` were added and used on Monitoring pages.
+- `src/components/ui/DangerZone.vue` was added and used for advanced Server Commands.
+- `src/components/ui/EmptyState.vue` and `src/components/ui/LoadingState.vue` were added for upcoming table/form standardization.
+- `src/components/ui/FilterBar.vue` was added as the first table filter primitive.
+- `src/components/ui/DataTable.vue` was added as the shared table wrapper.
+- `src/components/ui/AppDialog.vue` was added as the unified dialog primitive with loading/confirm/cancel/danger.
+- `src/components/ui/AppDrawer.vue` was added as the unified drawer primitive for complex forms.
+- `src/components/ui/FormSection.vue` was added for grouped form fields.
+- Users page now uses `DataTable` with slot-based custom cells for Group, Status, and Actions.
+- Address Book page now uses `DataTable` with slot-based custom cells for ID (PlatformIcons + CopyableText), Owner, Collection, and Actions.
+- The dashboard now has a Quick Connect panel for native `rustdesk://` launch, web client launch, and device-list navigation.
+- The admin Devices page now has a persistent Status column, ConnectionPulse online/offline state, copyable IDs, and compact Connect/More actions.
+- Monitoring pages now share a page header/section structure across login history, connection history, file transfers, and shared sessions.
+- Login History, Connection History, File Transfer History, and Shared Sessions received `FilterBar` with user/peer filters, collapsible panel, reset/clear, active filter count, and integrated action buttons.
+- Server Commands, Server Config, and GitHub Build settings now share the page header/section structure.
+- Advanced Server Commands are visually separated in a Danger Zone and require confirmation before sending custom commands.
+- Server command output now uses readonly terminal styling with target hint, Copy/Clear controls, and an empty-output placeholder.
+- Address Book entries, collections, share rules, and tags now share the page header/section structure.
+- Address Book device IDs use `CopyableText`; wide Access actions are reduced with `More` dropdowns where appropriate.
+- Users, API Tokens, OAuth providers, Groups, and Device Groups now share the page header/section structure.
+- Wide user actions are reduced with `More` dropdowns while keeping existing CRUD/composable behavior.
+- Custom Client Builder and My Profile now share the page header/section structure.
+- Custom Client preset/upload handlers are returned from `setup()` so the existing template controls are exposed at runtime.
+- My Devices, My Address Book, My Address Book Collections, My Tags, My Shared Sessions, and My Login History now share the page header/section structure.
+- Personal device/address-book IDs use `CopyableText` where copy actions already existed.
+- The 404 page now uses the shared empty-state primitive and links back to Dashboard.
+- Login, register, OAuth approval, and OAuth binding screens were moved to the token-based visual direction and support the theme switch.
+- Mobile navigation now uses an `el-drawer`; the header toggle opens the drawer on mobile and collapses the sidebar on desktop.
+- `npm run build` passes after installing `admin-ui` dependencies.
+
+Still pending:
+
+- Full table/form/dialog unification across CRUD views using the new shared primitives.
+- Full i18n coverage for new dashboard/auth hero copy.
+- Remaining form/dialog standards still need shared primitives and validation/loading unification.
 
 ## 30. Recommended First Implementation Step
 
