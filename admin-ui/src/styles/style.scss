@@ -124,6 +124,11 @@ body {
   font-weight: 600;
 }
 
+.el-table__fixed-right,
+.el-table__fixed {
+  background: var(--color-surface);
+}
+
 .el-input__wrapper,
 .el-select__wrapper,
 .el-textarea__inner {

@@ -31,7 +31,7 @@
 
   const form = reactive({
     cmd: 'aur',
-    option: '',
+    option: 'N',
     target: ID_TARGET,
     value: 0,
     loading: false,

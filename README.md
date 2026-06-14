@@ -1,4 +1,4 @@
-# full_Server
+# DeskForge
 
 Unified RustDesk Server with integrated API, Web Admin, and Web Client.
 
@@ -6,17 +6,36 @@ Unified RustDesk Server with integrated API, Web Admin, and Web Client.
 
 - **Rust Server** (hbbs + hbbr): ID server and relay server
 - **Go API Server**: User management, authentication, address book
-- **Web Admin**: Management dashboard at `/admin/`
+- **Web Admin** (`admin-ui/`): Vue 3 management dashboard with redesigned UI
 - **Web Client**: Browser-based remote desktop client
 - **s6-overlay**: Process supervision and automatic restarts
+
+## Web Admin
+
+The admin panel has been fully reworked (2026-06).
+
+**Tech stack:** Vue 3.5, Vite 6, Element Plus 2.8, Pinia, Vue Router, Axios, Sass
+
+**Current state:**
+- Light / Dark / Auto theme modes with CSS variables design tokens
+- Redesigned sidebar navigation (Dashboard, Devices, Access, Monitoring, Security, Server)
+- Unified table component (`DataTable`) across all views
+- Unified dialog/drawer components (`AppDialog`, `AppDrawer`)
+- Shared filter bar (`FilterBar`) on monitoring pages
+- Dashboard with Quick Connect panel
+- Connection pulse status indicator
+- Redesigned login/register screens
+- Danger zone for server commands
+- **Locales:** English, Russian, Chinese (Simplified)
+- Custom client builder, OAuth/SSO, API tokens
 
 ## Quick Start
 
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/your-username/full_Server.git
-cd full_Server
+git clone https://github.com/bashrusakh/DeskForge.git
+cd DeskForge
 ```
 
 ### 2. Configure environment
@@ -92,10 +111,10 @@ docker compose build
 
 ## License
 
-AGPL-3.0 - See [LICENSE](LICENSE) for details.
+AGPL-3.0 — See [LICENSE](LICENSE) for details.
 
 ## Credits
 
-- [rustdesk/rustdesk-server](https://github.com/rustdesk/rustdesk-server) - Original RustDesk server
-- [lejianwen/rustdesk-api](https://github.com/lejianwen/rustdesk-api) - Go API server
-- [lejianwen/rustdesk-api-web](https://github.com/lejianwen/rustdesk-api-web) - Web admin interface
+- [rustdesk/rustdesk-server](https://github.com/rustdesk/rustdesk-server) — Original RustDesk server
+- [lejianwen/rustdesk-api](https://github.com/lejianwen/rustdesk-api) — Go API server
+- [lejianwen/rustdesk-api-web](https://github.com/lejianwen/rustdesk-api-web) — Original web admin interface

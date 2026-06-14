@@ -8,7 +8,7 @@
         <el-form-item :label="T('Hostname')">
           <el-input v-model="listQuery.hostname" clearable/>
         </el-form-item>
-        <el-form-item :label="T('LastOnlineTime')" label-width="100px">
+        <el-form-item label="Online" label-width="70px">
           <el-select v-model="listQuery.time_ago" clearable>
             <el-option
                 v-for="item in timeFilters"

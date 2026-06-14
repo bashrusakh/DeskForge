@@ -9,7 +9,7 @@
         <div class="brand-subtitle">ID / Relay / API</div>
       </div>
     </div>
-    <el-scrollbar class="scroll-sidebar" height="calc(100vh - var(--sidebar-brand-height))">
+    <el-scrollbar class="scroll-sidebar" max-height="calc(100vh - var(--sidebar-brand-height))">
       <menus></menus>
     </el-scrollbar>
   </div>
@@ -94,5 +94,9 @@
 
 .scroll-sidebar {
   background: var(--color-sidebar);
+}
+
+.scroll-sidebar :deep(.el-scrollbar__wrap) {
+  overflow-x: hidden;
 }
 </style>

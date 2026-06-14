@@ -1,8 +1,8 @@
 <template>
   <el-radio-group v-model="themeMode" size="small" class="theme-switch">
-    <el-radio-button label="auto">Auto</el-radio-button>
-    <el-radio-button label="light">Light</el-radio-button>
-    <el-radio-button label="dark">Dark</el-radio-button>
+    <el-radio-button value="auto">Auto</el-radio-button>
+    <el-radio-button value="light">Light</el-radio-button>
+    <el-radio-button value="dark">Dark</el-radio-button>
   </el-radio-group>
 </template>
 

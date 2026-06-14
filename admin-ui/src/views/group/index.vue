@@ -62,7 +62,7 @@
         </el-form-item>
         <el-form-item :label="T('Type')" prop="type" required>
           <el-radio-group v-model="formData.type">
-            <el-radio v-for="item in groupTypes" :key="item.value" :label="item.value" style="display: block">
+            <el-radio v-for="item in groupTypes" :key="item.value" :value="item.value" style="display: block">
               {{ item.label }}
               <span style="font-size: 12px;color: #999">{{ item.note }}</span>
             </el-radio>

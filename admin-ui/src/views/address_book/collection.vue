@@ -32,7 +32,7 @@
           :columns="[
             { prop: 'id', label: 'ID', align: 'center', width: 100 },
             { label: T('Owner'), align: 'center', slot: 'owner' },
-            { prop: 'name', label: T('AddressBook'), align: 'center' },
+            { prop: 'name', label: 'Name', align: 'center' },
             { prop: 'created_at', label: T('CreatedAt'), align: 'center' },
             { label: T('Actions'), align: 'center', className: 'table-actions', width: 320, fixed: 'right', slot: 'actions' }
           ]"

@@ -38,7 +38,7 @@
           :columns="[
             { prop: 'id', label: 'ID', align: 'center', width: 100 },
             { label: T('Owner'), align: 'center', slot: 'owner' },
-            { label: T('AddressBookName'), align: 'center', width: 150, slot: 'collection' },
+            { label: 'Name', align: 'center', width: 150, slot: 'collection' },
             { prop: 'name', label: T('Name'), align: 'center' },
             { label: T('Color'), align: 'center', slot: 'color' },
             { prop: 'created_at', label: T('CreatedAt'), align: 'center' },
