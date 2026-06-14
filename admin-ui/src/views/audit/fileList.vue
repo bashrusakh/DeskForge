@@ -51,14 +51,16 @@
         </template>
         <template #fileInfo="{ row }">
           <template v-if="!row.is_file">
-            <el-table size="small" :data="row.info?.files?.filter((v,k) => k<showDirFileNum)" fit>
-              <el-table-column prop="0" :label="T('FileName')" align="center" width="150" show-overflow-tooltip></el-table-column>
-              <el-table-column prop="1" :label="T('Size')" align="center">
-                <template #default="{row:_row}">
-                  {{ sizeFormat(_row[1]) }}
-                </template>
-              </el-table-column>
-            </el-table>
+            <div class="file-info-list">
+              <div
+                  v-for="(file, index) in row.info?.files?.slice(0, showDirFileNum) || []"
+                  :key="`${row.id}-${index}`"
+                  class="file-info-item"
+              >
+                <span class="file-info-name" :title="file[0]">{{ file[0] }}</span>
+                <span class="file-info-size">{{ sizeFormat(file[1]) }}</span>
+              </div>
+            </div>
             <el-button size="small" v-if="row.info.files.length>showDirFileNum" style="width: 100%;margin-top: 5px" type="primary" @click="showAllFile(row.info.files)">
               {{ T('More') }}({{ row.info.files.length - showDirFileNum }})
             </el-button>
@@ -173,5 +175,33 @@ const filterFields = [
 </script>
 
 <style scoped lang="scss">
+.file-info-list {
+  display: grid;
+  gap: 6px;
+}
+
+.file-info-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface-2);
+  font-size: 12px;
+}
+
+.file-info-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-info-size {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+}
 
 </style>

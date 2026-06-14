@@ -159,12 +159,6 @@
         </el-form-item>
       </el-form>
     </app-dialog>
-    <!--    <el-dialog v-model="shareToWebClientVisible" width="900" :close-on-click-modal="false">
-          <shareByWebClient :id="shareToWebClientForm.id"
-                            :hash="shareToWebClientForm.hash"
-                            @cancel="shareToWebClientVisible=false"
-                            @success=""/>
-        </el-dialog>-->
   </div>
 </template>
 

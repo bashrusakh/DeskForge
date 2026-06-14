@@ -37,6 +37,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **CRUD dialog unification pass**: all remaining `el-dialog` usages migrated to `AppDialog`. Zero raw `el-dialog` remain in views.
 - **DataTable migration COMPLETE**: all `el-table` usages migrated to `DataTable` across all view pages. The only remaining `el-table` is one nested inline table in `audit/fileList.vue` (directory file listing inside a cell) and the unused `my/address_book/indexv2.vue`.
 - **Element Plus icons cleanup**: replaced deprecated `@element-plus/icons` imports and dependency with current `@element-plus/icons-vue`; build passes without the deprecation warning.
+- **Legacy view cleanup**: removed unused `my/address_book/indexv2.vue` and replaced the nested file-info `el-table` in `audit/fileList.vue` with tokenized list markup, leaving no raw `el-table` usages in active views.
 - **Review/verification**:
   - `ocr review` on the working tree found no high/medium issues; the only low nit about a magic number was fixed via `--sidebar-brand-height`;
   - `npm run build` passes; remaining output is limited to existing Vite/Rollup warnings about large chunks and `@vueuse` pure annotations.

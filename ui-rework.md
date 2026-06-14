@@ -922,16 +922,16 @@ Before considering the rework complete:
 - [ ] Dark theme works.
 - [ ] Auto theme works.
 - [x] No hardcoded layout colors remain.
-- [ ] Sidebar navigation is simplified.
+- [x] Sidebar navigation is simplified.
 - [x] My Profile is moved to user menu.
 - [x] Tags bar is removed or made optional.
 - [x] Tables use a unified component.
 - [ ] Checkboxes use one standard.
 - [x] Forms use one dialog/drawer standard.
 - [x] Dashboard has Quick Connect.
-- [ ] Devices page shows clear online/offline status.
-- [ ] Monitoring pages share one filter model.
-- [ ] Login/Register are redesigned.
+- [x] Devices page shows clear online/offline status.
+- [x] Monitoring pages share one filter model.
+- [x] Login/Register are redesigned.
 - [ ] Mobile layout works.
 - [ ] i18n still works.
 - [x] `npm run build` passes.
@@ -957,12 +957,15 @@ As of 2026-06-14 UI rework pass:
 - `src/components/ui/AppDialog.vue` was added as the unified dialog primitive with loading/confirm/cancel/danger.
 - `src/components/ui/AppDrawer.vue` was added as the unified drawer primitive for complex forms.
 - `src/components/ui/FormSection.vue` was added for grouped form fields.
+- Raw `el-dialog` usage was removed from active views.
+- Raw `el-table` usage was removed from active views.
 - Users page now uses `DataTable` with slot-based custom cells for Group, Status, and Actions.
 - Address Book page now uses `DataTable` with slot-based custom cells for ID (PlatformIcons + CopyableText), Owner, Collection, and Actions.
 - The dashboard now has a Quick Connect panel for native `rustdesk://` launch, web client launch, and device-list navigation.
 - The admin Devices page now has a persistent Status column, ConnectionPulse online/offline state, copyable IDs, and compact Connect/More actions.
 - Monitoring pages now share a page header/section structure across login history, connection history, file transfers, and shared sessions.
 - Login History, Connection History, File Transfer History, and Shared Sessions received `FilterBar` with user/peer filters, collapsible panel, reset/clear, active filter count, and integrated action buttons.
+- The sidebar was simplified into the new shell/brand/menu structure, and My Profile was moved into the user dropdown.
 - Server Commands, Server Config, and GitHub Build settings now share the page header/section structure.
 - Advanced Server Commands are visually separated in a Danger Zone and require confirmation before sending custom commands.
 - Server command output now uses readonly terminal styling with target hint, Copy/Clear controls, and an empty-output placeholder.
@@ -976,14 +979,15 @@ As of 2026-06-14 UI rework pass:
 - Personal device/address-book IDs use `CopyableText` where copy actions already existed.
 - The 404 page now uses the shared empty-state primitive and links back to Dashboard.
 - Login, register, OAuth approval, and OAuth binding screens were moved to the token-based visual direction and support the theme switch.
+- Remaining deprecated `@element-plus/icons` usage was migrated to `@element-plus/icons-vue`.
 - Mobile navigation now uses an `el-drawer`; the header toggle opens the drawer on mobile and collapses the sidebar on desktop.
 - `npm run build` passes after installing `admin-ui` dependencies.
 
 Still pending:
 
-- Full table/form/dialog unification across CRUD views using the new shared primitives.
 - Full i18n coverage for new dashboard/auth hero copy.
-- Remaining form/dialog standards still need shared primitives and validation/loading unification.
+- Manual browser verification for light/dark/auto theme behavior, responsive layout, and console/runtime UI errors.
+- Check whether the remaining single column-settings `el-checkbox` in `peer/index.vue` needs a dedicated shared checkbox pattern or can stay native.
 
 ## 30. Recommended First Implementation Step
 
