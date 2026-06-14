@@ -61,6 +61,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **AppDialog/AppDrawer/FormSection pass**: Added `admin-ui/src/components/ui/AppDialog.vue`, `AppDrawer.vue`, and `FormSection.vue` shared primitives for unified dialog/drawer/form patterns.
 - **CRUD dialog unification pass**: ALL remaining `el-dialog` usages migrated to `AppDialog`. Zero raw `el-dialog` remain in views.
 - **DataTable migration COMPLETE**: All `el-table` usages migrated to `DataTable` across all view pages. Only remaining `el-table` is one nested inline table in `audit/fileList.vue` (directory file listing within a cell) and unused `my/address_book/indexv2.vue`. Dynamic column visibility in `peer/index.vue` now works via computed `tableColumns`.
+- **Element Plus icons cleanup**: replaced deprecated `@element-plus/icons` imports and dependency with current `@element-plus/icons-vue`; build passes without the deprecation warning.
 - **Review/verification**:
   - `ocr review` по рабочей копии: high/medium findings нет; единственный low nit про
     magic number исправлен через `--sidebar-brand-height`;

@@ -59,7 +59,7 @@
 </template>
 <script>
   import { defineComponent, ref, computed, reactive, unref, readonly, toRefs } from 'vue'
-  import { Plus, ZoomIn, Delete, ArrowLeft, ArrowRight, Check } from '@element-plus/icons'
+  import { Plus, ZoomIn, Delete, ArrowLeft, ArrowRight, Check } from '@element-plus/icons-vue'
   import { useOss } from '@/components/form/upload/oss'
   import { ElMessage } from 'element-plus'
   import { useLocal } from '@/components/form/upload/local'

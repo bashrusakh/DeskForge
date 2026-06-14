@@ -111,7 +111,7 @@
   import { useFileRepositories } from '@/views/audit/reponsitories'
   import { T } from '@/utils/i18n'
   import { sizeFormat } from '@/utils/file'
-  import { Right } from '@element-plus/icons'
+  import { Right } from '@element-plus/icons-vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import PageSection from '@/components/ui/PageSection.vue'
 import FilterBar from '@/components/ui/FilterBar.vue'

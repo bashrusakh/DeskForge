@@ -10,7 +10,7 @@ import { useAppStore } from '@/store/app'
 import '@/permission'
 import 'element-plus/theme-chalk/dark/css-vars.css'
 import '@/styles/style.scss'
-import * as ElementIcons from '@element-plus/icons'
+import * as ElementIcons from '@element-plus/icons-vue'
 
 const app = createApp(App)
 app.use(ElementPlus, { locale: en })
