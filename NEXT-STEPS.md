@@ -108,7 +108,7 @@ Option B (reuse the key from `offline-kit/artifacts/workflow-payload.key`, alrea
 
 ## After success
 
-- [ ] Commit the local code into your `full_Server` repo (`git init` if needed).
+- [ ] Commit the local code into your `DeskForge` repo (`git init` if needed).
 - [ ] Mark `[~] 8.8.5` as `[x]` in `PLAN.md`.
 - [ ] Decide whether to keep the `[Debug]` plain inputs in the workflow for troubleshooting,
   or remove them and rely on `enc_payload` only.

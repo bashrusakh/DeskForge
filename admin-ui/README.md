@@ -1,27 +1,29 @@
-# RustDesk API Web
-# 基于 Vue3 + Element Plus 的后台, 适用于 [RustDesk API](https://github.com/lejianwen/rustdesk-api)
+# DeskForge Admin UI
 
-<a href="https://github.com/vuejs/vue-next">
-    <img src="https://img.shields.io/badge/vue-^3.2.16-brightgreen.svg" alt="vue3">
-  </a>
-  <a href="https://github.com/element-plus/element-plus">
-    <img src="https://img.shields.io/badge/element--plus-^2.8.2-brightgreen.svg" alt="element-plus">
-  </a>
-  <a href="https://github.com/lejianwen/Gwen-admin/blob/master/LICENSE">
-    <img src="https://img.shields.io/github/license/mashape/apistatus.svg" alt="license">
-  </a>
+Vue 3 admin panel for [DeskForge](../README.md) — a unified, self-hosted, RustDesk-compatible server.
 
-# 安装步骤
+## Tech stack
 
-```shell
-git clone https://github.com/lejianwen/rustdesk-api-web
-cd rustdesk-api-web   
+Vue 3.5 · Vite 6 · Element Plus 2.8 · Pinia · Vue Router · Axios · Sass
+
+## Development
+
+```bash
 npm install
-
-// 本地开发
-npm run dev
-
-// 打包
-npm run build
-
+npm run dev     # local dev server
+npm run build   # production build → dist/, served by the Go API at /admin/
 ```
+
+The dev server proxies API calls to the Go backend; see `vite.config.js` for the proxy target.
+
+## Layout
+
+- `src/views/` — page modules
+- `src/components/ui/` — shared design-system primitives (`DataTable`, `AppDialog`, `AppDrawer`, `FilterBar`, `PageHeader`, `PageSection`, `DangerZone`, …)
+- `src/store/` — Pinia stores
+- `src/api/` — REST client wrappers
+- `src/utils/i18n/` — locale JSON (English, Russian, Chinese)
+
+## Theming
+
+Light / Dark / Auto modes via CSS variables in `src/styles/style.scss`. Dark mode is toggled with `html[data-theme="dark"]`; never hardcode colors — use the tokens.

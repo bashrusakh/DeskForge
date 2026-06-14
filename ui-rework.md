@@ -1,4 +1,4 @@
-# UI Rework Plan — full_Server Web Admin
+# UI Rework Plan — DeskForge Web Admin
 
 ## Agent Ownership Notice
 
@@ -8,7 +8,7 @@ Other agents should not edit, overwrite, refactor, or delete this document, the 
 
 ## 1. Context
 
-Project: `full_Server`
+Project: `DeskForge`
 
 Admin UI location: `admin-ui/`
 

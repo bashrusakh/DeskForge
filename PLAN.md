@@ -1,4 +1,4 @@
-# PLAN.md - full_Server: Single Source of Truth
+# PLAN.md - DeskForge: Single Source of Truth
 
 > **This file is the only authoritative project plan.**
 > Other agents: read it first. If you find another `*.md` build plan that conflicts with this
@@ -56,7 +56,7 @@ forks of repositories are the archival backup.
 ```
 YOUR GITHUB ORGANIZATION
 |
-|-- full_Server                  <- main project (this repository)
+|-- DeskForge                    <- main project (this repository)
 |     `-- admin-ui, api, server, docker, rdgen...
 |
 |-- rustdesk                     <- fork of rustdesk/rustdesk, pinned to tag 1.4.7
@@ -87,7 +87,7 @@ YOUR GITHUB ORGANIZATION
 admin-ui (Custom Client form)
    |  POST /custom_build (server, key, password, brand)
    v
-Go API (full_Server)
+Go API (DeskForge)
    |  workflow_dispatch + ENCRYPTED inputs (password never appears in logs)
    v
 GitHub Actions in rustdesk fork (windows-2022 runner)
@@ -259,7 +259,7 @@ Priority order only. Each item should be detailed separately before implementati
   [win-builder/SERVER-SETUP.md](win-builder/SERVER-SETUP.md).
 
 - [~] **8.8. GitHub track (ACTIVE PRIORITY) - build `rustqs.exe` through a rustdesk fork.**
-  rdgen-style model: `full_Server` triggers `workflow_dispatch` in the rustdesk fork,
+  rdgen-style model: `DeskForge` triggers `workflow_dispatch` in the rustdesk fork,
   the fork builds on `windows-2022` and sends the binary back to the server.
   Guide: [github-build/README.md](github-build/README.md).
   Important: the rdgen workflow already contains encrypted inputs and `save_custom_client`,

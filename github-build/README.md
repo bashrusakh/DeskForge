@@ -1,7 +1,7 @@
 # github-build - active `rustqs.exe` build path via GitHub Actions (PLAN.md §8.8)
 
 The main selected way to build the Windows Flutter client is **GitHub Actions in a
-fork of rustdesk**, following the rdgen model. `full_Server` triggers the build, the fork
+fork of rustdesk**, following the rdgen model. `DeskForge` triggers the build, the fork
 builds on a free `windows-2022` runner, and sends the binary back to your server.
 `win-builder/` standalone is frozen as the fallback path.
 
@@ -16,7 +16,7 @@ builds on a free `windows-2022` runner, and sends the binary back to your server
 ## Architecture (repeat of §3)
 
 ```
-admin-ui -> Go API (full_Server) -> workflow_dispatch (ENCRYPTED inputs) ->
+admin-ui -> Go API (DeskForge) -> workflow_dispatch (ENCRYPTED inputs) ->
   GitHub Actions [rustdesk fork, windows-2022] ->
     build (config.rs server/key + custom.txt + branding) ->
     rustqs.exe -> POST /api/save_custom_client -> your server -> admin-ui Download

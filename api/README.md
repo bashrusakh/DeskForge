@@ -1,7 +1,6 @@
-# RustDesk API
+# DeskForge API
 
-This project implements the RustDesk API using Go, and includes both a web UI and web client. RustDesk is a remote
-desktop software that provides self-hosted solutions.
+Go implementation of the RustDesk-compatible API server with a bundled web UI and web client. Part of the [DeskForge](../README.md) monorepo — a unified, self-hosted, RustDesk-compatible server.
 
 <div align=center>
 <img src="https://img.shields.io/badge/golang-1.22-blue"/>
@@ -167,7 +166,7 @@ The table below does not list all configurations. Please refer to the configurat
 | RUSTDESK_API_APP_CAPTCHA_THRESHOLD                     | captcha threshold; -1 disabled, 0 always enable, >0 threshold  ;default `3`                                                                         | `3`                           |
 | RUSTDESK_API_APP_BAN_THRESHOLD                         | ban ip threshold; 0 disabled, >0 threshold ; default `0`                                                                                            | `0`                           |
 | ----- ADMIN Configuration-----                         | ----------                                                                                                                                          | ----------                    |
-| RUSTDESK_API_ADMIN_TITLE                               | Admin Title                                                                                                                                         | `RustDesk Api Admin`          |
+| RUSTDESK_API_ADMIN_TITLE                               | Admin Title                                                                                                                                         | `DeskForge Admin`             |
 | RUSTDESK_API_ADMIN_HELLO                               | Admin welcome message, you can use `html`                                                                                                           |                               |
 | RUSTDESK_API_ADMIN_HELLO_FILE                          | Admin welcome message file,<br>will override `RUSTDESK_API_ADMIN_HELLO`                                                                             | `./conf/admin/hello.html`     |
 | ----- GIN Configuration -----                          | ---------------------------------------                                                                                                             | ----------------------------- |

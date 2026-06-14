@@ -2,7 +2,7 @@
   <div class="custom-client">
     <page-header
         title="Custom Client Builder"
-        subtitle="Create branded RustDesk-compatible client builds with pinned server, security, permissions, and branding settings."
+        subtitle="Create branded, RustDesk-compatible client builds with pinned server, security, permissions, and branding settings."
         eyebrow="Client Builder"
         pulse="warning"
     />
