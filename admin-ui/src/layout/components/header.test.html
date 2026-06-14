@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Header test</title>
+  <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --color-border: #e4e7ed;
+      --color-bg: #ffffff;
+      --color-text: #303133;
+      --color-muted: #909399;
+      --color-primary: #409eff;
+      --color-surface: #f5f7fa;
+      --color-sidebar: #fafafa;
+      --spacing-page: 24px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--color-bg);
+    }
+
+    /* === Layout shell === */
+    .app-header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      height: 64px;
+      border-bottom: 1px solid var(--color-border);
+      background: color-mix(in srgb, var(--color-bg) 84%, transparent);
+      color: var(--color-text);
+      backdrop-filter: blur(18px);
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      overflow: hidden;
+    }
+
+    /* === Header component === */
+    .header-main {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .sidebar-toggle {
+      width: 40px;
+      height: 40px;
+      border: 1px solid var(--color-border);
+      border-radius: 12px;
+      background: var(--color-surface);
+      color: var(--color-text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 14px;
+      font-size: 18px;
+      cursor: pointer;
+      transition: border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+    }
+
+    .sidebar-toggle:hover {
+      border-color: var(--color-primary);
+      color: var(--color-primary);
+      transform: translateY(-1px);
+    }
+
+    .header-title {
+      min-width: 0;
+    }
+
+    .header-title .title {
+      color: var(--color-text);
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1.2;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .header-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--color-muted);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    /* Pulse dot */
+    .pulse {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #67c23a;
+      position: relative;
+    }
+
+    .pulse::after {
+      content: '';
+      position: absolute;
+      inset: -3px;
+      border-radius: 50%;
+      border: 2px solid #67c23a;
+      animation: pulse-ring 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse-ring {
+      0%   { transform: scale(0.6); opacity: 0.5; }
+      100% { transform: scale(2);   opacity: 0; }
+    }
+
+    /* Settings stub */
+    .setting {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .setting .menu-item {
+      display: flex;
+      align-items: center;
+    }
+
+    .setting .title {
+      color: var(--color-text);
+      display: flex;
+      align-items: center;
+      min-height: 36px;
+      padding: 0 10px;
+      border: 1px solid var(--color-border);
+      border-radius: 12px;
+      background: var(--color-surface);
+      cursor: pointer;
+    }
+
+    .setting .title .nickname {
+      padding: 0 10px;
+    }
+
+    /* Theme icon */
+    .icon-theme {
+      font-size: 24px;
+      line-height: 1;
+    }
+
+    .icon-lang {
+      font-size: 24px;
+      line-height: 1;
+    }
+
+    /* Chevron */
+    .chevron {
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 5px solid var(--color-text);
+      margin-left: 4px;
+    }
+
+    /* Mobile */
+  @media (max-width: 720px) {
+    .app-header {
+      height: 58px;
+    }
+
+    .sidebar-toggle {
+      margin-right: 8px;
+    }
+
+    .header-title .title {
+      font-size: 16px;
+    }
+
+    .header-right {
+      gap: 6px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .header-status span {
+      display: none;
+    }
+
+    .header-status {
+      gap: 0;
+    }
+  }
+
+  /* Mobile test note */
+    .test-note {
+      padding: 12px 24px;
+      font-size: 13px;
+      color: var(--color-muted);
+      background: #fef3cd;
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .test-controls {
+      padding: 16px 24px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      border-bottom: 1px solid var(--color-border);
+      background: #f5f7fa;
+    }
+
+    .test-controls button {
+      padding: 6px 16px;
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .test-controls button:hover {
+      border-color: var(--color-primary);
+      color: var(--color-primary);
+    }
+
+    iframe {
+      width: 100%;
+      border: none;
+      transition: width 0.3s;
+    }
+  </style>
+</head>
+<body>
+
+<div class="test-controls">
+  <strong>Превью хедера:</strong>
+  <button onclick="resize('100%')">Desktop</button>
+  <button onclick="resize('375px')">Mobile 375px</button>
+  <button onclick="resize('480px')">Mobile 480px</button>
+  <button onclick="resize('720px')">Tablet 720px</button>
+  <span style="margin-left:auto;font-size:12px;color:var(--color-muted)">"Remote access console" справа; на <480px только точка</span>
+</div>
+
+<div id="preview">
+  <div class="app-header">
+    <div class="header-main">
+      <button class="sidebar-toggle" type="button" aria-label="Collapse menu">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="4" y1="6" x2="20" y2="6" />
+          <line x1="4" y1="12" x2="20" y2="12" />
+          <line x1="4" y1="18" x2="20" y2="18" />
+        </svg>
+      </button>
+      <div class="header-title">
+        <div class="title">Dashboard</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="header-status">
+        <div class="pulse"></div>
+        <span>Remote access console</span>
+      </div>
+      <div class="setting">
+        <div class="menu-item">
+          <div class="title">
+            <span class="icon-theme">🌙</span>
+          </div>
+        </div>
+        <div class="menu-item">
+          <div class="title">
+            <span class="icon-lang">🌐</span>
+          </div>
+        </div>
+        <div class="menu-item">
+          <div class="title">
+            <span class="nickname">admin</span>
+            <span class="chevron"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="test-note">
+  ✅ "Remote access console" + pulse-dot находится справа, рядом с настройками.
+  Виден на всех разрешениях (убрано скрытие на мобильных).
+</div>
+
+<script>
+  function resize(w) {
+    document.getElementById('preview').style.maxWidth = w;
+    document.getElementById('preview').style.margin = w === '100%' ? '0' : '0 auto';
+  }
+</script>
+</body>
+</html>

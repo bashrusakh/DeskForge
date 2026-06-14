@@ -7,14 +7,16 @@
       </el-icon>
     </button>
     <div class="header-title">
-      <div class="eyebrow">
-        <connection-pulse status="online" />
-        Remote access console
-      </div>
       <div class="title">{{ T(route.meta?.title) || setting.title }}</div>
     </div>
   </div>
-  <Setting></Setting>
+  <div class="header-right">
+    <div class="header-status">
+      <connection-pulse status="online" />
+      <span>Remote access console</span>
+    </div>
+    <Setting></Setting>
+  </div>
 </template>
 
 <script>
@@ -83,17 +85,6 @@
 .header-title {
   min-width: 0;
 
-  .eyebrow {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--color-muted);
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
-
   .title {
     color: var(--color-text);
     font-size: 20px;
@@ -105,13 +96,46 @@
   }
 }
 
+.header-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 @media (max-width: 720px) {
-  .header-title .eyebrow {
-    display: none;
+  .sidebar-toggle {
+    margin-right: 8px;
   }
 
   .header-title .title {
     font-size: 16px;
+  }
+
+  .header-right {
+    gap: 6px;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-status span {
+    display: none;
+  }
+
+  .header-status {
+    gap: 0;
   }
 }
 

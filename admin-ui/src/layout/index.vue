@@ -70,6 +70,7 @@
   color: var(--color-text);
   backdrop-filter: blur(18px);
   display: flex;
+  overflow: hidden;
 }
 
 .app-left {
