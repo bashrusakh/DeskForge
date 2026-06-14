@@ -1,110 +1,114 @@
-# NEXT-STEPS — поднятие docker и проверка GitHub-pipeline через UI
+# NEXT-STEPS - bring up Docker and verify the GitHub pipeline through the UI
 
-> Состояние на 2026-06-12: §8.8.5 склеен по коду, не проверен компиляцией.
-> Локальный docker очищен (тома + образы). Win-build standalone заморожен.
+> Status as of 2026-06-12: §8.8.5 is wired together in code, but not compilation-tested.
+> Local Docker has been cleaned (volumes + images). Standalone win-build is frozen.
 
-## 0. Что приготовить заранее
+## 0. Prepare in advance
 
-- [ ] **GitHub PAT** (fine-grained) для `bashrusakh/rustdesk`. Scope:
+- [ ] **GitHub PAT** (fine-grained) for `bashrusakh/rustdesk`. Scope:
   - `Actions: Read and write`
-  - `Secrets: Read and write` (нужен для `Push to GitHub Secrets`)
-  - `Metadata: Read-only` (выдаётся автоматически)
-- [ ] Скопировать существующий ключ из локального файла (если хочешь не менять секрет в форке):
-  - путь: `offline-kit/artifacts/workflow-payload.key` (43 символа base64). Иначе на шаге 5 нажмёшь "Generate" и получишь новый.
-- [ ] Старый Windows-агент **НЕ поднимать** — `docker-compose.yml` оставить без `build-win` (либо `docker compose up server linux-build`).
+  - `Secrets: Read and write` (required for `Push to GitHub Secrets`)
+  - `Metadata: Read-only` (granted automatically)
+- [ ] Copy the existing key from the local file if you do not want to change the fork secret:
+  - path: `offline-kit/artifacts/workflow-payload.key` (43-char base64). Otherwise in step 5 you can click `Generate` and create a new one.
+- [ ] Do **not** start the old Windows agent. Leave `build-win` out of `docker-compose.yml`
+  (or run `docker compose up server linux-build`).
 
-## 1. Поднять docker
+## 1. Bring up Docker
 
 ```powershell
 cd E:\_projects\full_Server\docker
-docker compose build server     # пересборка из-за нового Go-кода (model+service+controller)
-docker compose up -d server      # без build-win!
-docker compose logs -f server    # следить за стартом
+docker compose build server     # rebuild because of new Go code (model + service + controller)
+docker compose up -d server     # no build-win
+docker compose logs -f server   # watch startup
 ```
 
-- [ ] Логи должны показать `Migrating....268` (DatabaseVersion = 268). Если нет — миграция не прошла.
-- [ ] Если падает на компиляции Go → читать ошибку, чинить, повторять. Самые вероятные косяки:
-  - опечатка в импорте (`gorm.io/gorm`, `golang.org/x/crypto/nacl/box`, `golang.org/x/crypto/pbkdf2`)
-  - забытая регистрация в `service/service.go` Service struct
-  - `archive/zip` / `bytes` / `time` в `custom_build.go` — проверить
-- [ ] Healthcheck: `docker compose ps` → server `Up (healthy)`.
+- [ ] Logs should show `Migrating....268` (`DatabaseVersion = 268`). If not, migration failed.
+- [ ] If Go compilation fails, read the error, fix it, repeat. Most likely causes:
+  - import typo (`gorm.io/gorm`, `golang.org/x/crypto/nacl/box`, `golang.org/x/crypto/pbkdf2`)
+  - missed registration in `service/service.go` Service struct
+  - `archive/zip` / `bytes` / `time` in `custom_build.go`
+- [ ] Health check: `docker compose ps` -> `server` should be `Up (healthy)`.
 
-## 2. Открыть admin-ui
+## 2. Open admin-ui
 
-- [ ] Браузер: `http://localhost:21114/admin/`
-- [ ] Залогиниться (admin)
-- [ ] Nav слева: **Server → GitHub Build** (новый пункт, иконка Connection)
+- [ ] Browser: `http://localhost:21114/admin/`
+- [ ] Log in as admin
+- [ ] Left nav: **Server -> GitHub Build** (new item, Connection icon)
 
-## 3. Заполнить форму
+## 3. Fill the form
 
 - [ ] Repository: `bashrusakh/rustdesk`
 - [ ] Workflow filename: `rustqs-windows-min-test.yml`
 - [ ] Branch: `rustqs/min-test`
-- [ ] GitHub Token: вставить PAT из шага 0
-- [ ] Encryption key: оставить пусто (нажмём Generate ниже) ИЛИ вставить старый из файла
+- [ ] GitHub Token: paste the PAT from step 0
+- [ ] Encryption key: leave empty (generate below) OR paste the old value from the file
 - [ ] **Save**
 
 ## 4. Test connection
 
-- [ ] Нажать **Test connection**
-- [ ] Ожидается: зелёная плашка "ok"
-- [ ] Если "HTTP 401/403" — PAT неправильный или нет прав
-- [ ] Если "HTTP 404" — опечатка в repo
+- [ ] Click **Test connection**
+- [ ] Expected: green `ok` message
+- [ ] If `HTTP 401/403`: PAT is wrong or lacks permissions
+- [ ] If `HTTP 404`: repository typo
 
 ## 5. Encryption key
 
-Вариант A (новый ключ — рекомендую):
-- [ ] **Generate new key** → появится поле с base64
-- [ ] **Push to GitHub Secrets** → плашка "WORKFLOW_PAYLOAD_KEY synced"
-- [ ] Проверить: github.com/bashrusakh/rustdesk/settings/secrets/actions → `WORKFLOW_PAYLOAD_KEY` обновлён "less than a minute ago"
+Option A (new key, recommended):
+- [ ] **Generate new key** -> a base64 value appears in the field
+- [ ] **Push to GitHub Secrets** -> expect `WORKFLOW_PAYLOAD_KEY synced`
+- [ ] Verify at `github.com/bashrusakh/rustdesk/settings/secrets/actions` that
+  `WORKFLOW_PAYLOAD_KEY` was updated "less than a minute ago"
 
-Вариант B (использовать ключ из offline-kit/artifacts/workflow-payload.key — он уже в форке):
-- [ ] Вставить значение в поле Encryption key → Save
-- [ ] Push to Secrets можно пропустить
+Option B (reuse the key from `offline-kit/artifacts/workflow-payload.key`, already present in the fork):
+- [ ] Paste the value into the Encryption key field -> Save
+- [ ] `Push to Secrets` can be skipped
 
-## 6. Trigger test build (sanity-check workflow_dispatch)
+## 6. Trigger test build (sanity check for `workflow_dispatch`)
 
-- [ ] Нажать **Trigger test build**
-- [ ] Ожидается: "Run started: id=...", ссылка на GitHub
-- [ ] Открыть ссылку, увидеть свежий ран `rustqs windows min test`
-- [ ] (не дожидаться завершения — это 25-30 мин)
+- [ ] Click **Trigger test build**
+- [ ] Expected: `Run started: id=...` with a GitHub link
+- [ ] Open the link and confirm a fresh `rustqs windows min test` run exists
+- [ ] Do not wait for completion here, it takes 25-30 minutes
 
-## 7. Полный e2e через Custom Client
+## 7. Full end-to-end through Custom Client
 
-- [ ] Nav: **Custom Client → New Build**
+- [ ] Nav: **Custom Client -> New Build**
 - [ ] Platform: **Windows**
 - [ ] App name: `rustqs`
-- [ ] Custom JSON (важно — формат строгий): сейчас Go ожидает поля `server`, `key`, `custom_txt` в корне CustomJson. Что-то вроде:
+- [ ] Custom JSON (important: strict format). At this stage Go expects `server`, `key`, and
+  `custom_txt` at the root of `CustomJson`, for example:
   ```json
-  {"server":"твой.сервер:21116","key":"твой_RS_PUB_KEY_base64","custom_txt":"eyJwYXNzd29yZCI6InRlc3QifQ=="}
+  {"server":"your.server:21116","key":"your_RS_PUB_KEY_base64","custom_txt":"eyJwYXNzd29yZCI6InRlc3QifQ=="}
   ```
-  (`custom_txt` — это base64 от `{"password":"..."}`)
-- [ ] Create → в списке появится запись со статусом `building`
-- [ ] В Go-логе: `github run id: <число>` — это запустился `workflow_dispatch`
-- [ ] Ждать ~30 мин (поллинг каждые 30 сек на стороне сервера)
-- [ ] Статус → `done`, появится Download
+  (`custom_txt` is base64 of `{"password":"..."}`)
+- [ ] Create -> a row should appear with status `building`
+- [ ] In Go logs: `github run id: <number>` means `workflow_dispatch` started
+- [ ] Wait ~30 minutes (server-side polling every 30 seconds)
+- [ ] Status should become `done`, with Download available
 
-## 8. Проверить артефакт
+## 8. Verify the artifact
 
-- [ ] На сервере (внутри контейнера): `ls /rdgen-data/output/<id>/`
-- [ ] Должны быть: `rustqs.exe`, `custom_.txt`, несколько `.dll`
-- [ ] Скачать через UI → запустить на Windows → должен подключиться к вшитому серверу
-  с вшитым паролем
+- [ ] On the server (inside the container): `ls /rdgen-data/output/<id>/`
+- [ ] Expected files: `rustqs.exe`, `custom_.txt`, several `.dll` files
+- [ ] Download through the UI -> run on Windows -> it should connect to the baked-in server
+  using the baked-in password
 
-## Если что-то падает
+## If something fails
 
-| Симптом | Где смотреть | Вероятная причина |
+| Symptom | Where to look | Likely cause |
 |---|---|---|
-| `Migrating....` отсутствует / падает | `docker compose logs server` | Go-код не собрался; смотреть `docker compose build` |
-| Test connection → 401/403 | UI alert | PAT неверный/без прав |
-| Test connection → 404 | UI alert | опечатка в `repo` |
-| Push to Secrets → 403 | UI alert | у PAT нет `Secrets: write` |
-| Build стоит в `building` >40 мин | `docker compose logs server`; GitHub Actions UI | поллер упал, или ран висит |
-| Build → `failed` сразу | `b.BuildLog` в записи Custom Client | dispatch error: бывает invalid `enc_payload` |
-| Build → `failed` после рана | BuildLog | exe не найден в zip, или 90-мин таймаут |
+| `Migrating....` missing or failing | `docker compose logs server` | Go code did not compile; inspect `docker compose build` |
+| Test connection -> `401/403` | UI alert | PAT invalid or missing permissions |
+| Test connection -> `404` | UI alert | typo in `repo` |
+| Push to Secrets -> `403` | UI alert | PAT lacks `Secrets: write` |
+| Build stuck in `building` >40 min | `docker compose logs server`; GitHub Actions UI | poller crashed or run is stuck |
+| Build -> `failed` immediately | `b.BuildLog` in Custom Client entry | dispatch error, often invalid `enc_payload` |
+| Build -> `failed` after the run | `BuildLog` | exe not found in zip, or 90-minute timeout |
 
-## После успеха
+## After success
 
-- [ ] Скоммитить локальный код в свой репо `full_Server` (git init если не было).
-- [ ] Закрыть `[~] 8.8.5` в PLAN.md как `[x]`.
-- [ ] Решить: оставлять ли `[Debug]` плейн-input'ы в воркфлоу (сейчас они там для отладки), или убрать (тогда только enc_payload).
+- [ ] Commit the local code into your `full_Server` repo (`git init` if needed).
+- [ ] Mark `[~] 8.8.5` as `[x]` in `PLAN.md`.
+- [ ] Decide whether to keep the `[Debug]` plain inputs in the workflow for troubleshooting,
+  or remove them and rely on `enc_payload` only.
