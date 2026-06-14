@@ -11,7 +11,7 @@
 
       <el-form ref="formRef" :model="form" label-position="top" v-loading="loading">
         <el-form-item label="Repository (owner/name)">
-          <el-input v-model="form.repo" placeholder="bashrusakh/rustdesk" />
+          <el-input v-model="form.repo" placeholder="bashrusakh/DeskForge" />
         </el-form-item>
 
         <el-form-item label="Workflow filename">
@@ -133,7 +133,7 @@ async function load () {
   try {
     const res = await api.get()
     const d = res.data || res
-    form.repo = d.repo || 'bashrusakh/rustdesk'
+    form.repo = d.repo || 'bashrusakh/DeskForge'
     form.workflow_filename = d.workflow_filename || 'rustqs-windows-min-test.yml'
     form.branch = d.branch || 'rustqs/min-test'
     info.has_token = !!d.has_token

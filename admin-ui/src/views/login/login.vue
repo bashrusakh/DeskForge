@@ -3,7 +3,7 @@
     <theme-switch class="auth-theme" />
     <section class="auth-visual">
       <div class="visual-kicker"><connection-pulse status="online" /> Remote access server</div>
-      <h1>Operate your RustDesk network from one console.</h1>
+      <h1>Operate your DeskForge network from one console.</h1>
       <p>Sign in to manage devices, users, security events, server controls, and custom client builds.</p>
       <div class="signal-card">
         <div><span>ID</span><strong>ready</strong></div>
