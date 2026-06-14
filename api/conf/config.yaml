@@ -12,7 +12,7 @@ app:
   api-base: "" # public URL where build agents can fetch uploaded images, e.g. http://your-server:21114
 
 admin:
-  title: "RustDesk API Admin"
+  title: "DeskForge Admin"
   hello-file: "./conf/admin/hello.html"  #file
   hello: ""
   # ID Server and Relay Server ports

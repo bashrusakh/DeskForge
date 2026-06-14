@@ -1,6 +1,6 @@
 # DeskForge
 
-Unified RustDesk Server with integrated API, Web Admin, and Web Client.
+A unified, self-hosted, RustDesk-compatible server with integrated API, Web Admin, and Web Client.
 
 ## Features
 

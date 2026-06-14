@@ -1,8 +1,8 @@
-# RustDesk API Feature Comparison
+# DeskForge Feature Comparison
 
-## Fork: lejianwen/rustdesk-api vs RustDesk Pro
+## DeskForge (fork of lejianwen/rustdesk-api) vs RustDesk Pro
 
-### What We Have (Go API fork)
+### What We Have (DeskForge Go API)
 
 | Category | Feature | Status |
 |----------|---------|--------|

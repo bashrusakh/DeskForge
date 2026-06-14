@@ -1,4 +1,4 @@
-# full_Server - Unified RustDesk Server + API
+# DeskForge - Unified RustDesk-compatible server + API
 # Multi-stage build: Rust server + Go API + Web Admin + s6-overlay
 
 # Stage 1: Build Rust server (hbbs, hbbr) with musl for Alpine compatibility

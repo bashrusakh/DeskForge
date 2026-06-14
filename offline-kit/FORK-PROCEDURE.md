@@ -107,10 +107,10 @@ for r in RustDeskTempTopMostWindow; do gh repo fork rustdesk-org/$r --org YOUR_O
 
 ## Level C - downstream forker repeats after you
 
-Someone forks **your** `full_Server` and wants to build from **their own** rustdesk fork:
+Someone forks **your** `DeskForge` and wants to build from **their own** rustdesk fork:
 
-1. They fork `full_Server` (this repo) and `YOUR_ORG/rustdesk` -> `THEIR_ORG/rustdesk`.
-2. In their own `full_Server`, they change:
+1. They fork `DeskForge` (this repo) and `YOUR_ORG/rustdesk` -> `THEIR_ORG/rustdesk`.
+2. In their own `DeskForge`, they change:
    ```
    RUSTDESK_REPO="https://github.com/THEIR_ORG/rustdesk.git"
    ```
