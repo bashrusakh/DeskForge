@@ -21,6 +21,8 @@
       </div>
     </section>
 
+    <server-health />
+
     <div class="stats-cards">
       <el-card shadow="hover" class="stat-card">
         <div class="stat-inner">
@@ -120,10 +122,11 @@ import { T } from '@/utils/i18n'
 import { useAppStore } from '@/store/app'
 import { connectByClient } from '@/utils/peer'
 import ConnectionPulse from '@/components/ui/ConnectionPulse.vue'
+import ServerHealth from '@/components/dashboard/ServerHealth.vue'
 
 export default defineComponent({
   name: 'Home',
-  components: { User, Monitor, Connection, ChatRound, List, Timer, ConnectionPulse },
+  components: { User, Monitor, Connection, ChatRound, List, Timer, ConnectionPulse, ServerHealth },
   setup () {
     const appStore = useAppStore()
     const stats = ref({
