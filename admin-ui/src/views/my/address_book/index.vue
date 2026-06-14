@@ -39,7 +39,7 @@
           row-key="row_id"
           :columns="[
             { label: 'ID', align: 'center', width: 200, slot: 'id' },
-            { label: T('AddressBookName'), align: 'center', width: 150, slot: 'collection' },
+            { label: 'Name', align: 'center', width: 150, slot: 'collection' },
             { prop: 'username', label: T('Username'), align: 'center', width: 150 },
             { prop: 'hostname', label: T('Hostname'), align: 'center', width: 150 },
             { prop: 'tags', label: T('Tags'), align: 'center' },

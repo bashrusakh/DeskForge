@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UI Rework — Changes Preview</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --color-bg: #f5f7fb;
+      --color-surface: #ffffff;
+      --color-surface-2: #eef3f8;
+      --color-text: #111827;
+      --color-muted: #64748b;
+      --color-border: #d9e2ec;
+      --color-primary: #2563eb;
+      --color-primary-soft: #dbeafe;
+      --color-success: #16a34a;
+      --color-success-soft: #dcfce7;
+      --color-warning: #f59e0b;
+      --color-warning-soft: #fef3c7;
+      --color-danger: #dc2626;
+      --color-danger-soft: #fee2e2;
+      --color-code-bg: #f1f5f9;
+      --color-sidebar: #ffffff;
+      --color-sidebar-text: #334155;
+      --color-sidebar-hover: #eef3f8;
+      --shadow-card: 0 18px 45px rgba(15, 23, 42, 0.08);
+      --radius-lg: 18px;
+      --radius-md: 12px;
+      --sideBarWidth: 300px;
+      --sidebar-brand-height: 82px;
+      --font-ui: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--font-ui);
+      background: var(--color-bg);
+      color: var(--color-text);
+      padding: 24px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    h2 {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 32px 0 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--color-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin: 24px 0 12px;
+    }
+
+    .subtitle {
+      color: var(--color-muted);
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .badge-green { background: var(--color-success-soft); color: var(--color-success); }
+    .badge-blue { background: var(--color-primary-soft); color: var(--color-primary); }
+    .badge-red { background: var(--color-danger-soft); color: var(--color-danger); }
+    .badge-warm { background: var(--color-warning-soft); color: var(--color-warning); }
+
+    /* === SIDEBAR PREVIEW === */
+    .sidebar-demo {
+      display: flex;
+      gap: 24px;
+      align-items: flex-start;
+    }
+
+    .sidebar-sim {
+      width: var(--sideBarWidth);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      background: var(--color-sidebar);
+      overflow: hidden;
+    }
+
+    .sidebar-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      height: var(--sidebar-brand-height);
+      padding: 18px 18px 14px;
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 12px;
+      background: var(--color-primary-soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .pulse {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--color-success);
+    }
+
+    .brand-title {
+      font-size: 14px;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .brand-subtitle {
+      margin-top: 4px;
+      color: var(--color-muted);
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    .sidebar-menu {
+      padding: 8px;
+    }
+
+    .menu-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      height: 44px;
+      margin: 4px 10px;
+      padding: 0 12px;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--color-sidebar-text);
+      cursor: default;
+      background: var(--color-sidebar-hover);
+    }
+
+    .menu-item.active {
+      background: var(--color-primary-soft);
+      color: var(--color-primary);
+    }
+
+    .menu-item .short-icon {
+      width: 20px;
+      text-align: center;
+    }
+
+    /* === TABLE PREVIEW === */
+    .table-compare {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 900px) {
+      .table-compare {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .table-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+
+    .table-title {
+      padding: 14px 16px 6px;
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    thead th {
+      padding: 10px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      color: var(--color-muted);
+      background: var(--color-surface);
+      border-bottom: 1px solid var(--color-border);
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    thead th:last-child {
+      text-align: center;
+    }
+
+    thead th.old {
+      background: #fff0f0;
+    }
+
+    thead th.new {
+      background: #f0fff4;
+    }
+
+    tbody td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--color-border);
+      text-align: center;
+    }
+
+    tbody td:last-child {
+      text-align: center;
+    }
+
+    .fixed-right {
+      background: var(--color-surface);
+      border-left: 2px solid var(--color-border);
+    }
+
+    .fixed-right-title {
+      background: var(--color-surface);
+      border-left: 2px solid var(--color-border);
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid var(--color-border);
+      background: var(--color-surface);
+      color: var(--color-text);
+      cursor: default;
+    }
+
+    .btn-primary {
+      background: var(--color-primary);
+      color: white;
+      border-color: var(--color-primary);
+    }
+
+    .btn-success {
+      background: var(--color-success);
+      color: white;
+      border-color: var(--color-success);
+    }
+
+    .btn-danger {
+      background: var(--color-danger);
+      color: white;
+      border-color: var(--color-danger);
+    }
+
+    .btn-more {
+      background: var(--color-surface);
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 0 10px;
+      height: 24px;
+      line-height: 24px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      background: var(--color-surface-2);
+      color: var(--color-muted);
+    }
+
+    .tag-success {
+      background: var(--color-success-soft);
+      color: var(--color-success);
+    }
+
+    .tag-info {
+      background: var(--color-surface-2);
+      color: var(--color-muted);
+    }
+
+    .mono {
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+
+    .diff {
+      position: relative;
+    }
+    .diff-old {
+      color: #b91c1c;
+      text-decoration: line-through;
+      margin-right: 8px;
+      font-size: 12px;
+    }
+    .diff-new {
+      color: #15803d;
+      font-weight: 600;
+    }
+    .diff-tag {
+      margin-left: 6px;
+      font-size: 10px;
+      background: #15803d;
+      color: white;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-weight: 700;
+    }
+
+    /* === THEME SWITCH === */
+    .theme-switch-demo {
+      display: inline-flex;
+      padding: 3px;
+      border: 1px solid var(--color-border);
+      border-radius: 12px;
+      background: var(--color-surface);
+    }
+
+    .theme-btn {
+      padding: 5px 14px;
+      border: 0;
+      border-radius: 9px;
+      background: transparent;
+      color: var(--color-muted);
+      font-weight: 600;
+      font-size: 12px;
+      font-family: var(--font-ui);
+      cursor: default;
+    }
+
+    .theme-btn.active {
+      background: var(--color-primary-soft);
+      color: var(--color-primary);
+    }
+
+    .file-list {
+      list-style: none;
+      margin-top: 8px;
+    }
+
+    .file-list li {
+      padding: 4px 0;
+      font-size: 13px;
+      font-family: var(--font-mono);
+    }
+
+    .file-list li::before {
+      content: '✦ ';
+      color: var(--color-muted);
+    }
+
+    .file-list li.del {
+      color: var(--color-danger);
+    }
+    .file-list li.del::before {
+      content: '✗ ';
+    }
+
+    .footer-note {
+      margin-top: 40px;
+      padding-top: 16px;
+      border-top: 1px solid var(--color-border);
+      color: var(--color-muted);
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>UI Rework — Preview изменений</h1>
+<p class="subtitle">Визуальная верификация правок до применения. Все изменения только в en.json, замена label в колонках, CSS-фиксы.</p>
+
+<!-- ============================================================ -->
+<h2>1. Удалены локали</h2>
+
+<p>Удалены 4 файла: <span class="mono">fr.json</span>, <span class="mono">es.json</span>, <span class="mono">ko.json</span>, <span class="mono">zh_TW.json</span>.</p>
+<p>Остались: <span class="badge badge-blue">en</span> <span class="badge badge-blue">ru</span> <span class="badge badge-blue">zh-CN</span></p>
+
+<!-- ============================================================ -->
+<h2>2. Укороченные заголовки колонок (en.json)</h2>
+
+<div class="table-compare">
+  <div class="table-card">
+    <div class="table-title">Старые названия</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Created At</th>
+          <th>Updated At</th>
+          <th>Last Online Time</th>
+          <th>Last Online Ip</th>
+          <th>Expire Time</th>
+          <th>Close Time</th>
+          <th>Auto Register</th>
+          <th>App Name</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>2026-06-14</td><td>2026-06-14</td><td>2 min ago</td><td>192.168.1.1</td><td>Forever</td><td>2026-06-14</td><td>Yes</td><td>MyApp</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="table-card">
+    <div class="table-title">Новые названия <span class="badge badge-green">en.json</span></div>
+    <table>
+      <thead>
+        <tr>
+          <th>Created</th>
+          <th>Updated</th>
+          <th>Last Online</th>
+          <th>Last IP</th>
+          <th>Expires</th>
+          <th>Closed</th>
+          <th>Auto Reg</th>
+          <th>App</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>2026-06-14</td><td>2026-06-14</td><td>2 min ago</td><td>192.168.1.1</td><td>Forever</td><td>2026-06-14</td><td>Yes</td><td>MyApp</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2>3. AddressBookName → Name (колонки таблиц)</h2>
+
+<div class="table-compare">
+  <div class="table-card">
+    <div class="table-title">Адресная книга — старая колонка</div>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Owner</th>
+          <th>Address Book Name</th>
+          <th>Username</th>
+          <th class="fixed-right-title">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="mono">abc-123</td><td><span class="tag tag-success">admin</span></td>
+          <td>Work Devices</td><td>jdoe</td>
+          <td class="fixed-right"><span class="btn btn-primary">Link</span> <span class="btn btn-more">More ↓</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="table-card">
+    <div class="table-title">Адресная книга — новая колонка <span class="badge badge-green">Name</span></div>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Owner</th>
+          <th>Name</th>
+          <th>Username</th>
+          <th class="fixed-right-title">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="mono">abc-123</td><td><span class="tag tag-success">admin</span></td>
+          <td>Work Devices</td><td>jdoe</td>
+          <td class="fixed-right"><span class="btn btn-primary">Link</span> <span class="btn btn-more">More ↓</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<p class="subtitle">Затронутые файлы: <span class="mono">address_book/index.vue</span>, <span class="mono">my/address_book/index.vue</span>, <span class="mono">tag/index.vue</span>, <span class="mono">my/tag/index.vue</span>, <span class="mono">address_book/collection.vue</span></p>
+
+<!-- ============================================================ -->
+<h2>4. Фикс фона Actions (fixed-right колонка)</h2>
+
+<div class="table-card" style="max-width: 680px;">
+  <div class="table-title">Добавлен CSS: <span class="mono" style="background:var(--color-surface-2);padding:2px 8px;border-radius:6px">.el-table__fixed-right { background: var(--color-surface); }</span></div>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Username</th>
+        <th>Status</th>
+        <th class="fixed-right-title" style="border-left:2px solid var(--color-border);background:var(--color-surface)">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td><td>admin</td>
+        <td><span class="tag tag-success">Active</span></td>
+        <td class="fixed-right" style="border-left:2px solid var(--color-border);background:var(--color-surface)">
+          <span class="btn">Edit</span> <span class="btn btn-danger">Delete</span>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  <div style="padding:10px 16px 14px;font-size:12px;color:var(--color-muted)">
+    <span class="badge badge-green">Фикс</span> Теперь <span class="mono">.el-table__fixed-right</span> наследует <span class="mono">--color-surface</span>, а не прозрачный фон.
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2>5. ThemeSwitch — value вместо label</h2>
+
+<div style="display:flex;align-items:center;gap:24px;">
+  <div>
+    <div style="font-size:12px;color:var(--color-muted);margin-bottom:6px;">Было: <span class="mono diff-old">label="auto"</span></div>
+    <div class="theme-switch-demo">
+      <span class="theme-btn active">Auto</span>
+      <span class="theme-btn">Light</span>
+      <span class="theme-btn">Dark</span>
+    </div>
+  </div>
+  <div>
+    <div style="font-size:12px;color:var(--color-muted);margin-bottom:6px;">Стало: <span class="mono diff-new">value="auto"</span> <span class="badge badge-green">fix</span></div>
+    <div class="theme-switch-demo">
+      <span class="theme-btn active">Auto</span>
+      <span class="theme-btn">Light</span>
+      <span class="theme-btn">Dark</span>
+    </div>
+  </div>
+</div>
+<p class="subtitle" style="margin-top:8px;">Файл: <span class="mono">src/components/ui/ThemeSwitch.vue</span> — консольный warning больше не появляется.</p>
+
+<!-- ============================================================ -->
+<h2>6. Sidebar — фиксы</h2>
+
+<div class="sidebar-demo">
+  <div class="sidebar-sim">
+    <div class="sidebar-brand">
+      <div class="brand-mark"><div class="pulse"></div></div>
+      <div class="brand-copy">
+        <div class="brand-title">RustDesk Server</div>
+        <div class="brand-subtitle">ID / Relay / API</div>
+      </div>
+    </div>
+    <div class="sidebar-menu">
+      <div class="menu-item active"><span class="short-icon">◆</span> Dashboard</div>
+      <div class="menu-item"><span class="short-icon">◈</span> Devices</div>
+      <div class="menu-item"><span class="short-icon">◎</span> Access</div>
+      <div class="menu-item"><span class="short-icon">◉</span> Monitoring</div>
+      <div class="menu-item"><span class="short-icon">🔒</span> Security</div>
+      <div class="menu-item" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+        <span class="short-icon">⚙</span> Long section name that fits now
+      </div>
+    </div>
+    <div style="padding:10px 16px;font-size:11px;color:var(--color-muted);border-top:1px solid var(--color-border)">
+      <span class="badge badge-blue">300px</span> ru width увеличена с 250px
+    </div>
+  </div>
+  <div style="flex:1;font-size:13px;color:var(--color-muted);line-height:1.7;">
+    <div><span class="badge badge-green">Фикс</span> <span class="mono">height</span> → <span class="mono">max-height</span> — нет пустого места на больших экранах, контент занимает свою высоту.</div>
+    <div style="margin-top:8px;"><span class="badge badge-green">Фикс</span> <span class="mono">overflow-x: hidden</span> — убран горизонтальный скролл.</div>
+    <div style="margin-top:8px;"><span class="badge badge-blue">Width</span> ru локали: 250px → 300px.</div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2>7. Advanced tab — scroll fix</h2>
+
+<div class="table-card" style="max-width: 600px;">
+  <div style="padding:14px 16px;">
+    <div style="display:flex;gap:8px;margin-bottom:14px;">
+      <span class="btn btn-primary" style="border-radius:6px 0 0 6px;border-right:0;">Simple</span>
+      <span class="btn" style="border-radius:0 6px 6px 0;">Advanced</span>
+    </div>
+    <div style="padding:16px;background:var(--color-surface-2);border-radius:12px;min-height:220px;font-size:13px;color:var(--color-muted);display:flex;align-items:center;justify-content:center;">
+      <span>Tab content placeholder — <span class="mono diff-new">min-height: 520px</span> предотвращает scroll jump</span>
+    </div>
+    <div style="margin-top:8px;font-size:12px;color:var(--color-muted)">
+      <span class="badge badge-green">Фикс</span> <span class="mono">.server-command-tabs { min-height: 520px; }</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2>8. Devices — фильтр Last Online Time</h2>
+
+<div style="display:flex;gap:16px;align-items:center;">
+  <div style="padding:12px 16px;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-surface);font-size:13px;">
+    <div style="margin-bottom:8px;font-size:12px;color:var(--color-muted);">Старое: label-width="100px"</div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <span style="font-size:13px;color:var(--color-text);white-space:nowrap;">Last Online Time:</span>
+      <select style="padding:4px 8px;border:1px solid var(--color-border);border-radius:8px;font-size:13px;" disabled>
+        <option>Last hour</option>
+      </select>
+    </div>
+  </div>
+  <div style="padding:12px 16px;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-surface);font-size:13px;">
+    <div style="margin-bottom:8px;font-size:12px;color:var(--color-muted);">Новое: <span class="badge badge-green">label="Online"</span> width="70px"</div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <span style="font-size:13px;color:var(--color-text);white-space:nowrap;">Online:</span>
+      <select style="padding:4px 8px;border:1px solid var(--color-border);border-radius:8px;font-size:13px;" disabled>
+        <option>Last hour</option>
+      </select>
+      <span class="btn btn-primary" style="font-size:12px;">Filter</span>
+      <span class="btn btn-danger" style="font-size:12px;">Add</span>
+      <span class="btn btn-success" style="font-size:12px;">Export</span>
+    </div>
+    <div style="margin-top:4px;font-size:11px;color:var(--color-success);">— фильтр больше не съезжает на кнопки при side-by-side</div>
+  </div>
+</div>
+
+<div class="footer-note">
+  <strong>Файлы без изменений:</strong> <span class="mono">ru.json</span>, <span class="mono">zh_CN.json</span> — переводы не трогали.<br>
+  <strong>Build:</strong> <span class="badge badge-green">OK</span> — 1874 modules, 28.55s.
+</div>
+
+</body>
+</html>

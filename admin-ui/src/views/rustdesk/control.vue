@@ -392,6 +392,7 @@
 
 .server-command-tabs {
   margin-top: 18px;
+  min-height: 520px;
 }
 
 :deep(.command-result textarea) {

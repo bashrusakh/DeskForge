@@ -111,10 +111,10 @@
     "One": "Color"
   },
   "CreatedAt": {
-    "One": "Created At"
+    "One": "Created"
   },
   "UpdatedAt": {
-    "One": "Updated At"
+    "One": "Updated"
   },
   "Memory": {
     "One": "Memory"
@@ -162,7 +162,7 @@
     "One": "Please input new password"
   },
   "AutoRegister": {
-    "One": "Auto Register"
+    "One": "Auto Reg"
   },
   "AutoRegisterNote": {
     "One": "If Enable,An account will be automatically registered when a user logs in with OAuth without binding an existing account"
@@ -234,7 +234,7 @@
     "One": "Login Log"
   },
   "LastOnlineTime": {
-    "One": "Last Online Time"
+    "One": "Last Online"
   },
   "JustNow": {
     "One": "Just Now"
@@ -296,7 +296,7 @@
     "One": "Fixed passwords may be leaked, so please use them with caution and use one-time passwords is recommended"
   },
   "ExpireTime": {
-    "One": "Expire Time"
+    "One": "Expires"
   },
   "ShareByWebClient": {
     "One": "Share By Web Client"
@@ -365,7 +365,7 @@
     "One": "From Name"
   },
   "CloseTime": {
-    "One": "Close Time"
+    "One": "Closed"
   },
   "AuditFileLog": {
     "One": "File Log"
@@ -440,7 +440,7 @@
     "One": "\"My Address Book\" is the default of the system, cannot be modified or deleted"
   },
   "LastOnlineIp": {
-    "One": "Last Online Ip"
+    "One": "Last IP"
   },
   "OldPassword": {
     "One": "Old Password"
@@ -695,7 +695,7 @@
     "One": "Build History"
   },
   "AppName": {
-    "One": "App Name"
+    "One": "App"
   },
   "ExeName": {
     "One": "EXE Name"
