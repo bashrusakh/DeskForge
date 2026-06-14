@@ -5,10 +5,11 @@ import en from 'element-plus/es/locale/lang/en'
 import ru from 'element-plus/es/locale/lang/ru'
 import { admin, app, server } from '@/api/config'
 
+const SIDEBAR_WIDTH = '240px'
 const langs = {
-  'zh-CN': { name: '中文', value: zhCn, sideBarWidth: '210px' },
-  'en': { name: 'English', value: en, sideBarWidth: '230px' },
-  'ru': { name: 'Русский', value: ru, sideBarWidth: '300px' },
+  'zh-CN': { name: '中文', value: zhCn, sideBarWidth: SIDEBAR_WIDTH },
+  'en': { name: 'English', value: en, sideBarWidth: SIDEBAR_WIDTH },
+  'ru': { name: 'Русский', value: ru, sideBarWidth: SIDEBAR_WIDTH },
 }
 const defaultLang = localStorage.getItem('lang') || 'en'
 const defaultThemeMode = localStorage.getItem('theme-mode') || 'auto'
@@ -119,16 +120,13 @@ export const useAppStore = defineStore({
       this.setting.title = newTitle
     },
     async loadRustdeskConfig () {
-      console.log('loadRustdeskConfig')
       const res = await server().catch(_ => false)
-      if (res) {
-        this.setting.rustdeskConfig = res.data
-        const prefix = 'wc-'
-        localStorage.setItem(`${prefix}custom-rendezvous-server`, res.data.id_server)
-        localStorage.setItem(`${prefix}key`, res.data.key)
-        localStorage.setItem(`${prefix}api-server`, res.data.api_server)
-      }
-
+      if (!res || !res.data) return
+      this.setting.rustdeskConfig = res.data
+      const prefix = 'wc-'
+      if (res.data.id_server) localStorage.setItem(`${prefix}custom-rendezvous-server`, res.data.id_server)
+      if (res.data.key) localStorage.setItem(`${prefix}key`, res.data.key)
+      if (res.data.api_server) localStorage.setItem(`${prefix}api-server`, res.data.api_server)
     },
   },
 })

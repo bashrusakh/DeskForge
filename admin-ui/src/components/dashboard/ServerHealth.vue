@@ -33,6 +33,10 @@
       <div class="card-header">
         <span>Relay Activity</span>
         <span class="pulse-label" v-if="loading">Loading...</span>
+        <span class="pulse-label error" v-else-if="error">
+          <span class="pulse-dot-sm error"></span>
+          {{ T('FailedToLoad') }}
+        </span>
         <span class="pulse-label" v-else>
           <span class="pulse-dot-sm"></span>
           updating every 15s
@@ -45,25 +49,37 @@
             <div class="big-number">{{ activeConnections }}</div>
           </div>
           <div>
-            <div class="stat-label-sm">Bandwidth</div>
+            <div class="stat-label-sm">Live Bandwidth</div>
             <div class="bw-list">
               <div class="bw-row">
-                <div class="bw-label"><span>TOTAL</span><span>{{ totalBW }} / 100 Mb/s</span></div>
-                <div class="bw-track"><div class="bw-fill bw-total" :style="{ width: bwPct(totalBW, 100) + '%' }"></div></div>
+                <div class="bw-label">
+                  <span>TOTAL</span>
+                  <span>{{ totalBW > 0 ? `${fmtKbps(currentTotalKbps)} / ${fmtMbps(totalBW)}` : fmtKbps(currentTotalKbps) }}</span>
+                </div>
+                <div v-if="totalBW > 0" class="bw-track">
+                  <div class="bw-fill bw-total" :style="{ width: bwPct(currentTotalKbps, totalBW) + '%' }"></div>
+                </div>
               </div>
               <div class="bw-row">
-                <div class="bw-label"><span>SINGLE</span><span>{{ singleBW }} / 10 Mb/s</span></div>
-                <div class="bw-track"><div class="bw-fill bw-single" :style="{ width: bwPct(singleBW, 10) + '%' }"></div></div>
+                <div class="bw-label">
+                  <span>PEAK / CONN</span>
+                  <span>{{ singleBW > 0 ? `${fmtKbps(currentPeakKbps)} / ${fmtMbps(singleBW)}` : fmtKbps(currentPeakKbps) }}</span>
+                </div>
+                <div v-if="singleBW > 0" class="bw-track">
+                  <div class="bw-fill bw-single" :style="{ width: bwPct(currentPeakKbps, singleBW) + '%' }"></div>
+                </div>
               </div>
-              <div class="bw-row">
-                <div class="bw-label"><span>LIMIT</span><span>{{ limitSpeed }} / 50 Mb/s</span></div>
-                <div class="bw-track"><div class="bw-fill bw-limit" :style="{ width: bwPct(limitSpeed, 50) + '%' }"></div></div>
+              <div v-if="limitSpeed > 0" class="bw-footnote">
+                Downgrade threshold: {{ fmtMbps(limitSpeed) }}
               </div>
             </div>
           </div>
         </div>
 
-        <div v-if="usage.length" class="top-connections">
+        <div v-if="!relayOnline && !loading" class="top-connections-empty">
+          {{ T('RelayOffline') }}
+        </div>
+        <div v-else-if="usage.length" class="top-connections">
           <div class="top-connections-header">
             <span class="stat-label-sm">Top Connections</span>
             <span class="top-by-label">by total traffic</span>
@@ -77,13 +93,13 @@
                 <td class="top-ip">{{ row.ip }}</td>
                 <td>{{ fmtDuration(row.time) }}</td>
                 <td class="top-total">{{ fmtTotal(row.total) }}</td>
-                <td class="top-speed">{{ row.speed }} kb/s</td>
+                <td class="top-speed">{{ fmtSpeed(row.speed) }}</td>
               </tr>
             </tbody>
           </table>
-          <span v-if="extraCount > 0" class="top-more">+ and {{ extraCount }} more connections</span>
+          <span v-if="extraCount > 0" class="top-more">+ {{ extraCount }} more connections</span>
         </div>
-        <div v-else-if="relayOnline" class="top-connections-empty">
+        <div v-else class="top-connections-empty">
           {{ T('NoData') }}
         </div>
       </div>
@@ -114,47 +130,55 @@ export default defineComponent({
   name: 'ServerHealth',
   components: { ConnectionPulse },
   setup () {
+    const REFRESH_SECONDS = 15
     const idOnline = ref(false)
     const relayOnline = ref(false)
     const activeConnections = ref(0)
     const totalBW = ref(0)
     const singleBW = ref(0)
     const limitSpeed = ref(0)
+    const currentTotalKbps = ref(0)
+    const currentPeakKbps = ref(0)
     const usage = ref([])
     const extraCount = ref(0)
     const loading = ref(true)
-    const idPort = ref('21115')
-    const relayPort = ref('21117')
-    const countdown = ref(0)
+    const error = ref(false)
+    const idPort = ref(21115)
+    const relayPort = ref(21117)
+    const countdown = ref(REFRESH_SECONDS)
 
-    let interval = null
-    let countdownInterval = null
+    let tickInterval = null
 
     const load = async () => {
       try {
         const res = await fetchHealth()
-        const d = res.data
+        const d = res.data || {}
         idOnline.value = !!d.id_server?.online
         relayOnline.value = !!d.relay_server?.online
+        if (d.id_server?.port) idPort.value = d.id_server.port
+        if (d.relay_server?.port) relayPort.value = d.relay_server.port
         activeConnections.value = d.active_connections || 0
         totalBW.value = d.total_bandwidth || 0
         singleBW.value = d.single_bandwidth || 0
         limitSpeed.value = d.limit_speed || 0
+        currentTotalKbps.value = d.current_total_kbps || 0
+        currentPeakKbps.value = d.current_peak_kbps || 0
         usage.value = d.usage || []
-        extraCount.value = Math.max(0, activeConnections.value - (d.usage || []).length)
+        extraCount.value = Math.max(0, activeConnections.value - usage.value.length)
+        error.value = false
       } catch (e) {
         console.error('Failed to load server health', e)
+        error.value = true
       } finally {
         loading.value = false
+        countdown.value = REFRESH_SECONDS
       }
     }
 
     const refreshNow = () => {
-      countdown.value = 15
+      countdown.value = REFRESH_SECONDS
       load()
     }
-
-    const bwPct = (val, max) => Math.min(100, Math.round((val / max) * 100))
 
     const fmtDuration = (seconds) => {
       if (!seconds) return '-'
@@ -170,28 +194,51 @@ export default defineComponent({
       return Math.round(mb) + ' MB'
     }
 
+    const fmtSpeed = (kbps) => {
+      if (!kbps) return '0 kb/s'
+      if (kbps >= 1024) return (kbps / 1024).toFixed(1) + ' Mb/s'
+      return kbps.toFixed(1) + ' kb/s'
+    }
+
+    const fmtMbps = (v) => {
+      if (!v) return 'unlimited'
+      return v.toFixed(v < 10 ? 1 : 0) + ' Mb/s'
+    }
+
+    const fmtKbps = (kbps) => {
+      if (!kbps) return '0 kb/s'
+      if (kbps >= 1024) return (kbps / 1024).toFixed(1) + ' Mb/s'
+      return Math.round(kbps) + ' kb/s'
+    }
+
+    const bwPct = (kbps, limitMbps) => {
+      if (!limitMbps) return 0
+      return Math.min(100, Math.round((kbps / (limitMbps * 1024)) * 100))
+    }
+
     onMounted(() => {
       load()
-      countdown.value = 15
-      interval = setInterval(load, 15000)
-      countdownInterval = setInterval(() => {
-        if (countdown.value > 0) countdown.value--
-        else countdown.value = 15
+      tickInterval = setInterval(() => {
+        if (countdown.value > 1) {
+          countdown.value--
+        } else {
+          load()
+        }
       }, 1000)
     })
 
     onUnmounted(() => {
-      if (interval) clearInterval(interval)
-      if (countdownInterval) clearInterval(countdownInterval)
+      if (tickInterval) clearInterval(tickInterval)
     })
 
     return {
       idOnline, relayOnline, activeConnections,
       totalBW, singleBW, limitSpeed,
-      usage, extraCount, loading,
+      usage, extraCount, loading, error,
+      currentTotalKbps, currentPeakKbps,
       idPort, relayPort,
       countdown, refreshNow,
-      bwPct, fmtDuration, fmtTotal, T,
+      fmtDuration, fmtTotal, fmtSpeed, fmtMbps, fmtKbps, bwPct, T,
     }
   },
 })
@@ -339,28 +386,32 @@ export default defineComponent({
 .bw-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
+  margin-top: 4px;
 }
 
 .bw-label {
   display: flex;
   justify-content: space-between;
   font-size: 12px;
-  margin-bottom: 3px;
+  margin-bottom: 4px;
 }
 
 .bw-label span:first-child {
-  font-weight: 500;
+  font-weight: 600;
   font-family: var(--font-mono);
   font-size: 11px;
-}
-
-.bw-label span:last-child {
+  letter-spacing: .04em;
   color: var(--color-muted);
 }
 
+.bw-label span:last-child {
+  font-family: var(--font-mono);
+  color: var(--color-text);
+}
+
 .bw-track {
-  height: 5px;
+  height: 6px;
   border-radius: 999px;
   background: var(--color-surface-2);
   overflow: hidden;
@@ -374,7 +425,13 @@ export default defineComponent({
 
 .bw-total { background: var(--color-primary); }
 .bw-single { background: var(--color-warning); }
-.bw-limit { background: var(--color-success); }
+
+.bw-footnote {
+  font-size: 11px;
+  color: var(--color-muted);
+  margin-top: 2px;
+  font-family: var(--font-mono);
+}
 
 .top-connections {
   margin-top: 16px;
@@ -480,6 +537,15 @@ export default defineComponent({
   border-radius: 50%;
   background: var(--color-success);
   box-shadow: 0 0 0 2px var(--color-success-soft);
+}
+
+.pulse-dot-sm.error {
+  background: var(--color-danger);
+  box-shadow: 0 0 0 2px var(--color-danger-soft);
+}
+
+.pulse-label.error {
+  color: var(--color-danger);
 }
 
 .btn {

@@ -13,7 +13,7 @@
   <div class="header-right">
     <div class="header-status">
       <connection-pulse status="online" />
-      <span>Remote access console</span>
+      <span>{{ T('RemoteAccessConsole') }}</span>
     </div>
     <Setting></Setting>
   </div>
