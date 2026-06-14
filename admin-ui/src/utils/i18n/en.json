@@ -921,5 +921,14 @@
   },
   "ClearFilters": {
     "One": "Clear filters"
+  },
+  "RemoteAccessConsole": {
+    "One": "Remote access console"
+  },
+  "FailedToLoad": {
+    "One": "Failed to load"
+  },
+  "RelayOffline": {
+    "One": "Relay server is offline — no activity data available."
   }
 }

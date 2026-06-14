@@ -33,6 +33,10 @@
       <div class="card-header">
         <span>Relay Activity</span>
         <span class="pulse-label" v-if="loading">Loading...</span>
+        <span class="pulse-label error" v-else-if="error">
+          <span class="pulse-dot-sm error"></span>
+          {{ T('FailedToLoad') }}
+        </span>
         <span class="pulse-label" v-else>
           <span class="pulse-dot-sm"></span>
           updating every 15s
@@ -45,25 +49,28 @@
             <div class="big-number">{{ activeConnections }}</div>
           </div>
           <div>
-            <div class="stat-label-sm">Bandwidth</div>
-            <div class="bw-list">
-              <div class="bw-row">
-                <div class="bw-label"><span>TOTAL</span><span>{{ totalBW }} / 100 Mb/s</span></div>
-                <div class="bw-track"><div class="bw-fill bw-total" :style="{ width: bwPct(totalBW, 100) + '%' }"></div></div>
+            <div class="stat-label-sm">Relay Limits</div>
+            <div class="limits-list">
+              <div class="limit-row">
+                <span class="limit-key">Total bandwidth</span>
+                <span class="limit-val">{{ fmtMbps(totalBW) }}</span>
               </div>
-              <div class="bw-row">
-                <div class="bw-label"><span>SINGLE</span><span>{{ singleBW }} / 10 Mb/s</span></div>
-                <div class="bw-track"><div class="bw-fill bw-single" :style="{ width: bwPct(singleBW, 10) + '%' }"></div></div>
+              <div class="limit-row">
+                <span class="limit-key">Per connection</span>
+                <span class="limit-val">{{ fmtMbps(singleBW) }}</span>
               </div>
-              <div class="bw-row">
-                <div class="bw-label"><span>LIMIT</span><span>{{ limitSpeed }} / 50 Mb/s</span></div>
-                <div class="bw-track"><div class="bw-fill bw-limit" :style="{ width: bwPct(limitSpeed, 50) + '%' }"></div></div>
+              <div class="limit-row">
+                <span class="limit-key">Downgrade threshold</span>
+                <span class="limit-val">{{ fmtMbps(limitSpeed) }}</span>
               </div>
             </div>
           </div>
         </div>
 
-        <div v-if="usage.length" class="top-connections">
+        <div v-if="!relayOnline && !loading" class="top-connections-empty">
+          {{ T('RelayOffline') }}
+        </div>
+        <div v-else-if="usage.length" class="top-connections">
           <div class="top-connections-header">
             <span class="stat-label-sm">Top Connections</span>
             <span class="top-by-label">by total traffic</span>
@@ -77,13 +84,13 @@
                 <td class="top-ip">{{ row.ip }}</td>
                 <td>{{ fmtDuration(row.time) }}</td>
                 <td class="top-total">{{ fmtTotal(row.total) }}</td>
-                <td class="top-speed">{{ row.speed }} kb/s</td>
+                <td class="top-speed">{{ fmtSpeed(row.speed) }}</td>
               </tr>
             </tbody>
           </table>
-          <span v-if="extraCount > 0" class="top-more">+ and {{ extraCount }} more connections</span>
+          <span v-if="extraCount > 0" class="top-more">+ {{ extraCount }} more connections</span>
         </div>
-        <div v-else-if="relayOnline" class="top-connections-empty">
+        <div v-else class="top-connections-empty">
           {{ T('NoData') }}
         </div>
       </div>
@@ -114,6 +121,7 @@ export default defineComponent({
   name: 'ServerHealth',
   components: { ConnectionPulse },
   setup () {
+    const REFRESH_SECONDS = 15
     const idOnline = ref(false)
     const relayOnline = ref(false)
     const activeConnections = ref(0)
@@ -123,38 +131,41 @@ export default defineComponent({
     const usage = ref([])
     const extraCount = ref(0)
     const loading = ref(true)
-    const idPort = ref('21115')
-    const relayPort = ref('21117')
-    const countdown = ref(0)
+    const error = ref(false)
+    const idPort = ref(21115)
+    const relayPort = ref(21117)
+    const countdown = ref(REFRESH_SECONDS)
 
-    let interval = null
-    let countdownInterval = null
+    let tickInterval = null
 
     const load = async () => {
       try {
         const res = await fetchHealth()
-        const d = res.data
+        const d = res.data || {}
         idOnline.value = !!d.id_server?.online
         relayOnline.value = !!d.relay_server?.online
+        if (d.id_server?.port) idPort.value = d.id_server.port
+        if (d.relay_server?.port) relayPort.value = d.relay_server.port
         activeConnections.value = d.active_connections || 0
         totalBW.value = d.total_bandwidth || 0
         singleBW.value = d.single_bandwidth || 0
         limitSpeed.value = d.limit_speed || 0
         usage.value = d.usage || []
-        extraCount.value = Math.max(0, activeConnections.value - (d.usage || []).length)
+        extraCount.value = Math.max(0, activeConnections.value - usage.value.length)
+        error.value = false
       } catch (e) {
         console.error('Failed to load server health', e)
+        error.value = true
       } finally {
         loading.value = false
+        countdown.value = REFRESH_SECONDS
       }
     }
 
     const refreshNow = () => {
-      countdown.value = 15
+      countdown.value = REFRESH_SECONDS
       load()
     }
-
-    const bwPct = (val, max) => Math.min(100, Math.round((val / max) * 100))
 
     const fmtDuration = (seconds) => {
       if (!seconds) return '-'
@@ -170,28 +181,39 @@ export default defineComponent({
       return Math.round(mb) + ' MB'
     }
 
+    const fmtSpeed = (kbps) => {
+      if (!kbps) return '0 kb/s'
+      if (kbps >= 1024) return (kbps / 1024).toFixed(1) + ' Mb/s'
+      return kbps.toFixed(1) + ' kb/s'
+    }
+
+    const fmtMbps = (v) => {
+      if (!v) return 'unlimited'
+      return v.toFixed(v < 10 ? 1 : 0) + ' Mb/s'
+    }
+
     onMounted(() => {
       load()
-      countdown.value = 15
-      interval = setInterval(load, 15000)
-      countdownInterval = setInterval(() => {
-        if (countdown.value > 0) countdown.value--
-        else countdown.value = 15
+      tickInterval = setInterval(() => {
+        if (countdown.value > 1) {
+          countdown.value--
+        } else {
+          load()
+        }
       }, 1000)
     })
 
     onUnmounted(() => {
-      if (interval) clearInterval(interval)
-      if (countdownInterval) clearInterval(countdownInterval)
+      if (tickInterval) clearInterval(tickInterval)
     })
 
     return {
       idOnline, relayOnline, activeConnections,
       totalBW, singleBW, limitSpeed,
-      usage, extraCount, loading,
+      usage, extraCount, loading, error,
       idPort, relayPort,
       countdown, refreshNow,
-      bwPct, fmtDuration, fmtTotal, T,
+      fmtDuration, fmtTotal, fmtSpeed, fmtMbps, T,
     }
   },
 })
@@ -336,45 +358,35 @@ export default defineComponent({
   color: var(--color-primary);
 }
 
-.bw-list {
+.limits-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+  margin-top: 4px;
 }
 
-.bw-label {
+.limit-row {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
   font-size: 12px;
-  margin-bottom: 3px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--color-border);
 }
 
-.bw-label span:first-child {
-  font-weight: 500;
-  font-family: var(--font-mono);
-  font-size: 11px;
+.limit-row:last-child {
+  border-bottom: none;
 }
 
-.bw-label span:last-child {
+.limit-key {
   color: var(--color-muted);
 }
 
-.bw-track {
-  height: 5px;
-  border-radius: 999px;
-  background: var(--color-surface-2);
-  overflow: hidden;
+.limit-val {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--color-text);
 }
-
-.bw-fill {
-  height: 100%;
-  border-radius: 999px;
-  transition: width .6s ease;
-}
-
-.bw-total { background: var(--color-primary); }
-.bw-single { background: var(--color-warning); }
-.bw-limit { background: var(--color-success); }
 
 .top-connections {
   margin-top: 16px;
@@ -480,6 +492,15 @@ export default defineComponent({
   border-radius: 50%;
   background: var(--color-success);
   box-shadow: 0 0 0 2px var(--color-success-soft);
+}
+
+.pulse-dot-sm.error {
+  background: var(--color-danger);
+  box-shadow: 0 0 0 2px var(--color-danger-soft);
+}
+
+.pulse-label.error {
+  color: var(--color-danger);
 }
 
 .btn {

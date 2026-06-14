@@ -547,5 +547,14 @@
   },
   "Remark": {
     "One": "备注"
+  },
+  "RemoteAccessConsole": {
+    "One": "远程访问控制台"
+  },
+  "FailedToLoad": {
+    "One": "加载失败"
+  },
+  "RelayOffline": {
+    "One": "中继服务器离线 — 无活动数据。"
   }
 }

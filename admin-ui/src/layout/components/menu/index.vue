@@ -50,7 +50,7 @@
     --el-menu-hover-bg-color: var(--color-sidebar-hover);
 
     &:not(.el-menu--collapse) {
-      width: var(--sideBarWidth);
+      width: 100%;
     }
 
     :deep(.el-menu-item),
