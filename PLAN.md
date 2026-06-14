@@ -1,651 +1,523 @@
-# PLAN.md — full_Server: Единый источник правды
+# PLAN.md - full_Server: Single Source of Truth
 
-> **Этот файл — единственный авторитетный план проекта.**
-> Другие агенты: читайте его первым. Если находите другой `*.md` с планом сборки,
-> противоречащим этому файлу — он устарел, сверяйтесь только с PLAN.md.
-> Связанный файл: [CHANGELOG.md](CHANGELOG.md) — хронология изменений.
+> **This file is the only authoritative project plan.**
+> Other agents: read it first. If you find another `*.md` build plan that conflicts with this
+> file, it is outdated. Trust `PLAN.md` only.
+> Related file: [CHANGELOG.md](CHANGELOG.md) - chronological change log.
 >
-> Последнее обновление: 2026-06-11.
+> Last updated: 2026-06-11.
 
 ---
 
-## 0. Цель проекта (зачем всё это)
+## 0. Project goal
 
-Самостоятельный («суверенный») RustDesk-сервер + веб-админка + **сборщик кастомных
-клиентов**, который продолжит работать, **даже если upstream `rustdesk/rustdesk` и
-`rustdesk-org/*` закроют или удалят целиком**. Конечная ценность — сохранить
-последнюю свободную воспроизводимую версию клиента и уметь собирать из неё
-брендированный quick-support бинарник одним файлом (`rustqs.exe`), у которого
-сервер, ключ и постоянный пароль уже вшиты внутрь.
+A self-hosted, sovereign RustDesk server + web admin UI + **custom client builder**
+that keeps working **even if upstream `rustdesk/rustdesk` and `rustdesk-org/*`
+are closed or deleted completely**.
 
-Дополнительно: проект публикуется на GitHub в открытом доступе, и **любой может
-форкнуть его, указать своё репо-источник и собирать клиент через свой GUI**, не
-завися от оригинального rustdesk.
+The end goal is to preserve the last free reproducible client version and be able to build
+a branded one-file quick-support binary (`rustqs.exe`) with the server, key, and permanent
+password already baked in.
+
+Additionally, the project is published publicly on GitHub, and **anyone can fork it,
+point it at their own source repo, and build the client through their own GUI** without
+depending on the original RustDesk.
 
 ---
 
-## 1. Две независимости (НЕ путать) + три уровня суверенности
+## 1. Two kinds of independence + three sovereignty levels
 
-Главное различие, определяющее стратегию:
+The key distinction that drives the strategy:
 
-- **Независимость от rustdesk upstream** (код, зависимости, engine) — **РЕАЛЬНЫЙ риск**,
-  ради него весь проект. Закрывается СЕЙЧАС: форк + vendor + offline-кит.
-- **Независимость от GitHub-платформы** (как раннера сборки) — **низкий риск**
-  (GitHub в обозримом будущем не закроется). Реализуется, но НЕ приоритет.
+- **Independence from RustDesk upstream** (code, dependencies, engine) is the **real risk**.
+  This is the reason the whole project exists. Address it now: fork + vendor + offline kit.
+- **Independence from GitHub as the build platform** is a **low risk**.
+  It is implemented, but it is not the priority.
 
-**Решение владельца (2026-06-11): GitHub-first.** Собираем `rustqs.exe` через GitHub
-Actions в форке rustdesk (быстро, бесплатные Windows-раннеры). Standalone Windows-билдер
-полностью подготовлен, но **заморожен как fallback** — активируется, только если GitHub
-станет неприемлем. При этом GitHub-путь делается **суверенным от rustdesk** (см. §8.8):
-сборка идёт из форка, артефакты — из releases форка, не с rustdesk.com.
+**Owner decision (2026-06-11): GitHub-first.** Build `rustqs.exe` through GitHub Actions
+in the rustdesk fork (fast, free Windows runners). The standalone Windows builder is fully
+prepared but **frozen as a fallback** and should only be activated if GitHub becomes unacceptable.
+At the same time, the GitHub path is made **sovereign from rustdesk** (see §8.8): builds run
+from the fork and fetch artifacts from fork releases, not from `rustdesk.com`.
 
-| Уровень | Независимость от | Чем достигается | Статус |
+| Level | Independence from | How it is achieved | Status |
 |---|---|---|---|
-| **L1. Исходники** | удаления `rustdesk/rustdesk` и `rustdesk-org/*` | форк + `cargo vendor` | ✅ заморожено, L1 проверен offline |
-| **L2. Сборка** | GitHub Actions / Windows-раннеров | standalone docker/нативный агент | 🧊 подготовлено, заморожено как fallback |
-| **L3. Тулчейн** | исчезновения vcpkg/Flutter/Rust | offline-кит с пинами | ✅ заморожено (5.0G, 11 артефактов) |
+| **L1. Sources** | deletion of `rustdesk/rustdesk` and `rustdesk-org/*` | fork + `cargo vendor` | yes, frozen; L1 verified offline |
+| **L2. Build** | GitHub Actions / Windows runners | standalone Docker or native agent | prepared, frozen as fallback |
+| **L3. Toolchain** | disappearance of `vcpkg` / Flutter / Rust | pinned offline kit | yes, frozen (5.0G, 11 artifacts) |
 
-Зависимости: **vendor + форк одновременно** — `vendor/` рабочий механизм, форки
-репозиториев как архивная страховка.
+Dependencies strategy: **vendor + fork at the same time**. `vendor/` is the working mechanism,
+forks of repositories are the archival backup.
 
 ---
 
-## 2. Карта репозиториев: что форкать
+## 2. Repository map: what to fork
 
 ```
-ВАША ОРГАНИЗАЦИЯ на GitHub
-│
-├── full_Server                      ← основной проект (этот репозиторий)
-│     └── admin-ui, api, server, docker, rdgen...
-│
-├── rustdesk            (форк rustdesk/rustdesk, пин на тег 1.4.7)
-│     ├── vendor/       ← cargo vendor, закоммичен (L1, рабочий путь)
-│     └── releases/     ← Flutter engine zip как release-asset
-│
-├── hbb_common          (форк rustdesk/hbb_common — submodule, ОБЯЗАТЕЛЕН)
-│
-└── rustdesk-deps/      (архивная страховка L1-backup, ~20 репо)
-      └── magnum-opus, rdev, kcp-sys, rust-sciter, arboard, hwcodec,
+YOUR GITHUB ORGANIZATION
+|
+|-- full_Server                  <- main project (this repository)
+|     `-- admin-ui, api, server, docker, rdgen...
+|
+|-- rustdesk                     <- fork of rustdesk/rustdesk, pinned to tag 1.4.7
+|     |-- vendor/                <- cargo vendor, committed (L1 working path)
+|     `-- releases/              <- Flutter engine zip as release asset
+|
+|-- hbb_common                   <- fork of rustdesk/hbb_common, REQUIRED submodule
+|
+`-- rustdesk-deps/               <- archival L1 backup, ~20 repos
+      `-- magnum-opus, rdev, kcp-sys, rust-sciter, arboard, hwcodec,
           parity-tokio-ipc, confy, sysinfo, machine-uid, ...
 ```
 
-**Факты (проверено в исходниках 1.4.7):**
-- Submodule: `rustdesk/hbb_common` (без него не собирается ничего).
-- ~20 git-зависимостей `rustdesk-org/*` в `Cargo.toml` / `libs/*/Cargo.toml`.
-- Кастомный Flutter engine — отдельный release-asset (НЕ git), workflow подменяет им
-  стандартный engine.
-- `cargo vendor` втягивает submodule + все git-зависимости в `vendor/` → рабочая
-  сборка обращается только к форку rustdesk, не к rustdesk-org.
+**Facts verified against 1.4.7 sources:**
+- Submodule: `rustdesk/hbb_common` (nothing builds without it).
+- About 20 git dependencies under `rustdesk-org/*` in `Cargo.toml` and `libs/*/Cargo.toml`.
+- The custom Flutter engine is a separate release asset, not git; the workflow swaps it in.
+- `cargo vendor` pulls in the submodule and all git dependencies into `vendor/`, so the working
+  build only talks to the rustdesk fork, not `rustdesk-org`.
 
 ---
 
-## 3. Архитектура
+## 3. Architecture
 
-### Активный путь (GitHub-first) — основной
+### Active path (GitHub-first) - primary
 
 ```
-admin-ui (Custom Client форма)
-   │  POST /custom_build (server,key,пароль,бренд)
-   ▼
+admin-ui (Custom Client form)
+   |  POST /custom_build (server, key, password, brand)
+   v
 Go API (full_Server)
-   │  workflow_dispatch + ШИФРОВАННЫЕ inputs (пароль не в логах)
-   ▼
-GitHub Actions в форке rustdesk (windows-2022 раннер)
-   │  build из форка; engine/драйверы/vendor — из releases форка (не rustdesk.com)
-   ▼  собранный rustqs.exe → POST обратно на твой сервер (/api/save_custom_client)
-Go API сохраняет бинарь → admin-ui Download
+   |  workflow_dispatch + ENCRYPTED inputs (password never appears in logs)
+   v
+GitHub Actions in rustdesk fork (windows-2022 runner)
+   |  build from the fork; engine/drivers/vendor from fork releases
+   v  built rustqs.exe -> POST back to your server (/api/save_custom_client)
+Go API stores the binary -> admin-ui Download
 ```
 
-**Ключевое для безопасности (§8.8):** бинарь НЕ публикуется как public release —
-едет на твой сервер. Inputs (server/key/пароль) шифруются (rdgen-модель), расшифровка
-секретом внутри рана → на публичном форке ничего чувствительного не утекает.
+**Security-critical point (§8.8):** the binary is NOT published as a public release.
+It is sent to your server. Inputs (`server`/`key`/`password`) are encrypted in the rdgen style
+and decrypted with a secret inside the run, so nothing sensitive leaks from the public fork.
 
-### Fallback-путь (standalone) — заморожен, не активирован
-
-
+### Fallback path (standalone) - frozen, not active
 
 ```
-┌─────────────────────────────────────────┐     ┌──────────────────────────────┐
-│   PROD-ХОСТ (Linux)                      │     │  WINDOWS SERVER (отдельный)  │
-│                                          │     │                              │
-│  ┌────────────┐     ┌────────────────┐   │     │   ┌──────────────────────┐   │
-│  │  server    │     │  linux-build   │   │     │   │     win-build        │   │
-│  │ hbbs/hbbr  │     │ Linux/Android  │   │     │   │  Flutter Windows     │   │
-│  │ + Go API   │◄───►│ client,        │   │     │   │  → rustqs.exe        │   │
-│  │ + admin-ui │     │ server-forks,  │   │     │   │  servercore +        │   │
-│  └─────┬──────┘     │ vendor-валид.  │   │     │   │  VS BuildTools +     │   │
-│        │            └────────────────┘   │     │   │  Flutter+Rust+LLVM   │   │
-│        │ job-очередь (сетевой канал)      │     │   └──────────┬───────────┘   │
-│        └─────────────────────────────────┼─────┼──────────────┘               │
-└──────────────────────────────────────────┘     └──────────────────────────────┘
-   Docker: Linux-containers mode                  Docker: Windows-containers mode
+PROD HOST (Linux)                               WINDOWS SERVER (separate)
+
+  server (hbbs/hbbr + Go API + admin-ui) <-->   win-build
+  linux-build (Linux/Android client,             Flutter Windows -> rustqs.exe
+  server forks, vendor validation)               native toolchain
+
+  job queue over the network (SMB)
 ```
 
-Standalone win-build (на случай отказа от GitHub): ОТДЕЛЬНЫЙ Windows-сервер, НАТИВНО
-(без Docker). Flutter desktop в Windows-контейнере капризничает. Канал — SMB-папка (§8.4).
-**Сейчас НЕ разворачивается** — скрипты готовы (win-builder/), активируем при нужде.
+Standalone `win-build`, for the case where GitHub is abandoned, uses a **separate Windows server**,
+**native**, without Docker. Flutter desktop is unreliable inside Windows containers. The channel is
+an SMB folder (§8.4). **Do not deploy it right now**. Scripts are ready in `win-builder/` and can
+be activated later if needed.
 
-| Компонент | Хост | Роль | Статус |
+| Component | Host | Role | Status |
 |---|---|---|---|
-| `server` | Linux (прод) | hbbs/hbbr + Go API + admin-ui | ✅ работает |
-| `linux-build` | Linux (прод) | Linux/Android клиент, server-форки, валидация vendor | ✅ собирает Linux-бинарник |
-| GitHub Actions | форк rustdesk (раннер GitHub) | **Flutter Windows → rustqs.exe (АКТИВНЫЙ путь)** | 🟡 §8.8, в работе |
-| `win-build` standalone | отдельный Windows Server (нативно) | Flutter Windows → rustqs.exe (FALLBACK) | 🧊 готов, не активирован |
+| `server` | Linux prod | hbbs/hbbr + Go API + admin-ui | working |
+| `linux-build` | Linux prod | Linux/Android client, server forks, vendor validation | builds Linux binary |
+| GitHub Actions | rustdesk fork | **Flutter Windows -> rustqs.exe (ACTIVE path)** | in progress (§8.8) |
+| `win-build` standalone | separate native Windows Server | Flutter Windows -> rustqs.exe (FALLBACK) | ready, not activated |
 
 ---
 
-## 4. Поток данных (жизненный цикл job) — FALLBACK-путь (standalone)
+## 4. Data flow (job lifecycle) - FALLBACK path (standalone)
 
-> Описывает standalone-агент (заморожен). Активный GitHub-поток — в §3 и §8.8.
+> This section describes the frozen standalone agent. The active GitHub flow is in §3 and §8.8.
 
 ```
-1. admin-ui → форма Custom Client (platform=windows, server, key,
-              постоянный пароль, имя=rustqs, бренд)
-2. Go API (custom_build.go) пишет job.json:
+1. admin-ui -> Custom Client form (platform=windows, server, key,
+             permanent password, name=rustqs, brand)
+2. Go API (custom_build.go) writes job.json:
    { platform, src_repo, src_ref, server, key, custom_txt(b64), app_name, ... }
-3. job в очередь:
-   - linux job  → локальный том prod-хоста → linux-build забирает
-   - windows job → СЕТЕВОЙ канал → Windows-сервер → win-build забирает
-4. win-build агент:
-   a. git clone $src_repo @ $src_ref (или из локального bundle в offline)
-   b. sed config.rs: сервер + ключ          ← L1 вшивания
-   c. patch allowCustom + записать custom.txt ← L2 вшивания (quick support)
-   d. sed Cargo.toml/Runner.rc: бренд rustqs  ← L3 вшивания
-   e. cargo build --release (Rust lib) + flutter build windows
-   f. portable-packer → один rustqs.exe
-5. rustqs.exe → output/{job} → admin-ui показывает Download
+3. job enters the queue:
+   - linux job   -> local prod-host volume -> linux-build picks it up
+   - windows job -> network channel -> Windows server -> win-build picks it up
+4. win-build agent:
+   a. git clone $src_repo @ $src_ref (or from local bundle offline)
+   b. edit config.rs: server + key                 <- L1 injection
+   c. apply allowCustom patch + write custom.txt   <- L2 injection (quick support)
+   d. edit Cargo.toml/Runner.rc: rustqs branding   <- L3 injection
+   e. cargo build --release + flutter build windows
+   f. portable-packer -> one rustqs.exe
+5. rustqs.exe -> output/{job} -> admin-ui shows Download
 ```
 
-Единственное архитектурное изменение против текущей модели — шаг 3: канал между
-prod-API (Linux) и win-build (Windows). Варианты: общий сетевой том (SMB/NFS),
-мини-HTTP-эндпоинт на агенте, или очередь. Текущий механизм «файл в томе»
-переносится почти как есть.
+The only architectural change compared to the previous model is step 3: the channel between the
+Linux production API and the Windows builder. Options are a shared network volume (SMB/NFS),
+a tiny HTTP endpoint on the agent, or a queue. The current "file in a volume" model transfers
+almost as-is.
 
 ---
 
-## 5. Три слоя вшивания конфига (как получить `rustqs.exe`)
+## 5. Three config injection layers (how to get `rustqs.exe`)
 
-Подтверждено по коду 1.4.7 и workflow форка rdgen. **Имя файла как способ задать
-сервер — это аварийный fallback, НЕ основной путь.** Основной путь:
+Confirmed against 1.4.7 code and the rdgen fork workflow. **Using the filename to set the server
+is only an emergency fallback, not the main path.** The main path is:
 
-1. **Сервер + ключ → хардкод в бинарник.** `sed` по `libs/hbb_common/src/config.rs`:
-   - `RENDEZVOUS_SERVERS` (строка `rs-ny.rustdesk.com`) → ваш сервер
-   - `RS_PUB_KEY` (строка `OeVuKk5nlHiXp+...`) → ваш ключ
-2. **Quick-support поведение → подписанный `custom.txt`** (постоянный пароль,
-   `verification-method`, скрытие connection manager). В OSS подпись проверяется
-   ключом rustdesk — обходится патчем `allowCustom.py`, который **уже вендорен** в
+1. **Server + key -> hardcoded into the binary.** `sed` against `libs/hbb_common/src/config.rs`:
+   - `RENDEZVOUS_SERVERS` (`rs-ny.rustdesk.com`) -> your server
+   - `RS_PUB_KEY` (`OeVuKk5nlHiXp+...`) -> your key
+2. **Quick-support behavior -> signed `custom.txt`** (permanent password,
+   `verification-method`, hide connection manager). In OSS, the signature is checked against
+   the rustdesk key; this is bypassed by `allowCustom.py`, already vendored in
    `rdgen/.github/patches/`.
-3. **Брендинг → `rustqs`.** `sed` по `Cargo.toml`, `Runner.rc`, лангам +
-   portable-packer (`libs/portable/generate.py`) заворачивает в один
-   self-extracting `rustqs.exe`.
+3. **Branding -> `rustqs`.** `sed` against `Cargo.toml`, `Runner.rc`, language files, plus
+   portable-packer (`libs/portable/generate.py`) wraps everything into a single self-extracting
+   `rustqs.exe`.
 
-Готовый рецепт всех трёх слоёв уже есть в
-[rdgen/.github/workflows/generator-windows.yml](rdgen/.github/workflows/generator-windows.yml) —
-его нужно перенести на локальный Windows-билдер (он написан под windows-2022 раннер).
+The full recipe for all three layers already exists in
+[rdgen/.github/workflows/generator-windows.yml](rdgen/.github/workflows/generator-windows.yml).
+It must be brought over to the local Windows builder if the standalone path is activated.
 
 ---
 
-## 6. Offline-кит (фундамент L3) — ✅ ЗАМОРОЖЕН
+## 6. Offline kit (L3 foundation) - frozen
 
-Версии — факты из workflow тега 1.4.7. ✅ Заморожено 2026-06-11 (5.0G, 11 артефактов,
-манифест с sha256 в `rustdesk-cache:/rustdesk-cache/offline-kit/artifacts/`). bundle
-проверен clone-back, L1 проверен `cargo build --offline`. Дальше: залить в releases
-форка (§8.8.2) как источник для GitHub-сборки + хранить как fallback для standalone.
+Versions are facts from the 1.4.7 workflow tag. Frozen on 2026-06-11:
+5.0G, 11 artifacts, manifest with sha256 in
+`rustdesk-cache:/rustdesk-cache/offline-kit/artifacts/`.
+The bundle was verified by clone-back, and L1 was verified with `cargo build --offline`.
+Next use: upload it into fork releases (§8.8.2) as the source for GitHub builds, while also
+keeping it as the fallback source for standalone builds.
 
-| Артефакт | Версия/пин | Уровень |
+| Artifact | Version / pin | Level |
 |---|---|---|
-| git bundle форка rustdesk + hbb_common | тег 1.4.7 | L1 |
-| `vendor/` (cargo vendor) | по Cargo.lock | L1 |
+| git bundle of rustdesk fork + hbb_common | tag 1.4.7 | L1 |
+| `vendor/` (`cargo vendor`) | by `Cargo.lock` | L1 |
 | Rust toolchain | **1.75** | L3 |
-| LLVM/Clang | **15.0.6** | L3 |
+| LLVM / Clang | **15.0.6** | L3 |
 | Flutter SDK | **3.24.5** | L3 |
-| Flutter engine (кастомный rustdesk) | release-asset | L3 |
-| vcpkg baseline | `120deac3062162151622ca4860575a33844ba10b` | L3 |
-| vcpkg downloads + binary cache | под baseline, триплет `x64-windows-static` | L3 |
-| pub cache (Flutter packages) | по pubspec.lock | L3 |
+| Flutter engine (custom rustdesk) | release asset | L3 |
+| `vcpkg` baseline | `120deac3062162151622ca4860575a33844ba10b` | L3 |
+| `vcpkg` downloads + binary cache | pinned baseline, triplet `x64-windows-static` | L3 |
+| pub cache (Flutter packages) | by `pubspec.lock` | L3 |
 
 ---
 
-## 7. Параметризация источника (для downstream-форкеров)
+## 7. Source parameterization (for downstream forkers)
 
-Источник сборки вынесен в параметры, чтобы downstream-форкер указал своё репо:
+The source repository is parameterized so a downstream forker can point at their own repo:
 
-- **Дефолт агента:** `RUSTDESK_REPO`, `RUSTDESK_REF` в `offline-kit/versions.env` и
-  параметрах `win-builder/agent.ps1`.
-- **Runtime (поле в job.json + настройка в admin-ui):** `src_repo`, `src_ref` —
-  переопределение на конкретную сборку (agent.ps1 уже читает их из job).
+- **Agent defaults:** `RUSTDESK_REPO`, `RUSTDESK_REF` in `offline-kit/versions.env` and in
+  `win-builder/agent.ps1` parameters.
+- **Runtime override:** `src_repo`, `src_ref` in `job.json` and admin-ui settings.
+  `agent.ps1` already reads these fields from the job.
 
-Цепочка независимости: вы запекаете образ с `RUSTDESK_REPO=github.com/ВЫ/rustdesk` →
-форкер меняет ENV на свой → его GUI собирает из его форка. Оригинальный
-`rustdesk/rustdesk` не участвует.
+Independence chain: you bake an image with `RUSTDESK_REPO=github.com/YOU/rustdesk`, then the
+forker changes the env to their own repo, and their GUI builds from their fork.
+Original `rustdesk/rustdesk` is not involved.
 
 ---
 
-## 8. Дорожная карта (что делать дальше)
+## 8. Roadmap
 
-Порядок по приоритету. Каждый пункт детализируется отдельно перед реализацией.
-**Текущий активный приоритет: §8.8 (GitHub-трек).** §8.3/§8.4 (standalone) заморожены
-как fallback. §8.1/§8.2/§8.3a (offline-кит, форк-процедура, deps) — фундамент, сделан.
+Priority order only. Each item should be detailed separately before implementation.
+**Current active priority: §8.8 (GitHub track).**
+§8.3/§8.4 (standalone) are frozen as fallback.
+§8.1/§8.2/§8.3a (offline kit, fork procedure, deps) are the completed foundation.
 
-- [~] **8.1. Offline-freeze — СКРИПТ ГОТОВ, ТОМ УДАЛЁН.** ✅ Скрипт:
-  [offline-kit/](offline-kit/), идемпотентный. ⚠️ Том `rustdesk-cache` был удалён владельцем
-  2026-06-11 после успеха §8.8 (GitHub-сборка не зависит от локального кита). **Что сейчас
-  на хосте:** только staging-копия 5 файлов в `offline-kit/artifacts/` (~62MB), залитых в
-  GitHub release `offline-assets-1.4.7` форка (engine, usbmmidd, printer driver+adapter,
-  sha256sums). **Потеряно из тома** (для standalone fallback): bundle, vendor tarball
-  (2.7G), Flutter SDK win+linux, vcpkg checkout, Rust MSI, TopMost bundle. **Перезаморозить
-  можно в любой момент** — `bash freeze.sh` на Linux (после хендоффа).
-- [x] **8.2. Форк-процедура — ЗАДОКУМЕНТИРОВАНА.** ✅
-  [offline-kit/FORK-PROCEDURE.md](offline-kit/FORK-PROCEDURE.md): уровни A (форк+vendor),
-  B (бинари в releases), C (downstream-форкер), acceptance-чеклист. **Само форканье — за
-  владельцем** (его GitHub-аккаунт, outward-facing; команды `gh`/`git push` в доке готовы).
-- [x] **8.3. Windows-билдер standalone (FALLBACK) — СПРОЕКТИРОВАН, ЗАМОРОЖЕН.**
-  🧊 Не разворачивается сейчас (GitHub-first, §8.8). Активировать при отказе от GitHub.
-  ✅ Решение: нативно на Windows Server, без Docker. Написаны: [win-builder/setup.ps1](win-builder/setup.ps1)
-  (тулчейн: VS BuildTools VCTools + Flutter 3.24.5 + Rust 1.75 + LLVM 15.0.6 + vcpkg +
-  flutter_rust_bridge 1.80; поддержка `-KitPath` для offline), [win-builder/agent.ps1](win-builder/agent.ps1)
-  (поллинг SMB-очереди + 3 слоя инъекции + `build.py --portable --hwcodec --flutter --vram`),
-  [win-builder/README.md](win-builder/README.md) (развёртывание + SMB). **НЕ протестировано** —
-  нет Windows-хоста у автора; места `[VERIFY]`. Контейнерный вариант (Dockerfile.build-win-native)
-  отброшен и удалён. Старый MinGW `Dockerfile.build-win` оставлен до §8.7 (заброшен, §9).
-- [x] **8.3a. Доп. зависимости Windows-сборки — ЗАМОРОЖЕНЫ.** ✅ Добавлена стадия
-  `thirdparty` в freeze.sh: `RustDeskTempTopMostWindow` (исходники, пин 53b548a),
-  `usbmmidd_v2.zip` (виртуальный дисплей), принтер-драйверы (driver+adapter+sha256sums).
-  Все в offline-kit (см. MANIFEST). Сборку TopMostWindow (msbuild) встроить в entrypoint
-  win-native при тесте на Windows-хосте.
-- [x] **8.4. API ↔ standalone-агент канал (FALLBACK) — РЕШЁН: SMB.** 🧊 Относится к
-  fallback-пути (§8.3). ✅ Прод-API не меняется; SMB делает том `rdgen-data` видимым
-  Windows-агенту (Linux Samba, Windows монтирует Z:). Конфиги — в
-  [win-builder/SERVER-SETUP.md](win-builder/SERVER-SETUP.md). Реализуется при развёртывании.
+- [~] **8.1. Offline freeze - SCRIPT READY, VOLUME REMOVED.**
+  The script in [offline-kit/](offline-kit/) is idempotent. The `rustdesk-cache` volume was
+  deleted by the owner on 2026-06-11 after §8.8 succeeded, because the GitHub build no longer
+  depends on the local kit. What remains on host: a staging copy of 5 files in
+  `offline-kit/artifacts/` (~62 MB) uploaded to GitHub release `offline-assets-1.4.7`
+  in the fork (engine, usbmmidd, printer driver + adapter, sha256sums).
+  Lost from the volume for standalone fallback: bundle, vendor tarball (2.7G), Flutter SDK
+  for win+linux, `vcpkg` checkout, Rust MSI, TopMost bundle. Can be re-frozen at any time with
+  `bash freeze.sh` on Linux.
 
-- [~] **8.8. GitHub-трек (АКТИВНЫЙ ПРИОРИТЕТ) — сборка rustqs.exe через форк rustdesk.**
-  Модель rdgen: full_Server триггерит `workflow_dispatch` в форке rustdesk, тот собирает
-  на windows-2022 раннере и шлёт бинарь обратно на сервер. ✅ Гайд написан:
-  [github-build/README.md](github-build/README.md). **Важно:** rdgen-воркфлоу УЖЕ содержит
-  шифрование inputs + save_custom_client → §8.8.4 почти готов из коробки.
+- [x] **8.2. Fork procedure - DOCUMENTED.**
+  [offline-kit/FORK-PROCEDURE.md](offline-kit/FORK-PROCEDURE.md) covers levels A (fork + vendor),
+  B (binaries in releases), C (downstream forker), and the acceptance checklist.
+  The actual GitHub forking remains the owner's action.
 
-  > **СОСТОЯНИЕ НА 2026-06-11 (для хендоффа):**
-  > - `gh` установлен: `C:\Program Files\GitHub CLI\gh.exe`, аккаунт **bashrusakh**
-  >   (scopes repo/workflow). PowerShell ломает `--jq` со скобками → парси JSON в PS.
-  > - Форки готовы: `bashrusakh/rustdesk`, `bashrusakh/hbb_common` (публичные, тег 1.4.7).
-  > - Release `offline-assets-1.4.7` в форке rustdesk: engine/usbmmidd/драйверы/sha256sums.
-  > - **ЗАБЛОКИРОВАНО на 2 ответах владельца** (дал dismiss, ждём): (1) минитест vs полный
-  >   pipeline; (2) доступен ли сервер снаружи для save_custom_client.
-  > - **Следующие команды §8.8.3** (после ответов): создать build-ветку от тега 1.4.7 в
-  >   форке; в `.gitmodules` URL `rustdesk/hbb_common` → `bashrusakh/hbb_common`; перенести
-  >   `rdgen/.github/workflows/generator-windows.yml` + `rdgen/.github/patches/*` в форк;
-  >   репойнт URL (таблица в github-build/README.md) на release `offline-assets-1.4.7`;
-  >   секреты форка GENURL/ZIP_PASSWORD/token; trigger + дебаг.
-  > - Staging ассетов на хосте: `offline-kit/artifacts/` (gitignored). Кит в томе
-  >   `rustdesk-cache:/rustdesk-cache/offline-kit/artifacts/`.
+- [x] **8.3. Standalone Windows builder (FALLBACK) - DESIGNED, FROZEN.**
+  Not deployed now (GitHub-first, §8.8). Activate only if GitHub is abandoned.
+  Native Windows Server, no Docker. Implemented files:
+  [win-builder/setup.ps1](win-builder/setup.ps1),
+  [win-builder/agent.ps1](win-builder/agent.ps1),
+  [win-builder/README.md](win-builder/README.md).
+  Not tested due to lack of a Windows host. Risk points marked `[VERIFY]`.
+  The container path (`Dockerfile.build-win-native`) was abandoned and removed.
+  The old MinGW `Dockerfile.build-win` remains until §8.7 but is abandoned (§9).
 
-  Подзадачи:
-  - [x] **8.8.1. Форк rustdesk + hbb_common — ГОТОВО.** ✅ `bashrusakh/rustdesk` +
-    `bashrusakh/hbb_common` (оба публичные форки upstream, теги 1.4.7/1.4.6 на месте).
-    Имя hbb_common освобождено владельцем, форк переименован из `-1`.
-  - [~] **8.8.2. Суверенизация воркфлоу — assets ЗАЛИТЫ.** ✅ Release
-    [`offline-assets-1.4.7`](https://github.com/bashrusakh/rustdesk/releases/tag/offline-assets-1.4.7)
-    в форке: engine (63M), usbmmidd, printer driver+adapter, сгенерированный sha256sums.
-    Базовый URL: `…/releases/download/offline-assets-1.4.7/`. **Осталось:** submodule
-    hbb_common → на форк (после переименования), репойнт URL в воркфлоу (§8.8.3), vendor.
-    (Flutter SDK/Rust/vcpkg в releases НЕ заливаем — раннер GitHub ставит сам.)
-  - [x] **8.8.3a. МИНИТЕСТ — 🟢 ЗЕЛЁНЫЙ.** Ветка `rustqs/min-test` от тега 1.4.7,
-    воркфлоу [github-build/windows-min-test.yml](github-build/windows-min-test.yml) (точная
-    копия официального `build-for-windows-flutter` + `workflow_dispatch`, engine из release
-    форка). Залит на master+min-test (workflow_dispatch требует master). Ран
-    [27341830418](https://github.com/bashrusakh/rustdesk/actions/runs/27341830418) ✅ за ~45
-    мин (bridge ~6 мин, TopMost ~2 мин, build ~37 мин). Артефакт
-    `rustdesk-min-test-windows` (32 МБ) — каталог Flutter Windows build (rustdesk.exe +
-    dll + WindowInjection.dll). **Подтверждено практикой:** тулчейн зелёный из коробки,
-    release `offline-assets-1.4.7` форка работает как источник engine.
-    Триггер: `gh api repos/bashrusakh/rustdesk/actions/workflows/rustqs-windows-min-test.yml/dispatches -X POST -f ref=rustqs/min-test`.
-  - [~] **8.8.3b. Наращивание pipeline (по одному шагу).** Хендофф на Linux отменён,
-    продолжаем здесь.
-    - [x] **(1) usbmmidd/printer URL → release форка.** ✅ Ран
-      [27352640159](https://github.com/bashrusakh/rustdesk/actions/runs/27352640159) зелёный
-      за ~42 мин. **Полная суверенизация бинарных ассетов завершена** — сборка не
-      обращается ни к rustdesk.com, ни к rustdesk-org.
-    - [x] **(2) L1 инъекция config.rs — ЗАКРЫТ.** ✅ noop
-      [27355465888](https://github.com/bashrusakh/rustdesk/actions/runs/27355465888) ✅ real
-      [27357780774](https://github.com/bashrusakh/rustdesk/actions/runs/27357780774) (server=
-      `rqs-test.example.net`, key=`TestKEY...`). Sed по config.rs работает, компиляция с
-      инъекцией проходит. Опциональный шаг через `workflow_dispatch` inputs.
-    - [x] **(3) L3 брендинг — ЗАКРЫТ.** ✅ Ран
-      [27359858171](https://github.com/bashrusakh/rustdesk/actions/runs/27359858171)
-      L1+L3 combined зелёный за ~34 мин. Sed работает по всем 4 файлам.
-    - [x] **(4) L2 quick-support — ЗАКРЫТ.** ✅ Ран
-      [27362132331](https://github.com/bashrusakh/rustdesk/actions/runs/27362132331)
-      L1+L2+L3 combined зелёный за ~32 мин. Все 4 step'а сработали: L1 inject, L2 patch
-      allowCustom, L3 brand, L2 payload write custom_.txt. Артефакт скачан, проверен:
-      - exe-метаданные: `ProductName/FileDescription/OriginalFilename = rustqs` ✅
-      - `custom_.txt` лежит рядом с exe (32 байта = base64 от `{"password":"test123"}`) ✅
-      - все нативные deps из release форка (printer_driver_adapter.dll, WindowInjection.dll,
-        dylib_virtual_display.dll, drivers/, usbmmidd_v2/) ✅
-      Залиты в форк остальные опциональные rdgen-патчи (про запас для будущих фич):
-      hidecm, removeSetupServerTip, removeNewVersionNotif, cycle_monitor, xoffline,
-      privacyScreen, allowCustom.diff — все под `.github/patches/rdgen-*`.
-    - [x] **(5) Шифрование inputs — 🟢 ЗАКРЫТО.**
-      - ✅ Сгенерирован 43-char ключ `WORKFLOW_PAYLOAD_KEY`, установлен в GitHub Secrets
-        форка (через `gh secret set --body $secret` — БЕЗ pipe, чтобы не было trailing
-        newline; первая попытка с `--body -` через pipe дала bad decrypt на раннере).
-      - ✅ Воркфлоу зарефакторен: input `enc_payload`, шаг `Resolve build config`
-        (decrypt openssl AES-256-CBC + PBKDF2 + jq, либо pass-through открытых inputs).
-        L1/L2/L3 переписаны на env-переменные `RQS_*`, чувствительные значения скрыты
-        через `::add-mask::`.
-      - ✅ Прогоны (последний failed → bad decrypt от лишнего `\n` в secret; исправлено):
-        - open-inputs backward-compat ✅ [27397828659](https://github.com/bashrusakh/rustdesk/actions/runs/27397828659)
-        - enc_payload ✅ [27398061764](https://github.com/bashrusakh/rustdesk/actions/runs/27398061764)
-      - ✅ Артефакт enc-прогона: `rustqs.exe`, `custom_.txt` декодирован = тот самый
-        encrypted_test_pass, что был зашифрован на хосте. **Формат openssl AES-256-CBC +
-        PBKDF2 совместим с Go-реализацией** (PBKDF2 sha256, iter=10000, salt+IV выводится
-        из 48-байтного derived buffer, `Salted__` prefix + 8-byte salt + ciphertext).
-    - [x] (6) save_custom_client на сервер — ✅ РАБОТАЕТ. Артефакт передаётся через
-      GH token, после билда попадает в UI.
+- [x] **8.3a. Extra Windows build dependencies - FROZEN.**
+  Added `thirdparty` stage to `freeze.sh`: `RustDeskTempTopMostWindow` (sources, pin `53b548a`),
+  `usbmmidd_v2.zip`, printer drivers (driver + adapter + sha256sums).
+  All are in the offline kit manifest. Building TopMostWindow via msbuild must be wired into
+  the Windows path when tested on a real host.
 
-  - [x] **8.8.5. Go API интеграция — ✅ ПОЛНОСТЬЮ РАБОТАЕТ.**
-    Go-компиляция проверена, билды прогонялись на GH. Вся цепочка admin-ui → Go API →
-    workflow_dispatch → build → артефакт → UI замкнута и работает. Детали реализации:
-    - ✅ `api/model/github_build_config.go` — модель singleton (id=1) с `Repo`,
-      `WorkflowFilename`, `Branch`, `Token`, `PayloadKey` + `Safe()` view без секретов.
-    - ✅ `api/service/github_build_config.go` — `Get/Save`, `GeneratePayloadKey()`,
-      **`EncryptPayload()` совместимый с openssl-3 AES-256-CBC + PBKDF2 sha256 iter=10000**
-      (доказано рабочим прогоном [27398061764]), `TestConnection()`, `DispatchBuild()`
-      (workflow_dispatch + поллинг id рана), `RunStatus()`, `DownloadArtifact()`.
-      `SetWorkflowSecret()` пока not implemented (требует libsodium sealed box).
-    - ✅ `api/http/controller/admin/github_build_config.go` — `Get`, `Save`, `GenerateKey`,
-      `Test`, `DispatchTest`.
-    - ✅ Регистрация в `service/service.go`, `cmd/apimain.go` AutoMigrate, DatabaseVersion
-      267 → **268**, `http/router/admin.go` GithubBuildConfigBind.
-    - ✅ admin-ui: `api/github_build_config.js`, `views/server/github-build.vue`
-      (форма + Save / Test / Generate Key / Trigger test build), маршрут `/admin/server/github-build`,
-      i18n key `GithubBuildSettings`.
+- [x] **8.4. API <-> standalone agent channel (FALLBACK) - SOLVED: SMB.**
+  Applies only to the fallback path (§8.3). Production API stays unchanged; SMB exposes
+  the `rdgen-data` volume to the Windows agent. Config is documented in
+  [win-builder/SERVER-SETUP.md](win-builder/SERVER-SETUP.md).
 
-    Осталось (следующая итерация):
-    - [x] **Склейка для windows-job — ✅ реализовано.** В `controller/admin/custom_build.go`
-      `submitBuild` теперь: для `platform=windows` + настроенного GithubBuildConfig вызывает
-      `tryGithubDispatch` (извлекает server/key/custom_txt из CustomJson, dispatch с
-      enc_payload), запускает фоновый `pollAndDownload` (поллит RunStatus каждые 30 сек до
-      90 мин, при success скачивает артефакт `rustdesk-min-test-windows.zip`, распаковывает,
-      кладёт `{appname}.exe` + DLL + `custom_.txt` в `/rdgen-data/output/{id}/`, обновляет
-      `CustomBuild.Status` (building→done/failed) + BuildLog). Если GithubBuildConfig не
-      настроен — fallback в файл-очередь (linux/android всё ещё через standalone-агента).
-    - [x] **SetWorkflowSecret** — ✅ реализовано через `golang.org/x/crypto/nacl/box`.
-      `SetWorkflowSecret(c)` берёт публичный X25519 ключ репо
-      (`GET /repos/.../actions/secrets/public-key`), шифрует PayloadKey через `box.SealAnonymous`,
-      PUT `WORKFLOW_PAYLOAD_KEY`. Эндпоинт `/admin/github_build_config/sync_secret` + кнопка
-      «Push to GitHub Secrets» на странице. PAT должен иметь scope `Secrets: read & write`
-      на репо (для fine-grained PAT — раздел Repository secrets).
-    - [x] **Компиляция Go** — ✅ проверена, билды прогонялись на GitHub.
+- [~] **8.8. GitHub track (ACTIVE PRIORITY) - build `rustqs.exe` through a rustdesk fork.**
+  rdgen-style model: `full_Server` triggers `workflow_dispatch` in the rustdesk fork,
+  the fork builds on `windows-2022` and sends the binary back to the server.
+  Guide: [github-build/README.md](github-build/README.md).
+  Important: the rdgen workflow already contains encrypted inputs and `save_custom_client`,
+  so §8.8.4 was almost ready out of the box.
 
-    - [x] **(4-polish) Переименование exe-файла — ЗАКРЫТ.** Первая попытка
-      [27392847080](https://github.com/bashrusakh/rustdesk/actions/runs/27392847080) →
-      зелёный, но exe всё ещё `rustdesk.exe` (sed промахнулся путём — BINARY_NAME лежит
-      в **родительском** `flutter/windows/CMakeLists.txt`, не в `runner/CMakeLists.txt`).
-      Исправлено + добавлен sed на `project(rustdesk LANGUAGES CXX)`. Ран
-      [27395862737](https://github.com/bashrusakh/rustdesk/actions/runs/27395862737)
-      ✅ за ~28 мин. Артефакт проверен: файл = `rustqs.exe` (357,888 байт), метаданные =
-      rustqs, custom_.txt рядом ✅.
-    - [ ] (5) шифрование inputs (`fetch-encrypted-secrets.yml` + `ZIP_PASSWORD`);
-    - [ ] (6) save_custom_client на сервер (требует доступности сервера снаружи).
-  - [x] **8.8.4. Безопасность — ✅ ЗАКРЫТО.** Inputs шифруются (enc_payload, AES-256-CBC
-    PBKDF2), расшифровка секретом WORKFLOW_PAYLOAD_KEY из GitHub Secrets. Ресинк ключа
-    работает. Бинарь → на сервер по GH token, не public release.
-  - [x] **8.8.5 (дубль — см. выше). Интеграция в Go API — ✅ РАБОТАЕТ.** Цепочка замкнута.
-  - [ ] **8.8.6. Переход на prod workflow.** После завершения тестов — переключить с
-    `rustqs-windows-min-test.yml` (smoke-test) на полный `generator-windows.yml`
-    (msi, подпись, все артефакты). См. github-build/README.md — «слой 4».
+  **State as of 2026-06-11 (handoff note):**
+  - `gh` installed at `C:\Program Files\GitHub CLI\gh.exe`, account `bashrusakh`
+    (`repo`/`workflow` scopes).
+  - Forks ready: `bashrusakh/rustdesk`, `bashrusakh/hbb_common` (public, tags 1.4.7 / 1.4.6).
+  - Release `offline-assets-1.4.7` exists in the rustdesk fork with engine/usbmmidd/drivers/sha256.
+  - Blocked on two owner answers in the original session: mini-test vs full pipeline, and whether
+    the server is reachable from outside for `save_custom_client`.
+  - Next commands in §8.8.3 were: create build branch from tag 1.4.7, repoint `.gitmodules`
+    to `bashrusakh/hbb_common`, copy `rdgen/.github/workflows/generator-windows.yml` and
+    `rdgen/.github/patches/*` into the fork, repoint URLs to release `offline-assets-1.4.7`,
+    set fork secrets `GENURL` / `ZIP_PASSWORD` / token, trigger and debug.
 
-- [ ] **8.5. Рантайм-проверка бинарника.** Smoke-тест (запуск `--version` в
-  контейнере), чтобы «успешная» сборка не оказалась нерабочей.
-- [~] **8.6. `.gitignore` + проверка секретов — ЧАСТИЧНО.**
-  ✅ [.gitignore](.gitignore) написан (закрывает `data/`, приватный ключ `id_ed25519`,
-  базы, `.env`, node_modules, build-вывод, offline-kit/artifacts, `.claude/`).
-  ✅ Скан секретов: захардкоженных секретов в исходниках НЕТ; `${{ secrets.X }}` в rdgen —
-  ссылки на GitHub Secrets; чувствительное (приватный ключ сервера, БД) — рантайм-файлы,
-  закрыты .gitignore. Репо не под git → ключ не коммитился, история чистая.
-  **Осталось (за владельцем):** `git init` + первый коммит + создание публичного репо.
-- [ ] **8.7. Финальная чистка балласта** (отдельной фазой, в конце). Тестовые
-  контейнеры `build-win-test*`, `rdgen-data/output/test-win-*`, дубли compose-файлов,
-  экспериментальные скрипты. Чистить в конце, т.к. система сборки ещё перестраивается.
+  **Subtasks:**
+  - [x] **8.8.1. Fork rustdesk + hbb_common - DONE.**
+  - [~] **8.8.2. Workflow sovereignty - assets uploaded.**
+    `offline-assets-1.4.7` exists in the fork with engine (63M), usbmmidd, printer driver + adapter,
+    and generated sha256sums. Remaining work at that stage was submodule repoint + workflow URL repoint + vendor.
+  - [x] **8.8.3a. Mini-test - GREEN.**
+    Branch `rustqs/min-test` from tag 1.4.7 with workflow
+    [github-build/windows-min-test.yml](github-build/windows-min-test.yml), a close copy of the official
+    Windows Flutter build plus `workflow_dispatch`, using the engine from the fork release.
+    Run `27341830418` succeeded in about 45 minutes and proved the runner toolchain is usable.
+  - [~] **8.8.3b. Build pipeline expansion (one step at a time).**
+    Completed checkpoints:
+    - `usbmmidd` / printer URLs moved to the fork release. Build no longer touches `rustdesk.com`
+      or `rustdesk-org` for binary assets.
+    - L1 `config.rs` injection validated with real server/key.
+    - L3 branding validated.
+    - L2 quick-support validated, including `allowCustom` patch and writing `custom_.txt`.
+    - Encrypted inputs implemented and verified; open-input fallback preserved.
+    - `save_custom_client` to the server works.
+  - [x] **8.8.5. Go API integration - FULLY WORKING.**
+    Completed pieces:
+    - `api/model/github_build_config.go` singleton model.
+    - `api/service/github_build_config.go` with Get/Save, payload encryption,
+      test connection, dispatch, run status, artifact download.
+    - `api/http/controller/admin/github_build_config.go` with Get/Save/GenerateKey/Test/DispatchTest.
+    - Service registration, AutoMigrate, `DatabaseVersion` 267 -> 268, admin router bind.
+    - admin-ui page and API client for GitHub Build settings.
+    - Windows job glue: `submitBuild` dispatches to GitHub for `platform=windows`, then a
+      background poller downloads and unpacks the artifact into `/rdgen-data/output/{id}/`,
+      updates build status, and falls back to file queue when GitHub config is absent.
+    - `SetWorkflowSecret` implemented with `golang.org/x/crypto/nacl/box` and exposed as
+      `/admin/github_build_config/sync_secret` plus a UI button.
+  - [x] **8.8.4. Security - DONE.**
+    Inputs are encrypted (`enc_payload`, AES-256-CBC + PBKDF2) and decrypted with
+    `WORKFLOW_PAYLOAD_KEY` from GitHub Secrets. Key resync works. Binary goes to the server,
+    not to a public release.
+  - [ ] **8.8.6. Switch to production workflow.**
+    After tests are complete, move from `rustqs-windows-min-test.yml` (smoke-test)
+    to the full `generator-windows.yml` (msi, signing, all artifacts).
 
-- [ ] **8.11. Полный ребрендинг (выпилить «RustDesk» из исходников) — НА БУДУЩЕЕ.**
-  Текущий L3 покрывает только метаданные exe + portable launcher. Этого мало для
-  настоящего бренда: остаётся «RustDesk» в About-странице, URLs, лангах, иконке,
-  Windows-manifest, copyright. Подход: расширить sed-логику в `rustqs-windows-min-test.yml`
-  (а не commit'ить ребрендинг в форк rustdesk — иначе теряется возможность мержить
-  upstream-фиксы). **Юридически (AGPL-3.0):** сохранить файл LICENSE, копирайт-нотисы
-  оригинала в файлах (можно добавлять свой строкой ниже, но не затирать), указать
-  «Modified from RustDesk» в About и README, публичный форк `bashrusakh/rustdesk`
-  закрывает требование раскрытия модификаций.
+- [ ] **8.5. Runtime binary verification.**
+  Add a smoke test (`--version` in a container or equivalent) so a "successful" build cannot be broken.
 
-  Что осталось досэдить (точные пути и строки см. `rdgen/.github/workflows/generator-windows.yml`
-  161-241 — там это всё уже сделано, нужно перенести):
+- [~] **8.6. `.gitignore` + secret scan - PARTIAL.**
+  `.gitignore` exists and excludes `data/`, private key `id_ed25519`, databases, `.env`,
+  `node_modules`, build output, `offline-kit/artifacts`, `.claude/`.
+  Secret scan found no hardcoded secrets in source. Remaining owner action: `git init`, first commit,
+  and creation of the public repository.
 
-  | Категория | Файл | Что |
+- [ ] **8.7. Final ballast cleanup.**
+  Remove test containers `build-win-test*`, `rdgen-data/output/test-win-*`, duplicate compose files,
+  and experimental scripts. Do it last, because the build system was still being reshaped.
+
+- [ ] **8.11. Full client rebranding (remove "RustDesk" from sources) - FUTURE.**
+  Current L3 only covers exe metadata and portable launcher. Real branding still leaves "RustDesk"
+  in the About page, URLs, language files, icon, Windows manifest, and copyright.
+  The right approach is to expand build-time `sed` logic in `rustqs-windows-min-test.yml`, not to
+  commit rebranding directly into the rustdesk fork, otherwise merging upstream fixes becomes painful.
+  **AGPL-3.0 requirement:** keep `LICENSE`, keep original copyright notices in files, add your own
+  below if needed, and include "Modified from RustDesk" in About and README.
+
+  Remaining rebranding targets from `rdgen/.github/workflows/generator-windows.yml` lines 161-241:
+
+  | Category | File | What |
   |---|---|---|
-  | About-страница | `flutter/lib/desktop/pages/desktop_setting_page.dart` | `'Purslane Ltd'`, `'RustDesk'`, copyright строки |
-  | URLs (Privacy/Download/Homepage) | `flutter/lib/common.dart`, `flutter/lib/desktop/pages/install_page.dart`, `flutter/lib/desktop/pages/desktop_home_page.dart`, `flutter/lib/mobile/pages/*.dart` | `https://rustdesk.com/*` → новые URLs (новые workflow inputs `url_link`, `download_link`) |
-  | Lang-файлы | `src/lang/*.rs` | фразы «RustDesk» в строках типа «powered by RustDesk» (опционально — find/sed по `powered_by_me`) |
-  | Иконка | `res/icon.ico` + Flutter assets | требует **upload PNG/ICO** — новый workflow input `app_icon_b64` |
-  | Windows manifest | `flutter/windows/runner/runner.exe.manifest` | sed по `assemblyIdentity name=...` |
-  | Copyright в Runner.rc | `flutter/windows/runner/Runner.rc` | строка `"Copyright © 2025 Purslane Ltd..."` |
-  | MSI инсталлятор | `res/msi/Package/License.rtf`, `res/msi/preprocess.py` | только если будем делать MSI; для exe не нужно |
-  | About: «Modified from RustDesk» | About-страница (Dart) | **обязательно по AGPL** — добавить строку через sed |
+  | About page | `flutter/lib/desktop/pages/desktop_setting_page.dart` | `Purslane Ltd`, `RustDesk`, copyright lines |
+  | URLs | `flutter/lib/common.dart`, install/home/mobile pages | `https://rustdesk.com/*` -> new URLs (`url_link`, `download_link`) |
+  | Language files | `src/lang/*.rs` | remaining `RustDesk` strings, e.g. `powered_by_me` |
+  | Icon | `res/icon.ico` + Flutter assets | requires upload of PNG/ICO via `app_icon_b64` |
+  | Windows manifest | `flutter/windows/runner/runner.exe.manifest` | `assemblyIdentity name=...` |
+  | Copyright in `Runner.rc` | `flutter/windows/runner/Runner.rc` | copyright string |
+  | MSI installer | `res/msi/Package/License.rtf`, `res/msi/preprocess.py` | only if MSI is enabled |
+  | About: `Modified from RustDesk` | About page | required by AGPL |
 
-  Новые workflow inputs: `display_name` (брендовое имя для About/Runner), `url_link`,
-  `download_link`, `app_icon_b64` (base64 PNG). Делать когда `app_name` + парочка
-  тест-билдов докажут полную работоспособность pipeline.
+  New workflow inputs needed later: `display_name`, `url_link`, `download_link`, `app_icon_b64`.
 
-- [ ] **8.12. Ребрендинг СЕРВЕРНОЙ части под DeskForge — НА БУДУЩЕЕ.**
-  Делается ОДНОРАЗОВЫМ коммитом в `bashrusakh/DeskForge` (в отличие от §8.11 клиента —
-  у клиента sed-на-билд, потому что upstream продолжает обновляться; у нашего сервера
-  upstream — слепок rustdesk-server, обновляем редко). Состав:
+- [ ] **8.12. Rebrand the SERVER side to DeskForge - FUTURE.**
+  This should be a one-time commit in `bashrusakh/DeskForge`, unlike §8.11 where the client is
+  rebranded at build time because upstream still moves. The server upstream is a snapshot and will
+  be updated rarely.
 
-  **Что можно ребрендить (свободно):**
-  | Слой | Файлы | Что |
+  **Safe to rebrand:**
+  | Layer | Files | What |
   |---|---|---|
-  | Rust server | `server/src/main.rs`, `server/Cargo.toml` | log-сообщения, CLI-help, баннеры, `description`, `authors` |
-  | Имена бинарей | `server/Cargo.toml` | опц. `hbbs` → `deskforge-id`, `hbbr` → `deskforge-relay` (потом обновить docker entry-points + s6-overlay) |
-  | Go API | `api/...go` (log-strings, module path в комментариях), `api/conf/config.yaml` | свободно |
-  | Env vars | `.env.example`, `docker-compose.yml`, `config.yaml` | `RUSTDESK_API_*` → `DESKFORGE_API_*` (breaking для существующих установок — обновить миграцию docs) |
-  | Vue admin-ui | заголовки, About, лого, копирайты, i18n keys типа `"AdminPanel"` | свободно |
-  | Docker | compose service name `rustdesk` → `deskforge`, image label | свободно |
-  | README/документация | переписать целиком | свободно |
+  | Rust server | `server/src/main.rs`, `server/Cargo.toml` | log strings, CLI help, banners, description, authors |
+  | Binary names | `server/Cargo.toml` | optional `hbbs` -> `deskforge-id`, `hbbr` -> `deskforge-relay` |
+  | Go API | `api/...go`, `api/conf/config.yaml` | log strings, comments, config names |
+  | Env vars | `.env.example`, `docker-compose.yml`, `config.yaml` | `RUSTDESK_API_*` -> `DESKFORGE_API_*` |
+  | Vue admin-ui | titles, About, logo, copyright, i18n |
+  | Docker | service name `rustdesk` -> `deskforge`, image labels |
+  | README/docs | rewrite fully |
 
-  **Что НЕЛЬЗЯ трогать (wire-protocol совместимость с клиентом!):**
-  - `*.proto` файлы и сгенерированные protobuf-структуры
-  - Имена в RendezvousMessage, HelloFromHbbs, RelayResponse и т.п.
-  - Magic-bytes в handshake
-  - Импорты из `hbb_common` (это shared с клиентом — менять = клиент отвалится)
-  - Port numbers 21114-21118 (или менять везде: и сервер, и клиент, и docs)
+  **Do NOT touch** (wire protocol compatibility with the client):
+  - `*.proto` files and generated protobuf structures
+  - names in `RendezvousMessage`, `HelloFromHbbs`, `RelayResponse`, etc.
+  - handshake magic bytes
+  - imports from `hbb_common`
+  - ports 21114-21118 unless changed everywhere consistently
 
-  **Юридически обязательно (AGPL + MIT):**
-  - LICENSE = AGPL-3.0 в корне (`server/` AGPL делает combined work AGPL).
-  - `NOTICE` или раздел в `README.md`:
+  **Legally required (AGPL + MIT):**
+  - Root `LICENSE` must remain AGPL-3.0.
+  - Keep a `NOTICE` section like:
     ```
     Includes code from:
-    - rustdesk-server (AGPL-3.0) © Purslane Ltd.
-    - lejianwen/rustdesk-api (MIT) © Lejianwen
-    - lejianwen/rustdesk-api-web (MIT) © Lejianwen / vue-manage-system
+    - rustdesk-server (AGPL-3.0) Copyright Purslane Ltd.
+    - lejianwen/rustdesk-api (MIT) Copyright Lejianwen
+    - lejianwen/rustdesk-api-web (MIT) Copyright Lejianwen / vue-manage-system
     ```
-  - Сохранить per-file копирайт-комментарии в `server/src/*`.
+  - Keep per-file copyright headers in `server/src/*`.
 
-  **Лицензии компонентов (на 2026-06-13):**
-  | Компонент | Лицензия |
+  **Component licenses as of 2026-06-13:**
+  | Component | License |
   |---|---|
-  | `server/` (rustdesk/rustdesk-server) | AGPL-3.0 |
-  | `api/` (lejianwen/rustdesk-api) | MIT |
-  | `admin-ui/` (lejianwen/rustdesk-api-web) | MIT (база vue-manage-system MIT) |
-  | `rdgen/` (bryangerlach/rdgen) | GPL-3.0 — но у нас не запущен как сервис, берём только воркфлоу-патчи |
+  | `server/` (`rustdesk/rustdesk-server`) | AGPL-3.0 |
+  | `api/` (`lejianwen/rustdesk-api`) | MIT |
+  | `admin-ui/` (`lejianwen/rustdesk-api-web`) | MIT |
+  | `rdgen/` (`bryangerlach/rdgen`) | GPL-3.0; only workflow patches are used |
 
-- [~] **8.13. admin-ui UI rework — FOUNDATION В PR #3.** Цель — превратить admin-ui из
-  типовой CRUD-админки в операционную консоль удалённого доступа (см. `ui-rework.md`).
-  ✅ Сделано в PR #3 / ветка `ui-refract`:
-  - design tokens для light/dark surface/text/border/status colors, radius, shadows,
-    typography (`admin-ui/src/styles/style.scss`);
-  - theme system `auto` / `light` / `dark` через `html[data-theme]`, `localStorage`
-    (`theme-mode`) и Element Plus dark class sync;
-  - `ConnectionPulse`, `ThemeSwitch`, `CopyableText`, `PageHeader`, `PageSection`,
-    `DangerZone`, `EmptyState`, `LoadingState` как первые shared UI primitives;
-  - shell refresh: sidebar/header/menu/settings на tokens, без всегда включённой tags bar;
-  - mobile navigation через `el-drawer`, desktop collapse сохранён;
-  - dashboard Quick Connect: `rustdesk://id`, web client `/webclient2/#/{id}`, переход к devices;
-  - Devices page: постоянная колонка Status, ConnectionPulse online/offline по `last_online_time`,
-    copyable ID, компактные действия Connect + More;
-  - Monitoring visual pass: login history, connection history, file transfers и shared sessions
-    используют общий page header/section layout;
-  - Server visual pass: Server Commands, Server Config и GitHub Build settings используют
-    общий page header/section layout; advanced custom commands отделены через `DangerZone`
-    и требуют confirm перед `sendCmd`; terminal output получил readonly console styling,
-    target hint, Copy/Clear controls и empty-output placeholder;
-  - Access visual pass: Address Book entries, collections, share rules и tags используют
-    общий page header/section layout; address book IDs переведены на `CopyableText`,
-    широкие actions сжаты через `More` dropdown;
-  - Users/Security visual pass: Users, API Tokens, OAuth providers, Groups и Device Groups
-    используют общий page header/section layout; широкие user actions сжаты через `More` dropdown;
-  - Client Builder/Profile visual pass: Custom Client Builder и My Profile используют общий
-    page header/section layout; build history pagination выровнен;
-  - My Workspace visual pass: My Devices, My Address Book, My Address Book Collections,
-    My Tags, My Shared Sessions и My Login History используют общий page header/section layout;
-  - 404 refresh: standalone empty-state экран с возвратом на dashboard;
-  - Custom Client runtime fix: preset/upload handlers возвращаются из `setup()` и доступны template;
-  - login/register/OAuth approve/OAuth bind переведены на token-based auth layout;
-  - `ocr review`: high/medium findings нет; low nit исправлен;
-  - `npm run build` проходит.
-  - Monitoring filter pass: Login History, Connection History, File Transfer History и Shared Sessions получили `FilterBar` primitive.
+- [~] **8.13. admin-ui UI rework - FOUNDATION IN PR #3.** Goal: turn admin-ui from a generic CRUD admin panel into an operational remote-access console (see `ui-rework.md`).
+  Done in PR #3 / branch `ui-refract`:
+  - design tokens for light/dark surface/text/border/status colors, radius, shadows, typography (`admin-ui/src/styles/style.scss`);
+  - theme system `auto` / `light` / `dark` via `html[data-theme]`, `localStorage` (`theme-mode`), and Element Plus dark class sync;
+  - `ConnectionPulse`, `ThemeSwitch`, `CopyableText`, `PageHeader`, `PageSection`, `DangerZone`, `EmptyState`, `LoadingState` as the first shared UI primitives;
+  - shell refresh: sidebar/header/menu/settings on tokens, without the always-on tags bar;
+  - mobile navigation through `el-drawer`, desktop collapse preserved;
+  - dashboard Quick Connect: `rustdesk://id`, web client `/webclient2/#/{id}`, jump to devices;
+  - Devices page: permanent Status column, `ConnectionPulse` online/offline from `last_online_time`, copyable ID, compact `Connect` + `More` actions;
+  - Monitoring visual pass: login history, connection history, file transfers, and shared sessions now use shared page header/section layout;
+  - Server visual pass: Server Commands, Server Config, and GitHub Build settings now use shared page header/section layout; advanced custom commands separated via `DangerZone` and require confirm before `sendCmd`; terminal output got readonly console styling, target hint, Copy/Clear controls, and empty-output placeholder;
+  - Access visual pass: Address Book entries, collections, share rules, and tags now use shared page header/section layout; address book IDs use `CopyableText`; wide actions compacted into `More` dropdown;
+  - Users/Security visual pass: Users, API Tokens, OAuth providers, Groups, and Device Groups now use shared page header/section layout; wide user actions compacted into `More` dropdown;
+  - Client Builder/Profile visual pass: Custom Client Builder and My Profile now use shared page header/section layout; build history pagination aligned;
+  - My Workspace visual pass: My Devices, My Address Book, My Address Book Collections, My Tags, My Shared Sessions, and My Login History now use shared page header/section layout;
+  - 404 refresh: standalone empty-state screen with a return link to dashboard;
+  - Custom Client runtime fix: preset/upload handlers return from `setup()` and are available to the template;
+  - login/register/OAuth approve/OAuth bind converted to token-based auth layout;
+  - `ocr review`: no high/medium findings; low nit fixed;
+  - `npm run build` passes;
+  - Monitoring filter pass: Login History, Connection History, File Transfer History, and Shared Sessions now use `FilterBar`;
   - DataTable pass: `admin-ui/src/components/ui/DataTable.vue` added; Users page migrated to DataTable with slot-based custom cells.
 
-  Осталось следующими фазами:
-  - [ ] i18n для нового dashboard/auth hero copy;
-  - [x] унификация таблиц, фильтров, пагинации, empty/loading states;
-  - [x] Devices page: ConnectionPulse status, compact actions, copyable ID, web/native connect, pagination aligned via PageSection;
-  - [x] Monitoring: общий page header/section готов; Login History, Connection History, File Transfer History, Shared Sessions получили FilterBar;
-  - [x] Server commands: Simple/Advanced/Danger Zone + terminal output polishing готовы;
-  - [x] CRUD dialogs unified with AppDialog (zero raw el-dialog in views);
-  - [x] DataTable applied to ALL view pages (zero raw el-table except nested inline in fileList);
-  - [x] My Profile added to user dropdown menu;
-  - [x] Hardcoded colors in control.vue and login.vue replaced with CSS variables;
-  - [~] Access/Security CRUD screens: address books/collections/share rules/tags, users,
-        API tokens, OAuth providers, groups и device groups page primitives готовы;
-        custom client/my profile/my workspace page primitives готовы; remaining form/dialog standards ещё унифицировать;
-  - [x] 404 page: tokenized empty-state экран готов;
-  - [ ] ручная проверка responsive UI в браузере, не только `npm run build`.
-- [x] **8.9. Custom Preset — ЗАКРЫТО.**
-  Расширение модели НЕ потребовалось (все поля уже в `custom_json` text-blob). Фактически
-  исправил 3 бага, которые ломали бы реальный билд через GUI-форму:
-  - **server_ip vs server**: форма хранила `server_ip` в custom_json, а Go-склейка
-    (`tryGithubDispatch`) искала ключ `server` → сервер из формы НЕ доходил до воркфлоу.
-    Добавил fallback `server_ip` → `server` в `controller/admin/custom_build.go`.
-  - **custom_txt не формировался**: воркфлоу ждёт `custom_txt` (base64 JSON rdgen-настроек),
-    но UI кладёт в форму `permanent_password`, `hide_cm`, `deny_lan` и т.п. отдельно. Если
-    `custom_txt` явно не задан — Go теперь собирает его из этих полей через
-    `buildCustomTxtFromForm()` (маппинг на rdgen-схему `password`/`verification-method`/
-    `hide-connection-management`/`deny-lan-discovery`/...).
-  - **Save as preset плодил дубли** при повторном сохранении с тем же именем.
-    `CustomPresetService.Create` теперь делает upsert по `(user_id, name)`.
-  - **UI loadPresetIntoForm fields неполный**: сохранял `app_icon_url`/`app_logo_url`/
-    `privacy_screen_url`, но не восстанавливал — добавил в список.
-- [x] **8.10. Single-binary rustqs.exe — 🟢 ЗАКРЫТО.**
-  Воркфлоу перестроен: (a) откатил sed BINARY_NAME в L3 (packer hard-coded ищет
-  `rustdesk.exe`); (b) убрал `mv Release ./rustdesk` — нативные deps и TopMost теперь
-  скачиваются в `flutter/build/windows/x64/runner/Release/`; (c) L2-B теперь кладёт
-  `custom_.txt` в `Release/` (→ запакуется ВНУТРЬ single-exe); (d) новый шаг `L4 portable-pack`
-  запускает `libs/portable/generate.py` (он сам делает `cargo build --locked --release`
-  для packer'a → `target/release/rustdesk-portable-packer.exe`); (e) копирует в
-  `./output/{appname}.exe`, артефакт upload идёт из `./output`.
-  Run [27462227115](https://github.com/bashrusakh/rustdesk/actions/runs/27462227115) ✅
-  за ~33 мин. Артефакт: **ОДИН файл `rustqs.exe`, 23.2 MB** (vs прежние 350 KB launcher +
-  папка). Метаданные = rustqs, custom_.txt запакован внутрь.
-  ⚠️ Первая попытка [27462157839](https://github.com/bashrusakh/rustdesk/actions/runs/27462157839)
-  упала на Resolve build config с `bad decrypt` — `WORKFLOW_PAYLOAD_KEY` в форке
-  разошёлся с локальным `offline-kit/artifacts/workflow-payload.key`. Прогнали через
-  debug open-inputs (валидно для проверки §8.10). **Доп. задача:** ресинк ключа (либо
-  локально подменить, либо `Push to GitHub Secrets` из UI).
-  Текущий билд `rustqs-windows-min-test.yml` собирает с `--skip-portable-pack` — в итоге
-  в архиве папка с DLL + маленький launcher 350 KB, а не single-exe как у upstream.
-  Симптом: `rustqs.exe` молча выходит без ошибок, оригинальный rustdesk.exe стартует ок.
-  Причина: launcher не находит/не может загрузить librustdesk.dll (35 MB), либо
-  VC++/manifest не подхватывается вне portable-обёртки.
-  - [ ] Убрать `--skip-portable-pack` из `rustqs-windows-min-test.yml` в форке
-        `bashrusakh/rustdesk` (ветка `rustqs/min-test`). `build.py` через
-        `libs/portable/generate.py` собирает single self-extracting exe.
-  - [ ] Определить путь выхода single-exe (build.py / libs/portable/generate.py).
-  - [ ] Обновить `Build rustdesk` step в воркфлоу: переместить итоговый exe в `./rustdesk/`
-        перед upload, чтобы артефакт `rustdesk-min-test-windows` содержал именно single-exe.
-  - [ ] Проверить что Go-экстрактор в `custom_build.go::DownloadByKey` корректно
-        зипует single-exe (сейчас зипует всю папку — ок, но проверить что в архиве только exe).
-  - [ ] Сделать push в форк, триггернуть новый build, скачать, запустить на Windows —
-        должен стартануть как обычное desktop-приложение.
-  - [ ] **Дополнительно** (если custom_.txt нужен в single-binary): portable-packer
-        должен уметь класть `custom_.txt` рядом с exe ДО упаковки. Уточнить в
-        `libs/portable/generate.py` — поддерживает ли он external files.
+  Remaining follow-up phases:
+  - [ ] i18n for the new dashboard/auth hero copy;
+  - [x] table/filter/pagination/empty/loading state unification;
+  - [x] Devices page: `ConnectionPulse` status, compact actions, copyable ID, web/native connect, pagination aligned via `PageSection`;
+  - [x] Monitoring: shared page header/section done; Login History, Connection History, File Transfer History, Shared Sessions use `FilterBar`;
+  - [x] Server commands: Simple/Advanced/Danger Zone + terminal output polishing done;
+  - [x] CRUD dialogs unified with `AppDialog` (zero raw `el-dialog` in views);
+  - [x] DataTable applied to all view pages (zero raw `el-table` except nested inline in `fileList`);
+  - [x] My Profile added to the user dropdown menu;
+  - [x] hardcoded colors in `control.vue` and `login.vue` replaced with CSS variables;
+  - [~] Access/Security CRUD screens: address books/collections/share rules/tags, users, API tokens, OAuth providers, groups, and device groups page primitives are ready; custom client / my profile / my workspace page primitives are ready; remaining form/dialog standards still need unification;
+  - [x] 404 page: tokenized empty-state screen done;
+  - [ ] manual responsive-browser verification, not just `npm run build`.
+
+- [x] **8.9. Custom Preset - DONE.**
+  No model expansion was actually needed because all fields already live in the `custom_json`
+  text blob. In practice, this task fixed four real bugs that would have broken the GUI build:
+  - `server_ip` vs `server`: UI stored `server_ip`, but Go expected `server`.
+    Added fallback `server_ip` -> `server`.
+  - `custom_txt` not generated: when not explicitly provided, Go now builds it from fields like
+    `permanent_password`, `hide_cm`, `deny_lan`, etc. via `buildCustomTxtFromForm()`.
+  - `Save as preset` created duplicates on repeated save with the same name.
+    `CustomPresetService.Create` now performs an upsert on `(user_id, name)`.
+  - `loadPresetIntoForm` was missing some fields: `app_icon_url`, `app_logo_url`,
+    `privacy_screen_url` are now restored too.
+
+- [x] **8.10. Single-binary `rustqs.exe` - DONE.**
+  The workflow was reworked so that:
+  - L3 no longer renames `rustdesk.exe` before packing, because the packer expects that name.
+  - Native deps and TopMost artifacts are downloaded directly into `Release/`.
+  - L2-B writes `custom_.txt` into `Release/` before packing, so it gets embedded inside the exe.
+  - New `L4 portable-pack` runs `libs/portable/generate.py` and outputs the final packed exe.
+  - Artifact upload happens from `./output/{appname}.exe`.
+
+  Run `27462227115` succeeded in about 33 minutes. Final artifact: **one file `rustqs.exe`, 23.2 MB**.
+  Metadata is `rustqs`; `custom_.txt` is packed inside.
+
+  Note: an earlier run failed with `bad decrypt` because `WORKFLOW_PAYLOAD_KEY` in the fork had drifted
+  from the local `offline-kit/artifacts/workflow-payload.key`. That was valid as a debug case and
+  indicated the need for key resync.
 
 ---
 
-## 9. Заброшенные подходы (НЕ повторять)
+## 9. Abandoned approaches (DO NOT repeat)
 
-> Эти пути проверены и отвергнуты. Запись здесь — чтобы будущий агент не пошёл по
-> ним заново.
+These paths were tested and rejected. They are documented here so future agents do not go down them again.
 
-- **❌ Кросс-компиляция Windows Flutter-клиента из Linux (MinGW).** Тупик. Flutter
-  Windows desktop кросс-компилировать из Linux нельзя — нужен Windows-хост с MSVC.
-  Linux/MinGW-путь в лучшем случае даёт легаси **Sciter** UI, а не актуальный Flutter.
-- **❌ Костыли вокруг битого vcpkg `libvpx.a` в MinGW-сборке.** Прошлые агенты два дня
-  обходили следствия: vcpkg собрал `libvpx.a` хостовым linux-gcc (внутри ELF-объекты
-  вместо Windows COFF) → нелинкуемо в PE. Наслоённые «фиксы» (`--whole-archive`,
-  заглушки `vpx_compat.c`) лечили симптомы; заглушки сделали бы декодер видео мёртвым
-  в рантайме. Корень — формат объектов, а не порядок линковки.
-- **❌ `x86_64-pc-windows-gnu` как целевой target для финального клиента.** Upstream
-  идёт через `x86_64-pc-windows-msvc`; gnu-target в их CI закомментирован.
-- **❌ Задание сервера через имя exe** как основной механизм — это fallback. Основной
-  путь — хардкод в `config.rs` (§5).
+- **Cross-compiling the Windows Flutter client from Linux (MinGW)** is a dead end.
+  Flutter Windows desktop cannot be cross-compiled from Linux; a Windows host with MSVC is required.
+  The Linux/MinGW path only gives the legacy Sciter UI at best, not the current Flutter client.
+- **Workarounds around broken `vcpkg` `libvpx.a` in the MinGW build** were symptom-level only.
+  `vcpkg` produced Linux ELF objects instead of Windows COFF, so the archive was fundamentally
+  un-linkable for PE. Linker-order hacks and compatibility stubs would only hide the real issue.
+- **`x86_64-pc-windows-gnu` as the final target** is not the upstream path.
+  Upstream uses `x86_64-pc-windows-msvc`; the GNU target is commented out in their CI.
+- **Using the exe filename to configure the server** is only a fallback. The main path is
+  hardcoding via `config.rs` (§5).
 
-**Текущие тестовые контейнеры** (`build-win-test6/7/8/14`, `upbeat_carson`,
-`lucid_grothendieck`) — это следы заброшенного MinGW-пути. Удалить в фазе 8.7.
+Current test containers (`build-win-test6/7/8/14`, `upbeat_carson`, `lucid_grothendieck`) are leftovers
+from the abandoned MinGW path and should be removed during §8.7.
 
 ---
 
-## 10. Completed (исторический лог — что реально построено)
+## 10. Completed (historical log)
 
-> Сохранено как запись о том, что уже работает. Детали по фазам — в git-истории и
-> CHANGELOG.md. Архитектура сборки Windows-клиента ниже частично устарела
-> (см. §9), серверная часть и admin-ui актуальны.
+Preserved as a record of what has already been built. Detailed phase-by-phase history lives in git
+and `CHANGELOG.md`. Parts of the old Windows-client architecture below are outdated (see §9), but the
+server side and admin UI remain current.
 
-### Серверная часть и админка (актуально)
-- Docker multi-stage build: Rust (hbbs+hbbr) + Go API + Node admin-ui + s6-overlay. ✅
-- `server` контейнер healthy, порты 21114-21118. ✅
-- admin-ui форкнут из `lejianwen/rustdesk-api-web`, англ. по умолчанию, навигация
-  перестроена (Dashboard, Devices, Users, Groups, Address Book, Security, Monitoring,
-  Custom Client, Server, My Profile). ✅
-- admin-ui UI rework foundation: design tokens, `auto/light/dark` theme mode,
+### Server side and admin UI
+- Docker multi-stage build: Rust (`hbbs` + `hbbr`) + Go API + Node admin-ui + `s6-overlay`.
+- `server` container healthy, ports 21114-21118.
+- admin-ui forked from `lejianwen/rustdesk-api-web`, English by default, navigation reworked.
+- admin-ui UI rework foundation: design tokens, `auto` / `light` / `dark` theme mode,
   `ConnectionPulse`, `ThemeSwitch`, refreshed shell/sidebar/header/menu/settings,
   dashboard Quick Connect, token-based login/register/OAuth screens, mobile drawer nav,
   devices/monitoring/server/access/security/client-builder/profile/my-workspace visual passes,
-  refreshed 404 and shared empty/loading primitives. ✅ PR #3.
-- Dashboard API+UI, Server Config UI, `GET /api/admin/config/all`. ✅
-- Custom Client UI (форма + история), Presets CRUD, Logo/Icon upload. ✅
-- Go API: модели/сервисы/контроллеры CustomBuild + CustomPreset, AutoMigrate,
-  DatabaseVersion 265→267. ✅
-- Модуль переименован `github.com/lejianwen/rustdesk-api/v2` → `rustdesk-server/api`. ✅
-- Удалены внешние URL (update check, rendezvous, STUN, Firebase, CDN), весь китайский
-  текст. ✅
+  refreshed 404, and shared empty/loading primitives. PR #3.
+- Dashboard API + UI, Server Config UI, `GET /api/admin/config/all`.
+- Custom Client UI (form + history), Presets CRUD, logo/icon upload.
+- Go API: models/services/controllers for `CustomBuild` + `CustomPreset`, AutoMigrate,
+  `DatabaseVersion` 265 -> 267.
+- Go module renamed from `github.com/lejianwen/rustdesk-api/v2` to `rustdesk-server/api`.
+- External URLs removed (update check, rendezvous, STUN, Firebase, CDN), Chinese text removed.
 
-### Сборка клиента (частично устарело — см. §9)
-- `linux-build` агент собирает Linux-бинарник `rustdesk` (~32 МБ), feature
-  `linux-pkg-config`. ✅ актуально.
-- `win-build` MinGW-агент — доведён до этапа финальной линковки, но упёрся в битый
-  `libvpx.a`. ❌ путь заброшен, заменяется на Windows-нативный билдер (§3, §8.3).
+### Client build
+- `linux-build` agent builds the Linux `rustdesk` binary (~32 MB), feature `linux-pkg-config`.
+- `win-build` MinGW agent reached final linking but got blocked on broken `libvpx.a`.
+  That path is abandoned and replaced by the native Windows builder (§3, §8.3).
 
 ---
 
-## 11. Известные факты-ориентиры (быстрая справка)
+## 11. Known reference facts
 
-- Механизм `custom.json` в `flutter/lib/` (как пишет текущий entrypoint) **не
-  читается** кодом 1.4.7 — это no-op. Реальный механизм — `custom.txt` + `config.rs`.
-- `read_custom_client` в `src/common.rs` проверяет подпись `custom.txt` ключом
-  rustdesk; патч `allowCustom.py` (в `rdgen/.github/patches/`) снимает проверку.
-- Сервер форкается из имени файла через `src/custom_server.rs` (парсит `host=`,
-  `key=` из имени exe) — это и есть fallback-механизм.
-- Доступные патчи в `rdgen/.github/patches/`: allowCustom, hidecm,
-  removeSetupServerTip, removeNewVersionNotif, cycle_monitor, xoffline,
-  privacyScreen, flutter_3.24.4_dropdown_menu_enableFilter.
+- The `custom.json` mechanism in `flutter/lib/` written by the current entrypoint is **not read**
+  by 1.4.7 code. It is a no-op. The real mechanism is `custom.txt` + `config.rs`.
+- `read_custom_client` in `src/common.rs` verifies the signature of `custom.txt` with the rustdesk key.
+  Patch `allowCustom.py` in `rdgen/.github/patches/` removes that check.
+- Server selection from the filename is implemented in `src/custom_server.rs`
+  (parses `host=` / `key=` from the exe name). That is the fallback mechanism.
+- Available patches in `rdgen/.github/patches/`: `allowCustom`, `hidecm`,
+  `removeSetupServerTip`, `removeNewVersionNotif`, `cycle_monitor`, `xoffline`,
+  `privacyScreen`, `flutter_3.24.4_dropdown_menu_enableFilter`.

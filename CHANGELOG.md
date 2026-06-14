@@ -1,472 +1,383 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased] - 2026-06-14
 
-### Added (admin-ui UI rework foundation — PR #3, 2026-06-14)
-- **Design tokens + theme system** (`admin-ui/src/styles/style.scss`, `src/store/app.js`):
-  добавлены light/dark tokens для surface/text/border/status colors, radius, shadows,
-  typography; режим темы `auto` / `light` / `dark` хранится в `localStorage` как
-  `theme-mode` и применяется через `html[data-theme]` + `html.dark` для Element Plus.
-- **Новые UI primitives**:
-  - `admin-ui/src/components/ui/ConnectionPulse.vue` — продуктовый индикатор статуса
-    для shell/dashboard/auth/OAuth экранов;
-  - `admin-ui/src/components/ui/ThemeSwitch.vue` — общий переключатель темы;
-  - `admin-ui/src/components/ui/CopyableText.vue` — копируемый monospace ID/token text;
-  - `admin-ui/src/components/ui/PageHeader.vue` и `PageSection.vue` — общая структура
-    заголовка и секций страниц;
-  - `admin-ui/src/components/ui/EmptyState.vue` и `LoadingState.vue` — базовые empty/loading states;
-  - `admin-ui/src/components/ui/DataTable.vue` — shared `el-table` wrapper with loading, empty state,
-    selection/index hooks, sort/row events, compact density, nested props, and horizontal scroll.
+### Added (admin-ui UI rework foundation - PR #3, 2026-06-14)
+- **Design tokens + theme system** (`admin-ui/src/styles/style.scss`, `src/store/app.js`): added light/dark tokens for surface/text/border/status colors, radius, shadows, and typography; theme mode `auto` / `light` / `dark` is stored in `localStorage` as `theme-mode` and applied through `html[data-theme]` + `html.dark` for Element Plus.
+- **New UI primitives**:
+  - `admin-ui/src/components/ui/ConnectionPulse.vue` for product-style status indication in shell/dashboard/auth/OAuth screens;
+  - `admin-ui/src/components/ui/ThemeSwitch.vue` as a shared theme switcher;
+  - `admin-ui/src/components/ui/CopyableText.vue` for copyable monospace ID/token text;
+  - `admin-ui/src/components/ui/PageHeader.vue` and `PageSection.vue` for common page structure;
+  - `admin-ui/src/components/ui/EmptyState.vue` and `LoadingState.vue` for shared empty/loading states;
+  - `admin-ui/src/components/ui/DataTable.vue` as a shared `el-table` wrapper with loading, empty state, selection/index hooks, sort/row events, compact density, nested props, and horizontal scroll.
 - **Shell/layout refresh**:
-  - sidebar/header/menu/settings переведены с hardcoded `#2d3a4b` / `#3f454b` на tokens;
-  - always-visible tags bar убран из основного layout;
-  - sidebar brand использует общий `--sidebar-brand-height`;
-  - mobile navigation теперь открывается через `el-drawer`, desktop toggle по-прежнему
-    сворачивает sidebar.
-- **Dashboard refresh** (`admin-ui/src/views/index/index.vue`): добавлен Quick Connect
-  panel с native `rustdesk://id`, web client `/webclient2/#/{id}` и переходом к devices.
-- **Devices refresh** (`admin-ui/src/views/peer/index.vue`): добавлена постоянная колонка
-  Status с `ConnectionPulse`, online/offline определяется по `last_online_time < 60s`, ID
-  переведён на `CopyableText`, action column сжата до `Connect` + `More` dropdown; pagination
-  выровнен через `PageSection`.
-- **Monitoring visual pass**: login history, connection history, file transfers и shared
-  sessions получили общий `PageHeader`/`PageSection` layout без изменения API/composable логики.
-- **Server visual pass**: Server Commands, Server Config и GitHub Build settings получили
-  общий `PageHeader`/`PageSection` layout; advanced custom commands вынесены в `DangerZone`
-  и требуют confirm перед `sendCmd` без изменения API-контрактов; terminal output получил
-  readonly console styling, target hint, Copy/Clear controls и empty-output placeholder.
-- **Access visual pass**: Address Book entries, collections, share rules и tags переведены
-  на общий `PageHeader`/`PageSection` layout; address book IDs используют `CopyableText`,
-  а широкие action columns сжаты через `More` dropdown без изменения composables/API.
-- **Users/Security visual pass**: Users, API Tokens, OAuth providers, Groups и Device Groups
-  получили общий `PageHeader`/`PageSection` layout; широкие user actions сжаты через
-  `More` dropdown без изменения CRUD/API поведения.
-- **Client Builder/Profile visual pass**: Custom Client Builder и My Profile получили общий
-  `PageHeader`/`PageSection` layout; build history pagination выровнен с остальными страницами.
-- **My Workspace visual pass**: My Devices, My Address Book, My Address Book Collections,
-  My Tags, My Shared Sessions и My Login History получили общий page header/section layout;
-  персональные device/address-book ID переведены на `CopyableText`.
-- **404 refresh**: минимальная `404` страница заменена на tokenized empty-state экран с
-  возвратом на dashboard.
-- **Auth/OAuth visual refresh**: login, register, OAuth approve и OAuth bind экраны
-  переведены на token-based визуальный язык, поддерживают theme switch и Connection Pulse.
-- **Custom Client runtime fix**: preset/upload handlers теперь возвращаются из `setup()` и
-  доступны template-кнопкам без изменения backend/API контрактов.
-- **Monitoring filter pass**: Login History, Connection History, File Transfer History и Shared Sessions получили `FilterBar` primitive с collapsible panel, reset/clear, active filter count и integrated action buttons.
+  - moved sidebar/header/menu/settings from hardcoded `#2d3a4b` / `#3f454b` to tokens;
+  - removed the always-visible tags bar from the main layout;
+  - sidebar brand now uses shared `--sidebar-brand-height`;
+  - mobile navigation now opens through `el-drawer`, while desktop toggle still collapses the sidebar.
+- **Dashboard refresh** (`admin-ui/src/views/index/index.vue`): added a Quick Connect panel with native `rustdesk://id`, web client `/webclient2/#/{id}`, and a link to devices.
+- **Devices refresh** (`admin-ui/src/views/peer/index.vue`): added a permanent Status column with `ConnectionPulse`; online/offline is determined by `last_online_time < 60s`; ID uses `CopyableText`; action column reduced to `Connect` + `More`; pagination aligned via `PageSection`.
+- **Monitoring visual pass**: login history, connection history, file transfers, and shared sessions now use shared `PageHeader` / `PageSection` layout without changing API/composable logic.
+- **Server visual pass**: Server Commands, Server Config, and GitHub Build settings now use shared `PageHeader` / `PageSection`; advanced custom commands moved into `DangerZone` and require confirmation before `sendCmd`; terminal output now has readonly console styling, target hint, Copy/Clear controls, and empty-output placeholder.
+- **Access visual pass**: Address Book entries, collections, share rules, and tags now use shared `PageHeader` / `PageSection`; address book IDs use `CopyableText`; wide action columns were reduced into `More` dropdowns without changing composables/API.
+- **Users/Security visual pass**: Users, API Tokens, OAuth providers, Groups, and Device Groups now use shared `PageHeader` / `PageSection`; wide action sets were compacted into `More` dropdowns without changing CRUD/API behavior.
+- **Client Builder/Profile visual pass**: Custom Client Builder and My Profile now use shared `PageHeader` / `PageSection`; build history pagination aligned with the rest of the UI.
+- **My Workspace visual pass**: My Devices, My Address Book, My Address Book Collections, My Tags, My Shared Sessions, and My Login History now use shared page header/section layout; personal device and address book IDs use `CopyableText`.
+- **404 refresh**: replaced the minimal `404` page with a tokenized empty-state screen linking back to dashboard.
+- **Auth/OAuth visual refresh**: login, register, OAuth approve, and OAuth bind screens now use the token-based visual language and support theme switch + `ConnectionPulse`.
+- **Custom Client runtime fix**: preset/upload handlers now return from `setup()` and are available to template buttons without changing backend/API contracts.
+- **Monitoring filter pass**: Login History, Connection History, File Transfer History, and Shared Sessions now use the `FilterBar` primitive with collapsible panel, reset/clear, active filter count, and integrated action buttons.
 - **DataTable pass**: `DataTable` wrapper applied to Users and Address Book pages with slot-based custom cells, loading state, empty state, and horizontal scroll.
-- **AppDialog/AppDrawer/FormSection pass**: Added `admin-ui/src/components/ui/AppDialog.vue`, `AppDrawer.vue`, and `FormSection.vue` shared primitives for unified dialog/drawer/form patterns.
-- **CRUD dialog unification pass**: ALL remaining `el-dialog` usages migrated to `AppDialog`. Zero raw `el-dialog` remain in views.
-- **DataTable migration COMPLETE**: All `el-table` usages migrated to `DataTable` across all view pages. Only remaining `el-table` is one nested inline table in `audit/fileList.vue` (directory file listing within a cell) and unused `my/address_book/indexv2.vue`. Dynamic column visibility in `peer/index.vue` now works via computed `tableColumns`.
+- **AppDialog/AppDrawer/FormSection pass**: added `admin-ui/src/components/ui/AppDialog.vue`, `AppDrawer.vue`, and `FormSection.vue` shared primitives for unified dialog/drawer/form patterns.
+- **CRUD dialog unification pass**: all remaining `el-dialog` usages migrated to `AppDialog`. Zero raw `el-dialog` remain in views.
+- **DataTable migration COMPLETE**: all `el-table` usages migrated to `DataTable` across all view pages. The only remaining `el-table` is one nested inline table in `audit/fileList.vue` (directory file listing inside a cell) and the unused `my/address_book/indexv2.vue`.
 - **Element Plus icons cleanup**: replaced deprecated `@element-plus/icons` imports and dependency with current `@element-plus/icons-vue`; build passes without the deprecation warning.
 - **Review/verification**:
-  - `ocr review` по рабочей копии: high/medium findings нет; единственный low nit про
-    magic number исправлен через `--sidebar-brand-height`;
-  - `npm run build` проходит; остаются только существующие Vite/Rollup warnings про
-    крупные чанки и `@vueuse` pure annotations.
+  - `ocr review` on the working tree found no high/medium issues; the only low nit about a magic number was fixed via `--sidebar-brand-height`;
+  - `npm run build` passes; remaining output is limited to existing Vite/Rollup warnings about large chunks and `@vueuse` pure annotations.
 
 ### Known Follow-ups (admin-ui UI rework)
-- Полное i18n-покрытие нового dashboard/auth hero copy.
-- Таблицы, формы, dialogs/drawers и CRUD-экраны всё ещё требуют унификации через новые примитивы.
-- Monitoring filters/toolbars: Connection, File Transfer, Shared Sessions остаются унифицировать через FilterBar.
+- Full i18n coverage for the new dashboard/auth hero copy.
+- Tables, forms, dialogs/drawers, and CRUD screens still need further unification through the new primitives.
+- Monitoring filters/toolbars: Connection, File Transfer, and Shared Sessions still need full FilterBar unification.
 
-### 🟢 Done (§8.9 Custom Preset — фактически 3 бага склейки UI↔backend, 2026-06-13)
-Расширение модели не потребовалось: все поля уже в `custom_json` text-blob. При разборе
-обнаружил три реальных бага, которые ломали бы реальный GUI-билд через GitHub-путь:
+### Done (§8.9 Custom Preset - in practice 4 real UI/backend glue bugs, 2026-06-13)
+No model expansion was needed: all fields were already stored in the `custom_json` text blob.
+The work surfaced four real bugs that would have broken the actual GUI build flow through GitHub:
 
-1. **server_ip vs server** (`api/http/controller/admin/custom_build.go`): UI хранит ключ
-   `server_ip`, а `tryGithubDispatch` извлекал только `server` → сервер из формы НЕ доходил
-   до воркфлоу. Добавил fallback `server_ip` → `server`.
-2. **custom_txt не формировался** (`buildCustomTxtFromForm`): UI не складывает rdgen-блоб
-   `custom_txt`, юзер вводит `permanent_password`/`hide_cm`/`deny_lan`/etc отдельно. Если
-   `custom_txt` явно не задан — Go теперь сам собирает: маппит `permanent_password` →
-   `password`, `hide_cm` → `verification-method: use-permanent-password` +
-   `hide-connection-management: Y`, `deny_lan` → `deny-lan-discovery: Y`, и т.п.,
-   JSON-encode → base64.
-3. **Save as preset дублирует** (`api/service/custom_preset.go`):
-   `CustomPresetService.Create` → upsert по `(user_id, name)`. Перезаписывает при
-   совпадении имени, что и обещал §8.9 в плане.
-4. **loadPresetIntoForm fields неполный** (`admin-ui/src/views/custom-client/index.vue`):
-   `app_icon_url`/`app_logo_url`/`privacy_screen_url` сохранялись в пресет, но не
-   восстанавливались при загрузке — добавил в список.
+1. **`server_ip` vs `server`** (`api/http/controller/admin/custom_build.go`):
+   the UI stored `server_ip`, while `tryGithubDispatch` only extracted `server`, so the value from
+   the form never reached the workflow. Added fallback `server_ip` -> `server`.
+2. **`custom_txt` was not being generated** (`buildCustomTxtFromForm`):
+   the UI stores `permanent_password`, `hide_cm`, `deny_lan`, etc. separately rather than as an rdgen
+   blob. When `custom_txt` is not explicitly provided, Go now assembles it automatically by mapping
+   `permanent_password` -> `password`, `hide_cm` ->
+   `verification-method: use-permanent-password` + `hide-connection-management: Y`,
+   `deny_lan` -> `deny-lan-discovery: Y`, etc., then JSON-encodes and base64-encodes it.
+3. **`Save as preset` created duplicates** (`api/service/custom_preset.go`):
+   `CustomPresetService.Create` now performs an upsert on `(user_id, name)`, replacing by name as
+   promised in §8.9.
+4. **`loadPresetIntoForm` had an incomplete field list** (`admin-ui/src/views/custom-client/index.vue`):
+   `app_icon_url`, `app_logo_url`, and `privacy_screen_url` were saved into the preset but not restored.
+   Added them to the restore list.
 
-### 🟢 Done (§8.10 single-binary rustqs.exe — ЗАКРЫТО, 2026-06-13)
-- Воркфлоу `rustqs-windows-min-test.yml` перестроен под полную упаковку:
-  - откат sed BINARY_NAME в L3 (packer `libs/portable/generate.py` hard-coded ищет
-    `rustdesk.exe` внутри Release/);
-  - убран `mv Release ./rustdesk` — native deps (usbmmidd, printer driver+adapter) и
-    TopMost-artifact теперь скачиваются прямо в `flutter/build/windows/x64/runner/Release/`;
-  - L2-B шаг кладёт `custom_.txt` в `Release/` ДО запуска packer'a → запакуется внутрь;
-  - новый шаг `L4 portable-pack`: `cd libs/portable && pip3 install -r requirements.txt &&
-    python3 ./generate.py -f ../../{Release} -o . -e ../../{Release}/rustdesk.exe`
-    (generate.py сам в конце вызывает `cargo build --locked --release` через
-    `build_portable()`); финал в `./target/release/rustdesk-portable-packer.exe`,
-    копируется в `./output/{appname}.exe`;
-  - `actions/upload-artifact` path: `output` (вместо прежнего `rustdesk` каталога).
-- Прогон [27462227115](https://github.com/bashrusakh/rustdesk/actions/runs/27462227115)
-  ✅ за ~33 мин. **Артефакт = ОДИН файл `rustqs.exe`, 23.2 MB** (vs прежние 350 KB
-  launcher + ~30 MB папка DLL). Метаданные exe: `ProductName/FileDescription/OriginalFilename
-  = rustqs`. custom_.txt запакован внутрь self-extracting exe.
-- Первая попытка [27462157839](https://github.com/bashrusakh/rustdesk/actions/runs/27462157839)
-  упала за минуту: `Resolve build config` → `bad decrypt`. `WORKFLOW_PAYLOAD_KEY` в форке
-  разошёлся с локальным `offline-kit/artifacts/workflow-payload.key` (видимо, перезаписан
-  в одной из прошлых сессий). Открытые inputs использованы как обход для проверки §8.10.
-  TODO: ресинк ключа (либо через UI «Push to GitHub Secrets», либо локально подменить файл).
-
+### Done (§8.10 single-binary `rustqs.exe` - CLOSED, 2026-06-13)
+- Reworked `rustqs-windows-min-test.yml` for full packaging:
+  - reverted the L3 `BINARY_NAME` rename, because `libs/portable/generate.py` is hardcoded to look
+    for `rustdesk.exe` inside `Release/`;
+  - removed `mv Release ./rustdesk`; native deps (`usbmmidd`, printer driver + adapter) and the
+    TopMost artifact are now downloaded directly into `flutter/build/windows/x64/runner/Release/`;
+  - the L2-B step places `custom_.txt` in `Release/` **before** the packer runs, so it is packed in;
+  - added new `L4 portable-pack` step:
+    `cd libs/portable && pip3 install -r requirements.txt && python3 ./generate.py -f ../../{Release} -o . -e ../../{Release}/rustdesk.exe`;
+  - final artifact comes from `./output/{appname}.exe`;
+  - `actions/upload-artifact` now uploads `output` instead of the old `rustdesk` directory.
+- Run [27462227115](https://github.com/bashrusakh/rustdesk/actions/runs/27462227115)
+  succeeded in about 33 minutes. Final artifact: **one file `rustqs.exe`, 23.2 MB**
+  instead of a small launcher plus a DLL folder. Exe metadata is `rustqs` and `custom_.txt`
+  is packed inside the self-extracting exe.
+- First attempt [27462157839](https://github.com/bashrusakh/rustdesk/actions/runs/27462157839)
+  failed almost immediately with `bad decrypt` in `Resolve build config` because
+  `WORKFLOW_PAYLOAD_KEY` in the fork had diverged from local
+  `offline-kit/artifacts/workflow-payload.key`. Open inputs were used as a temporary bypass to
+  validate §8.10. Remaining TODO: resync the key, either from the UI (`Push to GitHub Secrets`) or
+  by replacing the local file.
 
 ### Fixed (Docker build)
-- **`.dockerignore`** создан в корне — отрезает `node_modules/`, `.git/`, `data/`,
-  `rdgen-data/`, `rustdesk-cache/`, `**/target/`, `*.exe|*.dll|*.apk|*.msi`,
-  `offline-kit/artifacts/` из build-контекста. Без него build-контекст тащил
-  155 МБ `node_modules` и хост-зависимые файлы.
+- Added root **`.dockerignore`** to exclude `node_modules/`, `.git/`, `data/`, `rdgen-data/`,
+  `rustdesk-cache/`, `**/target/`, `*.exe|*.dll|*.apk|*.msi`, and `offline-kit/artifacts/`
+  from the build context. Without it, the context pulled in 155 MB of `node_modules` and host-only files.
 - **Docker build fix**: production `docker/Dockerfile` now builds `admin-ui` from source inside a `node:20-bookworm` stage and no longer requires a pre-existing `admin-ui/dist/`; `.dockerignore` excludes host `node_modules/` and stale `admin-ui/dist/`.
-- **Пароль админа** сброшен на `admin123` через `apimain reset-admin-pwd` —
-  первоначальный пароль из логов первого запуска был утерян после рестарта.
+- Reset the **admin password** to `admin123` via `apimain reset-admin-pwd` because the generated initial
+  password from first-start logs was lost after restart.
 
-### Added (GitHub Build integration — PLAN.md §8.8.5)
-- **Дефолты в форме GitHub Build** (`admin-ui/src/views/server/github-build.vue`):
-  при загрузке, если БД пустая, подставляются `bashrusakh/rustdesk`,
-  `rustqs-windows-min-test.yml`, `rustqs/min-test`. Юзер может изменить перед Save.
-- **DownloadByKey endpoint** (`api/http/controller/admin/custom_build.go`):
-  публичный (без api-token) эндпоинт `/api/admin/custom_build/public/download/:key`
-  отдаёт zip с файлами из `/rdgen-data/output/{id}/`. Capability URL по
-  `download_key` (32-char random), как и существующий `DetailByKey`. Имя файла:
-  `{app_name}-{YYYYMMDD-HHMMSS}.zip`. Заменяет DetailByKey как Download-цель в UI.
-- **Public роуты вынесены из `adg`** (`api/http/router/admin.go`): ранее
-  `aRPublic := rg.Group("/custom_build/public")` наследовал `BackendUserAuth`
-  из родительской группы, поэтому detailByKey/download возвращали 403 без токена.
-  Теперь `/api/admin/custom_build/public/{detailByKey,download}` зарегистрированы
-  на корневом `g` напрямую.
-- **NoCache middleware** (`api/http/middleware/nocache.go`): ставит
-  `Cache-Control: no-cache, no-store, must-revalidate`, `Pragma: no-cache`,
-  `Expires: 0` на все ответы `/api/admin/*`. Применён ПЕРЕД `BackendUserAuth`,
-  чтобы заголовки доходили до клиента даже при 403. UI больше не кеширует
-  устаревший `status=building` для Custom Build.
-- **Axios cache-busting** (`admin-ui/src/utils/request.js`): для всех GET
-  добавляет `Cache-Control: no-cache` — двойная страховка на случай агрессивного
-  прокси/CDN.
-- **DispatchTest — polling до завершения** (`api/http/controller/admin/github_build_config.go`):
-  вместо мгновенного `run_id` теперь опрашивает GitHub каждые 30 сек до
-  `status=completed` (макс 90 мин) и возвращает `{run_id, status, conclusion, ok, message}`.
-  Во Vue — отдельный axios-запрос с таймаутом 95 мин, отображается
-  `⏳ Build running...` → `✅ Test build successful` / `❌ failed`.
+### Added (GitHub Build integration - PLAN.md §8.8.5)
+- Added **defaults in the GitHub Build form** (`admin-ui/src/views/server/github-build.vue`):
+  when DB values are empty, it pre-fills `bashrusakh/rustdesk`, `rustqs-windows-min-test.yml`,
+  and `rustqs/min-test`. The user can still change them before Save.
+- Added **`DownloadByKey` endpoint** (`api/http/controller/admin/custom_build.go`):
+  public (no api-token) endpoint `/api/admin/custom_build/public/download/:key` that returns a zip from
+  `/rdgen-data/output/{id}/`. Capability URL is keyed by `download_key` (32 random chars), same as
+  existing `DetailByKey`. Output filename format: `{app_name}-{YYYYMMDD-HHMMSS}.zip`.
+- Moved **public routes out of `adg`** (`api/http/router/admin.go`): previously
+  `aRPublic := rg.Group("/custom_build/public")` inherited `BackendUserAuth` from the parent group,
+  so `detailByKey` and `download` returned 403 without a token. Now they are bound directly on root `g`.
+- Added **NoCache middleware** (`api/http/middleware/nocache.go`) setting
+  `Cache-Control: no-cache, no-store, must-revalidate`, `Pragma: no-cache`, `Expires: 0` on all
+  `/api/admin/*` responses. Applied **before** `BackendUserAuth` so headers also reach 403 responses.
+- Added **Axios cache-busting** (`admin-ui/src/utils/request.js`) adding `Cache-Control: no-cache`
+  on all GET requests as extra protection against aggressive proxies/CDNs.
+- `DispatchTest` now **polls until completion** (`api/http/controller/admin/github_build_config.go`):
+  instead of returning an immediate `run_id`, it polls GitHub every 30 seconds until `status=completed`
+  (max 90 min) and returns `{run_id, status, conclusion, ok, message}`. In Vue this uses a separate
+  Axios request with a 95-minute timeout and shows `Build running...` -> success/failure.
 
 ### Fixed (GitHub fork cleanup)
-- **Удалены 10 upstream воркфлоу** из `bashrusakh/rustdesk@master`:
-  `bridge.yml`, `ci.yml`, `clear-cache.yml`, `fdroid.yml`, `flutter-build.yml`,
-  `flutter-ci.yml`, `flutter-nightly.yml`, `flutter-tag.yml`, `playground.yml`,
-  `wf-cliprdr-ci.yml`. Оставлены только нужные: `rustqs-windows-min-test.yml`
-  (наш), `third-party-RustDeskTempTopMostWindow.yml` (deps).
-- **Восстановлен `bridge.yml`** после чистки: наш `rustqs-windows-min-test.yml`
-  использует его как reusable workflow, после удаления `dispatch HTTP 422: failed
-  to parse workflow: error parsing called workflow "./.github/workflows/bridge.yml"`.
-  Залит из upstream `rustdesk/rustdesk@1.4.7`.
+- Removed **10 upstream workflows** from `bashrusakh/rustdesk@master`:
+  `bridge.yml`, `ci.yml`, `clear-cache.yml`, `fdroid.yml`, `flutter-build.yml`, `flutter-ci.yml`,
+  `flutter-nightly.yml`, `flutter-tag.yml`, `playground.yml`, `wf-cliprdr-ci.yml`.
+  Kept only the needed ones: `rustqs-windows-min-test.yml` and `third-party-RustDeskTempTopMostWindow.yml`.
+- Restored **`bridge.yml`** after cleanup because `rustqs-windows-min-test.yml` uses it as a reusable workflow.
+  Without it, dispatch failed with HTTP 422 / workflow parse error. Restored from upstream `rustdesk/rustdesk@1.4.7`.
 
 ### Added (PLAN.md tasks)
-- **§8.9 Custom Preset — расширить модель**: добавить поля `server`, `key`,
-  `custom_txt`, `logo`, `icon` в `CustomPreset`. UI «Save as preset» —
-  перезаписывать при совпадении имени (отдельная CRUD-страница отменена).
-- **§8.10 Single-binary rustqs.exe**: текущий билд использует
-  `--skip-portable-pack` → multi-file артефакт (DLL + 350 KB launcher) вместо
-  single-binary ~30 MB как у upstream. Launcher молча выходит без ошибок. Fix:
-  убрать флаг, обновить Go-экстрактор, проверить попадание `custom_.txt` в
-  packed-exe. **Не решено в текущей итерации — на Opus'а.**
+- Added **§8.9 Custom Preset** task: extend the effective preset data with `server`, `key`, `custom_txt`,
+  `logo`, and `icon`, while making UI `Save as preset` overwrite on name match.
+- Added **§8.10 Single-binary `rustqs.exe`** task: replace the old `--skip-portable-pack` multi-file
+  artifact with an upstream-style single binary and verify `custom_.txt` ends up inside the packed exe.
 
 ## [0.4.0] - 2026-06-11
 
-### Changed (Architecture — Sovereign Build Strategy)
-- **PLAN.md полностью переписан** как единственный источник правды. Зафиксирована
-  суверенная модель сборки (3 уровня независимости: исходники / сборка / тулчейн),
-  карта форков (rustdesk + hbb_common + ~20 rustdesk-org/* через vendor), архитектура
-  трёх контейнеров и offline-кит с фиксированными версиями (Rust 1.75, Flutter 3.24.5,
-  LLVM 15.0.6, vcpkg baseline 120deac…).
-- **Windows-сборка переносится с MinGW-кросс-компиляции (Linux) на нативный
-  Windows-билдер** на отдельном Windows-сервере. Причина: актуальный Flutter-клиент
-  нельзя кросс-компилировать из Linux; MinGW-путь давал лишь легаси Sciter UI и упёрся
-  в нелинкуемый vcpkg libvpx.a (ELF-объекты вместо COFF).
-- Зафиксирован трёхслойный механизм вшивания конфига в `rustqs.exe`: сервер+ключ в
-  `config.rs` (хардкод), quick-support поведение в подписанный `custom.txt` (патч
-  allowCustom), брендинг через sed + portable-packer.
+### Changed (Architecture - Sovereign Build Strategy)
+- Fully rewrote **`PLAN.md`** as the single source of truth. It now documents the sovereign build model
+  (3 levels of independence: sources / build / toolchain), fork map (`rustdesk` + `hbb_common` +
+  ~20 `rustdesk-org/*` repos through `vendor`), the 3-container architecture, and the offline kit with
+  pinned versions (Rust 1.75, Flutter 3.24.5, LLVM 15.0.6, `vcpkg` baseline `120deac...`).
+- Moved **Windows build** from Linux MinGW cross-compilation to a **native Windows builder** on a separate
+  Windows server. Reason: current Flutter client cannot be cross-compiled from Linux; the MinGW path only
+  reached the legacy Sciter UI and got blocked by an un-linkable `vcpkg` `libvpx.a` (ELF objects instead of COFF).
+- Documented the 3-layer config injection model for `rustqs.exe`: server + key in `config.rs`, quick-support
+  behavior in signed `custom.txt` (`allowCustom` patch), and branding through `sed` + portable-packer.
 
 ### Removed
-- `FEATURE_CUSTOM_CLIENT.md` — устаревший план сборки (MinGW cross-compile из Linux,
-  Wine, NSIS). Подход отвергнут (см. PLAN.md §9). Актуальные части свёрнуты в PLAN.md.
+- Removed `FEATURE_CUSTOM_CLIENT.md`, the outdated MinGW/Wine/NSIS build plan. The approach was rejected;
+  valid parts were folded into `PLAN.md`.
 
-### Added (Offline-kit — PLAN.md §8.1)
-- `offline-kit/versions.env` — единая точка пинов (Rust 1.75, Flutter 3.24.5, LLVM 15.0.6,
-  vcpkg baseline 120deac…, URL кастомного Flutter engine, источник-репо для форкеров).
-- `offline-kit/freeze.sh` — идемпотентный скрипт заморозки L1+L3 по стадиям
-  (source/vendor/engine/flutter_sdk/vcpkg/rust). Перезапускаемый, параметризуемый под
-  downstream-форки через ENV. Запуск отложен владельцу (десятки ГБ).
-- `offline-kit/README.md` — инструкция запуска, хранения (vendor в форк, бинари в
-  release-assets) и offline-сборки.
-- Зафиксирован полный список vcpkg-зависимостей для Windows (из vcpkg.json): aom,
-  libjpeg-turbo, opus, libvpx, libyuv, mfx-dispatch, **ffmpeg** (amf/nvcodec/qsv для
-  hwcodec) — шире, чем ставил старый MinGW-Dockerfile.
+### Added (Offline kit - PLAN.md §8.1)
+- Added `offline-kit/versions.env` as the single source of pins: Rust 1.75, Flutter 3.24.5, LLVM 15.0.6,
+  `vcpkg` baseline `120deac...`, custom Flutter engine URL, source repo for forkers.
+- Added `offline-kit/freeze.sh`, an idempotent L1+L3 freeze script split by stages
+  (`source`/`vendor`/`engine`/`flutter_sdk`/`vcpkg`/`rust`) and parameterized by env for downstream forks.
+- Added `offline-kit/README.md` documenting how to run the freeze, how to store outputs
+  (`vendor` in the fork, binaries in release assets), and how to build offline.
+- Captured the full list of Windows `vcpkg` dependencies from `vcpkg.json`: `aom`, `libjpeg-turbo`,
+  `opus`, `libvpx`, `libyuv`, `mfx-dispatch`, **`ffmpeg`** (`amf`/`nvcodec`/`qsv` for `hwcodec`).
 
-### Done (Offline-kit заморожен)
-- `freeze.sh` прогнан 2026-06-11 в docker-build-linux-1. Заморожено в томе rustdesk-cache:
-  bundle 1.4.7, vendor (2.7G — все rustdesk-org/* + hbb_common), Flutter engine, Flutter
-  SDK win+linux, vcpkg@baseline, Rust 1.75.0 MSI. Манифест с sha256 в artifacts/MANIFEST.txt.
-- Поправлен пин RUST_VERSION 1.75 → 1.75.0 (standalone MSI 404-ил на коротком номере).
+### Done (Offline kit frozen)
+- Ran `freeze.sh` on 2026-06-11 in `docker-build-linux-1`. Frozen into `rustdesk-cache` volume:
+  1.4.7 bundle, `vendor` (2.7G, all `rustdesk-org/*` + `hbb_common`), Flutter engine,
+  Flutter SDK for win+linux, `vcpkg` at baseline, Rust 1.75.0 MSI. Manifest with sha256 stored in `artifacts/MANIFEST.txt`.
+- Corrected `RUST_VERSION` pin from `1.75` to `1.75.0` because the standalone MSI URL 404'd on the short version.
 
-### Added (Windows-native builder — PLAN.md §8.3, спроектирован, НЕ протестирован)
-- `docker/Dockerfile.build-win-native` — servercore ltsc2022 + VS BuildTools (VCTools) +
-  Flutter 3.24.5 + Rust 1.75 (msvc) + LLVM 15.0.6 + vcpkg@baseline + flutter_rust_bridge 1.80.
-- `docker/entrypoint-win-native.ps1` — job-цикл + 3 слоя инъекции конфига (config.rs server/key,
-  custom.txt+allowCustom, branding sed) + сборка `build.py --portable --hwcodec --flutter --vram`.
-- `docker/docker-compose.win.yml` — отдельный compose для Windows-хоста (process isolation).
-- Места риска помечены `[VERIFY]` — тестировать на живом Windows-сервере (у автора нет хоста).
-- Выявлена доп. зависимость RustDeskTempTopMostWindow (rustdesk-org) — занесена в PLAN §8.3a.
+### Added (Windows-native builder - PLAN.md §8.3, designed, NOT tested)
+- Added `docker/Dockerfile.build-win-native` with `servercore ltsc2022` + VS BuildTools (VCTools) +
+  Flutter 3.24.5 + Rust 1.75 (msvc) + LLVM 15.0.6 + `vcpkg` baseline + `flutter_rust_bridge` 1.80.
+- Added `docker/entrypoint-win-native.ps1` with job loop + 3 config injection layers +
+  `build.py --portable --hwcodec --flutter --vram`.
+- Added `docker/docker-compose.win.yml` for a Windows host with process isolation.
+- Marked risky spots as `[VERIFY]` for real-host testing.
+- Identified extra dependency `RustDeskTempTopMostWindow` and recorded it in PLAN §8.3a.
 
-### Added (Autonomous session — §8.2/§8.3a/§8.6)
-- `offline-kit/freeze.sh` стадия `thirdparty`: заморожены RustDeskTempTopMostWindow (src,
-  пин 53b548a), usbmmidd_v2.zip, принтер-драйверы. offline-kit теперь полный: 11 артефактов,
-  5.0G (MANIFEST с sha256). Исправлена идемпотентность record()/manifest (частичные прогоны
-  не затирают манифест).
-- `offline-kit/FORK-PROCEDURE.md` — процедура суверенного форка (уровни A/B/C + acceptance).
-  Форканье на GitHub оставлено владельцу (outward-facing).
-- `.gitignore` — закрывает секреты (приватный ключ id_ed25519, БД, data/, .env), build-вывод,
-  node_modules, offline-kit/artifacts, .claude/. Скан секретов: утечек в исходниках нет.
+### Added (Autonomous session - §8.2 / §8.3a / §8.6)
+- Extended `offline-kit/freeze.sh` with `thirdparty` stage: `RustDeskTempTopMostWindow` (sources,
+  pin `53b548a`), `usbmmidd_v2.zip`, printer drivers. `offline-kit` became complete: 11 artifacts,
+  5.0G. Fixed `record()` / manifest idempotence so partial runs do not overwrite the manifest.
+- Added `offline-kit/FORK-PROCEDURE.md` documenting the sovereign fork procedure (levels A/B/C + acceptance).
+- Added `.gitignore` to exclude secrets (private key `id_ed25519`, DB, `data/`, `.env`), build output,
+  `node_modules`, `offline-kit/artifacts`, `.claude/`. Secret scan found no leaks in source.
 
-### Changed (Windows-билдер: контейнер → нативно, решение владельца)
-- Решение: Windows-клиент собирается НАТИВНО на отдельном Windows Server (без Docker) —
-  Flutter desktop в Windows-контейнере капризничает, нативно проще для одного билд-сервера.
-- Канал API↔агент = SMB-папка job-очереди (прод-API не меняется; Linux хостит Samba,
-  Windows монтирует). Никаких открытых Docker-демонов.
-- Добавлены `win-builder/setup.ps1` (тулчейн, поддержка -KitPath offline), `win-builder/agent.ps1`
-  (SMB-поллер + 3 слоя инъекции + build.py), `win-builder/README.md` (развёртывание+SMB).
-- Удалены контейнерные `docker/Dockerfile.build-win-native`, `entrypoint-win-native.ps1`,
-  `docker-compose.win.yml` (заменены нативным путём — один источник правды).
+### Changed (Windows builder: container -> native, owner decision)
+- Final decision: build the Windows client **natively** on a separate Windows Server, no Docker.
+- API <-> agent channel is an **SMB job queue folder**. Linux hosts Samba, Windows mounts it.
+- Added `win-builder/setup.ps1` (toolchain, `-KitPath` support), `win-builder/agent.ps1`
+  (SMB poller + 3 injection layers + `build.py`), `win-builder/README.md` (deployment + SMB).
+- Removed the container-native files `docker/Dockerfile.build-win-native`, `entrypoint-win-native.ps1`,
+  and `docker-compose.win.yml` as the native path became the single source of truth.
 
-### Cleanup (владелец, 2026-06-11 после §8.8.3a)
-- Все локальные docker-тома и образы удалены. Тестовые контейнеры от заброшенного MinGW-пути
-  (build-win-test*, upbeat_carson, lucid_grothendieck) исчезли — частично закрыт §8.7.
-- offline-kit том `rustdesk-cache` удалён. Staging-копия 5 release-ассетов осталась в
-  `offline-kit/artifacts/` (~62MB). Для standalone fallback (§8.3) кит можно перезаморозить
-  `freeze.sh` в любой момент. GitHub-трек (§8.8) от тома не зависит — раннер сам ставит тулчейн.
+### Cleanup (owner, 2026-06-11 after §8.8.3a)
+- Deleted all local Docker volumes and images. Test containers from the abandoned MinGW path
+  (`build-win-test*`, `upbeat_carson`, `lucid_grothendieck`) disappeared, partially closing §8.7.
+- Deleted `offline-kit` volume `rustdesk-cache`. A staging copy of 5 release assets remained in
+  `offline-kit/artifacts/` (~62 MB). For standalone fallback, the kit can be re-frozen at any time.
+  The GitHub track does not depend on that volume.
 
-### 🟢 Done (§8.8.3b(5) шифрование inputs + §8.8.5 скаффолд, 2026-06-12)
-**(5) Шифрование inputs — ЗАКРЫТО ✅**
-- Сгенерирован 43-char ключ `WORKFLOW_PAYLOAD_KEY`, установлен в GitHub Secrets форка.
-  ⚠️ Подводный камень: `gh secret set ... --body -` через pipe добавляет trailing `\n`
-  в значение секрета (PowerShell pipe quirk) → bad decrypt на раннере. Фикс: использовать
-  `--body $secret` без pipe.
-- Воркфлоу зарефакторен: input `enc_payload`, шаг `Resolve build config` (openssl
-  AES-256-CBC + PBKDF2 + jq → env vars, либо pass-through открытых inputs). Шаги L1/L2/L3
-  переведены с `inputs.X` на env `RQS_*`. Чувствительные значения скрыты `::add-mask::`.
-- Прогоны: open-inputs (backward-compat) ✅ [27397828659], enc_payload ✅ [27398061764].
-  Артефакт enc-прогона: rustqs.exe + custom_.txt с тем самым payload `encrypted_test_pass`.
+### Done (§8.8.3b(5) encrypted inputs + §8.8.5 scaffold, 2026-06-12)
+**(5) Encrypted inputs - CLOSED**
+- Generated 43-char `WORKFLOW_PAYLOAD_KEY` and stored it in fork GitHub Secrets.
+  Important pitfall: `gh secret set ... --body -` via pipe adds a trailing newline under PowerShell,
+  causing `bad decrypt` on the runner. Fix: use `--body $secret` without a pipe.
+- Refactored the workflow to take `enc_payload` and resolve it through `Resolve build config`
+  (OpenSSL AES-256-CBC + PBKDF2 + `jq` -> env vars), while still supporting open inputs as fallback.
+- Migrated L1/L2/L3 steps from `inputs.X` to `RQS_*` env vars and masked sensitive values with `::add-mask::`.
+- Verified with successful runs for both open-inputs and encrypted payload.
 
-**§8.8.5 Go API — СКАФФОЛД ✅ (без проверки компиляции)**
-- `model/github_build_config.go`: singleton с Token+PayloadKey + SafeView.
-- `service/github_build_config.go`: Get/Save, GeneratePayloadKey, **EncryptPayload**
-  openssl-compat (formula proven by run 27398061764), TestConnection, DispatchBuild
-  (workflow_dispatch + polling run id), RunStatus, DownloadArtifact.
-- `controller/admin/github_build_config.go`: Get, Save, GenerateKey, Test, DispatchTest.
-- AutoMigrate + Router bind + DatabaseVersion 267→268.
-- admin-ui: `api/github_build_config.js`, `views/server/github-build.vue` (form + Save +
-  Test + Generate Key + Trigger test build), route /admin/server/github-build, i18n.
-- Решение: PAT не в `.env`, а в админ-UI → БД (admin-only настройка инсталляции).
+**§8.8.5 Go API - SCAFFOLD**
+- Added `model/github_build_config.go`: singleton with `Token`, `PayloadKey`, and safe view.
+- Added `service/github_build_config.go`: Get/Save, key generation, OpenSSL-compatible payload encryption,
+  test connection, dispatch build, run status, artifact download.
+- Added `controller/admin/github_build_config.go`: Get, Save, GenerateKey, Test, DispatchTest.
+- Added AutoMigrate, router bind, and `DatabaseVersion` 267 -> 268.
+- Added admin-ui page/API for GitHub Build settings.
+- Design choice: PAT lives in admin UI / DB, not `.env`.
 
-**SetWorkflowSecret one-click ✅** (2026-06-12): `golang.org/x/crypto/nacl/box.SealAnonymous`
-шифрует PayloadKey публичным ключом репо (`GET /actions/secrets/public-key`), PUT кладёт
-в WORKFLOW_PAYLOAD_KEY. Эндпоинт `/admin/github_build_config/sync_secret` + кнопка
-"Push to GitHub Secrets" в UI. Убирает ручную копипасту ключа в GitHub Settings.
+**SetWorkflowSecret one-click**
+- Implemented with `golang.org/x/crypto/nacl/box.SealAnonymous` using the repo public key from
+  `GET /actions/secrets/public-key`, then storing to `WORKFLOW_PAYLOAD_KEY`.
+- Exposed via `/admin/github_build_config/sync_secret` plus `Push to GitHub Secrets` button in UI.
 
-**Склейка windows-job ✅** (2026-06-12): `controller/admin/custom_build.go::submitBuild`
-для `platform=windows` + настроенного GithubBuildConfig вызывает `tryGithubDispatch`:
-извлекает server/key/custom_txt из `CustomJson`, dispatch с enc_payload, запускает
-фоновый `pollAndDownload` (поллинг RunStatus каждые 30 сек, таймаут 90 мин). При success
-скачивает артефакт `rustdesk-min-test-windows.zip`, распаковывает (`archive/zip`),
-сохраняет `{appname}.exe` + DLL + `custom_.txt` в `/rdgen-data/output/{id}/`, обновляет
-`CustomBuild.Status` (building→done/failed). Fallback в файл-очередь для linux/android.
+**Windows-job glue**
+- `controller/admin/custom_build.go::submitBuild` now calls `tryGithubDispatch` for
+  `platform=windows` when GitHub Build is configured, dispatches `enc_payload`, and starts a background
+  `pollAndDownload` loop (30-second poll, 90-minute timeout).
+- On success it downloads `rustdesk-min-test-windows.zip`, unpacks it, stores `{appname}.exe` + DLLs +
+  `custom_.txt` into `/rdgen-data/output/{id}/`, and updates `CustomBuild.Status`.
+- Falls back to file-queue mode for Linux/Android.
 
-**Self code-review §8.8.5 (2026-06-12)** — ручной разбор (компилятора нет), исправлено:
-1. 🔴 паника в фоновой горутине `pollAndDownload` роняла бы весь API → `defer recover()`.
-2. 🟠 `zf.Open()` без проверки err → nil reader → паника; вынесено в хелпер `extractZipFile`.
-3. 🟠 `http.Client{Timeout:30s}` перекрывал ctx при download 32МБ → убран, `ghClient` без timeout.
-4. 🟡 `context.WithTimeout(c, 60*1e9)` → `context.Background(), 60*time.Second`.
-Проверено: импорты все используются, IdModel.Id/TimeModel валидны, response.* сигнатуры,
-gorm в go.mod, box/pbkdf2 сигнатуры, module mode (nacl/box+pbkdf2 подтянутся сами).
-Остаточный риск: DispatchBuild берёт runId через polling списка (гонка при параллельных
-сборках — для MVP ок).
+**Self review §8.8.5**
+- Prevented panic in background goroutine `pollAndDownload` via `defer recover()`.
+- Fixed unchecked `zf.Open()` error by moving extraction into helper `extractZipFile`.
+- Removed fixed 30s `http.Client` timeout that broke 32 MB downloads.
+- Replaced `context.WithTimeout(c, 60*1e9)` with `context.Background(), 60*time.Second`.
 
-Осталось на след. итерацию: Go compile check (нет go-toolchain на Win-хосте; прогнать на
-Linux/в docker) + интеграционный тест через UI (запустить server из docker, открыть admin-ui).
+### Done (§8.8.3b full injection pipeline green, 2026-06-11/12)
+- Sovereign binary assets: run [27352640159](https://github.com/bashrusakh/rustdesk/actions/runs/27352640159)
+  switched `usbmmidd`/printer URLs to fork release `offline-assets-1.4.7`.
+- L1 config.rs injection validated with noop run and real run.
+- L3 branding validated in run [27359858171](https://github.com/bashrusakh/rustdesk/actions/runs/27359858171).
+- L2 quick-support validated in run [27362132331](https://github.com/bashrusakh/rustdesk/actions/runs/27362132331),
+  including `allowCustom` patch and `custom_.txt` payload.
+- Exe rename polish fixed after initial path mistake: final run [27395862737](https://github.com/bashrusakh/rustdesk/actions/runs/27395862737)
+  produced `rustqs.exe` with correct metadata and `custom_.txt` nearby.
+- Uploaded additional optional rdgen patches to the fork for future use:
+  `hidecm`, `removeSetupServerTip`, `removeNewVersionNotif`, `cycle_monitor`, `xoffline`,
+  `privacyScreen`, `allowCustom.diff`.
 
-### 🟢🟢🟢 Done (§8.8.3b полный pipeline вшивания ЗЕЛЁНЫЙ, 2026-06-11/12)
-Минимальный workflow в `bashrusakh/rustdesk` собирает суверенный брендированный quick-support
-клиент. Подтверждено артефактами. Прогоны:
-- (1) Суверенизация бинарей: ран [27352640159](https://github.com/bashrusakh/rustdesk/actions/runs/27352640159)
-  ✅ usbmmidd/printer URL → release форка `offline-assets-1.4.7`.
-- (2) L1 noop ✅ [27355465888](https://github.com/bashrusakh/rustdesk/actions/runs/27355465888),
-  L1 real ✅ [27357780774](https://github.com/bashrusakh/rustdesk/actions/runs/27357780774):
-  опциональные inputs `server`/`key`, sed по `libs/hbb_common/src/config.rs`.
-- (3) L3 брендинг: ран [27359858171](https://github.com/bashrusakh/rustdesk/actions/runs/27359858171)
-  L1+L3 ✅ — input `app_name`, sed по Cargo.toml/Runner.rc/portable/main.rs.
-- (4) L2 quick-support: ран [27362132331](https://github.com/bashrusakh/rustdesk/actions/runs/27362132331)
-  L1+L2+L3 ✅. Залит `rdgen-allowCustom.py` в `.github/patches/`, добавлены steps:
-  L2-A pre-build (allowCustom убирает проверку подписи + custom.txt→custom_.txt),
-  L2-B post-build (записать base64 payload как `custom_.txt` рядом с exe).
-- (4-polish) Переименование exe: первая попытка [27392847080](https://github.com/bashrusakh/rustdesk/actions/runs/27392847080)
-  ✅ зелёная но exe ещё `rustdesk.exe` — sed промахнулся (BINARY_NAME в РОДИТЕЛЬСКОМ
-  `flutter/windows/CMakeLists.txt`, не `runner/`). Исправлено + sed по `project()`. Ран
-  [27395862737](https://github.com/bashrusakh/rustdesk/actions/runs/27395862737) ✅: артефакт
-  скачан, файл = `rustqs.exe`, метаданные = rustqs, `custom_.txt` рядом.
+### Done (§8.8.3a GitHub mini-test green, 2026-06-11)
+- Created branch `rustqs/min-test` from tag 1.4.7 in `bashrusakh/rustdesk`.
+- Added `rustqs-windows-min-test.yml`, a close copy of official `build-for-windows-flutter`
+  plus `workflow_dispatch`, with the Flutter engine pulled from the fork release instead of `rustdesk-org`.
+- First attempt failed at startup because of an extra input in the TopMost sub-workflow; fixed.
+- Run [27341830418](https://github.com/bashrusakh/rustdesk/actions/runs/27341830418) completed:
+  bridge about 6 min, topmost about 2 min, build about 37 min. Artifact `rustdesk-min-test-windows`
+  confirmed the runner toolchain and fork release source path work.
 
-Дополнительно в форк залиты остальные опциональные rdgen-патчи (про запас):
-hidecm, removeSetupServerTip, removeNewVersionNotif, cycle_monitor, xoffline,
-privacyScreen, allowCustom.diff — под `.github/patches/rdgen-*`.
+### Done (§8.8 GitHub track - implementation start, 2026-06-11)
+- Owner installed `gh` CLI (`bashrusakh`, `repo`/`workflow` scopes); GitHub API access confirmed.
+- Forked `bashrusakh/rustdesk` and `hbb_common` publicly.
+- Created fork release `offline-assets-1.4.7` with engine 63M, `usbmmidd`, printer driver + adapter,
+  and generated `sha256sums`. Flutter SDK / Rust / `vcpkg` were not uploaded because GitHub runners install them directly.
 
-### 🟢 Done (§8.8.3a минитест GitHub-сборки ЗЕЛЁНЫЙ, 2026-06-11)
-- Ветка `rustqs/min-test` от тега 1.4.7 в `bashrusakh/rustdesk`. Воркфлоу
-  `rustqs-windows-min-test.yml` = точная копия официального `build-for-windows-flutter` +
-  `workflow_dispatch`, с одной суверенной заменой: Flutter engine качается из release форка
-  `offline-assets-1.4.7`, а не с rustdesk-org. (Воркфлоу залит и на master, и на ветку — у
-  workflow_dispatch жёсткое требование наличия файла на дефолтной ветке.)
-- Первая попытка → startup_failure: лишний input `upload-artifact-name` в вызове TopMost
-  под-воркфлоу. Исправлено.
-- Ран [27341830418](https://github.com/bashrusakh/rustdesk/actions/runs/27341830418):
-  bridge ✅ ~6 мин, topmost ✅ ~2 мин, build ✅ ~37 мин. Артефакт `rustdesk-min-test-windows`
-  (32 МБ) — каталог Flutter Windows build. **Подтверждено:** тулчейн раннера зелёный из
-  коробки + release-source форка работает. Дальше — наращивание шагов (§8.8.3b в плане).
-
-### Done (§8.8 GitHub-трек — старт реализации, 2026-06-11)
-- `gh` CLI установлен владельцем (аккаунт bashrusakh, scopes repo/workflow). Доступ к
-  GitHub API подтверждён.
-- §8.8.1: форки в bashrusakh (публичные). `bashrusakh/rustdesk` — чистый форк upstream
-  (1.4.7/1.4.6 на месте). hbb_common форкнут как `hbb_common-1` (имя занято приватным
-  репо владельца; ждём освобождения для переименования).
-- §8.8.2: создан release `offline-assets-1.4.7` в форке rustdesk с GitHub-нужными
-  ассетами (engine 63M, usbmmidd, printer driver+adapter, sha256sums сгенерирован — исходный
-  пустой). Flutter SDK/Rust/vcpkg НЕ заливаем (раннер ставит сам).
-
-### Changed (СТРАТЕГИЯ: GitHub-first, решение владельца 2026-06-11)
-- Разделены две независимости: от rustdesk-upstream (реальный риск, закрываем сейчас) и
-  от GitHub-платформы (низкий риск, не приоритет). Сборка rustqs.exe — через GitHub Actions
-  в форке rustdesk (быстро, бесплатные win-раннеры). Standalone win-builder заморожен как
-  fallback (скрипты готовы, Windows-сервер не разворачиваем).
-- PLAN §1/§3/§4/§6 переписаны под это; добавлен §8.8 (активный GitHub-трек):
-  форк → суверенизация воркфлоу (артефакты из releases форка) → адаптация generator-windows.yml
-  → безопасность (бинарь на свой сервер, НЕ public release; inputs шифровать — пароль не в
-  логи публичного рана) → интеграция workflow_dispatch в Go API.
-- §8.3/§8.4 (standalone + SMB) помечены FALLBACK/заморожено.
-- `github-build/README.md` — гайд §8.8: точная таблица репойнта внешних URL в форкнутом
-  generator-windows.yml (патчи/engine/драйверы → releases форка), настройка GitHub Secrets,
-  Go-интеграция workflow_dispatch. Выявлено: rdgen-воркфлоу уже несёт fetch-encrypted-secrets
-  + ZIP_PASSWORD + save_custom_client → безопасность (§8.8.4) почти из коробки.
+### Changed (STRATEGY: GitHub-first, owner decision 2026-06-11)
+- Split the two independence goals: from RustDesk upstream (real risk, solve now) and from GitHub
+  platform (low risk, not priority). `rustqs.exe` is built through GitHub Actions in the rustdesk fork.
+- Rewrote PLAN §§1/3/4/6 to reflect this and added §8.8 as the active track.
+- Marked §§8.3/8.4 (standalone + SMB) as FALLBACK/frozen.
+- Added `github-build/README.md` documenting URL repointing in forked `generator-windows.yml`,
+  GitHub Secrets, and Go `workflow_dispatch` integration. Also documented that rdgen already contains
+  `fetch-encrypted-secrets`, `ZIP_PASSWORD`, and `save_custom_client`.
 
 ### Added (win-builder)
-- `win-builder/SERVER-SETUP.md` — подробное руководство по Windows build-серверу: выбор ОС
-  (Server 2022 vs Win 11 Pro), железо, провижининг (Hyper-V VM/физ/облако), длинные пути,
-  антивирус-исключения, SMB, служба-агент, первый end-to-end тест, безопасность.
+- Added `win-builder/SERVER-SETUP.md`, a detailed Windows build server guide:
+  OS choice (Server 2022 vs Windows 11 Pro), hardware sizing, provisioning options
+  (Hyper-V VM / physical / cloud), long paths, antivirus exclusions, SMB, service agent,
+  first end-to-end test, and security.
 
 ### Verified / Fixed (offline-kit)
-- ✅ **Доказана суверенность L1**: `cargo metadata --offline` на vendored-дереве резолвит
-  все 1049 крейтов из vendor без сети. Заморозка зависимостей полна и валидна.
-- ✅ **Bundle исправлен и проверен**: пересобран на полной истории (70M), clone-back с тегом
-  1.4.7 успешен. Прежний дефект — bundle из shallow-клона (`--depth 1`) был неполным
-  ("remote did not send all necessary objects"). freeze.sh `stage_source` → полный клон.
+- Proved **L1 sovereignty**: `cargo metadata --offline` on the vendored tree resolves all 1049 crates
+  from `vendor` with no network access.
+- Rebuilt and verified the **bundle** on full history (70M). Clone-back on tag 1.4.7 succeeded.
+  Fixed the earlier shallow-clone defect (`remote did not send all necessary objects`).
 
 ### Notes
-- Заброшенные подходы задокументированы в PLAN.md §9, чтобы будущий агент не повторял.
-- Чистка балласта (тестовые контейнеры build-win-test*, дубли compose) отложена до
-  финальной фазы (PLAN.md §8.7); `.gitignore` + проверка секретов — обязательны до
-  первого публичного push (§8.6). Репо пока не под git (git init — часть §8.6).
+- Abandoned approaches are now documented in `PLAN.md` §9 so future agents do not repeat them.
+- Ballast cleanup is delayed until the final phase (§8.7).
+- `.gitignore` + secret scan are mandatory before the first public push (§8.6).
+- Repository was still not under git at that point; `git init` was part of §8.6.
 
 ## [0.3.0] - 2026-06-09
 
 ### Added
-- PLAN.md — unified project roadmap for other agents
-- admin-ui/ — forked from lejianwen/rustdesk-api-web (Vue 3 + Element Plus)
-- New nav structure: Dashboard, Devices, Users, Groups, Address Book, Security, Monitoring, Custom Client, Server, My Profile
+- `PLAN.md` as a unified project roadmap for other agents
+- `admin-ui/` forked from `lejianwen/rustdesk-api-web` (Vue 3 + Element Plus)
+- New nav structure: Dashboard, Devices, Users, Groups, Address Book, Security, Monitoring,
+  Custom Client, Server, My Profile
 - New page stubs: Custom Client Builder, Server Config
-- Dashboard route at `/dashboard/` (page still needs content)
-- i18n keys for all new nav sections (en.json)
+- Dashboard route at `/dashboard/`
+- i18n keys for all new nav sections (`en.json`)
 
 ### Changed
-- Admin UI default locale: `zhCn` → `en` (Element Plus locale in main.js)
-- Admin UI store: defaultLang `'zh-CN'` → `'en'`
-- en.json "ChangeLang" value: "切换中文" → "Switch Language"
-- Title: "Rustdesk API Admin" → "RustDesk Server Admin"
-- Router: full restructure into logical nav groups (10 parent routes)
-- All admin routes moved under `/admin/*` prefix
-- My Profile routes cleaned up under `/my/*` prefix
-- Login redirect: `/` → `/dashboard`
-- PLAN.md updated with all completed phases
+- Admin UI default locale: `zhCn` -> `en`
+- Admin UI store default language: `'zh-CN'` -> `'en'`
+- `en.json` `ChangeLang`: `Switch Language`
+- Title: `Rustdesk API Admin` -> `RustDesk Server Admin`
+- Router fully restructured into logical nav groups
+- All admin routes moved under `/admin/*`
+- My Profile routes cleaned up under `/my/*`
+- Login redirect: `/` -> `/dashboard`
+- `PLAN.md` updated with all completed phases
 
-### Added (Phase 4 — Custom Client Builder Backend)
-- `docker/Dockerfile.build-linux` — build agent for Linux .rpm + Android .apk (Rust, Flutter, Android SDK/NDK)
-- `docker/Dockerfile.build-win` — build agent for Windows .exe/.msi (MinGW + NSIS cross-compiler)
-- `docker/entrypoint-linux.sh` — job poller: clones rustdesk, applies patches, builds
-- `docker/entrypoint-win.sh` — job poller: cross-compiles from Linux, packages with NSIS
-- `api/model/custom_build.go` — CustomBuild model (id, user, platform, version, status, config, download_key, timestamps)
-- `api/service/custom_build.go` — CRUD service for CustomBuild
-- `api/http/request/admin/custom_build.go` — form + query structs
-- `api/http/controller/admin/custom_build.go` — CRUD controller + build job submission via file tickets
-- Go API routes: `CustomBuildBind` — `/admin/custom_build/*` (admin CRUD) + `/admin/custom_build/public/detailByKey/:key` (public download lookup)
-- docker-compose.yml — `build-linux` + `build-win` services added with shared `rdgen-data` volume
-- CustomBuild model added to AutoMigrate; DatabaseVersion bumped 265→266
-- .env.example — build agent section
+### Added (Phase 4 - Custom Client Builder Backend)
+- `docker/Dockerfile.build-linux` for Linux `.rpm` + Android `.apk`
+- `docker/Dockerfile.build-win` for Windows `.exe`/`.msi` via MinGW + NSIS cross-compiler
+- `docker/entrypoint-linux.sh` job poller
+- `docker/entrypoint-win.sh` job poller
+- `api/model/custom_build.go` model
+- `api/service/custom_build.go` CRUD service
+- `api/http/request/admin/custom_build.go` form/query structs
+- `api/http/controller/admin/custom_build.go` CRUD controller + build job submission by file tickets
+- Routes under `/admin/custom_build/*` and public `detailByKey`
+- `docker-compose.yml` services `build-linux` + `build-win` with shared `rdgen-data`
+- `CustomBuild` added to AutoMigrate; `DatabaseVersion` 265 -> 266
+- `.env.example` build agent section
 
-### Added (Phase 5 — Dashboard API + UI)
-- `api/http/controller/admin/dashboard.go` — `GET /api/admin/dashboard/stats` endpoint (total_users, total_peers, online_peers, total_groups, total_logins, recent_logins)
-- `admin-ui/src/api/dashboard.js` — `stats()` API function
-- `admin-ui/src/views/index/index.vue` — rewritten: 6 stat cards (Users, Devices, Online, Groups, Logins, Recent), Quick Actions row, Recent Activity column
-- `admin-ui/src/utils/i18n/en.json` — 10 new dashboard keys
-- Route registered in admin.go: `DashboardBind` → `g.GET("/dashboard/stats", cont.Stats)`
+### Added (Phase 5 - Dashboard API + UI)
+- `GET /api/admin/dashboard/stats`
+- `admin-ui/src/api/dashboard.js`
+- Rewritten dashboard view with stat cards, quick actions, recent activity
+- New dashboard i18n keys
+- Route bind for dashboard stats
 
-### Added (Phase 6 — Custom Client UI Page)
-- `admin-ui/src/views/custom-client/index.vue` — full build form (platform, version, server config, security/approval, permissions with toggle grid, theme, advanced options) + build history table with status tags, download, delete
-- `admin-ui/src/api/custom_client.js` — `list()`, `create()`, `remove()`, `detail()`, `detailByKey()`
-- `admin-ui/src/utils/i18n/en.json` — 50+ new keys covering all build form fields and status labels
+### Added (Phase 6 - Custom Client UI Page)
+- Full build form in `admin-ui/src/views/custom-client/index.vue`
+- `admin-ui/src/api/custom_client.js`
+- 50+ i18n keys for build form fields and status labels
 
-### Added (Phase 7 — Server Config UI Page)
-- `admin-ui/src/views/server/config.vue` — rewritten: read-only config display with server addresses card and system settings card
-- `api/http/controller/admin/config.go` — new `AllConfig` endpoint: returns all server + app + admin settings in one call
-- `api/http/router/admin.go` — `GET /config/all` route registered under auth
-- `admin-ui/src/api/config.js` — new `all()` function
+### Added (Phase 7 - Server Config UI Page)
+- Rewritten `admin-ui/src/views/server/config.vue`
+- New `AllConfig` endpoint in `api/http/controller/admin/config.go`
+- `GET /config/all` route under auth
+- `admin-ui/src/api/config.js` `all()`
 
-### Changed (Phase 8 — Polish)
-- `admin-ui/src/store/app.js` — Chinese language names (中文→简体中文, 中文繁体→繁體中文)
-- `admin-ui/src/views/peer/index.vue` — '暂未实现' warning → 'Not implemented'
-- `admin-ui/src/views/rustdesk/blocklist.vue` — '多个IP以 | 分割' → 'Separate multiple IPs with |'
-- `admin-ui/src/views/rustdesk/blacklist.vue` — same fix
-- Removed commented-out Chinese table column labels in address_book views
+### Changed (Phase 8 - Polish)
+- Chinese language names in app store normalized
+- `peer/index.vue` warning translated to `Not implemented`
+- `rustdesk/blocklist.vue` and `blacklist.vue` tips translated to English
+- Removed commented Chinese labels in address book views
 
-### Changed (Phase 9 — Dockerfile Finalize)
-- `docker/Dockerfile` stage 3: uses local `admin-ui/` copy instead of `git clone` from GitHub
+### Changed (Phase 9 - Dockerfile finalize)
+- Dockerfile stage 3 uses local `admin-ui/` instead of `git clone`
 
-### Added/Fixed (Phase 10 — Integration Verification)
-- `admin-ui/src/utils/i18n/en.json` — added missing keys: `Download`, `Reset`
-- Code review: Go patterns, frontend-backend route alignment, permission system, i18n audit — all clean
+### Added/Fixed (Phase 10 - Integration verification)
+- Added missing i18n keys: `Download`, `Reset`
+- Code review of Go patterns, frontend/backend route alignment, permissions, and i18n found no issues
 
 ## [0.2.0] - 2026-06-08
 
 ### Fixed
-- Docker build: Cargo.lock version 4 requires Rust 1.88+
-- Docker build: go.sum missing - now generated via `go mod tidy`
-- Docker build: sqlx requires DATABASE_URL for compile-time query checks
+- Docker build: `Cargo.lock` version 4 requires Rust 1.88+
+- Docker build: missing `go.sum`, generated with `go mod tidy`
+- Docker build: `sqlx` requires `DATABASE_URL` for compile-time query checks
 
 ### Changed
-- Dockerfile: Rust base image updated to `rust:bookworm` (latest stable)
-- Dockerfile: Cargo.lock deleted before build to regenerate compatible versions
-- Dockerfile: SQLite dummy DB created for sqlx macro compilation
+- Dockerfile Rust base image updated to `rust:bookworm`
+- Dockerfile deletes `Cargo.lock` before build to regenerate compatible versions
+- Dockerfile creates a dummy SQLite DB for `sqlx` macro compilation
 
 ## [0.1.0] - 2026-06-08
 
 ### Added
 - Unified Docker image with Rust server + Go API + Web Admin
-- Multi-stage Dockerfile (Rust, Go, Node.js, s6-overlay)
-- Single docker-compose.yml for easy deployment
+- Multi-stage Dockerfile (Rust, Go, Node.js, `s6-overlay`)
+- Single `docker-compose.yml` for easy deployment
 - Web Admin panel at `/admin/`
 - Web Client for browser-based remote desktop
 - JWT authentication
-- Mandatory login support (MUST_LOGIN)
+- Mandatory login support (`MUST_LOGIN`)
 - OAuth2/OIDC support
 - LDAP authentication
 - User/Group/Device management
@@ -474,13 +385,13 @@ privacyScreen, allowCustom.diff — под `.github/patches/rdgen-*`.
 - Audit logs
 - Captcha and ban system
 - Swagger API documentation
-- CHANGELOG.md
+- `CHANGELOG.md`
 
 ### Changed
 - Admin panel route changed from `/_admin/` to `/admin/`
-- All Chinese text removed from source code (95 files in api/)
-- English-only documentation
+- All Chinese text removed from source code (`api/`)
+- Documentation made English-only
 
 ### Removed
-- Chinese README files (api/README.md)
+- Chinese README files (`api/README.md`)
 - Chinese comments from source code

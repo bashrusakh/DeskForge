@@ -1,44 +1,44 @@
-# win-builder — нативный Windows build-агент (PLAN.md §8.3, §8.4)
+# win-builder - native Windows build agent (PLAN.md §8.3, §8.4)
 
-Сборка актуального **Flutter Windows-клиента** (`rustqs.exe`) на выделенном
-**headless Windows Server** — без Docker-контейнеров (решение владельца: нативно + SMB).
-Канал с прод-API — общая **SMB-папка** job-очереди.
+Builds the current **Flutter Windows client** (`rustqs.exe`) on a dedicated
+**headless Windows Server** without Docker containers (owner decision: native + SMB).
+The channel to the production API is a shared **SMB job queue** folder.
 
-> Почему нативно, а не Windows-контейнер: Flutter desktop в servercore капризничает
-> (hyperv-isolation, недостающие компоненты), а нативная установка headless-дружелюбна
-> и проще для одного билд-сервера. Спецификация тулчейна — `setup.ps1` (бывший
-> Dockerfile.build-win-native, преобразован).
+> Why native instead of a Windows container: Flutter desktop is temperamental in
+> servercore (Hyper-V isolation, missing components), while a native installation is
+> headless-friendly and simpler for a single build server. The toolchain spec lives in
+> `setup.ps1` (formerly `Dockerfile.build-win-native`, converted).
 
-## Файлы
+## Files
 
-| Файл | Назначение |
+| File | Purpose |
 |---|---|
-| `setup.ps1` | Установка тулчейна (один раз при развёртывании). Поддерживает `-KitPath` для offline-kit. |
-| `agent.ps1` | Поллер job-очереди: 3 слоя инъекции конфига + сборка → `rustqs.exe`. |
+| `setup.ps1` | Installs the toolchain (one-time during provisioning). Supports `-KitPath` for `offline-kit`. |
+| `agent.ps1` | Job queue poller: 3 config injection layers + build -> `rustqs.exe`. |
 
-> 📘 **Подробное руководство по серверу** (какой, специфика железа, провижининг,
-> длинные пути, антивирус, безопасность, первый тест): [SERVER-SETUP.md](SERVER-SETUP.md).
-> Ниже — краткая версия.
+> Detailed server guide (which server, hardware sizing, provisioning,
+> long paths, antivirus, security, first test): [SERVER-SETUP.md](SERVER-SETUP.md).
+> Below is the short version.
 
-## Развёртывание
+## Deployment
 
-### 1. Подготовить Windows Server (headless)
+### 1. Prepare the Windows Server (headless)
 
-Windows Server 2022 (или Win 11). RDP/GUI не нужен для сборки. От администратора:
+Windows Server 2022 (or Windows 11). RDP/GUI is not required for builds. Run as administrator:
 
 ```powershell
-# скопировать offline-kit\artifacts на сервер (напр. D:\offline-kit\artifacts)
+# copy offline-kit\artifacts to the server (for example D:\offline-kit\artifacts)
 powershell -ExecutionPolicy Bypass -File setup.ps1 -KitPath D:\offline-kit\artifacts
-# перелогиниться для применения PATH/env
+# log out and back in to apply PATH/env
 ```
 
-### 2. Настроить SMB-канал job-очереди (§8.4)
+### 2. Configure the SMB job queue channel (§8.4)
 
-Прод-API (Linux) и Windows-агент работают через общую папку `rdgen-data`
-(`jobs/`, `output/`, `patches/`). Рекомендуемая схема — **Linux хостит Samba**
-(данные уже там), Windows монтирует:
+The production API (Linux) and Windows agent work through a shared `rdgen-data`
+folder (`jobs/`, `output/`, `patches/`). Recommended layout: **Linux hosts Samba**
+(the data is already there), Windows mounts it:
 
-**На Linux-проде** (экспорт rdgen-data по Samba):
+**On Linux prod** (export `rdgen-data` via Samba):
 ```
 # /etc/samba/smb.conf
 [rdgen-data]
@@ -50,22 +50,23 @@ powershell -ExecutionPolicy Bypass -File setup.ps1 -KitPath D:\offline-kit\artif
 sudo smbpasswd -a builder && sudo systemctl restart smbd
 ```
 
-**На Windows-агенте** (примонтировать как диск Z:):
+**On the Windows agent** (mount as drive `Z:`):
 ```powershell
 net use Z: \\PROD_HOST\rdgen-data /user:builder * /persistent:yes
 ```
 
-> Альтернатива: Windows хостит share, Linux монтирует через `cifs` — тоже рабочее.
-> Главное — обе стороны видят один `jobs/`. Никаких открытых демонов/портов Docker.
+> Alternative: Windows can host the share and Linux can mount it via `cifs`.
+> The key requirement is that both sides see the same `jobs/` folder.
+> No exposed Docker daemons/ports.
 
-### 3. Положить rdgen-патчи в очередь
+### 3. Put rdgen patches into the queue
 
-`allowCustom.py` и др. из `rdgen/.github/patches/` скопировать в `<DataRoot>\patches\`
-(нужен для L2 — приёма подписанного custom.txt).
+Copy `allowCustom.py` and the other files from `rdgen/.github/patches/` into
+`<DataRoot>\patches\` (needed for L2: accepting signed `custom.txt`).
 
-### 4. Запустить агента (как службу)
+### 4. Start the agent (as a service)
 
-Через Scheduled Task «At startup», от имени build-пользователя:
+Using a Scheduled Task with the build user account:
 ```powershell
 $action  = New-ScheduledTaskAction -Execute 'powershell.exe' `
     -Argument '-ExecutionPolicy Bypass -File C:\win-builder\agent.ps1 -DataRoot Z:\rdgen-data -KitPath D:\offline-kit\artifacts'
@@ -74,22 +75,23 @@ Register-ScheduledTask -TaskName 'rustqs-build-agent' -Action $action -Trigger $
 Start-ScheduledTask -TaskName 'rustqs-build-agent'
 ```
 
-## Поток (PLAN.md §4)
+## Flow (PLAN.md §4)
 
 ```
-admin-ui → Go API пишет job.json → Z:\rdgen-data\jobs\ (SMB)
-  → agent.ps1 поллит → clone(bundle) → L1 config.rs → L2 custom.txt → L3 branding
-  → vcpkg install → bridge codegen → build.py → rustqs.exe
-  → Z:\rdgen-data\output\<job>\rustqs.exe → admin-ui Download
+admin-ui -> Go API writes job.json -> Z:\rdgen-data\jobs\ (SMB)
+  -> agent.ps1 polls -> clone(bundle) -> L1 config.rs -> L2 custom.txt -> L3 branding
+  -> vcpkg install -> bridge codegen -> build.py -> rustqs.exe
+  -> Z:\rdgen-data\output\<job>\rustqs.exe -> admin-ui Download
 ```
 
-Прод-API **не меняется**: он уже пишет job в том `rdgen-data`. SMB лишь делает этот том
-видимым Windows-агенту. Это и есть весь канал §8.4.
+The production API **does not change**: it already writes jobs into the `rdgen-data`
+volume. SMB only makes that volume visible to the Windows agent. That is the entire
+§8.4 channel.
 
-## Статус
+## Status
 
-`setup.ps1` и `agent.ps1` — **спроектированы, НЕ протестированы** (нет Windows-хоста у
-автора). Места риска помечены `[VERIFY]`. Открытые TODO для первого теста:
-- сборка `RustDeskTempTopMostWindow` (msbuild из kit-бандла) и размещение артефакта;
-- полный набор branding-sed (сейчас сокращённый — см. `rdgen/generator-windows.yml`);
-- smoke-тест готового `rustqs.exe` (§8.5).
+`setup.ps1` and `agent.ps1` are **designed but NOT tested** (the author has no Windows host).
+Risky spots are marked `[VERIFY]`. Open TODOs for the first test:
+- build `RustDeskTempTopMostWindow` (msbuild from the kit bundle) and place the artifact;
+- complete the branding `sed` set (currently shortened, see `rdgen/generator-windows.yml`);
+- smoke-test the resulting `rustqs.exe` (§8.5).

@@ -1,39 +1,39 @@
-# FORK-PROCEDURE — суверенный форк (PLAN.md §8.2)
+# FORK-PROCEDURE - sovereign fork (PLAN.md §8.2)
 
-Как превратить замороженный [offline-kit](README.md) в **вечный самодостаточный форк**,
-из которого можно собирать клиент, даже если upstream закроют. И как downstream-форкеры
-повторяют это со своим репо.
+How to turn the frozen [offline-kit](README.md) into a **permanent self-contained fork**
+that can still build the client even if upstream disappears, and how downstream forkers
+repeat the same setup with their own repository.
 
-> Все команды `gh`/`git push` выполняет **владелец** (это его GitHub-аккаунт,
-> outward-facing). Здесь — точная последовательность, не автоматизировано.
-> Предполагается: установлен `gh` (GitHub CLI, авторизован) и заморожен offline-kit
-> (артефакты в `rustdesk-cache:/rustdesk-cache/offline-kit/artifacts/`).
+> All `gh`/`git push` commands are executed by the **owner** (their GitHub account is
+> outward-facing). This file documents the exact sequence; it is not automated.
+> Assumes `gh` (GitHub CLI) is installed and authenticated, and `offline-kit` has already
+> been frozen (`rustdesk-cache:/rustdesk-cache/offline-kit/artifacts/`).
 
 ---
 
-## Уровень A — Минимальная суверенность (форк + vendor)
+## Level A - minimum sovereignty (fork + vendor)
 
-Достаточно, чтобы пережить закрытие upstream и собирать из своего форка.
+Enough to survive upstream shutdown and build from your own fork.
 
-### A1. Форкнуть клиент и submodule в свою организацию
+### A1. Fork the client and submodule into your organization
 
 ```bash
-gh repo fork rustdesk/rustdesk    --org ВАША_ОРГ --fork-name rustdesk    --clone=false
-gh repo fork rustdesk/hbb_common  --org ВАША_ОРГ --fork-name hbb_common  --clone=false
+gh repo fork rustdesk/rustdesk    --org YOUR_ORG --fork-name rustdesk    --clone=false
+gh repo fork rustdesk/hbb_common  --org YOUR_ORG --fork-name hbb_common  --clone=false
 ```
 
-### A2. Влить замороженный vendor в форк rustdesk
+### A2. Import the frozen vendor tree into the rustdesk fork
 
-`vendor/` (2.7G, все ~20 rustdesk-org/* + hbb_common) уже заморожен. Кладём его в форк,
-чтобы сборка не обращалась к rustdesk-org никогда.
+`vendor/` (2.7 GB, all ~20 `rustdesk-org/*` deps + `hbb_common`) is already frozen.
+Put it into the fork so the build never talks to `rustdesk-org` again.
 
 ```bash
-# достать исходники тега из bundle + распаковать vendor
+# extract tagged sources from the bundle + unpack vendor
 git clone artifacts/rustdesk-1.4.7.bundle rustdesk-fork
-cd rustdesk-fork && git remote set-url origin https://github.com/ВАША_ОРГ/rustdesk.git
+cd rustdesk-fork && git remote set-url origin https://github.com/YOUR_ORG/rustdesk.git
 git checkout 1.4.7 && git submodule update --init --recursive
-tar -xf ../artifacts/vendor-1.4.7.tar.gz          # → vendor/
-# направить cargo на vendored-источники:
+tar -xf ../artifacts/vendor-1.4.7.tar.gz          # -> vendor/
+# point cargo at vendored sources:
 mkdir -p .cargo
 cat > .cargo/config.toml <<'EOF'
 [source.crates-io]
@@ -43,44 +43,44 @@ directory = "vendor"
 EOF
 git add vendor .cargo/config.toml
 git commit -m "Freeze vendored deps (sovereign offline build, tag 1.4.7)"
-git push origin 1.4.7    # или в ветку, напр. sovereign/1.4.7
+git push origin 1.4.7    # or a branch, e.g. sovereign/1.4.7
 ```
 
-> ⚠️ `vendor/` тяжёлый. Если не хочешь раздувать git-историю — вместо коммита в git
-> залей `vendor-1.4.7.tar.gz` как release-asset (см. B2) и распаковывай при сборке.
+> ⚠️ `vendor/` is heavy. If you do not want to grow git history, upload
+> `vendor-1.4.7.tar.gz` as a release asset instead (see B2) and unpack it at build time.
 
-### A3. Направить build-агенты на свой форк
+### A3. Point build agents at your fork
 
-В `offline-kit/versions.env` и в ENV образа build-win (`docker-compose.win.yml`):
+In `offline-kit/versions.env` and in the build-win image environment (`docker-compose.win.yml`):
 
 ```
-RUSTDESK_REPO="https://github.com/ВАША_ОРГ/rustdesk.git"
+RUSTDESK_REPO="https://github.com/YOUR_ORG/rustdesk.git"
 RUSTDESK_REF="1.4.7"
 ```
 
-Готово: сборка идёт из вашего форка, upstream не нужен.
+Done: the build now uses your fork, not upstream.
 
 ---
 
-## Уровень B — Полная суверенность (бинарные артефакты в releases)
+## Level B - full sovereignty (binary artifacts in releases)
 
-Кроме исходников, Windows-сборке нужны бинарные артефакты, которые тоже могут исчезнуть.
-Заливаем их в releases своего форка.
+Besides sources, the Windows build also needs binary artifacts that can disappear.
+Upload them into releases of your fork.
 
-### B1. Что заливать (всё уже в offline-kit)
+### B1. What to upload (everything is already in offline-kit)
 
-| Артефакт | Файл в kit | Зачем |
+| Artifact | File in kit | Why |
 |---|---|---|
-| Flutter engine (кастомный) | `windows-x64-release.zip` | подменяет стандартный engine |
-| usbmmidd_v2 | `usbmmidd_v2.zip` | виртуальный дисплей |
-| printer driver | `rustdesk_printer_driver_v4-1.4.zip` | печать |
-| printer adapter | `printer_driver_adapter.zip` | печать |
-| vendor (опц.) | `vendor-1.4.7.tar.gz` | если не коммитить в git |
+| Flutter engine (custom) | `windows-x64-release.zip` | replaces the standard engine |
+| `usbmmidd_v2` | `usbmmidd_v2.zip` | virtual display |
+| printer driver | `rustdesk_printer_driver_v4-1.4.zip` | printing |
+| printer adapter | `printer_driver_adapter.zip` | printing |
+| vendor (optional) | `vendor-1.4.7.tar.gz` | if you do not commit it to git |
 
-### B2. Команды
+### B2. Commands
 
 ```bash
-gh release create offline-assets-1.4.7 --repo ВАША_ОРГ/rustdesk \
+gh release create offline-assets-1.4.7 --repo YOUR_ORG/rustdesk \
     --title "Offline build assets (1.4.7)" --notes "Frozen $(date +%F)" \
     artifacts/windows-x64-release.zip \
     artifacts/usbmmidd_v2.zip \
@@ -89,44 +89,44 @@ gh release create offline-assets-1.4.7 --repo ВАША_ОРГ/rustdesk \
     artifacts/vendor-1.4.7.tar.gz
 ```
 
-В build-агенте брать их из этого release (по фиксированному тегу), а не с rustdesk.com.
+The build agent should fetch them from this release (fixed tag), not from `rustdesk.com`.
 
-### B3. Архивный форк зависимостей (опционально, страховка L1)
+### B3. Archive forks of dependencies (optional, L1 backup)
 
-Для двойной надёжности форкнуть исходные репо (на случай перевендоринга под новую версию):
+For extra safety, fork the source repos too, in case you need to re-vendor for a newer version:
 
 ```bash
-for r in RustDeskTempTopMostWindow; do gh repo fork rustdesk-org/$r --org ВАША_ОРГ --clone=false; done
-# + ~20 rustdesk-org/* из Cargo.toml (см. PLAN.md §2) при желании
+for r in RustDeskTempTopMostWindow; do gh repo fork rustdesk-org/$r --org YOUR_ORG --clone=false; done
+# plus ~20 rustdesk-org/* repos from Cargo.toml (see PLAN.md §2) if desired
 ```
 
-`RustDeskTempTopMostWindow` уже заморожен исходниками: `artifacts/RustDeskTempTopMostWindow.bundle`
-(пин коммита 53b548a…).
+`RustDeskTempTopMostWindow` is already frozen as sources in
+`artifacts/RustDeskTempTopMostWindow.bundle` (pinned commit `53b548a...`).
 
 ---
 
-## Уровень C — Downstream-форкер повторяет за вами
+## Level C - downstream forker repeats after you
 
-Кто-то форкает **ваш** `full_Server` и хочет собирать из **своего** rustdesk-форка:
+Someone forks **your** `full_Server` and wants to build from **their own** rustdesk fork:
 
-1. Форкает `full_Server` (этот репо) и `ВАША_ОРГ/rustdesk` → `ЕГО_ОРГ/rustdesk`.
-2. Меняет в своём `full_Server`:
+1. They fork `full_Server` (this repo) and `YOUR_ORG/rustdesk` -> `THEIR_ORG/rustdesk`.
+2. In their own `full_Server`, they change:
    ```
-   RUSTDESK_REPO="https://github.com/ЕГО_ОРГ/rustdesk.git"
+   RUSTDESK_REPO="https://github.com/THEIR_ORG/rustdesk.git"
    ```
-   (одна строка в `versions.env` + ENV в `docker-compose.win.yml`).
-3. Пересобирает образ build-win → его GUI собирает из его форка.
+   (one line in `versions.env` + the env in `docker-compose.win.yml`).
+3. They rebuild the build-win image -> their GUI builds from their fork.
 
-Оригинальный `rustdesk/rustdesk` в этой цепочке не участвует. Это и есть цель §0/§7.
+The original `rustdesk/rustdesk` is no longer part of this chain. That is the entire point of §0/§7.
 
 ---
 
-## Проверка суверенности (acceptance)
+## Sovereignty verification (acceptance)
 
-Форк «вечный», если выполнено:
+The fork is "permanent" if all of the following are true:
 
-- [ ] `ВАША_ОРГ/rustdesk` @ 1.4.7 с `vendor/` (или vendor в release) + `.cargo/config.toml`.
-- [ ] `ВАША_ОРГ/hbb_common` форкнут (submodule).
-- [ ] Бинарные артефакты в releases форка (engine, usbmmidd, printer).
-- [ ] `versions.env` указывает на ваш форк.
-- [ ] Тестовая сборка с `--offline` проходит без обращений к github.com/rustdesk*.
+- [ ] `YOUR_ORG/rustdesk` at 1.4.7 with `vendor/` (or vendor in a release) + `.cargo/config.toml`.
+- [ ] `YOUR_ORG/hbb_common` forked (submodule).
+- [ ] Binary artifacts are present in fork releases (engine, `usbmmidd`, printer).
+- [ ] `versions.env` points to your fork.
+- [ ] A test build with `--offline` succeeds without touching `github.com/rustdesk*`.

@@ -1,126 +1,129 @@
-# SERVER-SETUP — развёртывание Windows build-сервера (подробно)
+# SERVER-SETUP - Windows build server deployment (detailed)
 
-Полное руководство: какой сервер, что поставить, как настроить для сборки
-`rustqs.exe` (PLAN.md §8.3/§8.4). Дополняет [README.md](README.md) (там краткие шаги).
+Complete guide: which server to use, what to install, and how to configure it to build
+`rustqs.exe` (PLAN.md §8.3/§8.4). Complements [README.md](README.md), which contains the short version.
 
 ---
 
-## 1. Какой сервер
+## 1. Which server to use
 
-### ОС — два варианта
+### OS - two options
 
 | | Windows Server 2022 | Windows 11 Pro |
 |---|---|---|
-| Совпадение с upstream CI | ✅ точное (CI = windows-2022 / ltsc2022) | близкое, бинарь эквивалентен |
-| Лицензия | нужна отдельная | **у вас уже есть** (Pro for Workstations) |
-| Headless | штатно | да (GUI можно не трогать) |
-| Рекоменд. | для выделенного «правильного» билд-бокса | прагматичный, уже оплачен |
+| Match with upstream CI | ✅ exact (`windows-2022` / `ltsc2022`) | close enough, equivalent binary |
+| License | separate license required | **already available** (Pro for Workstations) |
+| Headless | native | yes (GUI can remain unused) |
+| Recommended | for a dedicated "proper" build box | pragmatic, already paid for |
 
-**Вывод:** оба дают рабочий результат. Server 2022 — ближе к официальной сборке;
-Windows 11 Pro — дешевле (уже лицензирован) и проверенно собирает Flutter Windows.
-Если нет причины платить за Server — берите **Windows 11 Pro**.
+**Conclusion:** both work. Server 2022 is closer to the official build;
+Windows 11 Pro is cheaper (already licensed) and is known to build Flutter Windows successfully.
+If there is no reason to pay for Server, choose **Windows 11 Pro**.
 
-### Headless — да, но НЕ Server Core (на старте)
+### Headless - yes, but NOT Server Core initially
 
-Сборка headless-дружелюбна (Flutter build = CLI, ни GUI, ни GPU не нужны). Но:
-- **НЕ ставьте Server Core сейчас.** VS Build Tools и часть Flutter-тулинга задевают
-  GUI-смежные компоненты, инсталляторы на Core капризнее, а скрипты ещё `[VERIFY]` —
-  первая сборка будет отладочной, и доступ к рабочему столу сэкономит время.
-- Берите **Desktop Experience / Win 11 Pro** и эксплуатируйте **физически headless** —
-  без монитора, через RDP/SSH. Урезать до Core можно потом, когда всё зелёное.
-- **Агент (session 0):** Scheduled Task крутится в неинтерактивной сессии — для
-  cargo/flutter build ок, но редкие шаги (подпись, packer) лучше идут в интерактивной.
-  Для ПЕРВЫХ сборок залогиньтесь по RDP и запустите `agent.ps1` в сессии; в службу
-  переводите после того, как сборка прошла (см. §5).
+The build is headless-friendly (Flutter build is CLI-only, no GUI or GPU needed). But:
+- **Do NOT install Server Core right now.** VS Build Tools and part of the Flutter toolchain
+  touch GUI-adjacent components, installers are more temperamental on Core, and the scripts
+  still contain `[VERIFY]` points. The first build will be a debugging session, and desktop
+  access will save time.
+- Use **Desktop Experience / Windows 11 Pro** and operate it **physically headless**:
+  no monitor, manage through RDP/SSH. You can trim it down later once everything is green.
+- **Agent (session 0):** a Scheduled Task runs in a non-interactive session. That is fine for
+  `cargo`/Flutter builds, but rare steps (signing, packer) behave better interactively.
+  For the FIRST builds, log in through RDP and run `agent.ps1` in-session; convert it into a
+  service only after the build has succeeded (see §5).
 
-### Железо (минимум / рекомендуется)
+### Hardware (minimum / recommended)
 
-| Ресурс | Минимум | Рекомендуется | Почему |
+| Resource | Minimum | Recommended | Why |
 |---|---|---|---|
-| CPU | 4 ядра | **8+ ядер** | Rust + vcpkg(ffmpeg) сильно параллелятся |
-| RAM | 16 ГБ | **32 ГБ** | Rust линковка + Flutter + vcpkg дают пики |
-| Диск | 150 ГБ SSD | **250 ГБ NVMe** | см. раскладку ниже; NVMe = скорость сборки |
-| GPU | — | — | не нужен (hwcodec собирает libs, GPU при сборке не требуется) |
-| Сеть | приватный LAN к проду | — | для SMB; интернет только на установку |
+| CPU | 4 cores | **8+ cores** | Rust + `vcpkg` (`ffmpeg`) parallelize heavily |
+| RAM | 16 GB | **32 GB** | Rust linking + Flutter + `vcpkg` create peaks |
+| Disk | 150 GB SSD | **250 GB NVMe** | see breakdown below; NVMe speeds up builds |
+| GPU | - | - | not required (`hwcodec` builds libs; no GPU needed during build) |
+| Network | private LAN to prod | - | for SMB; internet only needed for installation |
 
-**Раскладка диска (~250 ГБ):** Windows ~40, тулчейн (VS BuildTools+Flutter+Rust+LLVM) ~20,
-vcpkg buildtrees (ffmpeg/hwcodec) ~20, offline-kit ~5, per-job `target/` кэш 5-15 каждый,
-запас. Меньше 150 ГБ будет тесно.
+**Disk layout (~250 GB):** Windows ~40, toolchain (VS BuildTools + Flutter + Rust + LLVM) ~20,
+`vcpkg` buildtrees (`ffmpeg`/`hwcodec`) ~20, `offline-kit` ~5, per-job `target/` cache 5-15 each,
+plus reserve. Below 150 GB will be tight.
 
-### Где поднять (варианты)
+### Where to host it (options)
 
-- **A. Hyper-V VM на вашей текущей машине** (у вас 1.5 ТБ и мощное железо). Самый быстрый
-  старт. Docker Desktop (WSL2) и Hyper-V VM на Win 11 уживаются. Выделите 8 vCPU / 32 ГБ /
-  250 ГБ. ← рекомендую для начала.
-- **B. Отдельная физическая машина.** Максимум изоляции и скорости.
-- **C. Облачная Windows-VM** (Azure/AWS). Если сборки редкие — платите по часам.
+- **A. Hyper-V VM on your current machine** (you have 1.5 TB and strong hardware). Fastest
+  start. Docker Desktop (WSL2) and a Hyper-V VM on Windows 11 coexist fine. Allocate
+  8 vCPU / 32 GB / 250 GB. Recommended as the starting point.
+- **B. Separate physical machine.** Maximum isolation and speed.
+- **C. Cloud Windows VM** (Azure/AWS). If builds are rare, pay by the hour.
 
 ---
 
-## 2. Подготовка ОС (до setup.ps1)
+## 2. Prepare the OS (before `setup.ps1`)
 
-От администратора, PowerShell:
+Run in PowerShell as administrator.
 
-### 2.1. Обновления + длинные пути (ОБЯЗАТЕЛЬНО)
+### 2.1. Updates + long paths (REQUIRED)
 
 ```powershell
-# Flutter/Rust/vcpkg создают очень длинные пути → без этого сборка падает на MAX_PATH
+# Flutter/Rust/vcpkg create very long paths -> without this, the build fails on MAX_PATH
 New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' `
     -Name 'LongPathsEnabled' -Value 1 -PropertyType DWORD -Force
 git config --system core.longpaths true
 ```
 
-### 2.2. Сеть и имя
+### 2.2. Network and hostname
 
-- Статический IP в приватной сети к проду (например 192.168.x.x).
-- Рабочая группа (домен НЕ нужен). Имя хоста, напр. `WINBUILD`.
-- Антивирус/Defender: добавьте в исключения `C:\rustdesk-build`, `C:\vcpkg`,
-  `C:\flutter`, `%USERPROFILE%\.cargo` — иначе сканер сильно тормозит сборку и иногда
-  ложно флагует portable-packer exe.
+- Static IP in the private network facing prod (for example `192.168.x.x`).
+- Workgroup is enough (domain not required). Hostname, for example, `WINBUILD`.
+- Antivirus/Defender: add exclusions for `C:\rustdesk-build`, `C:\vcpkg`,
+  `C:\flutter`, `%USERPROFILE%\.cargo`, otherwise scanning slows builds dramatically and
+  may false-flag the portable-packer exe.
 
-### 2.3. Пользователь
+### 2.3. User
 
-- Локальный пользователь `builder` (для setup — администратор).
-- (Опц.) OpenSSH Server для удалённого админа: `Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0`.
+- Local user `builder` (administrator during setup).
+- Optional: OpenSSH Server for remote admin:
+  `Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0`.
 
 ---
 
-## 3. Установка тулчейна (setup.ps1)
+## 3. Install the toolchain (`setup.ps1`)
 
-1. Скопируйте на сервер: каталог `win-builder\` и `offline-kit\artifacts` (напр. в
-   `C:\win-builder` и `D:\offline-kit\artifacts`).
-2. Запустите (от администратора):
+1. Copy to the server: the `win-builder\` directory and `offline-kit\artifacts`
+   (for example to `C:\win-builder` and `D:\offline-kit\artifacts`).
+2. Run as administrator:
 
 ```powershell
 Set-ExecutionPolicy Bypass -Scope Process -Force
 C:\win-builder\setup.ps1 -KitPath D:\offline-kit\artifacts
 ```
 
-Ставит: Chocolatey → VS 2022 Build Tools (VCTools + Win11 SDK) → git/7zip/nasm/cmake →
-LLVM 15.0.6 → Python 3 → Rust 1.75 (msvc) → cargo-expand + flutter_rust_bridge_codegen 1.80 →
-Flutter 3.24.5 → vcpkg @ baseline. С `-KitPath` берёт Rust/Flutter/vcpkg из offline-кита.
+Installs: Chocolatey -> VS 2022 Build Tools (VCTools + Win11 SDK) -> git/7zip/nasm/cmake ->
+LLVM 15.0.6 -> Python 3 -> Rust 1.75 (msvc) -> `cargo-expand` +
+`flutter_rust_bridge_codegen` 1.80 -> Flutter 3.24.5 -> `vcpkg` at the pinned baseline.
+With `-KitPath`, Rust/Flutter/`vcpkg` are taken from the offline kit.
 
-3. **Перелогиньтесь** (применить PATH/env).
-4. Проверка:
+3. **Log out and back in** to apply PATH/env.
+4. Verify:
 
 ```powershell
-flutter doctor -v        # Windows toolchain — всё зелёное (VS, Windows SDK)
+flutter doctor -v        # Windows toolchain should be fully green (VS, Windows SDK)
 rustc --version          # 1.75.0
 cargo --version
 flutter_rust_bridge_codegen --version   # 1.80.x
 & $env:VCPKG_ROOT\vcpkg.exe version
 ```
 
-> Первый запуск vcpkg-сборки (внутри agent.ps1) долгий: ffmpeg/hwcodec компилируется
-> 30-60+ мин, потом кэшируется в `C:\vcpkg\installed`.
+> The first `vcpkg` build (inside `agent.ps1`) takes a long time:
+> `ffmpeg`/`hwcodec` may compile for 30-60+ minutes, then it is cached in `C:\vcpkg\installed`.
 
 ---
 
-## 4. Настройка SMB-канала (§8.4)
+## 4. Configure the SMB channel (§8.4)
 
-Прод-API пишет job в том `rdgen-data` (Linux). Делаем его видимым Windows-агенту.
+The production API writes jobs into the `rdgen-data` volume on Linux. Make it visible to the Windows agent.
 
-**На Linux-проде** — экспорт по Samba:
+**On Linux prod** - export via Samba:
 ```
 # /etc/samba/smb.conf
 [rdgen-data]
@@ -132,27 +135,28 @@ flutter_rust_bridge_codegen --version   # 1.80.x
 ```
 ```bash
 sudo apt install samba && sudo smbpasswd -a builder && sudo systemctl restart smbd
-# firewall: открыть 445/tcp ТОЛЬКО для приватной подсети Windows-агента
+# firewall: open 445/tcp ONLY for the Windows agent private subnet
 ```
 
-**На Windows-агенте** — примонтировать как Z: (постоянно):
+**On the Windows agent** - mount as `Z:` persistently:
 ```powershell
 net use Z: \\PROD_HOST\rdgen-data /user:builder * /persistent:yes
-# проверка
+# check
 Test-Path Z:\jobs
 ```
 
-> Альтернатива: Windows хостит share, Linux монтирует `cifs`. Главное — обе стороны
-> видят один `jobs/`. Никаких Docker-демонов/портов наружу.
+> Alternative: Windows hosts the share, Linux mounts it with `cifs`.
+> The key point is that both sides see the same `jobs/` folder.
+> No exposed Docker daemons/ports.
 
-**Патчи rdgen** (для L2 — приёма подписанного custom.txt): скопировать
-`rdgen/.github/patches/*` в `Z:\rdgen-data\patches\` (или локально и указать агенту).
+**rdgen patches** (for L2: accepting signed `custom.txt`): copy
+`rdgen/.github/patches/*` into `Z:\rdgen-data\patches\` (or keep them locally and point the agent there).
 
 ---
 
-## 5. Запуск агента как службы
+## 5. Run the agent as a service
 
-Scheduled Task «при старте», от имени `builder`, с наивысшими правами:
+Create a Scheduled Task "At startup" running as `builder` with highest privileges:
 
 ```powershell
 $action  = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument `
@@ -160,44 +164,45 @@ $action  = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument `
 $trigger = New-ScheduledTaskTrigger -AtStartup
 $set     = New-ScheduledTaskSettingsSet -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
 Register-ScheduledTask -TaskName 'rustqs-build-agent' -Action $action -Trigger $trigger `
-  -RunLevel Highest -User builder -Password '<пароль>' -Settings $set
+  -RunLevel Highest -User builder -Password '<password>' -Settings $set
 Start-ScheduledTask -TaskName 'rustqs-build-agent'
 ```
 
-Лог агента — в консоли задачи; build-логи каждой сборки — в `Z:\rdgen-data\output\<job>\build.log`.
+The agent log appears in the task console; per-build logs are written to
+`Z:\rdgen-data\output\<job>\build.log`.
 
 ---
 
-## 6. Первая проверка (end-to-end)
+## 6. First verification (end-to-end)
 
-1. Положить тестовый job вручную (имитируя API):
+1. Drop a test job manually (simulating the API):
 ```powershell
 @'
-{ "platform":"windows", "src_ref":"1.4.7", "server":"ваш.сервер:21116",
-  "key":"ВАШ_ПУБ_КЛЮЧ", "app_name":"rustqs" }
+{ "platform":"windows", "src_ref":"1.4.7", "server":"your.server:21116",
+  "key":"YOUR_PUBLIC_KEY", "app_name":"rustqs" }
 '@ | Set-Content Z:\rdgen-data\jobs\test-001.json
 ```
-2. Агент подхватит → соберёт → `Z:\rdgen-data\output\test-001\rustqs.exe`, статус `done`.
-3. Smoke-тест (§8.5): запустить `rustqs.exe` на чистой Windows — должен стартовать и
-   показывать ваш сервер вшитым (без ручной настройки).
+2. The agent picks it up -> builds -> `Z:\rdgen-data\output\test-001\rustqs.exe`, status `done`.
+3. Smoke test (§8.5): run `rustqs.exe` on a clean Windows machine. It should start and
+   show your baked-in server without any manual setup.
 
 ---
 
-## 7. Безопасность
+## 7. Security
 
-- **Только приватная сеть.** Никакого публичного RDP/SMB/445 в интернет.
-- Build-сервер полу-доверенный (собирает конфиги из admin-UI) — держать в изолированном
-  сегменте, без доступа к чувствительным ресурсам.
-- После `setup.ps1` интернет можно отключить — с offline-китом сборка идёт без сети
-  (это и есть суверенность; проверка — `cargo build --offline` уже подтверждена на L1).
-- SMB-пользователь `builder` — минимальные права, только на share `rdgen-data`.
+- **Private network only.** No public RDP/SMB/445 exposed to the internet.
+- The build server is semi-trusted (it builds configs from the admin UI). Keep it in an
+  isolated segment with no access to sensitive resources.
+- After `setup.ps1`, internet can be disabled. With the offline kit, the build works without
+  network access. That is the whole point of sovereignty; `cargo build --offline` is already
+  confirmed at L1.
+- The SMB user `builder` should have the minimum rights needed for the `rdgen-data` share.
 
 ---
 
-## 8. Известные TODO (при первом тесте, [VERIFY] в скриптах)
+## 8. Known TODOs (first test, `[VERIFY]` in scripts)
 
-- Сборка `RustDeskTempTopMostWindow` (msbuild из kit-бандла) + размещение артефакта.
-- Полный набор branding-sed (в agent.ps1 сокращённый — см. `rdgen/generator-windows.yml`).
-- Точные пути установки Rust (PATH после MSI vs rustup) — выверить на живом хосте.
-- vcpkg overlay-ports `res/vcpkg` + overrides (ffnvcodec/amd-amf) — проверить, что
-  manifest-режим их подхватывает.
+- Build `RustDeskTempTopMostWindow` (msbuild from the kit bundle) and place the artifact.
+- Bring over the full branding `sed` set (`agent.ps1` currently uses a shortened version; see `rdgen/generator-windows.yml`).
+- Confirm exact Rust install paths (PATH after MSI vs `rustup`) on a real host.
+- Verify that `vcpkg` overlay ports `res/vcpkg` and overrides (`ffnvcodec`/`amd-amf`) are picked up in manifest mode.
