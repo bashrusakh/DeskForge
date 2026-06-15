@@ -5,9 +5,14 @@ import { useRouter } from 'vue-router'
 import { list as groups } from '@/api/group'
 import { T } from '@/utils/i18n'
 
+const defaultForm = () => ({
+  username: '', email: '', nickname: '', remark: '',
+  group_id: 0, is_admin: false, status: 1,
+})
+
 export function useGetDetail (id) {
   let item = ref({})  //保留原始值
-  let form = ref({})
+  let form = ref(defaultForm())
   const groupsList = ref([])
   const getDetail = async (id) => {
     const res = await detail(id)
