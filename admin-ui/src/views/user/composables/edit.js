@@ -4,6 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { list as groups } from '@/api/group'
 import { T } from '@/utils/i18n'
+import { ENABLE_STATUS, DISABLE_STATUS } from '@/utils/common_options'
 
 const defaultForm = () => ({
   username: '', email: '', nickname: '', remark: '',
@@ -17,7 +18,7 @@ export function useGetDetail (id) {
   const getDetail = async (id) => {
     const res = await detail(id)
     item.value = { ...res.data }
-    form.value = { ...res.data }
+    form.value = { ...res.data, is_admin: !!res.data.is_admin, status: res.data.status === ENABLE_STATUS ? ENABLE_STATUS : DISABLE_STATUS }
   }
   if (id > 0) {
     onMounted(_ => {getDetail(id)})

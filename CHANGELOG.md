@@ -4,7 +4,14 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased] - 2026-06-14
+## [Unreleased] - 2026-06-16
+
+### Fixed (ElSwitch warnings in admin-ui)
+- **Root cause** (`admin-ui/src/views/user/index.vue`): `<el-table>` renders all column slots in a hidden `.hidden-columns` measurement container. The `#status` slot created `<el-switch v-model="row.status">` there with `row.status === undefined`, triggering Element Plus's `model-value must be active-value or inactive-value` warning at setup. Added `v-if="row && (row.status === ENABLE_STATUS || row.status === DISABLE_STATUS)"` guard so the switch only renders for real rows with valid status values.
+- **Defensive normalizations**:
+  - `admin-ui/src/views/user/composables/index.js` — list loader now coerces `status` to `ENABLE_STATUS` (1) or `DISABLE_STATUS` (2) before passing rows to the table.
+  - `admin-ui/src/views/user/composables/edit.js` — edit form normalizes `is_admin` to boolean and `status` to 1/2 on load, so the form switches always receive a valid `modelValue`.
+  - `admin-ui/src/views/custom-client/index.vue` — added explicit `:active-value="true" :inactive-value="false"` to every `<el-switch>` in the Client Builder form so boolean fields never fall back to Element Plus's default `activeValue: true` / `inactiveValue: false` mismatch with `null`/`undefined` form data.
 
 ### Added (dashboard server health)
 - **Backend `GET /api/admin/dashboard/health`** (`api/http/controller/admin/dashboard.go`, `router/admin.go`): new endpoint that checks ID server and relay server availability via local socket commands (`h`), retrieves relay usage data (`u`), and reads bandwidth limits (`total-bandwidth`, `single-bandwidth`, `limit-speed`). Returns structured JSON with status, top-5 connections, and bandwidth values.

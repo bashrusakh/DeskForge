@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { T } from '@/utils/i18n'
 import { downBlob, jsonToCsv } from '@/utils/file'
+import { ENABLE_STATUS, DISABLE_STATUS } from '@/utils/common_options'
 
 export function useRepositories () {
 
@@ -25,6 +26,11 @@ export function useRepositories () {
     if (res) {
       listRes.list = res.data.list
       listRes.total = res.data.total
+      listRes.list.forEach(u => {
+        if (u.status !== ENABLE_STATUS && u.status !== DISABLE_STATUS) {
+          u.status = DISABLE_STATUS
+        }
+      })
     }
   }
 

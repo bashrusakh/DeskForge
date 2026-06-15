@@ -41,7 +41,8 @@
           <span v-else> - </span>
         </template>
         <template #status="{ row }">
-          <el-switch v-model="row.status"
+          <el-switch v-if="row && (row.status === ENABLE_STATUS || row.status === DISABLE_STATUS)"
+                     v-model="row.status"
                      :active-value="ENABLE_STATUS"
                      :inactive-value="DISABLE_STATUS"
                      @change="changeStatus(row)"
