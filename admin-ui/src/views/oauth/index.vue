@@ -234,8 +234,8 @@
     formData.client_secret = row.client_secret
     // formData.redirect_url = row.redirect_url || defaultRedirect()
     formData.scopes = row.scopes
-    formData.auto_register = row.auto_register
-    formData.pkce_enable = row.pkce_enable
+    formData.auto_register = !!row.auto_register
+    formData.pkce_enable = !!row.pkce_enable
     formData.pkce_method = row.pkce_method
   }
   const toAdd = () => {
