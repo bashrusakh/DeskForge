@@ -26,7 +26,7 @@
             { prop: 'peer_id', label: T('Peer'), align: 'center' },
             { prop: 'created_at', label: T('CreatedAt'), align: 'center' },
             { label: T('ExpireTime') + ' (' + T('Second') + ')', align: 'center', slot: 'expire' },
-            { label: T('Actions'), align: 'center', width: 180, fixed: 'right', slot: 'actions' }
+            { label: '', align: 'center', width: 80, slot: 'actions' }
           ]"
       >
         <template #expire="{ row }">

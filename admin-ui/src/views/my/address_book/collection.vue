@@ -16,32 +16,37 @@
     </page-section>
     <page-section class="list-body" title="My Address Book Collections" :subtitle="`${listRes.total} collections`">
       <el-tag type="danger" effect="light" style="margin-bottom: 10px">{{ T('MyAddressBookTips') }}</el-tag>
+      <actions-toolbar :selected="selectedRows">
+        <template #default="{ disabled }">
+          <el-button type="danger" :disabled="disabled" @click="bulkDel">
+            {{ T('DeleteSelected') }} ({{ selectedRows.length }})
+          </el-button>
+        </template>
+      </actions-toolbar>
       <data-table
           :data="list"
           :loading="listRes.loading"
+          selectable
           row-key="id"
           :columns="[
             { prop: 'name', label: T('Name'), align: 'center' },
             { prop: 'created_at', label: T('CreatedAt'), align: 'center' },
-            { label: T('Actions'), align: 'center', className: 'table-actions', width: 320, fixed: 'right', slot: 'actions' }
+            { label: '', align: 'center', width: 60, slot: 'actions' }
           ]"
+          @selection-change="selectedRows = $event"
       >
         <template #actions="{ row }">
           <template v-if="row.id>0">
-            <el-space wrap>
-              <el-button type="primary" @click="showRules(row)">{{ T('ShareRules') }}</el-button>
-              <el-dropdown trigger="click">
-                <el-button>
-                  {{ T('More') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
-                </el-button>
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item @click="toEdit(row)">{{ T('Edit') }}</el-dropdown-item>
-                    <el-dropdown-item divided @click="del(row)">{{ T('Delete') }}</el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
-            </el-space>
+            <el-dropdown trigger="click" @command="(cmd) => handleRowAction(cmd, row)">
+              <el-button text>{{ T('More') }}</el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="rules">{{ T('ShareRules') }}</el-dropdown-item>
+                  <el-dropdown-item divided command="edit">{{ T('Edit') }}</el-dropdown-item>
+                  <el-dropdown-item divided command="delete">{{ T('Delete') }}</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </template>
         </template>
       </data-table>
@@ -86,9 +91,11 @@
   import { useRepositories } from '@/views/address_book/collection'
   import { onActivated, onMounted, watch } from 'vue'
   import Rule from '@/views/address_book/rule.vue'
-  import { ArrowDown } from '@element-plus/icons-vue'
+  import { useBulkRemove } from '@/composables/useBulkRemove'
+  import { remove as apiRemove } from '@/api/my/address_book_collection'
   import PageHeader from '@/components/ui/PageHeader.vue'
   import PageSection from '@/components/ui/PageSection.vue'
+  import ActionsToolbar from '@/components/ui/ActionsToolbar.vue'
   import DataTable from '@/components/ui/DataTable.vue'
   import AppDialog from '@/components/ui/AppDialog.vue'
 
@@ -104,6 +111,14 @@
     toAdd,
     submit,
   } = useRepositories('my')
+
+  const selectedRows = ref([])
+
+  const { bulkRemove: bulkDel } = useBulkRemove({
+    removeApi: apiRemove,
+    getList,
+    label: T('Collections'),
+  })
 
   onMounted(getList)
 
@@ -125,6 +140,15 @@
   const showRules = (row) => {
     clickRow.value = row
     rulesVisible.value = true
+  }
+
+  const handleRowAction = (cmd, row) => {
+    if (cmd === 'rules') return showRules(row)
+    if (cmd === 'edit') return toEdit(row)
+    if (cmd === 'delete') {
+      selectedRows.value = selectedRows.value.filter(r => r.id !== row.id)
+      return del(row)
+    }
   }
 
 </script>

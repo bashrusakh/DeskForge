@@ -35,7 +35,7 @@
             { prop: 'type', label: 'type', align: 'center', width: 100 },
             { prop: 'platform', label: 'Platform/UA', align: 'center', width: 120, showOverflowTooltip: true },
             { prop: 'created_at', label: T('CreatedAt'), align: 'center' },
-            { label: T('Actions'), align: 'center', width: 400, slot: 'actions' }
+            { label: '', align: 'center', width: 80, slot: 'actions' }
           ]"
       >
         <template #owner="{ row }">

@@ -28,13 +28,17 @@
         <el-form-item>
           <el-button type="primary" @click="handlerQuery">{{ T('Filter') }}</el-button>
           <el-button type="success" @click="toExport">{{ T('Export') }}</el-button>
-          <!--          <el-button type="danger" @click="toBatchDelete">{{ T('BatchDelete') }}</el-button>-->
-          <el-button type="primary" @click="toBatchAddToAB">{{ T('BatchAddToAB') }}</el-button>
-
         </el-form-item>
       </el-form>
     </page-section>
     <page-section class="list-body" title="My Devices" :subtitle="`${listRes.total} devices`">
+      <actions-toolbar :selected="multipleSelection">
+        <template #default="{ disabled }">
+          <el-button type="primary" :disabled="disabled" @click="toBatchAddToAB">
+            {{ T('BatchAddToAB') }} ({{ multipleSelection.length }})
+          </el-button>
+        </template>
+      </actions-toolbar>
       <data-table
           :data="listRes.list"
           :loading="listRes.loading"
@@ -56,7 +60,7 @@
             { prop: 'alias', label: T('Alias'), align: 'center', width: 80 },
             { prop: 'created_at', label: T('CreatedAt'), align: 'center', width: 150 },
             { prop: 'updated_at', label: T('UpdatedAt'), align: 'center', width: 150 },
-            { label: T('Actions'), align: 'center', width: 500, fixed: 'right', slot: 'actions' }
+            { label: '', align: 'center', width: 240, slot: 'actions' }
           ]"
       >
         <template #id="{ row }">
@@ -69,10 +73,19 @@
           </div>
         </template>
         <template #actions="{ row }">
-          <el-button type="success" @click="connectByClient(row.id)">{{ T('Link') }}</el-button>
-          <el-button v-if="appStore.setting.appConfig.web_client" type="success" @click="toWebClientLink(row)">Web Client</el-button>
-          <el-button type="primary" @click="toAddressBook(row)">{{ T('AddToAddressBook') }}</el-button>
-          <el-button @click="toView(row)">{{ T('View') }}</el-button>
+          <el-dropdown trigger="click" @command="(cmd) => handleRowAction(cmd, row)">
+            <el-button size="small">
+              {{ T('More') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="link">{{ T('Link') }}</el-dropdown-item>
+                <el-dropdown-item v-if="appStore.setting.appConfig.web_client" command="webClient">Web Client</el-dropdown-item>
+                <el-dropdown-item command="addToAddressBook">{{ T('AddToAddressBook') }}</el-dropdown-item>
+                <el-dropdown-item command="view">{{ T('View') }}</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </template>
       </data-table>
     </page-section>
@@ -126,7 +139,7 @@
         @confirm="ABSubmit"
     >
       <el-form class="dialog-form" ref="form" :model="ABFormData" label-width="120px">
-        <el-form-item :label="T('AddressBookName')" required prop="collection_id">
+        <el-form-item :label="T('Name')" required prop="collection_id">
           <el-select v-model="ABFormData.collection_id" clearable @change="changeCollectionForUpdate">
             <el-option :value="0" :label="T('MyAddressBook')"></el-option>
             <el-option v-for="c in collectionListResForUpdate.list" :key="c.id" :label="c.name" :value="c.id"></el-option>
@@ -175,7 +188,7 @@
         @confirm="submitBatchAddToAB"
     >
       <el-form class="dialog-form" ref="form" :model="batchABFormData" label-width="120px">
-        <el-form-item :label="T('AddressBookName')" required prop="collection_id">
+        <el-form-item :label="T('Name')" required prop="collection_id">
           <el-select v-model="batchABFormData.collection_id" clearable @change="changeCollectionForBatchCreateAB">
             <el-option :value="0" :label="T('MyAddressBook')"></el-option>
             <el-option v-for="c in collectionListResForUpdate.list" :key="c.id" :label="c.name" :value="c.id"></el-option>
@@ -210,6 +223,7 @@
   import { batchCreateFromPeers } from '@/api/my/address_book'
   import PageHeader from '@/components/ui/PageHeader.vue'
   import PageSection from '@/components/ui/PageSection.vue'
+  import ActionsToolbar from '@/components/ui/ActionsToolbar.vue'
   import CopyableText from '@/components/ui/CopyableText.vue'
   import DataTable from '@/components/ui/DataTable.vue'
   import AppDialog from '@/components/ui/AppDialog.vue'
@@ -393,6 +407,13 @@
       ElMessage.success(T('OperationSuccess'))
       batchABFormVisible.value = false
     }
+  }
+
+  const handleRowAction = (cmd, row) => {
+    if (cmd === 'link') return connectByClient(row.id)
+    if (cmd === 'webClient') return toWebClientLink(row)
+    if (cmd === 'addToAddressBook') return toAddressBook(row)
+    if (cmd === 'view') return toView(row)
   }
 
 

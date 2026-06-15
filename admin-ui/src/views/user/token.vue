@@ -37,7 +37,7 @@
             { label: T('Token'), align: 'center', slot: 'token' },
             { prop: 'created_at', label: T('CreatedAt'), align: 'center' },
             { label: T('ExpireTime'), align: 'center', slot: 'expire' },
-            { label: T('Actions'), align: 'center', width: 180, fixed: 'right', slot: 'actions' }
+            { label: '', align: 'center', width: 80, slot: 'actions' }
           ]"
       >
         <template #owner="{ row }">

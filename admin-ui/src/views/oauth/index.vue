@@ -15,9 +15,17 @@
       </el-form>
     </page-section>
     <page-section class="list-body" title="OAuth Providers" :subtitle="`${listRes.total} providers`">
+      <actions-toolbar :selected="selectedRows">
+        <template #default="{ disabled }">
+          <el-button type="danger" :disabled="disabled" @click="bulkDel">
+            {{ T('DeleteSelected') }} ({{ selectedRows.length }})
+          </el-button>
+        </template>
+      </actions-toolbar>
       <data-table
           :data="listRes.list"
           :loading="listRes.loading"
+          selectable
           row-key="id"
           :columns="[
             { prop: 'id', label: 'ID', align: 'center', width: 100 },
@@ -28,12 +36,20 @@
             { prop: 'pkce_method', label: T('PkceMethod'), align: 'center' },
             { prop: 'created_at', label: T('CreatedAt'), align: 'center' },
             { prop: 'updated_at', label: T('UpdatedAt'), align: 'center' },
-            { label: T('Actions'), align: 'center', width: 200, fixed: 'right', slot: 'actions' }
+            { label: '', align: 'center', width: 60, slot: 'actions' }
           ]"
+          @selection-change="selectedRows = $event"
       >
         <template #actions="{ row }">
-          <el-button @click="toEdit(row)">{{ T('Edit') }}</el-button>
-          <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
+          <el-dropdown trigger="click" @command="(cmd) => handleRowAction(cmd, row)">
+            <el-button text>{{ T('More') }}</el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="edit">{{ T('Edit') }}</el-dropdown-item>
+                <el-dropdown-item divided command="delete">{{ T('Delete') }}</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </template>
       </data-table>
     </page-section>
@@ -119,9 +135,11 @@
   import { T } from '@/utils/i18n'
   import { handleClipboard } from '@/utils/clipboard'
   import { useAppStore } from '@/store/app'
+  import { useBulkRemove } from '@/composables/useBulkRemove'
   import { CopyDocument } from '@element-plus/icons-vue'
   import PageHeader from '@/components/ui/PageHeader.vue'
   import PageSection from '@/components/ui/PageSection.vue'
+  import ActionsToolbar from '@/components/ui/ActionsToolbar.vue'
   import DataTable from '@/components/ui/DataTable.vue'
   import AppDialog from '@/components/ui/AppDialog.vue'
 
@@ -174,9 +192,24 @@
     const res = await remove({ id: row.id }).catch(_ => false)
     if (res) {
       ElMessage.success(T('OperationSuccess'))
+      selectedRows.value = selectedRows.value.filter(r => r.id !== row.id)
       getList()
     }
   }
+
+  const selectedRows = ref([])
+
+  const { bulkRemove: bulkDel } = useBulkRemove({
+    removeApi: remove,
+    getList,
+    label: T('Oauth'),
+  })
+
+  const handleRowAction = (cmd, row) => {
+    if (cmd === 'edit') return toEdit(row)
+    if (cmd === 'delete') return del(row)
+  }
+
   onMounted(getList)
   onActivated(getList)
 

@@ -19,9 +19,17 @@
       </el-form>
     </page-section>
     <page-section class="list-body" title="Users" :subtitle="`${listRes.total} accounts`">
+      <actions-toolbar :selected="selectedRows">
+        <template #default="{ disabled }">
+          <el-button type="danger" :disabled="disabled" @click="bulkRemove">
+            {{ T('DeleteSelected') }} ({{ selectedRows.length }})
+          </el-button>
+        </template>
+      </actions-toolbar>
       <data-table
           :data="listRes.list"
           :loading="listRes.loading"
+          selectable
           row-key="id"
           :columns="[
             { prop: 'id', label: 'ID', align: 'center', width: 100 },
@@ -33,8 +41,9 @@
             { prop: 'remark', label: T('Remark'), align: 'center' },
             { prop: 'created_at', label: T('CreatedAt'), align: 'center' },
             { prop: 'updated_at', label: T('UpdatedAt'), align: 'center' },
-            { label: T('Actions'), align: 'center', width: 360, fixed: 'right', slot: 'actions' }
+            { label: '', align: 'center', width: 60, slot: 'actions' }
           ]"
+          @selection-change="selectedRows = $event"
       >
         <template #group="{ row }">
           <span v-if="row.group_id"> <el-tag>{{ listRes.groups?.find(g => g.id === row.group_id)?.name }} </el-tag> </span>
@@ -49,22 +58,20 @@
           ></el-switch>
         </template>
         <template #actions="{ row }">
-          <el-space wrap>
-            <el-button @click="toTag(row)">{{ T('UserTags') }}</el-button>
-            <el-button @click="toAddressBook(row)">{{ T('UserAddressBook') }}</el-button>
-            <el-dropdown trigger="click">
-              <el-button>
-                {{ T('More') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
-              </el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item @click="toEdit(row)">{{ T('Edit') }}</el-dropdown-item>
-                  <el-dropdown-item @click="changePass(row)">{{ T('ResetPassword') }}</el-dropdown-item>
-                  <el-dropdown-item divided @click="remove(row)">{{ T('Delete') }}</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-          </el-space>
+          <el-dropdown trigger="click" @command="(cmd) => handleRowAction(cmd, row)">
+            <el-button text>
+              {{ T('More') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="tags">{{ T('UserTags') }}</el-dropdown-item>
+                <el-dropdown-item command="addressBook">{{ T('UserAddressBook') }}</el-dropdown-item>
+                <el-dropdown-item divided command="edit">{{ T('Edit') }}</el-dropdown-item>
+                <el-dropdown-item command="resetPassword">{{ T('ResetPassword') }}</el-dropdown-item>
+                <el-dropdown-item divided command="delete">{{ T('Delete') }}</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </template>
       </data-table>
     </page-section>
@@ -85,13 +92,16 @@
   import { T } from '@/utils/i18n'
   import { DISABLE_STATUS, ENABLE_STATUS } from '@/utils/common_options'
   import { update } from '@/api/user'
-  import { ElMessageBox, ElMessage } from 'element-plus'
-  import { onMounted, watch } from 'vue'
+  import { ElMessage } from 'element-plus'
+  import { onMounted, ref, watch } from 'vue'
   import { ArrowDown } from '@element-plus/icons-vue'
   import PageHeader from '@/components/ui/PageHeader.vue'
   import PageSection from '@/components/ui/PageSection.vue'
+  import ActionsToolbar from '@/components/ui/ActionsToolbar.vue'
   import DataTable from '@/components/ui/DataTable.vue'
-  //列表
+  import { useBulkRemove } from '@/composables/useBulkRemove'
+  import { remove as apiRemove } from '@/api/user'
+
   const {
     listRes,
     listQuery,
@@ -112,23 +122,33 @@
 
   const { changePass } = useChangePwd()
 
-  //删除
   const { del } = useDel()
+
+  const { selectedRows, bulkRemove } = useBulkRemove({
+    removeApi: apiRemove,
+    getList: () => getList(listQuery),
+    label: T('User'),
+  })
+
   const remove = async (row) => {
     const res = await del(row.id)
     if (res) {
+      selectedRows.value = selectedRows.value.filter(r => r.id !== row.id)
       getList(listQuery)
     }
   }
 
+  const handleRowAction = (cmd, row) => {
+    switch (cmd) {
+      case 'tags': toTag(row); break
+      case 'addressBook': toAddressBook(row); break
+      case 'edit': toEdit(row); break
+      case 'resetPassword': changePass(row); break
+      case 'delete': remove(row); break
+    }
+  }
+
   const changeStatus = async (row) => {
-    /*const confirm = await ElMessageBox.confirm(T('Confirm?', { param: T('Update') }), {
-      confirmButtonText: T('Confirm'),
-      cancelButtonText: T('Cancel'),
-    }).catch(_ => false)
-    if (!confirm) {
-      return false
-    }*/
     const res = await update(row).catch(_ => false)
     if (res) {
       ElMessage.success(T('OperationSuccess'))

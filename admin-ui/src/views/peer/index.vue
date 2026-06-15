@@ -56,8 +56,8 @@
               <el-button @click="showImport=true" type="danger" :icon="ArrowDown">{{ T('Import') }}</el-button>
             </template>
           </el-popover>
-          <el-button type="danger" @click="toBatchDelete">{{ T('BatchDelete') }}</el-button>
-          <el-button type="primary" @click="toBatchAddToAB">{{ T('BatchAddToAB') }}</el-button>
+          <el-button type="danger" @click="toBatchDelete" v-show="false">{{ T('BatchDelete') }}</el-button>
+          <el-button type="primary" @click="toBatchAddToAB" v-show="false">{{ T('BatchAddToAB') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -69,6 +69,16 @@
         </div>
         <el-button :icon="Setting" @click="showColumnSetting">Columns</el-button>
       </div>
+      <actions-toolbar :selected="multipleSelection">
+        <template #default="{ disabled }">
+          <el-button type="primary" :disabled="disabled" @click="toBatchAddToAB">
+            {{ T('BatchAddToAB') }} ({{ multipleSelection.length }})
+          </el-button>
+          <el-button type="danger" :disabled="disabled" @click="toBatchDelete">
+            {{ T('DeleteSelected') }} ({{ multipleSelection.length }})
+          </el-button>
+        </template>
+      </actions-toolbar>
 
       <data-table
           :data="listRes.list"
@@ -200,7 +210,7 @@
             ></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item :label="T('AddressBookName')" required prop="collection_id">
+        <el-form-item :label="T('Name')" required prop="collection_id">
           <el-select v-model="batchABFormData.collection_id" clearable>
             <el-option :value="0" :label="T('MyAddressBook')"></el-option>
             <el-option v-for="c in collectionListResForBatchCreateAB.list" :key="c.id" :label="c.name" :value="c.id"></el-option>
@@ -253,6 +263,7 @@
   import ConnectionPulse from '@/components/ui/ConnectionPulse.vue'
   import CopyableText from '@/components/ui/CopyableText.vue'
   import PageSection from '@/components/ui/PageSection.vue'
+  import ActionsToolbar from '@/components/ui/ActionsToolbar.vue'
   import DataTable from '@/components/ui/DataTable.vue'
   import AppDialog from '@/components/ui/AppDialog.vue'
 
@@ -573,7 +584,7 @@
 
   const tableColumns = computed(() => {
     const statusCol = { label: T('Status'), align: 'left', width: 120, slot: 'status' }
-    const actionCol = { label: T('Actions'), align: 'right', minWidth: 250, fixed: 'right', slot: 'actions' }
+    const actionCol = { label: '', align: 'right', minWidth: 200, slot: 'actions' }
     const dynamicCols = visibleColumns.value
         .filter(c => c.visible)
         .map(c => columnProps[c.name] || { prop: c.name, label: c.label || c.name })

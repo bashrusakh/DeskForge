@@ -25,36 +25,41 @@
       </el-form>
     </page-section>
     <page-section class="list-body" :title="T('AddressBook')" :subtitle="`${listRes.total} collections`">
+      <actions-toolbar :selected="selectedRows">
+        <template #default="{ disabled }">
+          <el-button type="danger" :disabled="disabled" @click="bulkDel">
+            {{ T('DeleteSelected') }} ({{ selectedRows.length }})
+          </el-button>
+        </template>
+      </actions-toolbar>
       <data-table
           :data="listRes.list"
           :loading="listRes.loading"
+          selectable
           row-key="id"
           :columns="[
             { prop: 'id', label: 'ID', align: 'center', width: 100 },
             { label: T('Owner'), align: 'center', slot: 'owner' },
-            { prop: 'name', label: 'Name', align: 'center' },
+            { prop: 'name', label: T('Name'), align: 'center' },
             { prop: 'created_at', label: T('CreatedAt'), align: 'center' },
-            { label: T('Actions'), align: 'center', className: 'table-actions', width: 320, fixed: 'right', slot: 'actions' }
+            { label: '', align: 'center', width: 60, slot: 'actions' }
           ]"
+          @selection-change="selectedRows = $event"
       >
         <template #owner="{ row }">
           <span v-if="row.user_id"> <el-tag>{{ allUsers?.find(u => u.id === row.user_id)?.username }}</el-tag> </span>
         </template>
         <template #actions="{ row }">
-          <el-space wrap>
-            <el-button type="primary" @click="showRules(row)">{{ T('ShareRules') }}</el-button>
-            <el-dropdown trigger="click">
-              <el-button>
-                {{ T('More') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
-              </el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item @click="toEdit(row)">{{ T('Edit') }}</el-dropdown-item>
-                  <el-dropdown-item divided @click="del(row)">{{ T('Delete') }}</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-          </el-space>
+          <el-dropdown trigger="click" @command="(cmd) => handleRowAction(cmd, row)">
+            <el-button text>{{ T('More') }}</el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="rules">{{ T('ShareRules') }}</el-dropdown-item>
+                <el-dropdown-item divided command="edit">{{ T('Edit') }}</el-dropdown-item>
+                <el-dropdown-item divided command="delete">{{ T('Delete') }}</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </template>
       </data-table>
     </page-section>
@@ -109,9 +114,11 @@
   import { onActivated, onMounted, watch } from 'vue'
   import Rule from '@/views/address_book/rule.vue'
   import { loadAllUsers } from '@/global'
-  import { ArrowDown } from '@element-plus/icons-vue'
+  import { useBulkRemove } from '@/composables/useBulkRemove'
+  import { remove as apiRemove } from '@/api/address_book_collection'
   import PageHeader from '@/components/ui/PageHeader.vue'
   import PageSection from '@/components/ui/PageSection.vue'
+  import ActionsToolbar from '@/components/ui/ActionsToolbar.vue'
   import DataTable from '@/components/ui/DataTable.vue'
   import AppDialog from '@/components/ui/AppDialog.vue'
 
@@ -132,20 +139,36 @@
 
   listQuery.is_my = 0
 
-  onMounted(getList)
-  onActivated(getList)
+  const selectedRows = ref([])
 
-  watch(() => listQuery.page, getList)
-
-  watch(() => listQuery.page_size, handlerQuery)
+  const { bulkRemove: bulkDel } = useBulkRemove({
+    removeApi: apiRemove,
+    getList,
+    label: T('Collections'),
+  })
 
   const clickRow = ref({})
   const rulesVisible = ref(false)
   const showRules = (row) => {
     clickRow.value = row
     rulesVisible.value = true
-    console.log('showRules')
   }
+
+  const handleRowAction = (cmd, row) => {
+    if (cmd === 'rules') return showRules(row)
+    if (cmd === 'edit') return toEdit(row)
+    if (cmd === 'delete') {
+      selectedRows.value = selectedRows.value.filter(r => r.id !== row.id)
+      return del(row)
+    }
+  }
+
+  onMounted(getList)
+  onActivated(getList)
+
+  watch(() => listQuery.page, getList)
+
+  watch(() => listQuery.page_size, handlerQuery)
 
 </script>
 

@@ -38,7 +38,7 @@
             { label: T('Path'), prop: 'path', align: 'center', width: 150, showOverflowTooltip: true },
             { label: 'uuid', prop: 'uuid', align: 'center', width: 120, showOverflowTooltip: true },
             { label: T('CreatedAt'), prop: 'created_at', align: 'center', minWidth: 120 },
-            { label: T('Actions'), align: 'center', width: 150, fixed: 'right', slot: 'actions' }
+            { label: '', align: 'center', width: 80, slot: 'actions' }
           ]"
       >
         <template #type="{ row }">
