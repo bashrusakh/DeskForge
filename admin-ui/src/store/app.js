@@ -109,10 +109,11 @@ export const useAppStore = defineStore({
       })
     },
     getAdminConfig () {
-      console.log('getAdminConfig')
       return admin().then(res => {
         this.replaceAdminTitle(res.data.title)
         this.setting.hello = res.data.hello
+      }).catch(err => {
+        console.warn('Failed to load admin config', err)
       })
     },
     replaceAdminTitle (newTitle) {
