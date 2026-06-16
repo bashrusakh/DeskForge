@@ -70,6 +70,7 @@ html[data-theme="auto"].dark {
   --color-sidebar-hover: #182235;
   --shadow-card: 0 18px 50px rgba(0, 0, 0, 0.28);
   --tag-bg-color: var(--color-surface-2);
+  --el-disabled-bg-color: var(--color-surface);
 }
 
 html,
@@ -104,6 +105,10 @@ body {
 .el-card.is-hover-shadow:hover,
 .el-card.is-always-shadow {
   box-shadow: var(--shadow-card);
+}
+
+.el-loading-mask {
+  background-color: transparent;
 }
 
 .el-table,

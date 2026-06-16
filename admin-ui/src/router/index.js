@@ -35,6 +35,7 @@ export const asyncRoutes = [
   {
     path: '/',
     redirect: '/dashboard',
+    meta: { hide: true },
   },
   // === Dashboard ===
   {
