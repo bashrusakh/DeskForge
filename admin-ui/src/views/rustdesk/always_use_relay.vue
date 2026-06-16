@@ -1,5 +1,5 @@
 <template>
-  <el-card class="simple-card" shadow="never" v-loading="form.loading">
+  <el-card class="simple-card" shadow="never">
     <template #header>
       <div class="card-header">
         <span>ALWAYS_USE_RELAY</span>
@@ -34,12 +34,9 @@
     option: 'N',
     target: ID_TARGET,
     value: 0,
-    loading: false,
   })
   const get = async () => {
-    form.loading = true
     const res = await sendCmd({ cmd: 'aur', target: ID_TARGET }).catch(_ => false)
-    form.loading = false
     if (res) {
       if (res.data === 'ALWAYS_USE_RELAY: true' || res.data === 'ALWAYS_USE_RELAY: true\n') {
         form.option = 'Y'

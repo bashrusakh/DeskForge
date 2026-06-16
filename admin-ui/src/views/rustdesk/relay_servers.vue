@@ -1,5 +1,5 @@
 <template>
-  <el-card class="simple-card" shadow="never" v-loading="form.loading">
+  <el-card class="simple-card" shadow="never">
     <template #header>
       <div class="card-header">
         <span>RELAY_SERVERS</span>
@@ -33,12 +33,9 @@
     cmd: 'rs',
     option: '',
     target: ID_TARGET,
-    loading: false,
   })
   const get = async () => {
-    form.loading = true
     const res = await sendCmd({ cmd: 'rs', target: ID_TARGET }).catch(_ => false)
-    form.loading = false
     if (res) {
       const data = res.data.split('\n').filter(i => i)
       form.option = data.join(',')

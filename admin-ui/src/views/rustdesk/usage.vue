@@ -1,5 +1,5 @@
 <template>
-  <el-card class="simple-card" shadow="never" v-loading="form.loading">
+  <el-card class="simple-card" shadow="never">
     <template #header>
       <div class="card-header">
         <span>USAGE</span>
@@ -43,12 +43,9 @@
     get_cmd: 'u',
     list: [],
     target: RELAY_TARGET,
-    loading: false,
   })
   const getList = async () => {
-    form.loading = true
     const res = await sendCmd({ cmd: form.get_cmd, target: RELAY_TARGET }).catch(_ => false)
-    form.loading = false
     if (res) {
       form.list = res.data.split('\n').filter(i => i).map(i => i.split(" "))
     }

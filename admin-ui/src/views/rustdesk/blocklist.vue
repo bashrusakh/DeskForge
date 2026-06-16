@@ -1,5 +1,5 @@
 <template>
-  <el-card class="simple-card" shadow="never" v-loading="form.loading">
+  <el-card class="simple-card" shadow="never">
     <template #header>
       <div class="card-header">
         <span>BLOCK_LIST</span>
@@ -49,15 +49,12 @@
     remove_cmd: 'blocklist-remove',
     list: [],
     target: RELAY_TARGET,
-    loading: false,
     form_visible: false,
     form_input: '',
     form_type: '',
   })
   const getList = async () => {
-    form.loading = true
     const res = await sendCmd({ cmd: form.get_cmd, target: RELAY_TARGET }).catch(_ => false)
-    form.loading = false
     if (res) {
       form.list = res.data.split('\n').filter(i => i)
     }
