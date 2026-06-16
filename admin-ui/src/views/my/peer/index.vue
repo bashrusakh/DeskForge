@@ -28,13 +28,23 @@
         <el-form-item>
           <el-button type="primary" @click="handlerQuery">{{ T('Filter') }}</el-button>
           <el-button type="success" @click="toExport">{{ T('Export') }}</el-button>
-          <!--          <el-button type="danger" @click="toBatchDelete">{{ T('BatchDelete') }}</el-button>-->
-          <el-button type="primary" @click="toBatchAddToAB">{{ T('BatchAddToAB') }}</el-button>
-
         </el-form-item>
       </el-form>
     </page-section>
     <page-section class="list-body" title="My Devices" :subtitle="`${listRes.total} devices`">
+      <actions-toolbar :selected="multipleSelection">
+        <template #default="{ disabled, selected }">
+          <template v-if="selected.length === 1">
+            <el-button type="success" @click="connectByClient(selected[0].id)">{{ T('Link') }}</el-button>
+            <el-button v-if="appStore.setting.appConfig.web_client" @click="toWebClientLink(selected[0])">Web Client</el-button>
+            <el-button @click="toAddressBook(selected[0])">{{ T('AddToAddressBook') }}</el-button>
+            <el-button type="primary" @click="toView(selected[0])">{{ T('View') }}</el-button>
+          </template>
+          <el-button type="primary" :disabled="disabled" @click="toBatchAddToAB">
+            {{ T('BatchAddToAB') }} ({{ selected.length }})
+          </el-button>
+        </template>
+      </actions-toolbar>
       <data-table
           :data="listRes.list"
           :loading="listRes.loading"
@@ -55,8 +65,7 @@
             { prop: 'version', label: T('Version'), align: 'center', width: 80 },
             { prop: 'alias', label: T('Alias'), align: 'center', width: 80 },
             { prop: 'created_at', label: T('CreatedAt'), align: 'center', width: 150 },
-            { prop: 'updated_at', label: T('UpdatedAt'), align: 'center', width: 150 },
-            { label: T('Actions'), align: 'center', width: 500, fixed: 'right', slot: 'actions' }
+            { prop: 'updated_at', label: T('UpdatedAt'), align: 'center', width: 150 }
           ]"
       >
         <template #id="{ row }">
@@ -67,12 +76,6 @@
             <span> {{ row.last_online_time ? timeAgo(row.last_online_time * 1000) : '-' }}</span>
             <span class="dot" :class="{red: timeDis(row.last_online_time) >= 60, green: timeDis(row.last_online_time)< 60}"></span>
           </div>
-        </template>
-        <template #actions="{ row }">
-          <el-button type="success" @click="connectByClient(row.id)">{{ T('Link') }}</el-button>
-          <el-button v-if="appStore.setting.appConfig.web_client" type="success" @click="toWebClientLink(row)">Web Client</el-button>
-          <el-button type="primary" @click="toAddressBook(row)">{{ T('AddToAddressBook') }}</el-button>
-          <el-button @click="toView(row)">{{ T('View') }}</el-button>
         </template>
       </data-table>
     </page-section>
@@ -126,7 +129,7 @@
         @confirm="ABSubmit"
     >
       <el-form class="dialog-form" ref="form" :model="ABFormData" label-width="120px">
-        <el-form-item :label="T('AddressBookName')" required prop="collection_id">
+        <el-form-item :label="T('Name')" required prop="collection_id">
           <el-select v-model="ABFormData.collection_id" clearable @change="changeCollectionForUpdate">
             <el-option :value="0" :label="T('MyAddressBook')"></el-option>
             <el-option v-for="c in collectionListResForUpdate.list" :key="c.id" :label="c.name" :value="c.id"></el-option>
@@ -175,7 +178,7 @@
         @confirm="submitBatchAddToAB"
     >
       <el-form class="dialog-form" ref="form" :model="batchABFormData" label-width="120px">
-        <el-form-item :label="T('AddressBookName')" required prop="collection_id">
+        <el-form-item :label="T('Name')" required prop="collection_id">
           <el-select v-model="batchABFormData.collection_id" clearable @change="changeCollectionForBatchCreateAB">
             <el-option :value="0" :label="T('MyAddressBook')"></el-option>
             <el-option v-for="c in collectionListResForUpdate.list" :key="c.id" :label="c.name" :value="c.id"></el-option>
@@ -210,6 +213,7 @@
   import { batchCreateFromPeers } from '@/api/my/address_book'
   import PageHeader from '@/components/ui/PageHeader.vue'
   import PageSection from '@/components/ui/PageSection.vue'
+  import ActionsToolbar from '@/components/ui/ActionsToolbar.vue'
   import CopyableText from '@/components/ui/CopyableText.vue'
   import DataTable from '@/components/ui/DataTable.vue'
   import AppDialog from '@/components/ui/AppDialog.vue'
@@ -394,7 +398,6 @@
       batchABFormVisible.value = false
     }
   }
-
 
 </script>
 

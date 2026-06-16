@@ -15,9 +15,20 @@
       </el-form>
     </page-section>
     <page-section class="list-body" title="OAuth Providers" :subtitle="`${listRes.total} providers`">
+      <actions-toolbar :selected="selectedRows">
+        <template #default="{ disabled, selected }">
+          <template v-if="selected.length === 1">
+            <el-button type="primary" @click="toEdit(selected[0])">{{ T('Edit') }}</el-button>
+          </template>
+          <el-button type="danger" :disabled="disabled" @click="bulkDel">
+            {{ T('DeleteSelected') }} ({{ selected.length }})
+          </el-button>
+        </template>
+      </actions-toolbar>
       <data-table
           :data="listRes.list"
           :loading="listRes.loading"
+          selectable
           row-key="id"
           :columns="[
             { prop: 'id', label: 'ID', align: 'center', width: 100 },
@@ -27,14 +38,10 @@
             { prop: 'pkce_enable', label: T('PkceEnable'), align: 'center' },
             { prop: 'pkce_method', label: T('PkceMethod'), align: 'center' },
             { prop: 'created_at', label: T('CreatedAt'), align: 'center' },
-            { prop: 'updated_at', label: T('UpdatedAt'), align: 'center' },
-            { label: T('Actions'), align: 'center', width: 200, fixed: 'right', slot: 'actions' }
+            { prop: 'updated_at', label: T('UpdatedAt'), align: 'center' }
           ]"
+          @selection-change="selectedRows = $event"
       >
-        <template #actions="{ row }">
-          <el-button @click="toEdit(row)">{{ T('Edit') }}</el-button>
-          <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
-        </template>
       </data-table>
     </page-section>
     <page-section class="list-page">
@@ -115,13 +122,15 @@
 <script setup>
   import { onMounted, reactive, watch, ref, onActivated } from 'vue'
   import { list, create, update, detail, remove } from '@/api/oauth'
-  import { ElMessage, ElMessageBox } from 'element-plus'
+  import { ElMessage } from 'element-plus'
   import { T } from '@/utils/i18n'
   import { handleClipboard } from '@/utils/clipboard'
   import { useAppStore } from '@/store/app'
+  import { useBulkRemove } from '@/composables/useBulkRemove'
   import { CopyDocument } from '@element-plus/icons-vue'
   import PageHeader from '@/components/ui/PageHeader.vue'
   import PageSection from '@/components/ui/PageSection.vue'
+  import ActionsToolbar from '@/components/ui/ActionsToolbar.vue'
   import DataTable from '@/components/ui/DataTable.vue'
   import AppDialog from '@/components/ui/AppDialog.vue'
 
@@ -161,22 +170,15 @@
     }
   }
 
-  const del = async (row) => {
-    const cf = await ElMessageBox.confirm(T('Confirm?', { param: T('Delete') }), {
-      confirmButtonText: T('Confirm'),
-      cancelButtonText: T('Cancel'),
-      type: 'warning',
-    }).catch(_ => false)
-    if (!cf) {
-      return false
-    }
+  const selectedRows = ref([])
 
-    const res = await remove({ id: row.id }).catch(_ => false)
-    if (res) {
-      ElMessage.success(T('OperationSuccess'))
-      getList()
-    }
-  }
+  const { bulkRemove: bulkDel } = useBulkRemove({
+    removeApi: remove,
+    getList,
+    label: T('Oauth'),
+    selectionRef: selectedRows,
+  })
+
   onMounted(getList)
   onActivated(getList)
 

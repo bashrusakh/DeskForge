@@ -386,9 +386,6 @@
   "ToLocal": {
     "One": "到本地"
   },
-  "AddressBookName": {
-    "One": "地址簿名称"
-  },
   "AddressBookCollection": {
     "One": "地址簿集"
   },
@@ -418,9 +415,6 @@
   },
   "AddressBook": {
     "One": "地址簿"
-  },
-  "AddressBookNameManage": {
-    "One": "地址簿名称"
   },
   "MyAddressBookTips": {
     "One": "\"我的地址簿\"是系统默认，不可修改、删除"
@@ -478,6 +472,15 @@
   },
   "BatchEditTags": {
     "One": "批量编辑标签"
+  },
+  "Selected": {
+    "One": "已选"
+  },
+  "SelectRowsToAction": {
+    "One": "选择行以执行批量操作"
+  },
+  "DeleteSelected": {
+    "One": "删除所选"
   },
   "User": {
     "One": "用户"

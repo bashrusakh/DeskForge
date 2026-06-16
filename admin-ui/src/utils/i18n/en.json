@@ -406,9 +406,6 @@
   "Contacts": {
     "One": "Contacts"
   },
-  "AddressBookName": {
-    "One": "Address Book Name"
-  },
   "AddRule": {
     "One": "Add Rule"
   },
@@ -432,9 +429,6 @@
   },
   "MyAddressBook": {
     "One": "My Address Book"
-  },
-  "AddressBookNameManage": {
-    "One": "Address Book Names"
   },
   "MyAddressBookTips": {
     "One": "\"My Address Book\" is the default of the system, cannot be modified or deleted"
@@ -468,6 +462,15 @@
   },
   "BatchEditTags": {
     "One": "Batch Edit Tags"
+  },
+  "Selected": {
+    "One": "selected"
+  },
+  "SelectRowsToAction": {
+    "One": "Select rows to perform bulk actions"
+  },
+  "DeleteSelected": {
+    "One": "Delete selected"
   },
   "User": {
     "One": "User"

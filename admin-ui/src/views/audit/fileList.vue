@@ -37,8 +37,7 @@
             { label: T('FileInfo'), align: 'center', width: 300, slot: 'fileInfo' },
             { label: T('Path'), prop: 'path', align: 'center', width: 150, showOverflowTooltip: true },
             { label: 'uuid', prop: 'uuid', align: 'center', width: 120, showOverflowTooltip: true },
-            { label: T('CreatedAt'), prop: 'created_at', align: 'center', minWidth: 120 },
-            { label: T('Actions'), align: 'center', width: 150, fixed: 'right', slot: 'actions' }
+            { label: T('CreatedAt'), prop: 'created_at', align: 'center', minWidth: 120 }
           ]"
       >
         <template #type="{ row }">
@@ -68,9 +67,6 @@
           <div v-else>
             {{ sizeFormat(row.info.files[0][1]) }}
           </div>
-        </template>
-        <template #actions="{ row }">
-          <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
         </template>
       </data-table>
     </page-section>

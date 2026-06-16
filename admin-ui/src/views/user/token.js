@@ -53,7 +53,7 @@ export function useRepositories () {
   }
 
   const batchDelete = async (ids) => {
-    const cf = await ElMessageBox.confirm(T('Confirm?', { param: T('BatchDelete') }), {
+    const cf = await ElMessageBox.confirm(T('Confirm?', { param: `${T('Logout')} (${ids.length})` }), {
       confirmButtonText: T('Confirm'),
       cancelButtonText: T('Cancel'),
       type: 'warning',

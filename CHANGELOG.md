@@ -4,7 +4,30 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased] - 2026-06-14
+## [Unreleased] - 2026-06-16
+
+### Changed (admin-ui: Actions column refactor — toolbar + checkboxes)
+- **New `ActionsToolbar.vue`** (`admin-ui/src/components/ui/ActionsToolbar.vue`): shared toolbar rendered above the table that shows the current selection count ("3 selected") and exposes a slot for bulk action buttons. Bulk action buttons receive `:disabled` and stay visually muted until at least one row is selected. The bar shifts its border/background tint when active so the user gets a clear "you have N rows selected" cue.
+- **New `useBulkRemove` composable** (`admin-ui/src/composables/useBulkRemove.js`): single `confirm-and-delete-N` flow with one shared ElMessageBox confirmation and parallel API calls. Replaces the previous per-row `ElMessageBox.confirm` pattern which would have stacked N dialogs.
+- **15 list views** refactored to drop the right-side `fixed: 'right'` Actions column and use the new toolbar + a single non-fixed More dropdown per row:
+  - Admin: `user/index.vue`, `group/index.vue`, `group/deviceGroupList.vue`, `tag/index.vue`, `oauth/index.vue`, `address_book/index.vue`, `address_book/collection.vue`, `address_book/rule.vue`, `peer/index.vue`
+  - Workspace: `my/address_book/index.vue`, `my/address_book/collection.vue`, `my/tag/index.vue`, `my/peer/index.vue`
+  - Logs already used `FilterBar`; their inline Actions column was just slimmed to a 80-px no-label column to free horizontal space.
+- **Behavior changes worth knowing**:
+  - Single-row Delete now goes through the row-level More dropdown. For pages where Delete was the only action, a single non-fixed "More" replaces the wider inline button.
+  - Bulk Delete, BatchAddToAddressBook, BatchEditTags are now toolbar buttons and are disabled when nothing is selected. Confirmation is one dialog for the whole batch, not N dialogs.
+  - On the users page, the single-row Delete still uses the existing composable's per-row confirm so accidental deletes still get a single, deliberate "are you sure?" prompt; bulk delete shows one dialog with the count in the prompt.
+  - On `my/address_book`, BatchEditTags moved out of the filter form into the toolbar; selecting rows still populates `row_ids` for the dialog automatically.
+
+### Fixed (AddressBookName label inconsistency)
+- `T('AddressBookName')` was used in filters and form labels while the column header had been shortened to "Name" in a previous commit. Renamed all 14 view-level references to `T('Name')` and removed the now-unused `AddressBookName` and `AddressBookNameManage` i18n keys (en/ru/zh_CN). Hardcoded column labels `'Name'` switched to `T('Name')` for proper i18n. Affected: `address_book/rule.vue`, `address_book/index.vue`, `my/address_book/index.vue`, `my/peer/index.vue`, `my/tag/index.vue`, `peer/createABForm.vue`, `peer/index.vue`, `tag/index.vue`, and the collections / address-book-collection column labels in `address_book/collection.vue` and `my/address_book/collection.vue`.
+
+### Fixed (ElSwitch warnings in admin-ui)
+- **Root cause** (`admin-ui/src/views/user/index.vue`): `<el-table>` renders all column slots in a hidden `.hidden-columns` measurement container. The `#status` slot created `<el-switch v-model="row.status">` there with `row.status === undefined`, triggering Element Plus's `model-value must be active-value or inactive-value` warning at setup. Added `v-if="row && (row.status === ENABLE_STATUS || row.status === DISABLE_STATUS)"` guard so the switch only renders for real rows with valid status values.
+- **Defensive normalizations**:
+  - `admin-ui/src/views/user/composables/index.js` — list loader now coerces `status` to `ENABLE_STATUS` (1) or `DISABLE_STATUS` (2) before passing rows to the table.
+  - `admin-ui/src/views/user/composables/edit.js` — edit form normalizes `is_admin` to boolean and `status` to 1/2 on load, so the form switches always receive a valid `modelValue`.
+  - `admin-ui/src/views/custom-client/index.vue` — added explicit `:active-value="true" :inactive-value="false"` to every `<el-switch>` in the Client Builder form so boolean fields never fall back to Element Plus's default `activeValue: true` / `inactiveValue: false` mismatch with `null`/`undefined` form data.
 
 ### Added (dashboard server health)
 - **Backend `GET /api/admin/dashboard/health`** (`api/http/controller/admin/dashboard.go`, `router/admin.go`): new endpoint that checks ID server and relay server availability via local socket commands (`h`), retrieves relay usage data (`u`), and reads bandwidth limits (`total-bandwidth`, `single-bandwidth`, `limit-speed`). Returns structured JSON with status, top-5 connections, and bandwidth values.

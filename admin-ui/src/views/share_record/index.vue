@@ -29,8 +29,7 @@
             { label: T('User'), align: 'center', width: 120, slot: 'user' },
             { prop: 'peer_id', label: T('Peer'), align: 'center' },
             { prop: 'created_at', label: T('CreatedAt'), align: 'center' },
-            { label: T('ExpireTime') + ' (' + T('Second') + ')', align: 'center', slot: 'expire' },
-            { label: T('Actions'), align: 'center', width: 400, slot: 'actions' }
+            { label: T('ExpireTime') + ' (' + T('Second') + ')', align: 'center', slot: 'expire' }
           ]"
       >
         <template #user="{ row }">
@@ -38,9 +37,6 @@
         </template>
         <template #expire="{ row }">
           <el-tag :type="expired(row)?'info':'success'">{{ row.expire ? row.expire : T('Forever') }}</el-tag>
-        </template>
-        <template #actions="{ row }">
-          <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
         </template>
       </data-table>
     </page-section>

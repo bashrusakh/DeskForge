@@ -1,6 +1,6 @@
 <template>
   <div class="share-rules-page">
-    <page-section class="list-query" :title="T('ShareRules')" :subtitle="props.collection.name || T('AddressBookName')">
+    <page-section class="list-query" :title="T('ShareRules')" :subtitle="props.collection.name || T('Name')">
       <el-form inline label-width="80px">
         <el-form-item>
           <el-button type="primary" @click="handlerQuery">{{ T('Filter') }}</el-button>
@@ -9,17 +9,28 @@
       </el-form>
     </page-section>
     <page-section class="list-body" title="Rules" :subtitle="`${listRes.total} rules`">
+      <actions-toolbar :selected="selectedRows">
+        <template #default="{ disabled, selected }">
+          <template v-if="selected.length === 1">
+            <el-button type="primary" @click="toEdit(selected[0])">{{ T('Edit') }}</el-button>
+          </template>
+          <el-button type="danger" :disabled="disabled" @click="bulkDel">
+            {{ T('DeleteSelected') }} ({{ selected.length }})
+          </el-button>
+        </template>
+      </actions-toolbar>
       <data-table
           :data="listRes.list"
           :loading="listRes.loading"
+          selectable
           row-key="id"
           :columns="[
             { label: T('Rule'), align: 'center', slot: 'rule' },
             { label: T('Type'), align: 'center', slot: 'type' },
             { label: T('ShareTo'), align: 'center', slot: 'shareTo' },
-            { prop: 'created_at', label: T('CreatedAt'), align: 'center' },
-            { label: T('Actions'), align: 'center', className: 'table-actions', width: 300, fixed: 'right', slot: 'actions' }
+            { prop: 'created_at', label: T('CreatedAt'), align: 'center' }
           ]"
+          @selection-change="selectedRows = $event"
       >
         <template #rule="{ row }">
           {{ rules.find(r => r.value === row.rule)?.label }}
@@ -34,10 +45,6 @@
           <div v-else-if="row.type===TYPE_G">
             {{ groups.find(g => g.id === row.to_id)?.name }}
           </div>
-        </template>
-        <template #actions="{ row }">
-          <el-button @click="toEdit(row)">{{ T('Edit') }}</el-button>
-          <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
         </template>
       </data-table>
     </page-section>
@@ -57,7 +64,7 @@
         @confirm="submit"
     >
       <el-form class="dialog-form" ref="form" :model="formData" label-width="120px">
-        <el-form-item :label="T('AddressBookName')">
+        <el-form-item :label="T('Name')">
           {{ props.collection.name }}
         </el-form-item>
         <el-form-item :label="T('Rule')" prop="rule" required>
@@ -105,8 +112,11 @@
 
   import { T } from '@/utils/i18n'
   import { useRepositories } from '@/views/address_book/rule'
-  import { onActivated, onMounted, watch } from 'vue'
+  import { onActivated, onMounted, ref, watch } from 'vue'
+  import { useBulkRemove } from '@/composables/useBulkRemove'
+  import { remove as apiRemove } from '@/api/address_book_collection_rule'
   import PageSection from '@/components/ui/PageSection.vue'
+  import ActionsToolbar from '@/components/ui/ActionsToolbar.vue'
   import DataTable from '@/components/ui/DataTable.vue'
   import AppDialog from '@/components/ui/AppDialog.vue'
 
@@ -152,6 +162,15 @@
   watch(() => listQuery.page, getList)
 
   watch(() => listQuery.page_size, handlerQuery)
+
+  const selectedRows = ref([])
+
+  const { bulkRemove: bulkDel } = useBulkRemove({
+    removeApi: apiRemove,
+    getList,
+    label: T('Rule'),
+    selectionRef: selectedRows,
+  })
 
 </script>
 

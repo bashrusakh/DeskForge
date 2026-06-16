@@ -18,7 +18,7 @@
             ></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item :label="T('AddressBookName')">
+        <el-form-item :label="T('Name')">
           <el-select v-model="listQuery.collection_id" clearable>
             <el-option :value="0" :label="T('MyAddressBook')"></el-option>
             <el-option v-for="c in collectionListRes.list" :key="c.id" :label="c.name" :value="c.id"></el-option>
@@ -40,22 +40,35 @@
       </el-form>
     </page-section>
     <page-section class="list-body" :title="T('AddressBook')" :subtitle="`${listRes.total} entries`">
+      <actions-toolbar :selected="selectedRows">
+        <template #default="{ disabled, selected }">
+          <template v-if="selected.length === 1">
+            <el-button type="success" @click="connectByClient(selected[0].id)">{{ T('Link') }}</el-button>
+            <el-button v-if="appStore.setting.appConfig.web_client" @click="toWebClientLink(selected[0])">Web Client</el-button>
+            <el-button type="primary" @click="toEdit(selected[0])">{{ T('Edit') }}</el-button>
+          </template>
+          <el-button type="danger" :disabled="disabled" @click="bulkDel">
+            {{ T('DeleteSelected') }} ({{ selected.length }})
+          </el-button>
+        </template>
+      </actions-toolbar>
       <data-table
           :data="listRes.list"
           :loading="listRes.loading"
+          selectable
           row-key="id"
           :columns="[
             { label: 'ID', align: 'center', width: 200, slot: 'id' },
             { label: T('Owner'), align: 'center', width: 200, slot: 'owner' },
-            { label: 'Name', align: 'center', width: 150, slot: 'collection' },
+            { label: T('Name'), align: 'center', width: 150, slot: 'collection' },
             { prop: 'username', label: T('Username'), align: 'center', width: 150 },
             { prop: 'hostname', label: T('Hostname'), align: 'center', width: 150 },
             { prop: 'tags', label: T('Tags'), align: 'center' },
             { prop: 'alias', label: T('Alias'), align: 'center', width: 150 },
             { prop: 'peer.version', label: T('Version'), align: 'center', width: 100 },
-            { prop: 'hash', label: T('Hash'), align: 'center', width: 150, showOverflowTooltip: true },
-            { label: T('Actions'), align: 'center', className: 'table-actions', width: 360, fixed: 'right', slot: 'actions' }
+            { prop: 'hash', label: T('Hash'), align: 'center', width: 150, showOverflowTooltip: true }
           ]"
+          @selection-change="selectedRows = $event"
       >
         <template #id="{ row }">
           <div class="device-id-cell">
@@ -69,23 +82,6 @@
         <template #collection="{ row }">
           <span v-if="row.collection_id === 0">{{ T('MyAddressBook') }}</span>
           <span v-else>{{ row.collection?.name }}</span>
-        </template>
-        <template #actions="{ row }">
-          <el-space wrap>
-            <el-button type="success" @click="connectByClient(row.id)">{{ T('Link') }}</el-button>
-            <el-button v-if="appStore.setting.appConfig.web_client" type="primary" @click="toWebClientLink(row)">Web Client</el-button>
-            <el-dropdown trigger="click">
-              <el-button>
-                {{ T('More') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
-              </el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item @click="toEdit(row)">{{ T('Edit') }}</el-dropdown-item>
-                  <el-dropdown-item divided @click="del(row)">{{ T('Delete') }}</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-          </el-space>
         </template>
       </data-table>
     </page-section>
@@ -115,7 +111,7 @@
             ></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item :label="T('AddressBookName')">
+        <el-form-item :label="T('Name')">
           <el-select v-model="formData.collection_id" clearable @change="changeCollectionForUpdate">
             <el-option :value="0" :label="T('MyAddressBook')"></el-option>
             <el-option v-for="c in collectionListResForUpdate.list" :key="c.id" :label="c.name" :value="c.id"></el-option>
@@ -163,18 +159,20 @@
 </template>
 
 <script setup>
-  import { onActivated, onMounted, watch } from 'vue'
+  import { onActivated, onMounted, ref, watch } from 'vue'
   import { useRepositories } from '@/views/address_book/index'
   import { toWebClientLink } from '@/utils/webclient'
   import { T } from '@/utils/i18n'
   import { useRoute } from 'vue-router'
   import { connectByClient } from '@/utils/peer'
   import { useAppStore } from '@/store/app'
-  import { ArrowDown } from '@element-plus/icons-vue'
+  import { useBulkRemove } from '@/composables/useBulkRemove'
+  import { remove as apiRemove } from '@/api/address_book'
   import PlatformIcons from '@/components/icons/platform.vue'
   import { loadAllUsers } from '@/global'
   import PageHeader from '@/components/ui/PageHeader.vue'
   import PageSection from '@/components/ui/PageSection.vue'
+  import ActionsToolbar from '@/components/ui/ActionsToolbar.vue'
   import CopyableText from '@/components/ui/CopyableText.vue'
   import DataTable from '@/components/ui/DataTable.vue'
   import AppDialog from '@/components/ui/AppDialog.vue'
@@ -208,6 +206,16 @@
   if (route.query?.user_id) {
     listQuery.user_id = parseInt(route.query.user_id)
   }
+
+  const selectedRows = ref([])
+
+  const { bulkRemove: bulkDel } = useBulkRemove({
+    removeApi: apiRemove,
+    getList,
+    label: T('AddressBook'),
+    selectionRef: selectedRows,
+  })
+
   onMounted(getAllUsers)
   onMounted(getList)
   onActivated(getList)

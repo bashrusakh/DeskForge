@@ -11,7 +11,7 @@
         ></el-option>
       </el-select>
     </el-form-item>
-    <el-form-item :label="T('AddressBookName')" v-if="ABFormData.user_ids.length<=1" required prop="collection_id">
+    <el-form-item :label="T('Name')" v-if="ABFormData.user_ids.length<=1" required prop="collection_id">
       <el-select v-model="ABFormData.collection_id" clearable @change="changeCollectionForUpdate">
         <el-option :value="0" :label="T('MyAddressBook')"></el-option>
         <el-option v-for="c in collectionListResForUpdate.list" :key="c.id" :label="c.name" :value="c.id"></el-option>

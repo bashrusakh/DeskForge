@@ -120,17 +120,17 @@
         <el-row :gutter="20">
           <el-col :span="6">
             <el-form-item :label="T('DenyLan')">
-              <el-switch v-model="form.deny_lan" />
+              <el-switch :active-value="true" :inactive-value="false" v-model="form.deny_lan" />
             </el-form-item>
           </el-col>
           <el-col :span="6">
             <el-form-item :label="T('EnableDirectIP')">
-              <el-switch v-model="form.enable_direct_ip" />
+              <el-switch :active-value="true" :inactive-value="false" v-model="form.enable_direct_ip" />
             </el-form-item>
           </el-col>
           <el-col :span="6">
             <el-form-item :label="T('AutoClose')">
-              <el-switch v-model="form.auto_close" />
+              <el-switch :active-value="true" :inactive-value="false" v-model="form.auto_close" />
             </el-form-item>
           </el-col>
           <el-col :span="6">
@@ -140,7 +140,7 @@
                   <span>{{ T('HideConnectionManagement') }}</span>
                 </el-tooltip>
               </template>
-              <el-switch v-model="form.hide_cm" />
+              <el-switch :active-value="true" :inactive-value="false" v-model="form.hide_cm" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -158,7 +158,7 @@
           </el-col>
           <el-col :span="8">
             <el-form-item :label="T('RemoveWallpaper')">
-              <el-switch v-model="form.remove_wallpaper" />
+              <el-switch :active-value="true" :inactive-value="false" v-model="form.remove_wallpaper" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -176,18 +176,18 @@
           </el-col>
         </el-row>
         <el-row :gutter="20" v-if="form.permissions_type === 'custom'">
-          <el-col :span="6"><el-form-item :label="T('Keyboard')"><el-switch v-model="form.enable_keyboard" /></el-form-item></el-col>
-          <el-col :span="6"><el-form-item :label="T('Clipboard')"><el-switch v-model="form.enable_clipboard" /></el-form-item></el-col>
-          <el-col :span="6"><el-form-item :label="T('FileTransfer')"><el-switch v-model="form.enable_file_transfer" /></el-form-item></el-col>
-          <el-col :span="6"><el-form-item :label="T('Audio')"><el-switch v-model="form.enable_audio" /></el-form-item></el-col>
-          <el-col :span="6"><el-form-item :label="T('TCPTunneling')"><el-switch v-model="form.enable_tcp" /></el-form-item></el-col>
-          <el-col :span="6"><el-form-item :label="T('RemoteRestart')"><el-switch v-model="form.enable_remote_restart" /></el-form-item></el-col>
-          <el-col :span="6"><el-form-item :label="T('Recording')"><el-switch v-model="form.enable_recording" /></el-form-item></el-col>
-          <el-col :span="6"><el-form-item :label="T('BlockingInput')"><el-switch v-model="form.enable_blocking_input" /></el-form-item></el-col>
-          <el-col :span="6"><el-form-item :label="T('RemoteModification')"><el-switch v-model="form.enable_remote_modi" /></el-form-item></el-col>
-          <el-col :span="6"><el-form-item :label="T('Printer')"><el-switch v-model="form.enable_printer" /></el-form-item></el-col>
-          <el-col :span="6"><el-form-item :label="T('Camera')"><el-switch v-model="form.enable_camera" /></el-form-item></el-col>
-          <el-col :span="6"><el-form-item :label="T('Terminal')"><el-switch v-model="form.enable_terminal" /></el-form-item></el-col>
+          <el-col :span="6"><el-form-item :label="T('Keyboard')"><el-switch :active-value="true" :inactive-value="false" v-model="form.enable_keyboard" /></el-form-item></el-col>
+          <el-col :span="6"><el-form-item :label="T('Clipboard')"><el-switch :active-value="true" :inactive-value="false" v-model="form.enable_clipboard" /></el-form-item></el-col>
+          <el-col :span="6"><el-form-item :label="T('FileTransfer')"><el-switch :active-value="true" :inactive-value="false" v-model="form.enable_file_transfer" /></el-form-item></el-col>
+          <el-col :span="6"><el-form-item :label="T('Audio')"><el-switch :active-value="true" :inactive-value="false" v-model="form.enable_audio" /></el-form-item></el-col>
+          <el-col :span="6"><el-form-item :label="T('TCPTunneling')"><el-switch :active-value="true" :inactive-value="false" v-model="form.enable_tcp" /></el-form-item></el-col>
+          <el-col :span="6"><el-form-item :label="T('RemoteRestart')"><el-switch :active-value="true" :inactive-value="false" v-model="form.enable_remote_restart" /></el-form-item></el-col>
+          <el-col :span="6"><el-form-item :label="T('Recording')"><el-switch :active-value="true" :inactive-value="false" v-model="form.enable_recording" /></el-form-item></el-col>
+          <el-col :span="6"><el-form-item :label="T('BlockingInput')"><el-switch :active-value="true" :inactive-value="false" v-model="form.enable_blocking_input" /></el-form-item></el-col>
+          <el-col :span="6"><el-form-item :label="T('RemoteModification')"><el-switch :active-value="true" :inactive-value="false" v-model="form.enable_remote_modi" /></el-form-item></el-col>
+          <el-col :span="6"><el-form-item :label="T('Printer')"><el-switch :active-value="true" :inactive-value="false" v-model="form.enable_printer" /></el-form-item></el-col>
+          <el-col :span="6"><el-form-item :label="T('Camera')"><el-switch :active-value="true" :inactive-value="false" v-model="form.enable_camera" /></el-form-item></el-col>
+          <el-col :span="6"><el-form-item :label="T('Terminal')"><el-switch :active-value="true" :inactive-value="false" v-model="form.enable_terminal" /></el-form-item></el-col>
         </el-row>
 
         <el-divider content-position="left">{{ T('Branding') || 'Branding' }}</el-divider>
@@ -236,7 +236,7 @@
                   <span>{{ T('CycleMonitor') }}</span>
                 </el-tooltip>
               </template>
-              <el-switch v-model="form.cycle_monitor" />
+              <el-switch :active-value="true" :inactive-value="false" v-model="form.cycle_monitor" />
             </el-form-item>
           </el-col>
           <el-col :span="6">
@@ -246,7 +246,7 @@
                   <span>{{ T('XOffline') }}</span>
                 </el-tooltip>
               </template>
-              <el-switch v-model="form.x_offline" />
+              <el-switch :active-value="true" :inactive-value="false" v-model="form.x_offline" />
             </el-form-item>
           </el-col>
           <el-col :span="6">
@@ -256,7 +256,7 @@
                   <span>{{ T('RemoveNewVersionNotif') }}</span>
                 </el-tooltip>
               </template>
-              <el-switch v-model="form.remove_new_version_notif" />
+              <el-switch :active-value="true" :inactive-value="false" v-model="form.remove_new_version_notif" />
             </el-form-item>
           </el-col>
           <el-col :span="6">

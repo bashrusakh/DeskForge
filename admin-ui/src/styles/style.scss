@@ -125,8 +125,13 @@ body {
 }
 
 .el-table__fixed-right,
-.el-table__fixed {
-  background: var(--color-surface);
+.el-table__fixed,
+.el-table__fixed-right-patch {
+  background: var(--color-surface) !important;
+}
+
+.el-table__header-wrapper tr th.el-table-fixed-column--right {
+  background-color: var(--color-surface) !important;
 }
 
 .el-input__wrapper,
