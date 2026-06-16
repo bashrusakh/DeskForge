@@ -1,5 +1,5 @@
 <template>
-  <el-card class="page-section" shadow="hover">
+  <el-card class="page-section" shadow="never">
     <div v-if="title || subtitle || $slots.actions" class="page-section__header">
       <div>
         <div v-if="title" class="page-section__title">{{ title }}</div>

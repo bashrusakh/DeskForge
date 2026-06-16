@@ -1,5 +1,5 @@
 <template>
-  <el-card class="simple-card" shadow="hover" v-loading="form.loading">
+  <el-card class="simple-card" shadow="never" v-loading="form.loading">
     <template #header>
       <div class="card-header">
         <span>ALWAYS_USE_RELAY</span>

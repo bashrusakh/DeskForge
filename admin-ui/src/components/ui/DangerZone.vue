@@ -1,5 +1,5 @@
 <template>
-  <el-card class="danger-zone" shadow="hover">
+  <el-card class="danger-zone" shadow="never">
     <div class="danger-zone__header">
       <div>
         <div class="danger-zone__eyebrow">{{ T('DangerZone') }}</div>

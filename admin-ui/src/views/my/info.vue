@@ -39,28 +39,22 @@
         </el-form-item>
       </el-form>
     </page-section>
-    <page-section class="hello-section" title="Welcome">
-      <div v-html="html"></div>
-    </page-section>
     <changePwdDialog v-model:visible="changePwdVisible"></changePwdDialog>
   </div>
 </template>
 
 <script setup>
   import changePwdDialog from '@/components/changePwdDialog.vue'
-  import { computed, ref } from 'vue'
+  import { ref } from 'vue'
   import { useUserStore } from '@/store/user'
-  import { useAppStore } from '@/store/app'
   import { bind, unbind } from '@/api/oauth'
   import { myOauth } from '@/api/user'
   import { ElMessageBox } from 'element-plus'
   import { T } from '@/utils/i18n'
-  import { marked } from 'marked'
   import PageHeader from '@/components/ui/PageHeader.vue'
   import PageSection from '@/components/ui/PageSection.vue'
   import DataTable from '@/components/ui/DataTable.vue'
 
-  const appStore = useAppStore()
   const userStore = useUserStore()
   const changePwdVisible = ref(false)
   const showChangePwd = () => {
@@ -98,8 +92,6 @@
 
   }
 
-  const html = computed(_ => marked(appStore.setting.hello||''))
-
 </script>
 
 <style scoped lang="scss">
@@ -107,9 +99,5 @@
   max-width: 720px;
   margin: 0 auto;
 
-}
-
-.hello-section {
-  margin-top: 20px;
 }
 </style>

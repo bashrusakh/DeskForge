@@ -29,6 +29,12 @@ The admin panel has been fully reworked (2026-06).
 - **Locales:** English, Russian, Chinese (Simplified)
 - Custom client builder, OAuth/SSO, API tokens
 
+### Screenshots
+
+| Dashboard | Custom Client Builder |
+| --- | --- |
+| ![Dashboard](docs/screenshots/dashboard.png) | ![Custom Client Builder](docs/screenshots/client-builder.png) |
+
 ## Quick Start
 
 ### 1. Clone the repository
