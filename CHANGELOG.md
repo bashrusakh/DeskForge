@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased] - 2026-06-16
 
+### Fixed (admin-ui: card hover-shadow flicker on route enter)
+- `PageSection` and `DangerZone` switched from `shadow="hover"` to `shadow="never"` so cards no longer animate `box-shadow: none → var(--shadow-card)` on page enter. In dark mode the old transition (`rgba(0, 0, 0, 0.28)` shadow) read as a black-to-blue flash whenever the cursor was already over a card after a route transition; static cards (border + background) make the layout stable on navigation.
+- Same change applied to the six Server Commands `simple-card` views: `always_use_relay.vue`, `blacklist.vue`, `blocklist.vue`, `must_login.vue`, `relay_servers.vue`, `usage.vue` — all now `shadow="never"` for consistency with the rest of the page.
+
+### Removed (Account Info: redundant Welcome block)
+- `admin-ui/src/views/my/info.vue` no longer renders the standalone `<page-section title="Welcome">` that surfaced `marked(appStore.setting.hello)` at the bottom of the page. The welcome markdown belongs on the public login surface, not on the post-auth Account Info screen.
+- Cleaned up the now-unused `useAppStore` / `marked` / `computed` imports and the `.hello-section` style.
+
+### Added (README screenshots)
+- New `### Screenshots` section in `README.md` with a two-column table linking to `docs/screenshots/dashboard.png` and `docs/screenshots/client-builder.png`. Both PNGs are committed under `docs/screenshots/` for GitHub / npm preview rendering.
+
 ### Changed (admin-ui: Actions column refactor — toolbar + checkboxes)
 - **New `ActionsToolbar.vue`** (`admin-ui/src/components/ui/ActionsToolbar.vue`): shared toolbar rendered above the table that shows the current selection count ("3 selected") and exposes a slot for bulk action buttons. Bulk action buttons receive `:disabled` and stay visually muted until at least one row is selected. The bar shifts its border/background tint when active so the user gets a clear "you have N rows selected" cue.
 - **New `useBulkRemove` composable** (`admin-ui/src/composables/useBulkRemove.js`): single `confirm-and-delete-N` flow with one shared ElMessageBox confirmation and parallel API calls. Replaces the previous per-row `ElMessageBox.confirm` pattern which would have stacked N dialogs.
