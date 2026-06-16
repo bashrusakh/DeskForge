@@ -28,15 +28,11 @@
             { prop: 'ip', label: 'ip', align: 'center', width: 150 },
             { prop: 'type', label: 'type', align: 'center', width: 100 },
             { prop: 'platform', label: 'Platform/UA', align: 'center', width: 120, showOverflowTooltip: true },
-            { prop: 'created_at', label: T('CreatedAt'), align: 'center' },
-            { label: '', align: 'center', width: 80, slot: 'actions' }
+            { prop: 'created_at', label: T('CreatedAt'), align: 'center' }
           ]"
       >
         <template #peer="{ row }">
           {{ row.device_id ? row.device_id : peer?.id }}
-        </template>
-        <template #actions="{ row }">
-          <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
         </template>
       </data-table>
     </page-section>

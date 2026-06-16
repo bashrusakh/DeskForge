@@ -56,8 +56,6 @@
               <el-button @click="showImport=true" type="danger" :icon="ArrowDown">{{ T('Import') }}</el-button>
             </template>
           </el-popover>
-          <el-button type="danger" @click="toBatchDelete" v-show="false">{{ T('BatchDelete') }}</el-button>
-          <el-button type="primary" @click="toBatchAddToAB" v-show="false">{{ T('BatchAddToAB') }}</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -70,12 +68,18 @@
         <el-button :icon="Setting" @click="showColumnSetting">Columns</el-button>
       </div>
       <actions-toolbar :selected="multipleSelection">
-        <template #default="{ disabled }">
+        <template #default="{ disabled, selected }">
+          <template v-if="selected.length === 1">
+            <el-button type="success" @click="connectByClient(selected[0].id)">Connect</el-button>
+            <el-button v-if="appStore.setting.appConfig.web_client" @click="toWebClientLink(selected[0])">Web Client</el-button>
+            <el-button @click="toAddressBook(selected[0])">{{ T('AddToAddressBook') }}</el-button>
+            <el-button type="primary" @click="toEdit(selected[0])">{{ T('Edit') }}</el-button>
+          </template>
           <el-button type="primary" :disabled="disabled" @click="toBatchAddToAB">
-            {{ T('BatchAddToAB') }} ({{ multipleSelection.length }})
+            {{ T('BatchAddToAB') }} ({{ selected.length }})
           </el-button>
           <el-button type="danger" :disabled="disabled" @click="toBatchDelete">
-            {{ T('DeleteSelected') }} ({{ multipleSelection.length }})
+            {{ T('DeleteSelected') }} ({{ selected.length }})
           </el-button>
         </template>
       </actions-toolbar>
@@ -107,22 +111,6 @@
         <template #group="{ row }">
           <span v-if="row.group_id"> <el-tag>{{ groupListRes.list?.find(g => g.id === row.group_id)?.name }} </el-tag> </span>
           <span v-else> - </span>
-        </template>
-        <template #actions="{ row }">
-          <div class="device-actions">
-            <el-button type="primary" @click="connectByClient(row.id)">Connect</el-button>
-            <el-dropdown trigger="click">
-              <el-button>More <el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item v-if="appStore.setting.appConfig.web_client" @click="toWebClientLink(row)">Web Client</el-dropdown-item>
-                  <el-dropdown-item @click="toAddressBook(row)">{{ T('AddToAddressBook') }}</el-dropdown-item>
-                  <el-dropdown-item @click="toEdit(row)">{{ T('Edit') }}</el-dropdown-item>
-                  <el-dropdown-item divided @click="del(row)">{{ T('Delete') }}</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-          </div>
         </template>
       </data-table>
     </el-card>
@@ -255,7 +243,7 @@
   import { loadAllUsers } from '@/global'
   import { useAppStore } from '@/store/app'
   import { connectByClient } from '@/utils/peer'
-  import { ArrowDown, ArrowUp, Setting } from '@element-plus/icons-vue'
+  import { ArrowUp, Setting } from '@element-plus/icons-vue'
   import { batchCreateFromPeers } from '@/api/address_book'
   import { useRepositories as useCollectionRepositories } from '@/views/address_book/collection'
   import createABForm from '@/views/peer/createABForm.vue'
@@ -467,9 +455,6 @@
     reader.readAsText(file)
     return false
   }
-  const toImport = () => {
-    ElMessage.warning('Not implemented')
-  }
 
   const ABFormVisible = ref(false)
   const clickRow = ref({})
@@ -584,11 +569,10 @@
 
   const tableColumns = computed(() => {
     const statusCol = { label: T('Status'), align: 'left', width: 120, slot: 'status' }
-    const actionCol = { label: '', align: 'right', minWidth: 200, slot: 'actions' }
     const dynamicCols = visibleColumns.value
         .filter(c => c.visible)
         .map(c => columnProps[c.name] || { prop: c.name, label: c.label || c.name })
-    return [statusCol, ...dynamicCols, actionCol]
+    return [statusCol, ...dynamicCols]
   })
   const showColumnSetting = () => {
     columnSettingVisible.value = true
@@ -673,12 +657,6 @@
     background: var(--color-success-soft);
     color: var(--color-success);
   }
-}
-
-.device-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
 }
 
 @media (max-width: 720px) {

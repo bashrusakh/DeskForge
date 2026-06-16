@@ -33,9 +33,15 @@
     </page-section>
     <page-section class="list-body" title="My Devices" :subtitle="`${listRes.total} devices`">
       <actions-toolbar :selected="multipleSelection">
-        <template #default="{ disabled }">
+        <template #default="{ disabled, selected }">
+          <template v-if="selected.length === 1">
+            <el-button type="success" @click="connectByClient(selected[0].id)">{{ T('Link') }}</el-button>
+            <el-button v-if="appStore.setting.appConfig.web_client" @click="toWebClientLink(selected[0])">Web Client</el-button>
+            <el-button @click="toAddressBook(selected[0])">{{ T('AddToAddressBook') }}</el-button>
+            <el-button type="primary" @click="toView(selected[0])">{{ T('View') }}</el-button>
+          </template>
           <el-button type="primary" :disabled="disabled" @click="toBatchAddToAB">
-            {{ T('BatchAddToAB') }} ({{ multipleSelection.length }})
+            {{ T('BatchAddToAB') }} ({{ selected.length }})
           </el-button>
         </template>
       </actions-toolbar>
@@ -59,8 +65,7 @@
             { prop: 'version', label: T('Version'), align: 'center', width: 80 },
             { prop: 'alias', label: T('Alias'), align: 'center', width: 80 },
             { prop: 'created_at', label: T('CreatedAt'), align: 'center', width: 150 },
-            { prop: 'updated_at', label: T('UpdatedAt'), align: 'center', width: 150 },
-            { label: '', align: 'center', width: 240, slot: 'actions' }
+            { prop: 'updated_at', label: T('UpdatedAt'), align: 'center', width: 150 }
           ]"
       >
         <template #id="{ row }">
@@ -71,21 +76,6 @@
             <span> {{ row.last_online_time ? timeAgo(row.last_online_time * 1000) : '-' }}</span>
             <span class="dot" :class="{red: timeDis(row.last_online_time) >= 60, green: timeDis(row.last_online_time)< 60}"></span>
           </div>
-        </template>
-        <template #actions="{ row }">
-          <el-dropdown trigger="click" @command="(cmd) => handleRowAction(cmd, row)">
-            <el-button size="small">
-              {{ T('More') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
-            </el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="link">{{ T('Link') }}</el-dropdown-item>
-                <el-dropdown-item v-if="appStore.setting.appConfig.web_client" command="webClient">Web Client</el-dropdown-item>
-                <el-dropdown-item command="addToAddressBook">{{ T('AddToAddressBook') }}</el-dropdown-item>
-                <el-dropdown-item command="view">{{ T('View') }}</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
         </template>
       </data-table>
     </page-section>
@@ -408,14 +398,6 @@
       batchABFormVisible.value = false
     }
   }
-
-  const handleRowAction = (cmd, row) => {
-    if (cmd === 'link') return connectByClient(row.id)
-    if (cmd === 'webClient') return toWebClientLink(row)
-    if (cmd === 'addToAddressBook') return toAddressBook(row)
-    if (cmd === 'view') return toView(row)
-  }
-
 
 </script>
 

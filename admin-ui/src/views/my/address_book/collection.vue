@@ -17,9 +17,13 @@
     <page-section class="list-body" title="My Address Book Collections" :subtitle="`${listRes.total} collections`">
       <el-tag type="danger" effect="light" style="margin-bottom: 10px">{{ T('MyAddressBookTips') }}</el-tag>
       <actions-toolbar :selected="selectedRows">
-        <template #default="{ disabled }">
+        <template #default="{ disabled, selected }">
+          <template v-if="selected.length === 1">
+            <el-button type="primary" @click="showRules(selected[0])">{{ T('ShareRules') }}</el-button>
+            <el-button type="primary" @click="toEdit(selected[0])">{{ T('Edit') }}</el-button>
+          </template>
           <el-button type="danger" :disabled="disabled" @click="bulkDel">
-            {{ T('DeleteSelected') }} ({{ selectedRows.length }})
+            {{ T('DeleteSelected') }} ({{ selected.length }})
           </el-button>
         </template>
       </actions-toolbar>
@@ -30,25 +34,10 @@
           row-key="id"
           :columns="[
             { prop: 'name', label: T('Name'), align: 'center' },
-            { prop: 'created_at', label: T('CreatedAt'), align: 'center' },
-            { label: '', align: 'center', width: 60, slot: 'actions' }
+            { prop: 'created_at', label: T('CreatedAt'), align: 'center' }
           ]"
           @selection-change="selectedRows = $event"
       >
-        <template #actions="{ row }">
-          <template v-if="row.id>0">
-            <el-dropdown trigger="click" @command="(cmd) => handleRowAction(cmd, row)">
-              <el-button text>{{ T('More') }}</el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item command="rules">{{ T('ShareRules') }}</el-dropdown-item>
-                  <el-dropdown-item divided command="edit">{{ T('Edit') }}</el-dropdown-item>
-                  <el-dropdown-item divided command="delete">{{ T('Delete') }}</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-          </template>
-        </template>
       </data-table>
     </page-section>
     <page-section class="list-page">
@@ -118,6 +107,7 @@
     removeApi: apiRemove,
     getList,
     label: T('Collections'),
+    selectionRef: selectedRows,
   })
 
   onMounted(getList)
@@ -140,15 +130,6 @@
   const showRules = (row) => {
     clickRow.value = row
     rulesVisible.value = true
-  }
-
-  const handleRowAction = (cmd, row) => {
-    if (cmd === 'rules') return showRules(row)
-    if (cmd === 'edit') return toEdit(row)
-    if (cmd === 'delete') {
-      selectedRows.value = selectedRows.value.filter(r => r.id !== row.id)
-      return del(row)
-    }
   }
 
 </script>

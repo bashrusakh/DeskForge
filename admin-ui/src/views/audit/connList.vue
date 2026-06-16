@@ -34,16 +34,12 @@
             { label: T('Type'), align: 'center', width: 120, slot: 'type' },
             { prop: 'uuid', label: 'uuid', align: 'center', width: 120, showOverflowTooltip: true },
             { prop: 'created_at', label: T('CreatedAt'), align: 'center' },
-            { label: T('CloseTime'), prop: 'close_time', align: 'center' },
-            { label: T('Actions'), align: 'center', width: 150, slot: 'actions' }
+            { label: T('CloseTime'), prop: 'close_time', align: 'center' }
           ]"
       >
         <template #type="{ row }">
           <el-tag v-if="row.type === 1" type="warning">{{ T('File') }}</el-tag>
           <el-tag v-else>{{ T('Common') }}</el-tag>
-        </template>
-        <template #actions="{ row }">
-          <el-button type="danger" @click="del(row)">{{ T('Delete') }}</el-button>
         </template>
       </data-table>
     </page-section>

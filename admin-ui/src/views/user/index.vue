@@ -20,9 +20,15 @@
     </page-section>
     <page-section class="list-body" title="Users" :subtitle="`${listRes.total} accounts`">
       <actions-toolbar :selected="selectedRows">
-        <template #default="{ disabled }">
+        <template #default="{ disabled, selected }">
+          <template v-if="selected.length === 1">
+            <el-button @click="toTag(selected[0])">{{ T('UserTags') }}</el-button>
+            <el-button @click="toAddressBook(selected[0])">{{ T('UserAddressBook') }}</el-button>
+            <el-button type="primary" @click="toEdit(selected[0])">{{ T('Edit') }}</el-button>
+            <el-button type="warning" @click="changePass(selected[0])">{{ T('ResetPassword') }}</el-button>
+          </template>
           <el-button type="danger" :disabled="disabled" @click="bulkRemove">
-            {{ T('DeleteSelected') }} ({{ selectedRows.length }})
+            {{ T('DeleteSelected') }} ({{ selected.length }})
           </el-button>
         </template>
       </actions-toolbar>
@@ -40,8 +46,7 @@
             { label: T('Status'), align: 'center', slot: 'status' },
             { prop: 'remark', label: T('Remark'), align: 'center' },
             { prop: 'created_at', label: T('CreatedAt'), align: 'center' },
-            { prop: 'updated_at', label: T('UpdatedAt'), align: 'center' },
-            { label: '', align: 'center', width: 60, slot: 'actions' }
+            { prop: 'updated_at', label: T('UpdatedAt'), align: 'center' }
           ]"
           @selection-change="selectedRows = $event"
       >
@@ -56,22 +61,6 @@
                      :inactive-value="DISABLE_STATUS"
                      @change="changeStatus(row)"
           ></el-switch>
-        </template>
-        <template #actions="{ row }">
-          <el-dropdown trigger="click" @command="(cmd) => handleRowAction(cmd, row)">
-            <el-button text>
-              {{ T('More') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
-            </el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="tags">{{ T('UserTags') }}</el-dropdown-item>
-                <el-dropdown-item command="addressBook">{{ T('UserAddressBook') }}</el-dropdown-item>
-                <el-dropdown-item divided command="edit">{{ T('Edit') }}</el-dropdown-item>
-                <el-dropdown-item command="resetPassword">{{ T('ResetPassword') }}</el-dropdown-item>
-                <el-dropdown-item divided command="delete">{{ T('Delete') }}</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
         </template>
       </data-table>
     </page-section>
@@ -94,7 +83,6 @@
   import { update } from '@/api/user'
   import { ElMessage } from 'element-plus'
   import { onMounted, ref, watch } from 'vue'
-  import { ArrowDown } from '@element-plus/icons-vue'
   import PageHeader from '@/components/ui/PageHeader.vue'
   import PageSection from '@/components/ui/PageSection.vue'
   import ActionsToolbar from '@/components/ui/ActionsToolbar.vue'
@@ -129,24 +117,6 @@
     getList: () => getList(listQuery),
     label: T('User'),
   })
-
-  const remove = async (row) => {
-    const res = await del(row.id)
-    if (res) {
-      selectedRows.value = selectedRows.value.filter(r => r.id !== row.id)
-      getList(listQuery)
-    }
-  }
-
-  const handleRowAction = (cmd, row) => {
-    switch (cmd) {
-      case 'tags': toTag(row); break
-      case 'addressBook': toAddressBook(row); break
-      case 'edit': toEdit(row); break
-      case 'resetPassword': changePass(row); break
-      case 'delete': remove(row); break
-    }
-  }
 
   const changeStatus = async (row) => {
     const res = await update(row).catch(_ => false)

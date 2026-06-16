@@ -32,9 +32,12 @@
     </page-section>
     <page-section class="list-body" :title="T('Tags')" :subtitle="`${listRes.total} tags`">
       <actions-toolbar :selected="selectedRows">
-        <template #default="{ disabled }">
+        <template #default="{ disabled, selected }">
+          <template v-if="selected.length === 1">
+            <el-button type="primary" @click="toEdit(selected[0])">{{ T('Edit') }}</el-button>
+          </template>
           <el-button type="danger" :disabled="disabled" @click="bulkDel">
-            {{ T('DeleteSelected') }} ({{ selectedRows.length }})
+            {{ T('DeleteSelected') }} ({{ selected.length }})
           </el-button>
         </template>
       </actions-toolbar>
@@ -50,8 +53,7 @@
             { prop: 'name', label: T('Name'), align: 'center' },
             { label: T('Color'), align: 'center', slot: 'color' },
             { prop: 'created_at', label: T('CreatedAt'), align: 'center' },
-            { prop: 'updated_at', label: T('UpdatedAt'), align: 'center' },
-            { label: '', align: 'center', width: 60, slot: 'actions' }
+            { prop: 'updated_at', label: T('UpdatedAt'), align: 'center' }
           ]"
           @selection-change="selectedRows = $event"
       >
@@ -68,17 +70,6 @@
               <div :style="{backgroundColor: row.color}" class="dot"></div>
             </div>
           </div>
-        </template>
-        <template #actions="{ row }">
-          <el-dropdown trigger="click" @command="(cmd) => handleRowAction(cmd, row)">
-            <el-button text>{{ T('More') }}</el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="edit">{{ T('Edit') }}</el-dropdown-item>
-                <el-dropdown-item divided command="delete">{{ T('Delete') }}</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
         </template>
       </data-table>
     </page-section>
@@ -174,15 +165,8 @@
     removeApi: apiRemove,
     getList,
     label: T('Tag'),
+    selectionRef: selectedRows,
   })
-
-  const handleRowAction = (cmd, row) => {
-    if (cmd === 'edit') return toEdit(row)
-    if (cmd === 'delete') {
-      selectedRows.value = selectedRows.value.filter(r => r.id !== row.id)
-      return del(row)
-    }
-  }
 
   onMounted(getList)
   onActivated(getList)

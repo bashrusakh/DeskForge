@@ -31,12 +31,18 @@
     </page-section>
     <page-section class="list-body" title="My Address Book" :subtitle="`${listRes.total} entries`">
       <actions-toolbar :selected="multipleSelection">
-        <template #default="{ disabled }">
+        <template #default="{ disabled, selected }">
+          <template v-if="selected.length === 1">
+            <el-button type="success" @click="connectByClient(selected[0].id)">{{ T('Link') }}</el-button>
+            <el-button v-if="appStore.setting.appConfig.web_client" @click="toShowShare(selected[0])">{{ T('ShareByWebClient') }}</el-button>
+            <el-button v-if="appStore.setting.appConfig.web_client" @click="toWebClientLink(selected[0])">Web Client</el-button>
+            <el-button type="primary" @click="toEdit(selected[0])">{{ T('Edit') }}</el-button>
+          </template>
           <el-button type="primary" :disabled="disabled" @click="showBatchEditTags">
-            {{ T('BatchEditTags') }} ({{ multipleSelection.length }})
+            {{ T('BatchEditTags') }} ({{ selected.length }})
           </el-button>
           <el-button type="danger" :disabled="disabled" @click="bulkDel">
-            {{ T('DeleteSelected') }} ({{ multipleSelection.length }})
+            {{ T('DeleteSelected') }} ({{ selected.length }})
           </el-button>
         </template>
       </actions-toolbar>
@@ -54,8 +60,7 @@
             { prop: 'tags', label: T('Tags'), align: 'center' },
             { prop: 'alias', label: T('Alias'), align: 'center', width: 150 },
             { prop: 'peer.version', label: T('Version'), align: 'center', width: 100 },
-            { prop: 'hash', label: T('Hash'), align: 'center', width: 150, showOverflowTooltip: true },
-            { label: '', align: 'center', width: 240, slot: 'actions' }
+            { prop: 'hash', label: T('Hash'), align: 'center', width: 150, showOverflowTooltip: true }
           ]"
       >
         <template #id="{ row }">
@@ -67,24 +72,6 @@
         <template #collection="{ row }">
           <span v-if="row.collection_id === 0">{{ T('MyAddressBook') }}</span>
           <span v-else>{{ collectionListRes.list.find(c => c.id === row.collection_id)?.name }}</span>
-        </template>
-        <template #actions="{ row }">
-          <el-space wrap>
-            <el-button type="success" size="small" @click="connectByClient(row.id)">{{ T('Link') }}</el-button>
-            <el-dropdown trigger="click" @command="(cmd) => handleRowAction(cmd, row)">
-              <el-button size="small">
-                {{ T('More') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
-              </el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item v-if="appStore.setting.appConfig.web_client" command="shareWebClient">{{ T('ShareByWebClient') }}</el-dropdown-item>
-                  <el-dropdown-item v-if="appStore.setting.appConfig.web_client" command="webClient">Web Client</el-dropdown-item>
-                  <el-dropdown-item command="edit">{{ T('Edit') }}</el-dropdown-item>
-                  <el-dropdown-item divided command="delete">{{ T('Delete') }}</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-          </el-space>
         </template>
       </data-table>
     </page-section>
@@ -191,7 +178,6 @@
   import { connectByClient } from '@/utils/peer'
   import { useBulkRemove } from '@/composables/useBulkRemove'
   import { remove as apiRemove } from '@/api/my/address_book'
-  import { ArrowDown } from '@element-plus/icons-vue'
   import PlatformIcons from '@/components/icons/platform.vue'
   import PageHeader from '@/components/ui/PageHeader.vue'
   import PageSection from '@/components/ui/PageSection.vue'
@@ -272,15 +258,8 @@
     getList,
     label: T('AddressBook'),
     onAfterRemove: () => { multipleSelection.value = [] },
+    selectionRef: multipleSelection,
   })
-
-  const handleRowAction = (cmd, row) => {
-    if (cmd === 'edit') return toEdit(row)
-    if (cmd === 'delete') return del(row)
-    if (cmd === 'webClient') return toWebClientLink(row)
-    if (cmd === 'shareWebClient') return toShowShare(row)
-  }
-
 
 </script>
 

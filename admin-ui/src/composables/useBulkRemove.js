@@ -2,8 +2,9 @@ import { ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { T } from '@/utils/i18n'
 
-export function useBulkRemove ({ removeApi, getList, label, onAfterRemove }) {
-  const selectedRows = ref([])
+export function useBulkRemove ({ removeApi, getList, label, onAfterRemove, selectionRef }) {
+  const _selectedRows = ref([])
+  const selectedRows = selectionRef || _selectedRows
 
   const removeOne = async (id) => {
     return removeApi({ id }).catch(() => false)

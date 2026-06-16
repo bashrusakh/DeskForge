@@ -20,11 +20,17 @@
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handlerQuery">{{ T('Filter') }}</el-button>
-          <el-button type="danger" @click="toBatchDelete">{{ T('BatchDelete') }}</el-button>
         </el-form-item>
       </el-form>
     </page-section>
     <page-section class="list-body" title="API Tokens" :subtitle="`${listRes.total} tokens`">
+      <actions-toolbar :selected="multipleSelection">
+        <template #default="{ disabled, selected }">
+          <el-button type="danger" :disabled="disabled" @click="toBatchDelete">
+            {{ T('Logout') }} ({{ selected.length }})
+          </el-button>
+        </template>
+      </actions-toolbar>
       <data-table
           :data="listRes.list"
           :loading="listRes.loading"
@@ -36,8 +42,7 @@
             { label: T('Owner'), align: 'center', slot: 'owner' },
             { label: T('Token'), align: 'center', slot: 'token' },
             { prop: 'created_at', label: T('CreatedAt'), align: 'center' },
-            { label: T('ExpireTime'), align: 'center', slot: 'expire' },
-            { label: '', align: 'center', width: 80, slot: 'actions' }
+            { label: T('ExpireTime'), align: 'center', slot: 'expire' }
           ]"
       >
         <template #owner="{ row }">
@@ -48,9 +53,6 @@
         </template>
         <template #expire="{ row }">
           <el-tag :type="expired(row)?'info':'success'">{{ row.expired_at ? new Date(row.expired_at * 1000).toLocaleString() : '-' }}</el-tag>
-        </template>
-        <template #actions="{ row }">
-          <el-button type="danger" @click="del(row)">{{ T('Logout') }}</el-button>
         </template>
       </data-table>
     </page-section>
@@ -74,6 +76,7 @@
   import PageHeader from '@/components/ui/PageHeader.vue'
   import PageSection from '@/components/ui/PageSection.vue'
   import DataTable from '@/components/ui/DataTable.vue'
+  import ActionsToolbar from '@/components/ui/ActionsToolbar.vue'
 
   const { allUsers, getAllUsers } = loadAllUsers()
   getAllUsers()

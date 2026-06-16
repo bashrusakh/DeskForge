@@ -19,9 +19,12 @@
     </page-section>
     <page-section class="list-body" title="Device Groups" :subtitle="`${listRes.total} groups`">
       <actions-toolbar :selected="selectedRows">
-        <template #default="{ disabled }">
+        <template #default="{ disabled, selected }">
+          <template v-if="selected.length === 1">
+            <el-button type="primary" @click="toEdit(selected[0])">{{ T('Edit') }}</el-button>
+          </template>
           <el-button type="danger" :disabled="disabled" @click="bulkDel">
-            {{ T('DeleteSelected') }} ({{ selectedRows.length }})
+            {{ T('DeleteSelected') }} ({{ selected.length }})
           </el-button>
         </template>
       </actions-toolbar>
@@ -34,22 +37,10 @@
             { prop: 'id', label: 'ID', align: 'center', width: 100 },
             { prop: 'name', label: T('Name'), align: 'center' },
             { prop: 'created_at', label: T('CreatedAt'), align: 'center' },
-            { prop: 'updated_at', label: T('UpdatedAt'), align: 'center' },
-            { label: '', align: 'center', width: 60, slot: 'actions' }
+            { prop: 'updated_at', label: T('UpdatedAt'), align: 'center' }
           ]"
           @selection-change="selectedRows = $event"
       >
-        <template #actions="{ row }">
-          <el-dropdown trigger="click" @command="(cmd) => handleRowAction(cmd, row)">
-            <el-button text>{{ T('More') }}</el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="edit">{{ T('Edit') }}</el-dropdown-item>
-                <el-dropdown-item divided command="delete">{{ T('Delete') }}</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </template>
       </data-table>
     </page-section>
     <page-section class="list-page">
@@ -78,8 +69,8 @@
 
 <script setup>
   import { onMounted, reactive, watch, ref, onActivated } from 'vue'
-  import { list, create, update, detail, remove } from '@/api/device_group'
-  import { ElMessage, ElMessageBox } from 'element-plus'
+  import { list, create, update, remove } from '@/api/device_group'
+  import { ElMessage } from 'element-plus'
   import { T } from '@/utils/i18n'
   import { useBulkRemove } from '@/composables/useBulkRemove'
   import PageHeader from '@/components/ui/PageHeader.vue'
@@ -113,34 +104,12 @@
     }
   }
 
-  const del = async (row) => {
-    const cf = await ElMessageBox.confirm(T('Confirm?', { param: T('Delete') }), {
-      confirmButtonText: T('Confirm'),
-      cancelButtonText: T('Cancel'),
-      type: 'warning',
-    }).catch(_ => false)
-    if (!cf) {
-      return false
-    }
-
-    const res = await remove({ id: row.id }).catch(_ => false)
-    if (res) {
-      ElMessage.success(T('OperationSuccess'))
-      selectedRows.value = selectedRows.value.filter(r => r.id !== row.id)
-      getList()
-    }
-  }
-
   const { selectedRows, bulkRemove: bulkDel } = useBulkRemove({
     removeApi: remove,
     getList,
     label: T('DeviceGroup'),
   })
 
-  const handleRowAction = (cmd, row) => {
-    if (cmd === 'edit') return toEdit(row)
-    if (cmd === 'delete') return del(row)
-  }
   onMounted(getList)
   onActivated(getList)
 

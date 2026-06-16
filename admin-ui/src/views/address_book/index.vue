@@ -41,9 +41,14 @@
     </page-section>
     <page-section class="list-body" :title="T('AddressBook')" :subtitle="`${listRes.total} entries`">
       <actions-toolbar :selected="selectedRows">
-        <template #default="{ disabled }">
+        <template #default="{ disabled, selected }">
+          <template v-if="selected.length === 1">
+            <el-button type="success" @click="connectByClient(selected[0].id)">{{ T('Link') }}</el-button>
+            <el-button v-if="appStore.setting.appConfig.web_client" @click="toWebClientLink(selected[0])">Web Client</el-button>
+            <el-button type="primary" @click="toEdit(selected[0])">{{ T('Edit') }}</el-button>
+          </template>
           <el-button type="danger" :disabled="disabled" @click="bulkDel">
-            {{ T('DeleteSelected') }} ({{ selectedRows.length }})
+            {{ T('DeleteSelected') }} ({{ selected.length }})
           </el-button>
         </template>
       </actions-toolbar>
@@ -61,8 +66,7 @@
             { prop: 'tags', label: T('Tags'), align: 'center' },
             { prop: 'alias', label: T('Alias'), align: 'center', width: 150 },
             { prop: 'peer.version', label: T('Version'), align: 'center', width: 100 },
-            { prop: 'hash', label: T('Hash'), align: 'center', width: 150, showOverflowTooltip: true },
-            { label: '', align: 'center', width: 220, slot: 'actions' }
+            { prop: 'hash', label: T('Hash'), align: 'center', width: 150, showOverflowTooltip: true }
           ]"
           @selection-change="selectedRows = $event"
       >
@@ -78,23 +82,6 @@
         <template #collection="{ row }">
           <span v-if="row.collection_id === 0">{{ T('MyAddressBook') }}</span>
           <span v-else>{{ row.collection?.name }}</span>
-        </template>
-        <template #actions="{ row }">
-          <el-space wrap>
-            <el-button type="success" size="small" @click="connectByClient(row.id)">{{ T('Link') }}</el-button>
-            <el-dropdown trigger="click" @command="(cmd) => handleRowAction(cmd, row)">
-              <el-button size="small">
-                {{ T('More') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
-              </el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item v-if="appStore.setting.appConfig.web_client" command="webClient">Web Client</el-dropdown-item>
-                  <el-dropdown-item command="edit">{{ T('Edit') }}</el-dropdown-item>
-                  <el-dropdown-item divided command="delete">{{ T('Delete') }}</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-          </el-space>
         </template>
       </data-table>
     </page-section>
@@ -181,7 +168,6 @@
   import { useAppStore } from '@/store/app'
   import { useBulkRemove } from '@/composables/useBulkRemove'
   import { remove as apiRemove } from '@/api/address_book'
-  import { ArrowDown } from '@element-plus/icons-vue'
   import PlatformIcons from '@/components/icons/platform.vue'
   import { loadAllUsers } from '@/global'
   import PageHeader from '@/components/ui/PageHeader.vue'
@@ -227,16 +213,8 @@
     removeApi: apiRemove,
     getList,
     label: T('AddressBook'),
+    selectionRef: selectedRows,
   })
-
-  const handleRowAction = (cmd, row) => {
-    if (cmd === 'edit') return toEdit(row)
-    if (cmd === 'delete') {
-      selectedRows.value = selectedRows.value.filter(r => r.id !== row.id)
-      return del(row)
-    }
-    if (cmd === 'webClient') return toWebClientLink(row)
-  }
 
   onMounted(getAllUsers)
   onMounted(getList)
