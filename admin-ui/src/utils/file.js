@@ -38,7 +38,12 @@ export function jsonToCsv (data) {
   let keys = Object.keys(data[0])
   csv += keys.join(',') + '\n'
   data.forEach(row => {
-    csv += keys.map(key => `"${row[key].toString().replaceAll('"', '""')}"`).join(',') + '\n'
+    csv += keys.map(key => {
+      const val = row[key]
+      if (val == null) return '""'
+      const str = typeof val === 'object' ? JSON.stringify(val) : String(val)
+      return `"${str.replaceAll('"', '""')}"`
+    }).join(',') + '\n'
   })
   return new Blob([csv], { type: 'text/csv' })
 }
