@@ -57,3 +57,63 @@ func (ct *Peer) List(c *gin.Context) {
 	})
 	response.Success(c, res)
 }
+
+// Delete
+// @Tags
+// @Summary
+// @Description
+// @Accept  json
+// @Produce  json
+// @Param body body admin.PeerForm true ""
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/my/peer/delete [post]
+// @Security token
+func (ct *Peer) Delete(c *gin.Context) {
+	f := &admin.PeerForm{}
+	if err := c.ShouldBindJSON(f); err != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+err.Error())
+		return
+	}
+	if f.RowId == 0 {
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError"))
+		return
+	}
+	u := service.AllService.UserService.CurUser(c)
+	err := service.AllService.PeerService.DeleteWithOwner(f.RowId, u.Id)
+	if err != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
+		return
+	}
+	response.Success(c, nil)
+}
+
+// BatchDelete
+// @Tags
+// @Summary
+// @Description
+// @Accept  json
+// @Produce  json
+// @Param body body admin.PeerBatchDeleteForm true ""
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/my/peer/batchDelete [post]
+// @Security token
+func (ct *Peer) BatchDelete(c *gin.Context) {
+	f := &admin.PeerBatchDeleteForm{}
+	if err := c.ShouldBindJSON(f); err != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+err.Error())
+		return
+	}
+	if len(f.RowIds) == 0 {
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError"))
+		return
+	}
+	u := service.AllService.UserService.CurUser(c)
+	err := service.AllService.PeerService.BatchDeleteByOwner(f.RowIds, u.Id)
+	if err != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
+		return
+	}
+	response.Success(c, nil)
+}

@@ -1,6 +1,8 @@
 ﻿package service
 
 import (
+	"errors"
+
 	"rustdesk-server/api/model"
 	"gorm.io/gorm"
 )
@@ -126,7 +128,21 @@ func (ps *PeerService) GetUuidListByIDs(ids []uint) ([]string, error) {
 	err := DB.Model(&model.Peer{}).
 		Where("row_id in (?)", ids).
 		Pluck("uuid", &uuids).Error
-	//uuids
+	var newUuids []string
+	for _, uuid := range uuids {
+		if uuid != "" {
+			newUuids = append(newUuids, uuid)
+		}
+	}
+	return newUuids, err
+}
+
+// GetUuidListByIDsAndOwner  idsuuid scoped to owner
+func (ps *PeerService) GetUuidListByIDsAndOwner(ids []uint, userId uint) ([]string, error) {
+	var uuids []string
+	err := DB.Model(&model.Peer{}).
+		Where("row_id in (?) AND user_id = ?", ids, userId).
+		Pluck("uuid", &uuids).Error
 	var newUuids []string
 	for _, uuid := range uuids {
 		if uuid != "" {
@@ -139,11 +155,67 @@ func (ps *PeerService) GetUuidListByIDs(ids []uint) ([]string, error) {
 // BatchDelete , token
 func (ps *PeerService) BatchDelete(ids []uint) error {
 	uuids, err := ps.GetUuidListByIDs(ids)
+	if err != nil {
+		return err
+	}
 	err = DB.Where("row_id in (?)", ids).Delete(&model.Peer{}).Error
 	if err != nil {
 		return err
 	}
 	// token
+	return AllService.UserService.FlushTokenByUuids(uuids)
+}
+
+// DeleteWithOwner  peer owned by user
+func (ps *PeerService) DeleteWithOwner(rowId uint, userId uint) error {
+	tx := DB.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+	var peer model.Peer
+	if err := tx.Where("row_id = ? AND user_id = ?", rowId, userId).First(&peer).Error; err != nil {
+		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil // idempotent: already gone or not owned
+		}
+		return err
+	}
+	if err := tx.Delete(&peer).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+	if peer.Uuid != "" {
+		return AllService.UserService.FlushTokenByUuid(peer.Uuid)
+	}
+	return nil
+}
+
+// BatchDeleteByOwner  peers owned by user
+func (ps *PeerService) BatchDeleteByOwner(rowIds []uint, userId uint) error {
+	if len(rowIds) == 0 {
+		return nil
+	}
+	var uuids []string
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.Peer{}).
+			Where("row_id in (?) AND user_id = ?", rowIds, userId).
+			Pluck("uuid", &uuids).Error; err != nil {
+			return err
+		}
+		result := tx.Where("row_id in (?) AND user_id = ?", rowIds, userId).Delete(&model.Peer{})
+		if result.Error != nil {
+			return result.Error
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
 	return AllService.UserService.FlushTokenByUuids(uuids)
 }
 
