@@ -35,7 +35,12 @@ func (us *GroupService) Create(u *model.Group) error {
 	return res
 }
 func (us *GroupService) Delete(u *model.Group) error {
-	return DB.Delete(u).Error
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.User{}).Where("group_id = ?", u.Id).Update("group_id", 0).Error; err != nil {
+			return err
+		}
+		return tx.Delete(u).Error
+	})
 }
 
 // Update 
@@ -69,7 +74,12 @@ func (us *GroupService) DeviceGroupCreate(u *model.DeviceGroup) error {
 	return res
 }
 func (us *GroupService) DeviceGroupDelete(u *model.DeviceGroup) error {
-	return DB.Delete(u).Error
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.Peer{}).Where("device_group_id = ?", u.Id).Update("device_group_id", 0).Error; err != nil {
+			return err
+		}
+		return tx.Delete(u).Error
+	})
 }
 
 func (us *GroupService) DeviceGroupUpdate(u *model.DeviceGroup) error {
