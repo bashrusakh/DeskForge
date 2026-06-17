@@ -14,6 +14,14 @@ func (ps *CustomPresetService) List(page, pageSize uint) (res *model.CustomPrese
 	return
 }
 
+func (ps *CustomPresetService) ListByUser(page, pageSize, userId uint) (res *model.CustomPresetList) {
+	res = &model.CustomPresetList{}
+	tx := DB.Model(&model.CustomPreset{}).Where("user_id = ?", userId)
+	tx.Count(&res.Total)
+	tx.Scopes(Paginate(page, pageSize)).Order("id desc").Find(&res.CustomPresets)
+	return
+}
+
 func (ps *CustomPresetService) Info(id uint) *model.CustomPreset {
 	p := &model.CustomPreset{}
 	DB.Where("id = ?", id).First(p)

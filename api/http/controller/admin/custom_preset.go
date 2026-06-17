@@ -18,7 +18,12 @@ func (p *CustomPreset) List(c *gin.Context) {
 		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+err.Error())
 		return
 	}
-	res := service.AllService.CustomPresetService.List(uint(q.Page), uint(q.PageSize))
+	u := service.AllService.UserService.CurUser(c)
+	if u == nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "Unauthorized"))
+		return
+	}
+	res := service.AllService.CustomPresetService.ListByUser(uint(q.Page), uint(q.PageSize), u.Id)
 	response.Success(c, res)
 }
 
@@ -26,11 +31,16 @@ func (p *CustomPreset) Detail(c *gin.Context) {
 	id := c.Param("id")
 	iid, _ := strconv.Atoi(id)
 	preset := service.AllService.CustomPresetService.Info(uint(iid))
-	if preset.Id > 0 {
-		response.Success(c, preset)
+	if preset.Id == 0 {
+		response.Fail(c, 101, response.TranslateMsg(c, "ItemNotFound"))
 		return
 	}
-	response.Fail(c, 101, response.TranslateMsg(c, "ItemNotFound"))
+	u := service.AllService.UserService.CurUser(c)
+	if u == nil || preset.UserId != u.Id {
+		response.Fail(c, 101, response.TranslateMsg(c, "ItemNotFound"))
+		return
+	}
+	response.Success(c, preset)
 }
 
 func (p *CustomPreset) Create(c *gin.Context) {
@@ -46,6 +56,10 @@ func (p *CustomPreset) Create(c *gin.Context) {
 	}
 
 	user := service.AllService.UserService.CurUser(c)
+	if user == nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "Unauthorized"))
+		return
+	}
 	preset := f.ToCustomPreset()
 	preset.UserId = user.Id
 
@@ -64,6 +78,11 @@ func (p *CustomPreset) Update(c *gin.Context) {
 	}
 	ex := service.AllService.CustomPresetService.Info(f.Id)
 	if ex.Id == 0 {
+		response.Fail(c, 101, response.TranslateMsg(c, "ItemNotFound"))
+		return
+	}
+	u := service.AllService.UserService.CurUser(c)
+	if u == nil || ex.UserId != u.Id {
 		response.Fail(c, 101, response.TranslateMsg(c, "ItemNotFound"))
 		return
 	}
@@ -88,6 +107,11 @@ func (p *CustomPreset) Delete(c *gin.Context) {
 	}
 	ex := service.AllService.CustomPresetService.Info(f.Id)
 	if ex.Id == 0 {
+		response.Fail(c, 101, response.TranslateMsg(c, "ItemNotFound"))
+		return
+	}
+	u := service.AllService.UserService.CurUser(c)
+	if u == nil || ex.UserId != u.Id {
 		response.Fail(c, 101, response.TranslateMsg(c, "ItemNotFound"))
 		return
 	}
