@@ -43,6 +43,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Functional audit report: `audit-report.md` (PR #19).
 - Re-review identified 3 additional High findings — all fixed.
 - 3rd-pass `ocr` review identified 6 additional High findings — all fixed in this change set.
+- Round 2 (PR #21) resolved 15 more findings — see below.
+
+### Security (round 2)
+- **api: scope token batch-delete to current user** — non-admin callers now have `AND user_id = ?` applied to the `BatchDeleteUserToken` query; admins retain full scope. (H-001)
+- **api: gate `/config/*` behind `AdminPrivilege`** — `/config/server`, `/config/app`, `/config/all` previously accessible to any authenticated user; now admin-only. (H-009 / L-016)
+- **api: move `/user/groupUsers` behind `AdminPrivilege`** — any authenticated user could previously enumerate the full user + group directory. (M-017)
+
+### Fixed (round 2)
+- **api: reject admin self-delete and self-disable** — controller now checks `curUser.Id == target.Id` before proceeding; prevents ghost-logged-in state. (M-019)
+- **api: filter soft-deleted records from admin login history** — admin list now includes `is_deleted = 0` filter, consistent with the user-facing path. (L-022)
+- **api: fix `LoginLog.UserTokenId` assignment** — was `ut.UserId` (duplicates user_id), now correctly stores `ut.Id` (the token's own PK). (L-023)
+- **admin-ui: validate csv import headers by name** — import now checks for required columns and maps by header name instead of positional index; missing columns produce a descriptive error toast. (M-001)
+- **admin-ui: fix csv import `group_id` NaN fallback** — `parseInt(group_id)` → `parseInt(group_id) || 0`. (M-002)
+- **admin-ui: normalize peer export page_size** — changed from 10,000 to 1,000,000, consistent with other export functions. (M-003)
+- **admin-ui: make `pkce_method` required** — form validation now rejects saving OAuth config with PKCE enabled but no method selected. (M-015)
+- **admin-ui: fix tag collection dropdown query** — `changeUserForUpdate` was setting the wrong query variable, so the dropdown never populated for the selected user. (M-018)
+- **admin-ui: surface backend errors on user create/update** — `!res` is now detected before accessing `res.code`; shows `OperationFailed` toast on network/validation errors instead of silent failure. (M-020)
+- **admin-ui: hide Share Rules for personal address book row** — the synthetic `id=0` row now hides "Share Rules" and disables "Edit". (L-020)
+- **admin-ui: allow clearing tags in batch edit** — removed the `tags.length === 0` guard so users can submit an empty tag list to clear all tags. (L-021)
+- **admin-ui: refresh my collections on `onActivated`** — `my/address_book/collection.vue` now refreshes the list when navigating back with keep-alive. (L-025)
 
 ## [Unreleased] - 2026-06-16
 

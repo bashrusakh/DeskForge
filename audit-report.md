@@ -4,7 +4,7 @@
 **Methodology:** Full-stack trace from UI action → API call → service → persistence, cross-referenced with source code at every layer.  
 **Last update:** Second-pass verification re-audit (parallel sub-agents). Corrected 6 over-stated/wrong findings (H-001, H-004, H-007, H-009, L-006, M-004), fixed the endpoint cross-reference tables, and added 17 new verified findings (H-010, H-011, S-002, M-016–M-022, L-020–L-026). See the "Second-Pass Additions" section and the changelog note below.
 
-**Fix status (2026-06-17, [PR #20](https://github.com/bashrusakh/DeskForge/pull/20)):** 20 findings resolved — see `### Fixed in PR #20` markers on each item. Items without a `Fixed in PR #20` marker are still open.
+**Fix status (2026-06-17, [PR #20](https://github.com/bashrusakh/DeskForge/pull/20) + [PR #21](https://github.com/bashrusakh/DeskForge/pull/21)):** 35 findings resolved — see `### Fixed in PR #20` and `### Fixed in PR #21` markers on each item. Items without a `Fixed` marker are still open.
 
 ---
 
@@ -172,6 +172,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 **Still open** — the asymmetry between `Delete` (owner-scoped) and `BatchDeleteUserToken` (admin-only but no per-record owner scope) is acknowledged but not addressed in PR #20. Tracked outside this change set.
 
+**Fixed in [PR #21](https://github.com/bashrusakh/DeskForge/pull/21):** `BatchDelete` controller now checks `IsAdmin(curUser)` — if admin, calls `BatchDeleteUserToken(ids)` (any scope); otherwise calls `BatchDeleteUserTokenByUser(ids, userId)` (own tokens only). New `BatchDeleteUserTokenByUser` service method adds `AND user_id = ?` to the WHERE clause.
+
 ---
 
 ### H-002 · User Delete — Last-Admin Race Condition
@@ -335,6 +337,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 **Still open** — not addressed in PR #20.
 
+**Fixed in [PR #21](https://github.com/bashrusakh/DeskForge/pull/21):** `api/http/router/admin.go:ConfigBind` — `BackendUserAuth()` replaced with `AdminPrivilege()` on the `/config/server`, `/config/app`, and `/config/all` routes. Any authenticated user can no longer read server configuration; admin-only now.
+
 ---
 
 ## Medium Issues
@@ -345,17 +349,23 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Fix:** Validate header row and map by column name instead of position.
 **Status:** Still open — out of scope for PR #20.
 
+**Fixed in [PR #21](https://github.com/bashrusakh/DeskForge/pull/21):** `admin-ui/src/views/peer/index.vue:parseCsv` — header row now trimmed and quoted; missing required columns (excluding `group_id`) produce an `ElMessage.error` with the column names. Columns are now mapped by name (`keys.forEach`) instead of by positional index.
+
 ### M-002 · CSV Import — Sends `NaN` for Non-Numeric `group_id`
 
 **Evidence:** `admin-ui/src/views/peer/index.vue:446` — `parseInt(item.group_id)` with no fallback. Empty or non-numeric group_id becomes `NaN` sent to backend.
 **Fix:** Add `|| 0` fallback and validate before sending.
 **Status:** Still open — out of scope for PR #20.
 
+**Fixed in [PR #21](https://github.com/bashrusakh/DeskForge/pull/21):** `parseInt(item.group_id)` → `parseInt(item.group_id) || 0` in the same `parseCsv` function.
+
 ### M-003 · Peer Export — Silently Truncated at 10,000 Records
 
 **Evidence:** Peer export uses `page_size=10000` vs `1000000` in other views. No truncation warning for deployments with >10k peers.
 **Fix:** Use consistent page_size or show a warning about the cap.
 **Status:** Still open — out of scope for PR #20.
+
+**Fixed in [PR #21](https://github.com/bashrusakh/DeskForge/pull/21):** `admin-ui/src/views/peer/index.vue:toExport` — `page_size` changed from `10000` to `1000000`, consistent with other export functions.
 
 ### M-004 · `useBulkRemove` — Reports "Success" Even When Some Records Fail
 
@@ -428,6 +438,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Evidence:** `admin-ui/src/views/oauth/index.vue:209` — PKCE method field validator has `required: false`. User can save with PKCE enabled but no method selected, sending invalid data.
 **Fix:** Make `required: true` when PKCE is enabled.
 **Status:** Still open — out of scope for PR #20. (Server-side equivalent is L-024, also open.)
+
+**Fixed in [PR #21](https://github.com/bashrusakh/DeskForge/pull/21):** `admin-ui/src/views/oauth/index.vue` — `pkce_method` validator changed from `required: false` to `required: true`. Now the form will reject saving with PKCE enabled but no method selected.
 
 ---
 
@@ -528,6 +540,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Evidence:** No `AdminPrivilege` middleware on `/config/all` — any user with a valid token can view server endpoints, ports, and truncated public key.
 **Fix:** Add admin privilege check or split sensitive fields into separate endpoint.
 **Status:** Still open (out of scope for PR #20).
+
+**Fixed in [PR #21](https://github.com/bashrusakh/DeskForge/pull/21):** Same fix as H-009 — `AdminPrivilege()` middleware now applied to all `/config/*` routes.
 
 ### L-017 · `changePwdDialog` Uses `window.location.reload()`
 
@@ -666,6 +680,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 **Still open** — not addressed in PR #20.
 
+**Fixed in [PR #21](https://github.com/bashrusakh/DeskForge/pull/21):** `api/http/router/admin.go:UserBind` — `/user/groupUsers` moved from the bare `aR` group (any authenticated user) to the `aRP` group (admin-only). Now `AdminPrivilege()` is required.
+
 ### M-018 · Admin Tag Create/Edit — Collection Dropdown Never Populates
 
 **Evidence:** `admin-ui/src/views/tag/index.js:182-190` `changeUserForUpdate` sets `collectionListQuery.user_id = val` (the **filter-panel** query) instead of `collectionListQueryForUpdate.user_id`, then calls `getCollectionListForUpdate()` (which reads the *Update* query). The dialog's collection dropdown always fetches with the wrong/empty user scope, so it never shows the selected user's collections.
@@ -673,6 +689,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Status:** Medium
 
 **Still open** — not addressed in PR #20.
+
+**Fixed in [PR #21](https://github.com/bashrusakh/DeskForge/pull/21):** `admin-ui/src/views/tag/index.js:changeUserForUpdate` — now sets `collectionListQueryForUpdate.user_id = val` (not `collectionListQuery.user_id`) and clears `collectionListResForUpdate.list` (not `collectionListRes.list`). The collection dropdown in the tag create/edit dialog now correctly fetches collections for the selected user.
 
 ### M-019 · Admin Can Delete or Disable Their Own Account (Self-Lockout)
 
@@ -682,6 +700,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 **Still open** — not addressed in PR #20.
 
+**Fixed in [PR #21](https://github.com/bashrusakh/DeskForge/pull/21):** `api/http/controller/admin/user.go` — `Delete` now checks `curUser.Id == u.Id` and returns "cannot delete your own account" before proceeding. `Update` checks if the current user is disabling themselves (`curUser.Id == u.Id && u.Status == COMMON_STATUS_DISABLED`) and rejects it. Frontend disable/delete controls for the current user's own row are not yet disabled (UX improvement deferred).
+
 ### M-020 · Admin User Add/Edit — Backend Errors Silently Swallowed
 
 **Evidence:** `admin-ui/src/views/user/composables/edit.js:58-61` — `const res = await create(form.value).catch(_ => false); return res.code === 0`. On a backend error (e.g. `UsernameExists`), `res` is `false`, `false.code` is `undefined`, so the function returns `false` with **no error message** and the dialog just sits there. Same pattern in `submitUpdate`.
@@ -689,6 +709,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Status:** Medium
 
 **Still open** — not addressed in PR #20.
+
+**Fixed in [PR #21](https://github.com/bashrusakh/DeskForge/pull/21):** `admin-ui/src/views/user/composables/edit.js` — both `submitCreate` and `submitUpdate` now check `if (!res)` before accessing `res.code`. On falsy response, `ElMessage.error(T('OperationFailed'))` is shown so the user knows something went wrong instead of the dialog silently sitting there.
 
 ### M-021 · My Profile — Account Info Not Editable
 
@@ -716,6 +738,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 **Still open** — not addressed in PR #20.
 
+**Fixed in [PR #21](https://github.com/bashrusakh/DeskForge/pull/21):** `admin-ui/src/views/my/address_book/collection.vue` — "Share Rules" button now has `v-if="selected[0].id !== 0"` so it only appears for real collections, not the synthetic personal address book row. "Edit" button is `:disabled="selected[0].id === 0"`.
+
 ### L-021 · Batch Edit Tags Cannot *Clear* Tags
 
 **Evidence:** `admin-ui/src/views/address_book/index.js:265-270` — the batch-update-tags submit rejects an empty selection with a warning, so a user can never clear all tags from selected entries. The backend `BatchUpdateTags` supports an empty array fine.
@@ -723,6 +747,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Status:** Low
 
 **Still open** — not addressed in PR #20.
+
+**Fixed in [PR #21](https://github.com/bashrusakh/DeskForge/pull/21):** `admin-ui/src/views/address_book/index.js:submit` — the `if (formData.value.tags.length === 0)` guard removed. Users can now submit an empty tags array to clear all tags from selected entries.
 
 ### L-022 · Admin Login History Shows Soft-Deleted Records
 
@@ -732,6 +758,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 **Still open** — not addressed in PR #20.
 
+**Fixed in [PR #21](https://github.com/bashrusakh/DeskForge/pull/21):** `api/http/controller/admin/loginLog.go:List` — added `tx.Where("is_deleted = ?", 0)` to the admin list query. Records soft-deleted by users from "My Login History" no longer appear in the admin view.
+
 ### L-023 · `LoginLog.UserTokenId` Populated With Wrong Value
 
 **Evidence:** `api/service/user.go:107` — `llog.UserTokenId = ut.UserId` copies the *user* id instead of the token's own PK (`ut.Id`). The `user_token_id` column is meaningless (duplicates `user_id`). Currently unused for queries, so no functional break.
@@ -739,6 +767,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Status:** Low
 
 **Still open** — not addressed in PR #20.
+
+**Fixed in [PR #21](https://github.com/bashrusakh/DeskForge/pull/21):** `api/service/user.go:Login` — `llog.UserTokenId = ut.UserId` corrected to `llog.UserTokenId = ut.Id` so the column stores the token's own PK instead of duplicating the user ID.
 
 ### L-024 · OAuth Backend Validation Gaps (PKCE method, OIDC issuer)
 
@@ -755,6 +785,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Status:** Low
 
 **Still open** — not addressed in PR #20.
+
+**Fixed in [PR #21](https://github.com/bashrusakh/DeskForge/pull/21):** `admin-ui/src/views/my/address_book/collection.vue` — `onActivated(getList)` now called so the list refreshes when navigating back with keep-alive.
 
 ### L-026 · Custom Client Build Delete — Orphaned Artifact Files on Disk (+ no bulk delete)
 
@@ -872,7 +904,7 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 ---
 
-## Fix Status Summary (as of [PR #20](https://github.com/bashrusakh/DeskForge/pull/20))
+## Fix Status Summary (as of [PR #21](https://github.com/bashrusakh/DeskForge/pull/21))
 
 ### Resolved in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20) — 20 findings
 
@@ -888,23 +920,41 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 **High (8/9):**
 - H-002, H-003, H-004, H-005, H-006, H-008, H-010, H-011
-- (H-001, H-007, H-009 not fixed — H-007/H-009 downgraded to Low/Medium by the 2nd pass, H-001 explicitly deferred)
+- (H-001, H-007, H-009 not fixed in PR #20 — see PR #21)
 
 **Medium (9/24):**
 - M-004, M-005, M-007, M-008, M-009, M-010, M-012, M-013, M-016
 
-### Still open — 41 findings
+### Resolved in [PR #21](https://github.com/bashrusakh/DeskForge/pull/21) — 15 findings
 
-**High/Medium (not in immediate-fix list):** 15 findings
-- H-001 (revised to Medium; not addressed)
-- H-009 (revised to Medium; not addressed)
-- M-001, M-002, M-003, M-006, M-011, M-014, M-015
-- M-017, M-018, M-019, M-020, M-021, M-022
+**Medium (8):**
+- H-001 (revised to Medium) — `BatchDeleteUserToken` scope to current user
+- H-009 (revised to Medium) — `/config/*` now admin-only (also fixes L-016)
+- M-001 — CSV import header validation by column name
+- M-002 — CSV import `group_id` fallback to 0
+- M-003 — Peer export page_size normalized to 1,000,000
+- M-015 — OAuth PKCE method required validation
+- M-017 — `/user/groupUsers` moved behind `AdminPrivilege`
+- M-018 — Tag collection dropdown query variable fixed
+- M-019 — Admin self-delete/self-disable rejected
+- M-020 — Backend errors surfaced on user create/update
 
-**Low / Info (26/27):**
-- L-001 through L-019 (19)
-- L-020 through L-026 (7)
-- L-018 still marked "Status: Low" in the original; counted in L-001–L-019
+**Low (5):**
+- L-016 — `/config/*` admin-only (same as H-009)
+- L-020 — Share Rules hidden for synthetic personal address book row
+- L-021 — Batch edit tags can now clear tags
+- L-022 — Admin login history filters soft-deleted records
+- L-023 — `LoginLog.UserTokenId` stores token PK (not user ID)
+- L-025 — `my/address_book/collection.vue` refreshes on `onActivated`
+
+### Still open — 26 findings
+
+**Medium (7):**
+- M-006, M-011, M-014, M-021, M-022, M-023, M-024
+
+**Low / Info (19):**
+- L-001 through L-019 (excluding L-016 which is fixed)
+- L-024, L-026
 
 ### Self-review findings also resolved in PR #20
 
