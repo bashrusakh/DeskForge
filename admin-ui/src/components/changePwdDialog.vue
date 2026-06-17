@@ -20,10 +20,11 @@
 
 <script setup>
 
-  import { computed, reactive, ref } from 'vue'
+  import { computed, reactive, ref, watch } from 'vue'
   import { ElMessageBox } from 'element-plus'
   import { changeCurPwd } from '@/api/user'
   import { useUserStore } from '@/store/user'
+  import { useRouter } from 'vue-router'
   import { T } from '@/utils/i18n'
 
   const props = defineProps({
@@ -81,11 +82,19 @@
     ],
   }))
   const cpwd = ref(null)
+  watch(() => props.visible, (val) => {
+    if (val) {
+      changePwdForm.old_password = ''
+      changePwdForm.new_password = ''
+      changePwdForm.confirmPwd = ''
+    }
+  })
   const cancelChangePwd = () => {
     emit('update:visible', false)
   }
 
   const userStore = useUserStore()
+  const router = useRouter()
 
   const changePassword = async () => {
     //验证
@@ -109,7 +118,7 @@
       confirmButtonText: 'OK',
       callback: (action) => {
         userStore.logout()
-        window.location.reload()
+        router.push('/login')
       },
     })
   }
