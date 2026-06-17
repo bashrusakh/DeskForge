@@ -266,10 +266,6 @@ export function useBatchUpdateTagsRepositories () {
       ElMessage.warning(T('PleaseSelectData'))
       return false
     }
-    if (formData.value.tags.length === 0) {
-      ElMessage.warning(T('PleaseSelectData'))
-      return false
-    }
     const res = await batchUpdateTags(formData.value).catch(_ => false)
     if (res) {
       ElMessage.success(T('Success'))
