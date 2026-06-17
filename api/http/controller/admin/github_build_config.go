@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -102,9 +103,9 @@ func (h *GithubBuildConfig) SyncSecret(c *gin.Context) {
 }
 
 // POST /admin/github_build_config/dispatch_test
-// Сухой тест: триггерит workflow_dispatch с пустым enc_payload (т.е. workflow пойдёт по
-// debug-режиму). Полезно для проверки что воркфлоу видится и токен имеет нужные права.
-// Поллит статус до завершения (или таймаута 90 мин), возвращает финальный результат.
+// Диспетчит workflow_dispatch с пустым enc_payload и немедленно возвращает run_id.
+// Статус воркфлоу можно отслеживать в GitHub Actions — длинный poll здесь не держится,
+// чтобы избежать обрыва прокси (nginx proxy_read_timeout).
 func (h *GithubBuildConfig) DispatchTest(c *gin.Context) {
 	svc := service.AllService.GithubBuildConfigService
 	cur, err := svc.Get()
@@ -114,53 +115,14 @@ func (h *GithubBuildConfig) DispatchTest(c *gin.Context) {
 	}
 	dispatchCtx, dispatchCancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
 	defer dispatchCancel()
-	// пустой payload → расшифровка не пойдёт, debug pass-through сработает
 	runId, err := svc.DispatchBuild(dispatchCtx, cur, map[string]any{})
 	if err != nil {
 		response.Fail(c, 101, err.Error())
 		return
 	}
-	// Поллим до завершения (макс 90 мин). Каждые 30 сек запрашиваем статус.
-	// Используем НЕзависимый от запроса context — сам запрос клиента уйдёт раньше.
-	pollCtx, pollCancel := context.WithTimeout(context.Background(), 90*time.Minute)
-	defer pollCancel()
-	var finalStatus, finalConclusion string
-	for {
-		select {
-		case <-pollCtx.Done():
-			response.Success(c, gin.H{
-				"run_id":   runId,
-				"status":   "timeout",
-				"conclusion": "polling timeout (90 min)",
-				"message":  "Build still running after 90 min. Check GitHub Actions for status.",
-			})
-			return
-		case <-time.After(30 * time.Second):
-		}
-		statusCtx, statusCancel := context.WithTimeout(context.Background(), 20*time.Second)
-		st, concl, err := svc.RunStatus(statusCtx, cur, runId)
-		statusCancel()
-		if err != nil {
-			continue
-		}
-		finalStatus = st
-		finalConclusion = concl
-		if st == "completed" {
-			break
-		}
-	}
-	ok := finalConclusion == "success"
-	msg := "Test build completed: " + finalConclusion
-	if ok {
-		msg = "Test build successful ✅"
-	} else {
-		msg = "Test build failed: " + finalConclusion
-	}
 	response.Success(c, gin.H{
-		"run_id":     runId,
-		"status":     finalStatus,
-		"conclusion": finalConclusion,
-		"ok":         ok,
-		"message":    msg,
+		"run_id":  runId,
+		"status":  "dispatched",
+		"message": fmt.Sprintf("Workflow dispatched. Check status at https://github.com/%s/actions/runs/%d", cur.Repo, runId),
 	})
 }
