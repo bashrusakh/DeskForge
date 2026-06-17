@@ -39,9 +39,13 @@
             <el-button v-if="appStore.setting.appConfig.web_client" @click="toWebClientLink(selected[0])">Web Client</el-button>
             <el-button @click="toAddressBook(selected[0])">{{ T('AddToAddressBook') }}</el-button>
             <el-button type="primary" @click="toView(selected[0])">{{ T('View') }}</el-button>
+            <el-button type="danger" @click="del(selected[0])">{{ T('Delete') }}</el-button>
           </template>
           <el-button type="primary" :disabled="disabled" @click="toBatchAddToAB">
             {{ T('BatchAddToAB') }} ({{ selected.length }})
+          </el-button>
+          <el-button type="danger" :disabled="disabled" @click="toBatchDelete">
+            {{ T('DeleteSelected') }} ({{ selected.length }})
           </el-button>
         </template>
       </actions-toolbar>
@@ -201,7 +205,7 @@
 
 <script setup>
   import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue'
-  import { list } from '@/api/my/peer'
+  import { list, remove, batchRemove } from '@/api/my/peer'
   import { ElMessage, ElMessageBox } from 'element-plus'
   import { toWebClientLink } from '@/utils/webclient'
   import { T } from '@/utils/i18n'
@@ -263,6 +267,22 @@
       getList()
     }
   }*/
+  const del = async (row) => {
+    const cf = await ElMessageBox.confirm(T('Confirm?', { param: T('Delete') }), {
+      confirmButtonText: T('Confirm'),
+      cancelButtonText: T('Cancel'),
+      type: 'warning',
+    }).catch(_ => false)
+    if (!cf) {
+      return false
+    }
+
+    const res = await remove({ row_id: row.row_id }).catch(_ => false)
+    if (res) {
+      ElMessage.success(T('OperationSuccess'))
+      getList()
+    }
+  }
   onMounted(getList)
   onActivated(getList)
 
@@ -367,6 +387,27 @@
       getList()
     }
   }*/
+  const toBatchDelete = async () => {
+    if (!multipleSelection.value.length) {
+      ElMessage.warning(T('PleaseSelectData'))
+      return false
+    }
+    const cf = await ElMessageBox.confirm(T('Confirm?', { param: T('BatchDelete') }), {
+      confirmButtonText: T('Confirm'),
+      cancelButtonText: T('Cancel'),
+      type: 'warning',
+    }).catch(_ => false)
+    if (!cf) {
+      return false
+    }
+
+    const res = await batchRemove({ row_ids: multipleSelection.value.map(i => i.row_id) }).catch(_ => false)
+    if (res) {
+      ElMessage.success(T('OperationSuccess'))
+      multipleSelection.value = []
+      getList()
+    }
+  }
 
   const batchABFormVisible = ref(false)
   const toBatchAddToAB = () => {
