@@ -63,6 +63,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **admin-ui: hide Share Rules for personal address book row** — the synthetic `id=0` row now hides "Share Rules" and disables "Edit". (L-020)
 - **admin-ui: allow clearing tags in batch edit** — removed the `tags.length === 0` guard so users can submit an empty tag list to clear all tags. (L-021)
 - **admin-ui: refresh my collections on `onActivated`** — `my/address_book/collection.vue` now refreshes the list when navigating back with keep-alive. (L-025)
+- **admin-ui: format `close_time` in connection log export** — raw unix timestamp now converted to formatted date string in CSV. (M-006)
+- **admin-ui: reset password dialog fields on open** — `changePwdDialog` now clears form on dialog open via `watch`; `window.location.reload()` replaced with `router.push('/login')`. (M-011 + L-017)
+- **admin-ui: fix logout `$patch` field names** — `name` → `nickname`, `{}` → `''` for `role`. (L-002)
+- **admin-ui: populate tag dropdown in address book add dialog** — `createABForm.vue` now imports `getTagList` from `useABRepositories`. (L-006)
+- **admin-ui: display `title` field on server config page** — added `el-descriptions-item` for `cfg.title`. (L-013)
 
 ## [Unreleased] - 2026-06-16
 

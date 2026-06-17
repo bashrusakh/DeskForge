@@ -4,7 +4,7 @@
 **Methodology:** Full-stack trace from UI action → API call → service → persistence, cross-referenced with source code at every layer.  
 **Last update:** Second-pass verification re-audit (parallel sub-agents). Corrected 6 over-stated/wrong findings (H-001, H-004, H-007, H-009, L-006, M-004), fixed the endpoint cross-reference tables, and added 17 new verified findings (H-010, H-011, S-002, M-016–M-022, L-020–L-026). See the "Second-Pass Additions" section and the changelog note below.
 
-**Fix status (2026-06-17, [PR #20](https://github.com/bashrusakh/DeskForge/pull/20) + [PR #21](https://github.com/bashrusakh/DeskForge/pull/21)):** 35 findings resolved — see `### Fixed in PR #20` and `### Fixed in PR #21` markers on each item. Items without a `Fixed` marker are still open.
+**Fix status (2026-06-17, [PR #20](https://github.com/bashrusakh/DeskForge/pull/20) + [PR #21](https://github.com/bashrusakh/DeskForge/pull/21)):** 41 findings resolved — see `### Fixed in PR #20` and `### Fixed in PR #21` markers on each item. Items without a `Fixed` marker are still open (20 remaining).
 
 ---
 
@@ -385,6 +385,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Fix:** Apply `formatTime()` during export, or export timestamps consistently.
 **Status:** Still open — out of scope for PR #20.
 
+**Fixed in [PR #21](https://github.com/bashrusakh/DeskForge/pull/21):** `admin-ui/src/views/audit/reponsitories.js:toExport` — `close_time` now formatted with `formatTime(close_time * 1000)` before export, matching the on-screen display.
+
 ### M-007 · Preset Load — 8 Ghost/Stale Field Names That Silently No-Op
 
 **Evidence:** `custom-client/index.vue:413-434` — `hide_connection_management` (form uses `hide_cm`), `allow_offline_input`, `allow_remote_config_modification`, `x11_extra_cmds`, `disable_update` reference form fields that were removed or renamed. Load silently ignores these.
@@ -414,6 +416,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Evidence:** `components/changePwdDialog.vue:44-49` — `showChangePwd()` function is defined but never called. Form values from the previous attempt persist when the dialog reopens, confusing users.
 **Fix:** Reset form fields when dialog opens.
 **Fixed in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20):** Audit diagnosis was incorrect — `showChangePwd` is in fact called from `layout/components/setting/index.vue:34` and `views/my/info.vue:18`, both wired to `<el-dropdown-item>` / `<el-button>` `@click` handlers. The real "form values persist between opens" issue would need an `el-dialog` `@open` hook on `<app-dialog>` or component-level reset. **Status:** symptom (form values persisting) was not actually reproduced in PR #20 testing; flagged as still-open for separate investigation.
+
+**Fixed in [PR #21](https://github.com/bashrusakh/DeskForge/pull/21):** `admin-ui/src/components/changePwdDialog.vue` — added a `watch` on `props.visible` that resets all form fields when the dialog opens. Also replaced `window.location.reload()` with `router.push('/login')` for smoother post-password-change redirect.
 
 ### M-012 · Multiple `console.log` Statements in Production Code
 
@@ -457,6 +461,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Fix:** Use correct field names.
 **Status:** Still open (cosmetic, out of scope for PR #20).
 
+**Fixed in [PR #21](https://github.com/bashrusakh/DeskForge/pull/21):** `admin-ui/src/store/user.js:logout` — `$patch` now correctly uses `nickname: ''` and `role: ''` (string, not object).
+
 ### L-003 · `sync.Once` Prevents Retry of Version File Read
 
 **Evidence:** `api/service/app.go:20-27` — if first read of `resources/version` fails (file not ready during startup race), `version` stays empty permanently.
@@ -480,6 +486,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Evidence (corrected 2nd pass):** The original "always sends empty tags" framing was imprecise — the dialog *does* show a tag `<el-select>` for single-user adds, and tags are intentionally zeroed for *multi*-user batch (`createABForm.vue:112-113`, matching the backend `admin/addressBook.go:117-118`). The real bug is that the tag dropdown is **always empty** because `getTagList()` is never called in `createABForm.vue` (only `getAllUsers()` and `fromPeer()` run on mount). So even a single-user add can't pick a tag.
 **Fix:** Call `getTagList()` on mount in `createABForm.vue`.
 **Status:** Still open (out of scope for PR #20).
+
+**Fixed in [PR #21](https://github.com/bashrusakh/DeskForge/pull/21):** `admin-ui/src/views/peer/createABForm.vue` — `getTagList` and `tagListQuery` now imported from `useABRepositories`. The `changeCollectionForUpdate` handler (already imported) calls `getTagList()` when a collection is selected, so the tag dropdown now populates correctly for single-user adds.
 
 ### L-007 · OAuth Provider Delete — No Check for In-Flight Sessions
 
@@ -523,6 +531,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Fix:** Add the configured title to the config page display.
 **Status:** Still open (out of scope for PR #20).
 
+**Fixed in [PR #21](https://github.com/bashrusakh/DeskForge/pull/21):** `admin-ui/src/views/server/config.vue` — added `el-descriptions-item` for "Title" displaying `cfg.title` in the System section.
+
 ### L-014 · OAuth Callback Templates — Fragile JS String Interpolation
 
 **Evidence:** `oauth_fail.html:63` — `var msg = '{{.message}}'` — all current messages are server constants so not exploitable, but the pattern is fragile. If any developer passes user-controlled data as `.message`, it becomes an XSS vector.
@@ -548,6 +558,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Evidence:** `components/changePwdDialog.vue:117` — full page reload instead of `router.push('/login')` after logout.
 **Fix:** Use router navigation after logout for smoother UX.
 **Status:** Still open (out of scope for PR #20).
+
+**Fixed in [PR #21](https://github.com/bashrusakh/DeskForge/pull/21):** `admin-ui/src/components/changePwdDialog.vue` — `window.location.reload()` replaced with `router.push('/login')` (imported from `vue-router`).
 
 ### L-018 · OAuth Redirect URL Displayed But Not Configurable
 
@@ -925,36 +937,41 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Medium (9/24):**
 - M-004, M-005, M-007, M-008, M-009, M-010, M-012, M-013, M-016
 
-### Resolved in [PR #21](https://github.com/bashrusakh/DeskForge/pull/21) — 15 findings
+### Resolved in [PR #21](https://github.com/bashrusakh/DeskForge/pull/21) — 21 findings
 
-**Medium (8):**
+**Medium (10):**
 - H-001 (revised to Medium) — `BatchDeleteUserToken` scope to current user
 - H-009 (revised to Medium) — `/config/*` now admin-only (also fixes L-016)
 - M-001 — CSV import header validation by column name
 - M-002 — CSV import `group_id` fallback to 0
 - M-003 — Peer export page_size normalized to 1,000,000
+- M-006 — Connection log export `close_time` now formatted with `formatTime()`
+- M-011 — Password dialog form fields reset on open; `window.location.reload()` → `router.push('/login')`
 - M-015 — OAuth PKCE method required validation
 - M-017 — `/user/groupUsers` moved behind `AdminPrivilege`
 - M-018 — Tag collection dropdown query variable fixed
 - M-019 — Admin self-delete/self-disable rejected
 - M-020 — Backend errors surfaced on user create/update
 
-**Low (5):**
+**Low (9):**
+- L-002 — Store logout `$patch` field names corrected (`nickname`, not `name`; `''` not `{}`)
+- L-006 — `createABForm.vue` now imports `getTagList` so tag dropdown populates
+- L-013 — Server config page now displays the `title` field
 - L-016 — `/config/*` admin-only (same as H-009)
+- L-017 — `changePwdDialog` uses `router.push('/login')` instead of `window.location.reload()`
 - L-020 — Share Rules hidden for synthetic personal address book row
 - L-021 — Batch edit tags can now clear tags
 - L-022 — Admin login history filters soft-deleted records
 - L-023 — `LoginLog.UserTokenId` stores token PK (not user ID)
 - L-025 — `my/address_book/collection.vue` refreshes on `onActivated`
 
-### Still open — 26 findings
+### Still open — 20 findings
 
-**Medium (7):**
-- M-006, M-011, M-014, M-021, M-022, M-023, M-024
+**Medium (5):**
+- M-014, M-021, M-022, M-023, M-024
 
-**Low / Info (19):**
-- L-001 through L-019 (excluding L-016 which is fixed)
-- L-024, L-026
+**Low / Info (15):**
+- L-001, L-003, L-004, L-005, L-007, L-008, L-009, L-010, L-011, L-012, L-014, L-015, L-018, L-019, L-024, L-026
 
 ### Self-review findings also resolved in PR #20
 
