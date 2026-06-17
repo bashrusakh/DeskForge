@@ -77,7 +77,7 @@ func (is *ServerCmdService) SendSocketCmd(ty string, port int, cmd string) (stri
 	}
 	time.Sleep(100 * time.Millisecond)
 
-	buf := make([]byte, 1024)
+	buf := make([]byte, 4096)
 	n, err := conn.Read(buf)
 	if err != nil && err.Error() != "EOF" {
 		Logger.Debugf("%s read response failed: %v", ty, err)
