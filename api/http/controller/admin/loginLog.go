@@ -60,6 +60,7 @@ func (ct *LoginLog) List(c *gin.Context) {
 		if query.UserId > 0 {
 			tx.Where("user_id = ?", query.UserId)
 		}
+		tx.Where("is_deleted = ?", 0)
 		tx.Order("id desc")
 	})
 	response.Success(c, res)
