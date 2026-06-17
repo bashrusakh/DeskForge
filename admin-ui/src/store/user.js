@@ -22,8 +22,8 @@ export const useUserStore = defineStore({
       removeToken()
       removeCode()
       this.$patch({
-        name: '',
-        role: {},
+        nickname: '',
+        role: '',
       })
     },
 
