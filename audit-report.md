@@ -2,24 +2,26 @@
 
 **Date:** 2026-06-17  
 **Methodology:** Full-stack trace from UI action → API call → service → persistence, cross-referenced with source code at every layer.  
-**Last update:** Merged previous audit-report.md with new deep-dive findings; all discrepancies verified against code.
+**Last update:** Second-pass verification re-audit (parallel sub-agents). Corrected 6 over-stated/wrong findings (H-001, H-004, H-007, H-009, L-006, M-004), fixed the endpoint cross-reference tables, and added 17 new verified findings (H-010, H-011, S-002, M-016–M-022, L-020–L-026). See the "Second-Pass Additions" section and the changelog note below.
 
 ---
 
 ## Summary
 
-| Category     | Count |
-| ------------ | ----- |
-| Critical     | 4     |
-| High         | 9     |
-| Medium       | 15    |
-| Low / Info   | 19    |
-| Security     | 1     |
-| **Total**        | **48**    |
+| Category     | Count | (1st pass) |
+| ------------ | ----- | ---------- |
+| Critical     | 4     | 4          |
+| High         | 8     | 9          |
+| Medium       | 24    | 15         |
+| Low / Info   | 27    | 19         |
+| Security     | 2     | 1          |
+| **Total**    | **65**| **48**     |
 
 Pages checked: 40+ (all views, components, dialogs).  
 API endpoints verified: 80+.  
 Buttons/actions/forms traced end-to-end: 150+.
+
+> **Re-audit changelog (2nd pass).** *Corrected (over-stated/incorrect):* **H-001** (token batch-delete is admin-gated, not open to any user → Medium), **H-004** (export bug is raw-JSON + null `.toString()` crash, not `[object Object]`), **H-007** (branding URLs *do* round-trip; the `custom_*` keys are dead code → Low), **H-009** (the exposed key is the **public** key, not a secret → Medium), **L-006** (tags aren't "always empty" — the dropdown just never loads), **M-004** (total-failure case is silent, not a false "success"). *Table fixes:* `address_book/batchCreate` **is** used (removed from "unused"); `rule/batchCreate` and `user/myPeer` are frontend-wrappers with **no backend route** (moved to "promised but missing"). *Added:* 17 new findings (see "Second-Pass Additions"). The headline new bug is **H-010** — Address Book bulk-delete silently no-ops.
 
 ---
 
@@ -145,15 +147,18 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 **Expected:** Only admin or token owner can revoke tokens.
 
-**Actual:** Single-delete (`POST /user_token/delete`) checks `IsAdmin || l.UserId == u.Id`. Batch delete (`POST /user_token/batchDelete`) has **no authorization check** — any authenticated user can batch-revoke any tokens if they craft the request manually.
+**Actual:** Single-delete (`POST /user_token/delete`) checks `IsAdmin || l.UserId == u.Id`. Batch delete (`POST /user_token/batchDelete`) has **no per-record authorization check** — it deletes any IDs passed.
+
+> **Revised (2nd pass):** The original wording ("any authenticated user can batch-revoke any tokens") was **incorrect**. The entire `user_token` group is gated by `AdminPrivilege()` (`api/http/router/admin.go:250-256`), so only admins reach either endpoint. The real defect is a least-privilege asymmetry (an admin can batch-revoke *any* token, while single-delete is owner/admin-scoped) — not a non-admin privilege escalation. Severity downgraded **High → Medium**.
 
 **Evidence:**
 - `api/http/controller/admin/userToken.go:96` — `BatchDeleteUserToken(ids)` called without userId extraction
 - `api/http/controller/admin/userToken.go:66-80` — single delete has auth check; batch does not
+- `api/http/router/admin.go:250-256` — `rg.Group("/user_token").Use(middleware.AdminPrivilege())` — both routes admin-only
 
-**Fix:** Add `userId` scope filter to `BatchDeleteUserToken`.
+**Fix:** Add `userId` scope filter to `BatchDeleteUserToken` for consistency with single-delete.
 
-**Status:** High
+**Status:** Medium (revised from High)
 
 ---
 
@@ -193,22 +198,22 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 ---
 
-### H-004 · File Transfer Export — `info` Column Renders as `[object Object]`
+### H-004 · CSV Export — Unparsed `info` JSON + `.toString()` Crash on Null Cells
 
-**Page:** Monitoring → File Transfer History → Export  
+**Page:** Monitoring → File Transfer / Connection History → Export  
 **Element:** Export button
 
-**Expected:** Readable `info` column in exported CSV.
+**Expected:** Readable, complete CSV export.
 
-**Actual:** `JSON.parse(item.info)` converts JSON to object in `getList()`, then `jsonToCsv` calls `.toString()` producing `[object Object]`. Valuable data is lost in the export.
+**Actual (revised 2nd pass):** The original "`[object Object]`" diagnosis was **wrong**. `toExport()` performs a *separate* fetch (`fileList(q)`) and feeds that raw response straight into `jsonToCsv` — it does **not** reuse the parsed list, so `info` exports as the raw JSON **string**, not `[object Object]`. The more serious, real defect is that `jsonToCsv` calls `row[key].toString()` with no null guard — any `null`/`undefined` cell throws `TypeError` and aborts the entire export. So the export is fragile (raw JSON for `info`) and can hard-fail on any null field.
 
 **Evidence:**
-- `admin-ui/src/views/audit/fileList.vue` — data parsed into object before export
-- `admin-ui/src/views/audit/reponsitories.js:74-80` — info gets parsed in list, export re-fetches raw
+- `admin-ui/src/views/audit/reponsitories.js` — `getList` mutates only the on-screen list; `toExport` re-fetches unparsed data
+- `admin-ui/src/utils/file.js:41` — `jsonToCsv` does `row[key].toString()` with no null/undefined guard
 
-**Fix:** `JSON.stringify()` the info field before CSV export, or skip parsing in list data.
+**Fix:** Null-guard each cell in `jsonToCsv` (`row[key] == null ? '' : String(row[key])`); `JSON.stringify()` the `info` field (or pretty-extract its keys) before export.
 
-**Status:** High
+**Status:** High (mechanism corrected)
 
 ---
 
@@ -254,16 +259,16 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 **Expected:** Icon, logo, and privacy screen URLs preserved and restored in presets.
 
-**Actual:** Save uses field names `custom_app_icon_url`, `custom_app_logo_url`, `custom_privacy_screen_url`. But the form v-model fields are `app_icon_url`, `app_logo_url`, `privacy_screen_url`. Save captures `undefined`. Load restores to wrong property names invisible to the template.
+**Actual (revised 2nd pass):** **Overstated.** Save writes the bogus `custom_app_icon_url`/`custom_app_logo_url`/`custom_privacy_screen_url` keys (always `undefined`, dropped by `JSON.stringify`) **but also writes the correct `app_icon_url`/`app_logo_url`/`privacy_screen_url`** (`index.vue:466-468`), and Load reads the correct keys (`index.vue:413`). So branding images **do** round-trip correctly; the `custom_*` keys are inert dead code, not data loss. This is a code-smell, not the High-severity data-loss bug originally claimed.
 
 **Evidence:**
-- `custom-client/index.vue:458-460` — saves `custom_app_icon_url` (wrong)
-- `custom-client/index.vue:369-371` — actual form fields `app_icon_url`, `app_logo_url`, `privacy_screen_url`
-- `custom-client/index.vue:413` — loads `custom_app_icon_url` (wrong)
+- `custom-client/index.vue:458-460` — saves dead `custom_app_icon_url` keys (always undefined)
+- `custom-client/index.vue:466-468` — *also* saves the correct `app_icon_url`/`app_logo_url`/`privacy_screen_url`
+- `custom-client/index.vue:413` — load uses the correct keys
 
-**Fix:** Align field names between the form reactive object, save function, and load function.
+**Fix:** Remove the three dead `custom_*` keys from `saveCurrentAsPreset`.
 
-**Status:** High
+**Status:** Low (revised from High — no functional data loss; see H-006 for the real preset data-loss bug)
 
 ---
 
@@ -289,15 +294,18 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 **Expected:** "Server Config" page should allow editing server settings.
 
-**Actual:** Page displays read-only values from `config.yaml` via `<el-descriptions>`. No form inputs, no save buttons, no edit endpoints exist. Also, any authenticated user (not just admins) can see server configuration including truncated public key.
+**Actual:** Page displays read-only values from `config.yaml` via `<el-descriptions>`. No form inputs, no save buttons, no edit endpoints exist. Also, any authenticated user (not just admins) can read `GET /config/all` and `GET /config/server` (no `AdminPrivilege`).
+
+> **Revised (2nd pass):** The "truncated public key" exposure was **overstated**. The exposed `key` is the RustDesk **public** key, which is *meant* to be distributed to every client — not a secret. The 20-char truncation is cosmetic frontend only (`config.vue:17`); the API returns the **full** key over the wire. So the genuine issues are (a) the page is read-only despite its name (UX), and (b) the missing `AdminPrivilege` on `/config/*` (same root as L-016). No real secret is leaked. Severity downgraded **High → Medium**.
 
 **Evidence:**
-- `admin-ui/src/views/server/config.vue` — only `GET /config/all` on mount; `<el-descriptions>` display only
-- `api/http/controller/admin/config.go:53-68` — `AllConfig` returns values, no PUT/POST endpoint for modification
+- `admin-ui/src/views/server/config.vue` — only `GET /config/all` on mount; `<el-descriptions>` display only; `config.vue:17` truncates display only
+- `api/http/controller/admin/config.go:53-68` — `AllConfig` returns full values, no PUT/POST endpoint
+- `api/http/router/admin.go:261-266` — `/config/server`,`/config/app`,`/config/all` behind `BackendUserAuth` only, not `AdminPrivilege`
 
-**Fix:** Either rename page to "Server Info" or add edit capability with AdminPrivilege.
+**Fix:** Rename page to "Server Info" (or add edit capability with `AdminPrivilege`); add `AdminPrivilege` to `/config/all` + `/config/server` (see L-016).
 
-**Status:** High
+**Status:** Medium (revised from High)
 
 ---
 
@@ -320,8 +328,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 ### M-004 · `useBulkRemove` — Reports "Success" Even When Some Records Fail
 
-**Evidence:** `admin-ui/src/composables/useBulkRemove.js:35-37` — `ok` count computed (`results.filter(Boolean).length`) but never displayed to user. Message always says "Operation Success" regardless of actual result.
-**Fix:** Show `"Deleted X of N selected items"` message.
+**Evidence:** `admin-ui/src/composables/useBulkRemove.js:21-28` — `ok` count computed (`results.filter(Boolean).length`) but never displayed. On *partial* success it shows a flat "Operation Success" with no count; on *total* failure (`ok === 0`) it shows **no message at all** and skips `getList()`, so the user gets zero feedback and a stale table (this is exactly what makes H-010 invisible).
+**Fix:** Show `"Deleted X of N selected items"`, and surface an error toast when `ok < count`.
 
 ### M-005 · Peer `batchRemove` Backend — Swallows UUID Lookup Error
 
@@ -408,20 +416,20 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Evidence:** Peer export uses 10,000; user/audit/login-log exports use 1,000,000.
 **Fix:** Standardize to 1,000,000 or make configurable.
 
-### L-006 · Batch Add to Address Book — Always Sends Empty Tags
+### L-006 · Batch Add to Address Book — Tag Dropdown Always Empty (revised)
 
-**Evidence:** Dialog has no tag input control; `batchABFormData` initialized with `tags: []`. Tags can never be set during batch add.
-**Fix:** Add tag selector to batch add dialog.
+**Evidence (corrected 2nd pass):** The original "always sends empty tags" framing was imprecise — the dialog *does* show a tag `<el-select>` for single-user adds, and tags are intentionally zeroed for *multi*-user batch (`createABForm.vue:112-113`, matching the backend `admin/addressBook.go:117-118`). The real bug is that the tag dropdown is **always empty** because `getTagList()` is never called in `createABForm.vue` (only `getAllUsers()` and `fromPeer()` run on mount). So even a single-user add can't pick a tag.
+**Fix:** Call `getTagList()` on mount in `createABForm.vue`.
 
 ### L-007 · OAuth Provider Delete — No Check for In-Flight Sessions
 
 **Evidence:** Deleting a provider while users are mid-authentication through it breaks their OAuth flow.
 **Fix:** Warn about active use, or add a cooldown/grace period.
 
-### L-008 · Group Delete — No Orphaned-User Check
+### L-008 · Group / Device-Group Delete — No Orphaned-Reference Check
 
-**Evidence:** `api/service/group.go` — deleting a group leaves users with `group_id` referencing a nonexistent group.
-**Fix:** Reassign users to default group or warn about orphaned references.
+**Evidence:** `api/service/group.go:37-39` `Delete` — deleting a group leaves users with `group_id` pointing at a nonexistent group (user list then renders a blank group cell). `api/service/group.go:71-73` `DeviceGroupDelete` has the **same** flaw for peers' `device_group_id`. Neither nulls out nor reassigns children, and there is no guard/transaction.
+**Fix:** In a transaction, null-out or reassign affected users/peers (or reject deletion while children exist).
 
 ### L-009 · Dashboard Connect Button — No Feedback If RustDesk Client Missing
 
@@ -492,11 +500,176 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 **Actual:** `SendCmd` forwards arbitrary text commands to hbbs/hbbr TCP control ports. No audit log entry is created (who ran what command, when, result). Any authenticated user (not just admin) can send commands — the endpoint does not use `AdminPrivilege` middleware. Commands include `ip-blocker`, `blacklist-add/remove`, `limit-speed`, `total-bandwidth`, and any custom user-defined commands.
 
-**Evidence:** `api/http/controller/admin/rustdesk.go:104-136` — no audit logging, no admin privilege check
+> **Extended (2nd pass):** The *entire* `/rustdesk/*` group is ungated — `RustdeskCmdBind` (`api/http/router/admin.go:69-76`) registers `sendCmd`, `cmdList`, `cmdCreate`, and `cmdDelete` directly on `adg` (auth-only, no `AdminPrivilege`). So any authenticated non-admin user can not only send server commands but also **create and delete persistent server-command records**. This is a genuine privilege-escalation surface, not just missing audit. (Note: `cmdUpdate` is unreachable — see H-011.)
 
-**Fix:** Add audit logging (admin userId, command, target, timestamp, result) and restrict to AdminPrivilege.
+**Evidence:**
+- `api/http/controller/admin/rustdesk.go:104-136` — no audit logging, no admin privilege check
+- `api/http/router/admin.go:69-76` — whole `/rustdesk` group lacks `AdminPrivilege()`
 
-**Status:** Security Risk
+**Fix:** Restrict the whole `/rustdesk/*` group to `AdminPrivilege`, and add audit logging (admin userId, command, target, timestamp, result).
+
+**Status:** Security Risk (High)
+
+---
+
+## Second-Pass Additions (New Findings)
+
+*Added after a verification re-audit using parallel sub-agents across Address Book, My Profile, Users/Groups, and a full auth/OAuth/LDAP/client-API sweep. Every item below was traced to source.*
+
+### H-010 · Address Book Bulk Delete Silently Does Nothing (entries, admin + my)
+
+**Page:** Address Book → Contacts → Delete Selected; My Address Book → Delete Selected  
+**Element:** Delete Selected (N) button
+
+**Expected:** Selected address-book entries are deleted.
+
+**Actual:** Bulk delete is wired to the generic `useBulkRemove`, which calls `removeApi({ id: r.id })`. But address-book entries are keyed by `row_id`, and the backend `Delete` validates `f.RowId` with `required,gt=0` (`id` is the *device-id string*, not the PK). So `RowId` stays `0`, validation fails for **every** row, and nothing is deleted. Because `useBulkRemove` shows no message when `ok === 0` (see M-004), the user gets **zero feedback** and the rows remain. Single-row delete works (it correctly sends `{ row_id }`).
+
+**Evidence:**
+- `admin-ui/src/composables/useBulkRemove.js:9-21` — `removeApi({ id })`, payload key is `id`
+- `admin-ui/src/views/address_book/index.vue:212-216` — bulk delete uses `useBulkRemove({ removeApi: apiRemove })`
+- `admin-ui/src/views/address_book/index.js:76` — single delete (works) sends `{ row_id: row.row_id }`
+- `api/http/controller/admin/addressBook.go:259-260` — `id := f.RowId; ValidVar(id, "required,gt=0")`
+- `api/http/request/admin/addressBook.go:9-10` — `RowId uint json:"row_id"` (separate from `Id string json:"id"`)
+
+**Fix:** Pass a custom id-extractor to `useBulkRemove` for AB entries (send `{ row_id }`), or have these views call `apiRemove({ row_id })` directly. (Bulk delete of *collections* is unaffected — collections are keyed by `id`.)
+
+**Status:** High
+
+---
+
+### H-011 · Editing a Server Command Returns 404 (`cmdUpdate` handler exists, route missing)
+
+**Page:** Server → Server Commands → edit an existing command  
+**Element:** Save (on edit)
+
+**Expected:** Editing a saved server command persists the change.
+
+**Actual:** The frontend calls `POST /rustdesk/cmdUpdate` (`api/rustdesk.js` `update`), and the controller method `Rustdesk.CmdUpdate` exists — but `RustdeskCmdBind` never registers the route (it registers only `sendCmd`, `cmdList`, `cmdDelete`, `cmdCreate`). Editing a command therefore 404s.
+
+**Evidence:**
+- `api/http/router/admin.go:69-76` — `RustdeskCmdBind` has no `cmdUpdate` registration
+- `api/http/controller/admin/rustdesk.go:80` — `func (r *Rustdesk) CmdUpdate(...)` exists but is unrouted
+- `admin-ui/src/api/rustdesk.js:18-21` — `update()` → `url: '/rustdesk/cmdUpdate'`
+
+**Fix:** Register `rg.POST("/cmdUpdate", cont.CmdUpdate)` (under `AdminPrivilege`, per S-001).
+
+**Status:** High
+
+---
+
+### S-002 · LDAP Authentication Hardening (injection, TLS, empty-bind)
+
+**Page:** Login (admin `POST /login` and client `POST /api/login`) when `ldap.enable = true`  
+**Element:** Username/password login
+
+**Expected:** LDAP login escapes search input, verifies TLS, and rejects empty passwords.
+
+**Actual:** Three issues in `api/service/ldap.go`, all on the live login path (`user.go:49-50` calls `LdapService.Authenticate` for both admin and client login):
+1. **Filter injection:** `filterField` builds `fmt.Sprintf("(%s=%s)", field, value)` with the **raw** username/email — no `ldap.EscapeFilter`. Inconsistent with the group-membership filters in the same file, which *do* escape (`:175-177`, `:474-476`, `:545`). A crafted username (e.g. `*` or `admin)(uid=*`) injects into the admin-bound search.
+2. **TLS verification off by default:** `InsecureSkipVerify: !cfg.TlsVerify`, and `TlsVerify` defaults to `false` → MITM possible on LDAPS unless an admin explicitly opts in.
+3. **No empty-password guard before bind:** many directories treat (valid DN + empty password) as an unauthenticated bind that *succeeds*, yielding auth bypass for any known username.
+
+**Evidence:**
+- `api/service/ldap.go:399-401` — `filterField` with no `EscapeFilter`; used by `usernameSearchResult`/`emailSearchResult` (`:321`, `:329`)
+- `api/service/ldap.go:84` — `InsecureSkipVerify: !cfg.TlsVerify` (default-insecure)
+- `api/service/ldap.go:106-127` — bind with no empty-password check
+- LDAP has **no admin UI** (config-file only): `grep -ri ldap admin-ui/src` → 0 matches
+
+**Fix:** Wrap search values in `ldap.EscapeFilter`; default TLS verification on (invert the flag); reject empty passwords before binding.
+
+**Status:** Security Risk (High, conditional on LDAP being enabled)
+
+---
+
+### M-016 · OAuth `client_secret` Returned in List/Detail Responses
+
+**Evidence:** `api/model/oauth.go:43` — `ClientSecret string json:"client_secret"` has no `json:"-"`. `OauthService.List`/`Detail` return the full struct (`service/oauth.go:414-425`), and the edit form reads `row.client_secret`. Any admin-readable list/detail call ships every provider's client secret to the browser.
+**Fix:** Add `json:"-"` to `ClientSecret` (or use a response DTO); never return the secret. Note this is a *real* secret, unlike the RustDesk public key in H-009/L-016.
+**Status:** Medium
+
+### M-017 · `/user/groupUsers` Discloses Full User + Group Directory to Any Authenticated User
+
+**Evidence:** `api/http/router/admin.go:101-105` — `/user/current`, `/user/groupUsers` (and a few others) are registered on the bare `UserBind` group *before* `AdminPrivilege`. `user.go:298-305` returns **all** users + **all** groups, unscoped. Any non-admin authenticated user can enumerate the whole directory.
+**Fix:** Move `/user/groupUsers` behind `AdminPrivilege`, or scope it.
+**Status:** Medium
+
+### M-018 · Admin Tag Create/Edit — Collection Dropdown Never Populates
+
+**Evidence:** `admin-ui/src/views/tag/index.js:182-190` `changeUserForUpdate` sets `collectionListQuery.user_id = val` (the **filter-panel** query) instead of `collectionListQueryForUpdate.user_id`, then calls `getCollectionListForUpdate()` (which reads the *Update* query). The dialog's collection dropdown always fetches with the wrong/empty user scope, so it never shows the selected user's collections.
+**Fix:** Set `collectionListQueryForUpdate.user_id = val`.
+**Status:** Medium
+
+### M-019 · Admin Can Delete or Disable Their Own Account (Self-Lockout)
+
+**Evidence:** `api/service/user.go` `Delete`/`Update` guard only the **last** admin (`getAdminUserCount() <= 1`); neither checks `f.Id == CurUser(c).Id`. With ≥2 admins, the logged-in admin can delete or disable themselves (`user/index.vue` row switch / Delete Selected), producing a ghost-logged-in state until the next API call 403s.
+**Fix:** Reject self-delete / self-disable in the controller; disable the control for the current user's own row.
+**Status:** Medium
+
+### M-020 · Admin User Add/Edit — Backend Errors Silently Swallowed
+
+**Evidence:** `admin-ui/src/views/user/composables/edit.js:58-61` — `const res = await create(form.value).catch(_ => false); return res.code === 0`. On a backend error (e.g. `UsernameExists`), `res` is `false`, `false.code` is `undefined`, so the function returns `false` with **no error message** and the dialog just sits there. Same pattern in `submitUpdate`.
+**Fix:** Detect `!res` and surface the API error message before reading `res.code`.
+**Status:** Medium
+
+### M-021 · My Profile — Account Info Not Editable
+
+**Evidence:** `admin-ui/src/views/my/info.vue` renders username/email as read-only `<div>`s with no inputs, no Save, no update call. A self-service profile-update endpoint isn't exposed (`/user/update` is admin-only). Users cannot change their own nickname/email/avatar despite the "account details" framing.
+**Fix:** Add editable nickname/email fields + a scoped `updateProfile` endpoint (no role/status escalation).
+**Status:** Medium
+
+### M-022 · Unauthenticated Writes on Client-Facing API (review)
+
+**Evidence:** In `api/http/router/api.go`, `frg.Use(RustAuth())` is at line 76, so routes registered *before* it are unauthenticated: `POST /api/sysinfo` (`peer.go:26` creates/updates `Peer` rows keyed by caller-supplied `id`), `POST /api/heartbeat`, `POST /api/audit/conn`, `POST /api/audit/file`. An unauthenticated caller can create/alter peer rows and inject audit entries. `WebClientRoutes` `/api/shared-peer` also does an unchecked `(*j)["share_token"].(string)` assertion (`webClient.go:57`) → panic/500 on missing token.
+**Note:** Some of this may be intentional for the RustDesk client protocol (clients report before login) — **verify against the intended protocol** before "fixing." Flagged because it is at minimum an abuse/DoS surface.
+**Status:** Medium (needs design confirmation)
+
+---
+
+### L-020 · My Collections — "Share Rules" on the Synthetic `id=0` Row Fails
+
+**Evidence:** `my/address_book/collection.vue:118-127` prepends a synthetic `{ id: 0, name: 'MyAddressBook' }` row that is selectable. Opening "Share Rules" on it submits `collection_id = 0`, which fails backend validation (`CollectionId uint validate:"required"`) and `CheckCollectionOwner(uid, 0)`. The personal address book can't have sharing rules.
+**Fix:** Hide/disable "Share Rules" for the `id=0` row.
+**Status:** Low
+
+### L-021 · Batch Edit Tags Cannot *Clear* Tags
+
+**Evidence:** `admin-ui/src/views/address_book/index.js:265-270` — the batch-update-tags submit rejects an empty selection with a warning, so a user can never clear all tags from selected entries. The backend `BatchUpdateTags` supports an empty array fine.
+**Fix:** Drop the `tags.length === 0` guard (keep the `row_ids.length > 0` guard).
+**Status:** Low
+
+### L-022 · Admin Login History Shows Soft-Deleted Records
+
+**Evidence:** `api/http/controller/admin/loginLog.go:59-65` omits the `is_deleted = 0` filter that the user path applies (`my/loginLog.go:37`). Records a user "deleted" from *My Login History* (soft-delete) still appear to admins indefinitely.
+**Fix:** Add `tx.Where("is_deleted = ?", model.IsDeletedNo)` to the admin list (and reconcile admin hard-delete vs user soft-delete semantics).
+**Status:** Low
+
+### L-023 · `LoginLog.UserTokenId` Populated With Wrong Value
+
+**Evidence:** `api/service/user.go:107` — `llog.UserTokenId = ut.UserId` copies the *user* id instead of the token's own PK (`ut.Id`). The `user_token_id` column is meaningless (duplicates `user_id`). Currently unused for queries, so no functional break.
+**Fix:** `llog.UserTokenId = ut.Id`.
+**Status:** Low
+
+### L-024 · OAuth Backend Validation Gaps (PKCE method, OIDC issuer)
+
+**Evidence:** Backend `OauthForm.PkceMethod` (`request/admin/oauth.go:27`) has **no** validation tag, so an arbitrary method (e.g. `"foo"`) persists and is then silently dropped in `BeginAuth`'s switch — disabling PKCE while `pkce_enable=true` (worse than the frontend-only M-015). Also `Issuer` is `omitempty,url`, so an empty issuer is accepted for `oauth_type=oidc` and only fails later at runtime.
+**Fix:** Validate `pkce_method ∈ {S256, plain}` server-side; require `issuer` when type is `oidc`.
+**Status:** Low
+
+### L-025 · `my/address_book/collection.vue` Missing `onActivated` Refresh
+
+**Evidence:** `onActivated` is imported but never called, unlike the admin collections/entries views (`address_book/collection.vue:150`, `address_book/index.vue:221`). With keep-alive, navigating away and back shows stale data.
+**Fix:** Add `onActivated(getList)`.
+**Status:** Low
+
+### L-026 · Custom Client Build Delete — Orphaned Artifact Files on Disk (+ no bulk delete)
+
+**Note:** The Delete button in Build History itself **works** end-to-end (button → `deleteBuild(row)` → `POST /custom_build/delete` → `Info(id)` → `DB.Delete` → `loadBuilds()`); this is a cleanup/UX gap, not a broken button.
+
+**Evidence:** `api/service/custom_build.go:23-24` — `Delete` does only `DB.Delete(u)`. Build artifacts are written to disk at `/rdgen-data/output/{build.Id}/` (served by `DownloadByKey`, `api/http/controller/admin/custom_build.go`). Deleting a build never removes that directory, so artifact files accumulate as orphans after every delete. Also, Build History offers only per-row delete (`custom-client/index.vue:301`) — there is no multi-select/bulk delete.
+
+**Fix:** In `CustomBuildService.Delete`, best-effort `os.RemoveAll(filepath.Join("/rdgen-data","output", id))` alongside the DB delete; optionally add a bulk-delete action to the history table.
+**Status:** Low
 
 ---
 
@@ -521,6 +694,9 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 | Address Book import/export         | `/admin/address-book/books`| Not implemented                 |
 | OAuth redirect URL override        | `/admin/security/oauth`   | Model field commented out        |
 | Server config edit                 | `/admin/server/config`    | Read-only                        |
+| Edit server command (`cmdUpdate`)  | Server → Server Commands  | High — handler exists, route missing → 404 (see H-011) |
+| Rule `batchCreate`                 | Address Book → Rules      | Frontend `api` wrapper exists, **no backend route** (would 404) |
+| `POST /user/myPeer`                | —                         | Frontend wrapper exists, backend route commented out (`admin.go:104`) → would 404 |
 
 ---
 
@@ -539,10 +715,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 | `GET /custom_build/detail/:id`                     | No view imports              |
 | `GET /custom_build/public/detailByKey/:key`        | No view imports              |
 | `GET /custom_preset/detail/:id`                    | No view imports              |
-| `POST /custom_preset/update`                       | No view imports              |
-| `POST /address_book/batchCreate`                   | UI uses `batchCreateFromPeers` instead |
-| `POST /address_book_collection_rule/batchCreate`   | No view imports              |
-| `POST /user/myPeer`                                | No view imports              |
+| `POST /custom_preset/update`                       | Confirmed unused — `index.vue` imports only list/create/remove/detail |
+| ~~`POST /address_book/batchCreate`~~               | **Correction:** this **IS** used — `peer/createABForm.vue:65,115`. Removed from this list. |
 
 ---
 
@@ -565,10 +739,13 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 2. **C-003** — Fix file upload path traversal (sanitize filename, add magic-byte check)
 3. **C-001** — Add persistence for server settings (minimum: add UI warnings about volatility)
 4. **C-004** — Implement My Devices delete (add backend endpoints + unblock frontend)
-5. **H-006 + H-007** — Fix preset field synchronization (permissions + branding data loss)
-6. **H-008** — Fix batch selection clearing (stale count across 6 views)
-7. **H-001** — Fix `user_token/batchDelete` authorization bypass
-8. **H-003** — Fix CSV import to provide actual feedback on results
+5. **S-001 + S-002** — Gate the whole `/rustdesk/*` group behind `AdminPrivilege` + audit log; harden LDAP (escape filters, TLS, empty-bind)
+6. **H-010** — Fix Address Book bulk delete (send `row_id`, not `id`) — currently a silent no-op
+7. **H-011** — Register the missing `cmdUpdate` route (editing server commands 404s)
+8. **H-006** — Fix preset permission-field synchronization (real data loss; H-007 is now just dead-code cleanup)
+9. **H-008** — Fix batch selection clearing (stale count across 6 views)
+10. **H-003** — Fix CSV import to provide actual feedback on results
+11. **M-016** — Stop returning OAuth `client_secret` in list/detail responses
 
 ### Next batch (Medium):
 
