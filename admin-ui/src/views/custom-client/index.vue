@@ -272,7 +272,7 @@
         </el-row>
 
         <el-form-item>
-          <el-button type="primary" @click="submitBuild" :loading="submitting">{{ T('Create') }}</el-button>
+          <el-button type="primary" @click="submitBuild" :loading="submitting">{{ T('SaveConfiguration') || 'Save Configuration' }}</el-button>
           <el-button @click="resetForm">{{ T('Reset') }}</el-button>
         </el-form-item>
       </el-form>
@@ -294,7 +294,10 @@
           ]"
       >
         <template #status="{ row }">
-          <el-tag :type="statusType(row.status)" size="small">{{ T(statusLabel(row.status)) }}</el-tag>
+          <el-tooltip v-if="row.build_log" :content="row.build_log" placement="top" :show-after="500" max-width="400">
+            <el-tag :type="statusType(row.status)" size="small" style="cursor: help">{{ T(statusLabel(row.status)) }}</el-tag>
+          </el-tooltip>
+          <el-tag v-else :type="statusType(row.status)" size="small">{{ T(statusLabel(row.status)) }}</el-tag>
         </template>
         <template #actions="{ row }">
           <el-button v-if="row.status === 'done'" type="success" size="small" @click="downloadBuild(row)">{{ T('Download') }}</el-button>
