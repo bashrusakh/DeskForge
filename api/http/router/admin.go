@@ -68,11 +68,12 @@ func Init(g *gin.Engine) {
 
 func RustdeskCmdBind(adg *gin.RouterGroup) {
 	cont := &admin.Rustdesk{}
-	rg := adg.Group("/rustdesk")
+	rg := adg.Group("/rustdesk").Use(middleware.AdminPrivilege())
 	rg.POST("/sendCmd", cont.SendCmd)
 	rg.GET("/cmdList", cont.CmdList)
 	rg.POST("/cmdDelete", cont.CmdDelete)
 	rg.POST("/cmdCreate", cont.CmdCreate)
+	rg.POST("/cmdUpdate", cont.CmdUpdate)
 }
 func LoginBind(rg *gin.RouterGroup) {
 	cont := &admin.Login{}
@@ -324,6 +325,8 @@ func MyBind(rg *gin.RouterGroup) {
 	{
 		cont := &my.Peer{}
 		rg.GET("/my/peer/list", cont.List)
+		rg.POST("/my/peer/delete", cont.Delete)
+		rg.POST("/my/peer/batchDelete", cont.BatchDelete)
 
 	}
 
