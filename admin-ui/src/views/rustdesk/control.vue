@@ -13,6 +13,11 @@
     >
       <el-tab-pane :label="T('Simple')" name="Simple">
         <page-section title="Simple controls" subtitle="Common server controls are grouped here and remain guarded by per-card availability states.">
+          <el-alert type="warning" :closable="false" show-icon class="mb-15">
+            <template #title>
+              {{ T('RuntimeSettingsWarning') !== 'RuntimeSettingsWarning' ? T('RuntimeSettingsWarning') : 'These settings are applied at runtime only and will be reset to defaults on server restart. Changes are not persisted to disk.' }}
+            </template>
+          </el-alert>
           <el-space wrap>
             <RelayServers ref="rs" :can-send="canSendIdServerCmd"/>
             <alwaysUseRelay :can-send="canSendIdServerCmd" @success="handleAlwaysUseRelaySuccess"/>
@@ -161,7 +166,6 @@
     canSendIdServerCmd.value = !!res.data
     if (canSendIdServerCmd.value) {
       const commands = res.data.split('\n').filter(i => i)
-      console.log(commands)
       canControlMustLogin.value = commands.some(i => i.includes('must-login'))
     }
   }
@@ -305,7 +309,6 @@
       return false
     }
     sendCmd(customCmd).then(res => {
-      console.log(res)
       customCmd.res = res.data
       ElMessage.success(T('OperationSuccess'))
     })
