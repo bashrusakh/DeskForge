@@ -208,11 +208,13 @@ func (us *UserService) Logout(u *model.User, token string) error {
 
 // Delete oauth
 func (us *UserService) Delete(u *model.User) error {
-	userCount := us.getAdminUserCount()
+	tx := DB.Begin()
+
+	userCount := us.getAdminUserCountTx(tx)
 	if userCount <= 1 && us.IsAdmin(u) {
+		tx.Rollback()
 		return errors.New("The last admin user cannot be deleted")
 	}
-	tx := DB.Begin()
 
 	if err := tx.Delete(u).Error; err != nil {
 		tx.Rollback()
@@ -483,6 +485,16 @@ func (us *UserService) getUserCount() int64 {
 func (us *UserService) getAdminUserCount() int64 {
 	var count int64
 	DB.Model(&model.User{}).Where("is_admin = ?", true).Count(&count)
+	return count
+}
+
+// helper functions, getAdminUserCountTx — counted inside a transaction for atomicity
+func (us *UserService) getAdminUserCountTx(tx *gorm.DB) int64 {
+	var count int64
+	if err := tx.Model(&model.User{}).Where("is_admin = ?", true).Count(&count).Error; err != nil {
+		Logger.Errorf("getAdminUserCountTx: %v", err)
+		return 0
+	}
 	return count
 }
 
