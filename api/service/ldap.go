@@ -81,7 +81,12 @@ func (ls *LdapService) connectAndBind(cfg *config.Ldap, username, password strin
 	var conn *ldap.Conn
 	if u.Scheme == "ldaps" {
 		// WARNING: InsecureSkipVerify: true is not recommended for production
-		tlsConfig := &tls.Config{InsecureSkipVerify: !cfg.TlsVerify}
+		tlsConfig := &tls.Config{InsecureSkipVerify: false}
+		if cfg.TlsSkipVerify != nil {
+			tlsConfig.InsecureSkipVerify = *cfg.TlsSkipVerify
+		} else {
+			tlsConfig.InsecureSkipVerify = !cfg.TlsVerify
+		}
 		if cfg.TlsCaFile != "" {
 			caCert, err := os.ReadFile(cfg.TlsCaFile)
 			if err != nil {
@@ -129,6 +134,9 @@ func (ls *LdapService) verifyCredentials(cfg *config.Ldap, username, password st
 // Authenticate checks the provided username and password against LDAP.
 // Returns the corresponding *model.User if successful, or an error if not.
 func (ls *LdapService) Authenticate(username, password string) (*model.User, error) {
+	if password == "" {
+		return nil, ErrLdapPasswordNotMatch
+	}
 	ldapUser, err := ls.GetUserInfoByUsernameLdap(username)
 	if err != nil {
 		return nil, err
@@ -397,7 +405,7 @@ func (ls *LdapService) userResultToLdapUser(cfg *config.Ldap, entry *ldap.Entry)
 
 // filterField helps build simple attribute filters, e.g. (uid=username).
 func (ls *LdapService) filterField(field, value string) string {
-	return fmt.Sprintf("(%s=%s)", field, value)
+	return fmt.Sprintf("(%s=%s)", field, ldap.EscapeFilter(value))
 }
 
 // fieldUsername returns the configured username attribute or "uid" if not set.

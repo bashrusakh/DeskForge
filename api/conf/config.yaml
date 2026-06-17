@@ -66,7 +66,7 @@ ldap:
   enable: false
   url: "ldap://ldap.example.com:389"
   tls-ca-file: ""
-  tls-verify: false
+  tls-skip-verify: false  # preferred; deprecated tls-verify is still read for backward compat
   base-dn: "dc=example,dc=com"
   bind-dn: "cn=admin,dc=example,dc=com"
   bind-password: "password"
