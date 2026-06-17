@@ -408,9 +408,7 @@ export default defineComponent({
 
     const loadPresetIntoForm = (preset) => {
       if (!preset) return
-      // Должно совпадать со списком в saveCurrentAsPreset (см. ниже) — иначе пресет
-      // сохраняет поле, но не восстанавливает его. §8.9.
-      const fields = ['platform','version','app_name','server_ip','key','api_server','relay_server','company_name','download_url','direction','pass_approve_mode','permanent_password','deny_lan','enable_direct_ip','auto_close','hide_cm','theme','remove_wallpaper','remove_new_version_notif','allow_offline_input','allow_remote_config_modification','custom_app_icon_url','custom_app_logo_url','custom_privacy_screen_url','x11_extra_cmds','cycle_monitor','disable_update','android_app_id','hide_connection_management','app_icon_url','app_logo_url','privacy_screen_url']
+      const fields = ['platform','version','app_name','server_ip','key','api_server','relay_server','company_name','download_url','direction','pass_approve_mode','permanent_password','deny_lan','enable_direct_ip','auto_close','hide_cm','theme','remove_wallpaper','remove_new_version_notif','permissions_type','enable_keyboard','enable_clipboard','enable_file_transfer','enable_audio','enable_tcp','enable_remote_restart','enable_recording','enable_blocking_input','enable_remote_modi','enable_printer','enable_camera','enable_terminal','cycle_monitor','x_offline','android_app_id','app_icon_url','app_logo_url','privacy_screen_url']
       try {
         const cfg = JSON.parse(preset.custom_json || '{}')
         for (const f of fields) {
@@ -452,17 +450,23 @@ export default defineComponent({
           hide_cm: form.hide_cm,
           theme: form.theme,
           remove_wallpaper: form.remove_wallpaper,
-          remove_new_version_notif: form.remove_new_version_notif,
-          allow_offline_input: form.allow_offline_input,
-          allow_remote_config_modification: form.allow_remote_config_modification,
-          custom_app_icon_url: form.custom_app_icon_url,
-          custom_app_logo_url: form.custom_app_logo_url,
-          custom_privacy_screen_url: form.custom_privacy_screen_url,
-          x11_extra_cmds: form.x11_extra_cmds,
+          permissions_type: form.permissions_type,
+          enable_keyboard: form.enable_keyboard,
+          enable_clipboard: form.enable_clipboard,
+          enable_file_transfer: form.enable_file_transfer,
+          enable_audio: form.enable_audio,
+          enable_tcp: form.enable_tcp,
+          enable_remote_restart: form.enable_remote_restart,
+          enable_recording: form.enable_recording,
+          enable_blocking_input: form.enable_blocking_input,
+          enable_remote_modi: form.enable_remote_modi,
+          enable_printer: form.enable_printer,
+          enable_camera: form.enable_camera,
+          enable_terminal: form.enable_terminal,
           cycle_monitor: form.cycle_monitor,
-          disable_update: form.disable_update,
+          x_offline: form.x_offline,
+          remove_new_version_notif: form.remove_new_version_notif,
           android_app_id: form.android_app_id,
-          hide_connection_management: form.hide_connection_management,
           app_icon_url: form.app_icon_url,
           app_logo_url: form.app_logo_url,
           privacy_screen_url: form.privacy_screen_url,
@@ -621,6 +625,9 @@ export default defineComponent({
       form.x_offline = false
       form.remove_new_version_notif = false
       form.android_app_id = ''
+      form.app_icon_url = ''
+      form.app_logo_url = ''
+      form.privacy_screen_url = ''
     }
 
     const downloadBuild = (row) => {
