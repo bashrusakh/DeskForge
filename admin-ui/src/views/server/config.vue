@@ -31,6 +31,9 @@
       <el-col :xs="24" :lg="12">
         <page-section :title="T('System')" subtitle="Runtime features exposed by the server.">
           <el-descriptions :column="1" border v-loading="loading">
+            <el-descriptions-item label="Title">
+              <span>{{ cfg.title || '-' }}</span>
+            </el-descriptions-item>
             <el-descriptions-item label="Web Client">
               <el-tag :type="cfg.web_client === 1 ? 'success' : 'info'" size="small">{{ cfg.web_client === 1 ? T('Available') : T('NotAvailable') }}</el-tag>
             </el-descriptions-item>
