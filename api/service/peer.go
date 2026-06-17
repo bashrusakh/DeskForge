@@ -166,42 +166,35 @@ func (ps *PeerService) BatchDelete(ids []uint) error {
 	return AllService.UserService.FlushTokenByUuids(uuids)
 }
 
-// DeleteWithOwner  peer owned by user
+// DeleteWithOwner  peer owned by user, with token flush in the same tx
 func (ps *PeerService) DeleteWithOwner(rowId uint, userId uint) error {
-	tx := DB.Begin()
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var peer model.Peer
+		if err := tx.Where("row_id = ? AND user_id = ?", rowId, userId).First(&peer).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil // idempotent: already gone or not owned
+			}
+			return err
 		}
-	}()
-	var peer model.Peer
-	if err := tx.Where("row_id = ? AND user_id = ?", rowId, userId).First(&peer).Error; err != nil {
-		tx.Rollback()
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil // idempotent: already gone or not owned
+		if err := tx.Delete(&peer).Error; err != nil {
+			return err
 		}
-		return err
-	}
-	if err := tx.Delete(&peer).Error; err != nil {
-		tx.Rollback()
-		return err
-	}
-	if err := tx.Commit().Error; err != nil {
-		return err
-	}
-	if peer.Uuid != "" {
-		return AllService.UserService.FlushTokenByUuid(peer.Uuid)
-	}
-	return nil
+		if peer.Uuid != "" {
+			if err := tx.Where("device_uuid = ?", peer.Uuid).Delete(&model.UserToken{}).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
-// BatchDeleteByOwner  peers owned by user
+// BatchDeleteByOwner  peers owned by user, with token flush in the same tx
 func (ps *PeerService) BatchDeleteByOwner(rowIds []uint, userId uint) error {
 	if len(rowIds) == 0 {
 		return nil
 	}
-	var uuids []string
-	err := DB.Transaction(func(tx *gorm.DB) error {
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var uuids []string
 		if err := tx.Model(&model.Peer{}).
 			Where("row_id in (?) AND user_id = ?", rowIds, userId).
 			Pluck("uuid", &uuids).Error; err != nil {
@@ -211,12 +204,19 @@ func (ps *PeerService) BatchDeleteByOwner(rowIds []uint, userId uint) error {
 		if result.Error != nil {
 			return result.Error
 		}
+		var nonEmpty []string
+		for _, uuid := range uuids {
+			if uuid != "" {
+				nonEmpty = append(nonEmpty, uuid)
+			}
+		}
+		if len(nonEmpty) > 0 {
+			if err := tx.Where("device_uuid in (?)", nonEmpty).Delete(&model.UserToken{}).Error; err != nil {
+				return err
+			}
+		}
 		return nil
 	})
-	if err != nil {
-		return err
-	}
-	return AllService.UserService.FlushTokenByUuids(uuids)
 }
 
 // Update 

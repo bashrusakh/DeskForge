@@ -417,21 +417,47 @@
     const reader = new FileReader()
     reader.onload = async (e) => {
       const data = e.target.result
-      const rows = data.split('\n')
-      // strip BOM from the first column header, otherwise UTF-8 BOM
-      // files would always fail the missing-columns check below.
-      const header = rows[0].replace(/^﻿/, '')
-      const keys = header.split(',').map(k => k.trim().replace(/^"|"$/g, ''))
+      // RFC4180 row split — respects newlines inside quoted fields
+      const rows = []
+      let row = []
+      let field = ''
+      let inQuotes = false
+      for (let i = 0; i < data.length; i++) {
+        const c = data[i]
+        if (inQuotes) {
+          if (c === '"') {
+            if (data[i + 1] === '"') { field += '"'; i++ }
+            else { inQuotes = false }
+          } else { field += c }
+        } else if (c === '"') {
+          inQuotes = true
+        } else if (c === ',') {
+          row.push(field.trim()); field = ''
+        } else if (c === '\n' || (c === '\r' && data[i + 1] === '\n')) {
+          if (c === '\r') i++
+          row.push(field.trim()); field = ''
+          if (row.some(v => v !== '')) rows.push(row)
+          row = []
+        } else if (c !== '\r') {
+          field += c
+        }
+      }
+      row.push(field.trim())
+      if (row.some(v => v !== '')) rows.push(row)
+
+      if (rows.length < 2) return
+      // Strip UTF-8 BOM from first column header
+      rows[0][0] = (rows[0][0] || '').replace(/^\uFEFF/, '')
+      const keys = rows[0]
       const missing = canKeys.filter(k => k !== 'group_id' && !keys.includes(k))
       if (missing.length) {
         ElMessage.error(`${T('Import')}: missing columns: ${missing.join(', ')}`)
         return
       }
-      const values = rows.slice(1).map(row => {
-        const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/)
+      const values = rows.slice(1).map(rowFields => {
         const obj = {}
         keys.forEach((k, i) => {
-          obj[k] = (cols[i] || '').trim().replace(/^"|"$/g, '')
+          if (rowFields[i] !== undefined) obj[k] = rowFields[i]
         })
         return obj
       }).filter(item => item.id)

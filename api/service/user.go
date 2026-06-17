@@ -11,6 +11,7 @@ import (
 	"rustdesk-server/api/model"
 	"rustdesk-server/api/utils"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type UserService struct {
@@ -210,7 +211,11 @@ func (us *UserService) Logout(u *model.User, token string) error {
 func (us *UserService) Delete(u *model.User) error {
 	tx := DB.Begin()
 
-	userCount := us.getAdminUserCountTx(tx)
+	userCount, err := us.getAdminUserCountTx(tx)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
 	if userCount <= 1 && us.IsAdmin(u) {
 		tx.Rollback()
 		return errors.New("The last admin user cannot be deleted")
@@ -489,13 +494,18 @@ func (us *UserService) getAdminUserCount() int64 {
 }
 
 // helper functions, getAdminUserCountTx — counted inside a transaction for atomicity
-func (us *UserService) getAdminUserCountTx(tx *gorm.DB) int64 {
-	var count int64
-	if err := tx.Model(&model.User{}).Where("is_admin = ?", true).Count(&count).Error; err != nil {
-		Logger.Errorf("getAdminUserCountTx: %v", err)
-		return 0
+func (us *UserService) getAdminUserCountTx(tx *gorm.DB) (int64, error) {
+	// SELECT … FOR UPDATE on rows, count in Go. clause.Locking on COUNT(*)
+	// breaks Postgres (ERROR: FOR UPDATE is not allowed with aggregate functions).
+	// SQLite ignores the hint but already serializes writers via BEGIN IMMEDIATE,
+	// so the race is closed on every supported backend.
+	var admins []model.User
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("is_admin = ?", true).
+		Find(&admins).Error; err != nil {
+		return 0, err
 	}
-	return count
+	return int64(len(admins)), nil
 }
 
 // UserTokenExpireTimestamp token

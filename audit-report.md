@@ -918,7 +918,7 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 ## Fix Status Summary (as of [PR #21](https://github.com/bashrusakh/DeskForge/pull/21))
 
-### Resolved in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20) — 20 findings
+### Resolved in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20) — 23 audit findings + 7 self-review fixes (3 re-review + 4 3rd-pass)
 
 **Critical (4/4):**
 - C-001 ⚠️ (minimum option only — runtime volatility warning; full persistence still pending)

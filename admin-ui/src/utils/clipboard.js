@@ -26,7 +26,6 @@ export function copyImage (targetNode) {
     range.selectNode(targetNode)
     selection.addRange(range)
   } else if (document.body.createTextRange) {
-    console.log('IE')
     // ie
     const range = document.body.createTextRange()
     range.moveToElementText(targetNode)

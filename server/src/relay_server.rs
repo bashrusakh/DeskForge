@@ -51,16 +51,23 @@ const BLOCKLIST_FILE: &str = "blocklist.txt";
 static DISK_WRITE_LOCK: Mutex<()> = Mutex::const_new(());
 
 async fn write_set_to_file(file: &str, lock: &RwLock<HashSet<String>>) {
-    let ips: Vec<String> = lock.read().await.iter().cloned().collect();
+    // Lock BEFORE reading the snapshot so two concurrent writers serialize
+    // completely: writer A reads {A,B,C}, writes, releases; writer B reads
+    // {A,B,C,D}, writes. Without this, A could read {A,B,C}, B reads
+    // {A,B,C,D}, B wins the disk lock and writes first, then A overwrites
+    // with the older snapshot losing D.
     let _guard = DISK_WRITE_LOCK.lock().await;
+    let ips: Vec<String> = lock.read().await.iter().cloned().collect();
+    let file_owned = file.to_owned();
     match tokio::task::spawn_blocking(move || -> std::io::Result<()> {
-        let tmp = format!("{}.tmp", file);
+        let tmp = format!("{}.tmp", file_owned);
         let mut f = std::fs::File::create(&tmp)?;
         for ip in &ips {
             writeln!(f, "{ip}")?;
         }
+        f.sync_all()?;
         drop(f);
-        std::fs::rename(&tmp, file)?;
+        std::fs::rename(&tmp, &file_owned)?;
         Ok(())
     }).await {
         Ok(Ok(())) => {},
