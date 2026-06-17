@@ -103,7 +103,6 @@ func UserBind(rg *gin.RouterGroup) {
 		aR.POST("/changeCurPwd", cont.ChangeCurPwd)
 		aR.POST("/myOauth", cont.MyOauth)
 		//aR.GET("/myPeer", cont.MyPeer)
-		aR.POST("/groupUsers", cont.GroupUsers)
 	}
 	aRP := rg.Group("/user").Use(middleware.AdminPrivilege())
 	{
@@ -114,6 +113,7 @@ func UserBind(rg *gin.RouterGroup) {
 		aRP.POST("/update", cont.Update)
 		aRP.POST("/delete", cont.Delete)
 		aRP.POST("/changePwd", cont.UpdatePassword)
+		aRP.POST("/groupUsers", cont.GroupUsers)
 	}
 }
 
@@ -261,7 +261,7 @@ func ConfigBind(rg *gin.RouterGroup) {
 
 	aR.GET("/admin", rs.AdminConfig)
 
-	aR.Use(middleware.BackendUserAuth())
+	aR.Use(middleware.AdminPrivilege())
 	aR.GET("/server", rs.ServerConfig)
 	aR.GET("/app", rs.AppConfig)
 	aR.GET("/all", rs.AllConfig)
