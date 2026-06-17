@@ -182,9 +182,9 @@ export function useRepositories (api_type = 'my') {
   const changeUserForUpdate = async (val) => {
     listQuery.collection_id = null
     if (!val) {
-      collectionListRes.list = []
+      collectionListResForUpdate.list = []
     } else {
-      collectionListQuery.user_id = val
+      collectionListQueryForUpdate.user_id = val
       getCollectionListForUpdate()
     }
   }
