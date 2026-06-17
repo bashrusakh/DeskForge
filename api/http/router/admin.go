@@ -261,11 +261,17 @@ func ConfigBind(rg *gin.RouterGroup) {
 
 	aR.GET("/admin", rs.AdminConfig)
 
-	aR.Use(middleware.AdminPrivilege())
+	// /server и /app нужны всем авторизованным юзерам: web-client при
+	// логине сохраняет id_server/key/api-server в localStorage и читает
+	// флаг web_client для отображения раздела в UI. /all отдаёт
+	// супермножество (включая register, ws_host, show_swagger) и нужен
+	// только админ-панели — потому защищён AdminPrivilege дополнительно.
+	aR.Use(middleware.BackendUserAuth())
 	aR.GET("/server", rs.ServerConfig)
 	aR.GET("/app", rs.AppConfig)
-	aR.GET("/all", rs.AllConfig)
 
+	aR.Use(middleware.AdminPrivilege())
+	aR.GET("/all", rs.AllConfig)
 }
 
 /*
@@ -282,6 +288,14 @@ func FileBind(rg *gin.RouterGroup) {
 }*/
 
 func MyBind(rg *gin.RouterGroup) {
+	{
+		// Personal Address Book share rules need to list groups+users
+		// for the picker. Reuses admin.User.GroupUsers, scoped here to
+		// BackendUserAuth (inherited from adg) instead of AdminPrivilege.
+		cont := &admin.User{}
+		rg.POST("/my/groupUsers", cont.GroupUsers)
+	}
+
 	{
 		cont := &my.ShareRecord{}
 		rg.GET("/my/share_record/list", cont.List)

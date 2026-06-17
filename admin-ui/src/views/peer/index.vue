@@ -418,7 +418,10 @@
     reader.onload = async (e) => {
       const data = e.target.result
       const rows = data.split('\n')
-      const keys = rows[0].split(',').map(k => k.trim().replace(/^"|"$/g, ''))
+      // strip BOM from the first column header, otherwise UTF-8 BOM
+      // files would always fail the missing-columns check below.
+      const header = rows[0].replace(/^﻿/, '')
+      const keys = header.split(',').map(k => k.trim().replace(/^"|"$/g, ''))
       const missing = canKeys.filter(k => k !== 'group_id' && !keys.includes(k))
       if (missing.length) {
         ElMessage.error(`${T('Import')}: missing columns: ${missing.join(', ')}`)

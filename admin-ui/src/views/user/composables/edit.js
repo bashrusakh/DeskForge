@@ -55,22 +55,18 @@ export function useSubmit (form, id) {
     return res
   }
 
+  // On backend error the axios interceptor (utils/request.js) already
+  // shows the server's `res.message` toast and rejects the promise,
+  // turning `res` into `false` here. Returning false is enough — adding
+  // another `OperationFailed` toast would duplicate the real error.
   const submitCreate = async () => {
     const res = await create(form.value).catch(_ => false)
-    if (!res) {
-      ElMessage.error(T('OperationFailed'))
-      return false
-    }
-    return res.code === 0
+    return !!res && res.code === 0
   }
 
   const submitUpdate = async () => {
     const res = await update(form.value).catch(_ => false)
-    if (!res) {
-      ElMessage.error(T('OperationFailed'))
-      return false
-    }
-    return res.code === 0
+    return !!res && res.code === 0
   }
   const submitFunc = id > 0 ? submitUpdate : submitCreate
 

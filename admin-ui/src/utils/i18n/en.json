@@ -463,6 +463,9 @@
   "BatchEditTags": {
     "One": "Batch Edit Tags"
   },
+  "ClearTags": {
+    "One": "Clear tags"
+  },
   "Selected": {
     "One": "selected"
   },

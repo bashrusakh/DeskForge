@@ -125,9 +125,18 @@ func (ct *User) Update(c *gin.Context) {
 	}
 	u := f.ToUser()
 	curUser := service.AllService.UserService.CurUser(c)
-	if curUser != nil && curUser.Id == u.Id && u.Status == model.COMMON_STATUS_DISABLED {
-		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+": cannot disable your own account")
-		return
+	if curUser != nil && curUser.Id == u.Id {
+		// Self-lockout guards: an admin must not be able to lock
+		// themselves out via the admin Update endpoint. Frontend
+		// controls for the current user's own row are not yet disabled.
+		if u.Status == model.COMMON_STATUS_DISABLED {
+			response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+": cannot disable your own account")
+			return
+		}
+		if service.AllService.UserService.IsAdmin(curUser) && u.IsAdmin != nil && !*u.IsAdmin {
+			response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+": cannot remove admin from your own account")
+			return
+		}
 	}
 	err := service.AllService.UserService.Update(u)
 	if err != nil {

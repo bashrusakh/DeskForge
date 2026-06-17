@@ -473,6 +473,9 @@
   "BatchEditTags": {
     "One": "批量编辑标签"
   },
+  "ClearTags": {
+    "One": "清空标签"
+  },
   "Selected": {
     "One": "已选"
   },

@@ -105,6 +105,10 @@ func (ct *UserToken) BatchDelete(c *gin.Context) {
 		return
 	}
 	u := service.AllService.UserService.CurUser(c)
+	// Defense in depth. The route is currently behind AdminPrivilege, so
+	// the !IsAdmin branch is unreachable; the scoping matches the per-row
+	// owner check in (ct *UserToken).Delete so the endpoint stays safe
+	// to relax to BackendUserAuth in the future.
 	var err error
 	if u != nil && !service.AllService.UserService.IsAdmin(u) {
 		err = service.AllService.UserService.BatchDeleteUserTokenByUser(ids, u.Id)
