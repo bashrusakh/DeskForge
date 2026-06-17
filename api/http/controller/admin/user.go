@@ -124,6 +124,11 @@ func (ct *User) Update(c *gin.Context) {
 		return
 	}
 	u := f.ToUser()
+	curUser := service.AllService.UserService.CurUser(c)
+	if curUser != nil && curUser.Id == u.Id && u.Status == model.COMMON_STATUS_DISABLED {
+		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+": cannot disable your own account")
+		return
+	}
 	err := service.AllService.UserService.Update(u)
 	if err != nil {
 		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
@@ -157,6 +162,11 @@ func (ct *User) Delete(c *gin.Context) {
 	}
 	u := service.AllService.UserService.InfoById(f.Id)
 	if u.Id > 0 {
+		curUser := service.AllService.UserService.CurUser(c)
+		if curUser != nil && curUser.Id == u.Id {
+			response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+": cannot delete your own account")
+			return
+		}
 		err := service.AllService.UserService.Delete(u)
 		if err == nil {
 			response.Success(c, nil)
