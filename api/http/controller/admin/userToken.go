@@ -104,7 +104,13 @@ func (ct *UserToken) BatchDelete(c *gin.Context) {
 		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError"))
 		return
 	}
-	err := service.AllService.UserService.BatchDeleteUserToken(ids)
+	u := service.AllService.UserService.CurUser(c)
+	var err error
+	if u != nil && !service.AllService.UserService.IsAdmin(u) {
+		err = service.AllService.UserService.BatchDeleteUserTokenByUser(ids, u.Id)
+	} else {
+		err = service.AllService.UserService.BatchDeleteUserToken(ids)
+	}
 	if err == nil {
 		response.Success(c, nil)
 		return

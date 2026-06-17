@@ -104,7 +104,7 @@ func (us *UserService) Login(u *model.User, llog *model.LoginLog) *model.UserTok
 		ExpiredAt:  us.UserTokenExpireTimestamp(),
 	}
 	DB.Create(ut)
-	llog.UserTokenId = ut.UserId
+	llog.UserTokenId = ut.Id
 	DB.Create(llog)
 	if llog.Uuid != "" {
 		AllService.PeerService.UuidBindUserId(llog.DeviceId, llog.Uuid, u.Id)
@@ -521,6 +521,10 @@ func (us *UserService) AutoRefreshAccessToken(ut *model.UserToken) {
 
 func (us *UserService) BatchDeleteUserToken(ids []uint) error {
 	return DB.Where("id in ?", ids).Delete(&model.UserToken{}).Error
+}
+
+func (us *UserService) BatchDeleteUserTokenByUser(ids []uint, userId uint) error {
+	return DB.Where("id in ? AND user_id = ?", ids, userId).Delete(&model.UserToken{}).Error
 }
 
 func (us *UserService) VerifyJWT(token string) (uint, error) {
