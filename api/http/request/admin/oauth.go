@@ -24,7 +24,7 @@ type OauthForm struct {
 	ClientSecret string `json:"client_secret" validate:"required"`
 	AutoRegister *bool  `json:"auto_register"`
 	PkceEnable   *bool  `json:"pkce_enable"`
-	PkceMethod   string `json:"pkce_method"`
+	PkceMethod   string `json:"pkce_method" validate:"omitempty,oneof=S256 plain"`
 }
 
 func (of *OauthForm) ToOauth() *model.Oauth {
