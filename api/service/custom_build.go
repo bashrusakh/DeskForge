@@ -1,6 +1,10 @@
 ﻿package service
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+
 	"rustdesk-server/api/model"
 )
 
@@ -21,6 +25,7 @@ func (is *CustomBuildService) Info(id uint) *model.CustomBuild {
 }
 
 func (is *CustomBuildService) Delete(u *model.CustomBuild) error {
+	_ = os.RemoveAll(filepath.Join("/rdgen-data", "output", fmt.Sprintf("%d", u.Id)))
 	return DB.Delete(u).Error
 }
 
