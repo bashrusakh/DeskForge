@@ -45,6 +45,30 @@ static SINGLE_BANDWIDTH: AtomicUsize = AtomicUsize::new(32 * 1024 * 1024); // in
 const BLACKLIST_FILE: &str = "blacklist.txt";
 const BLOCKLIST_FILE: &str = "blocklist.txt";
 
+// Serializes blacklist/blocklist disk writes so a slow write cannot be overwritten
+// by a newer concurrent snapshot. Cheap: only held across the brief spawn_blocking
+// rename call, and admin commands are rare.
+static DISK_WRITE_LOCK: Mutex<()> = Mutex::const_new(());
+
+async fn write_set_to_file(file: &str, lock: &RwLock<HashSet<String>>) {
+    let ips: Vec<String> = lock.read().await.iter().cloned().collect();
+    let _guard = DISK_WRITE_LOCK.lock().await;
+    match tokio::task::spawn_blocking(move || -> std::io::Result<()> {
+        let tmp = format!("{}.tmp", file);
+        let mut f = std::fs::File::create(&tmp)?;
+        for ip in &ips {
+            writeln!(f, "{ip}")?;
+        }
+        drop(f);
+        std::fs::rename(&tmp, file)?;
+        Ok(())
+    }).await {
+        Ok(Ok(())) => {},
+        Ok(Err(e)) => log::error!("Failed to write {}: {}", file, e),
+        Err(e) => log::error!("spawn_blocking failed for {}: {}", file, e),
+    }
+}
+
 #[tokio::main(flavor = "multi_thread")]
 pub async fn start(port: &str, key: &str) -> ResultType<()> {
     let key = get_server_sk(key);
@@ -177,6 +201,7 @@ async fn check_cmd(cmd: &str, limiter: Limiter) -> String {
                 for ip in ip.split('|') {
                     BLACKLIST.write().await.insert(ip.to_owned());
                 }
+                write_set_to_file(BLACKLIST_FILE, &BLACKLIST).await;
             }
         }
         Some("blacklist-remove" | "br") => {
@@ -188,6 +213,7 @@ async fn check_cmd(cmd: &str, limiter: Limiter) -> String {
                         BLACKLIST.write().await.remove(ip);
                     }
                 }
+                write_set_to_file(BLACKLIST_FILE, &BLACKLIST).await;
             }
         }
         Some("blacklist" | "b") => {
@@ -204,6 +230,7 @@ async fn check_cmd(cmd: &str, limiter: Limiter) -> String {
                 for ip in ip.split('|') {
                     BLOCKLIST.write().await.insert(ip.to_owned());
                 }
+                write_set_to_file(BLOCKLIST_FILE, &BLOCKLIST).await;
             }
         }
         Some("blocklist-remove" | "Br") => {
@@ -215,6 +242,7 @@ async fn check_cmd(cmd: &str, limiter: Limiter) -> String {
                         BLOCKLIST.write().await.remove(ip);
                     }
                 }
+                write_set_to_file(BLOCKLIST_FILE, &BLOCKLIST).await;
             }
         }
         Some("blocklist" | "B") => {
