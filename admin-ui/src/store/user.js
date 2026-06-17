@@ -42,7 +42,6 @@ export const useUserStore = defineStore({
 
     async login (form) {
       const res = await login(form).catch(e => e)
-      console.log('login', res)
       if (!res.code) {
         useAppStore().loadConfig()
         const userData = res.data
