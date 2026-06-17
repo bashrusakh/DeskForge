@@ -11,19 +11,15 @@ type AppService struct {
 
 var version = ""
 var startTime = ""
-var once = &sync.Once{}
+var versionOnce sync.Once
 
 func (a *AppService) GetAppVersion() string {
-	if version != "" {
-		return version
-	}
-	once.Do(func() {
+	versionOnce.Do(func() {
 		v, err := os.ReadFile("resources/version")
 		if err != nil {
 			return
 		}
 		version = string(v)
-
 	})
 	return version
 }
