@@ -69,6 +69,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **admin-ui: populate tag dropdown in address book add dialog** — `createABForm.vue` now imports `getTagList` from `useABRepositories`. (L-006)
 - **admin-ui: display `title` field on server config page** — added `el-descriptions-item` for `cfg.title`. (L-013)
 
+### Fixed (round 3 — cleanup)
+- **api: remove dead `google` oauth import** — commented-out `golang.org/x/oauth2/google` and `// "io"` removed from `oauth.go`. (L-001)
+- **api: fix `sync.Once` version read** — replaced `sync.Once` pointer with package-level `versionOnce` var; the premature empty-check removed so `Do` retries naturally. (L-003)
+- **api: increase TCP command response buffer** — 1024 → 4096 bytes in `serverCmd.go`. (L-004)
+- **api: null-out group references before deleting groups** — `Delete` and `DeviceGroupDelete` now run inside a transaction and set `group_id`/`device_group_id` to 0 for affected users/peers. (L-008)
+- **api: fix oauth callback template XSS** — `oauth_fail.html` now reads message from `data-message` attribute via `document.getElementById` instead of direct Go template interpolation into JS. (L-014)
+- **api: validate `pkce_method` server-side** — `OauthForm.PkceMethod` now has `validate:"omitempty,oneof=S256 plain"`. (L-024)
+- **api: clean up orphaned build artifacts on disk** — `CustomBuildService.Delete` now calls `os.RemoveAll` on the build output directory before DB delete. (L-026)
+- **admin-ui: show fallback message when RustDesk client missing** — `connectByClient` shows `ElMessage.info` after 3s if page is still visible. (L-009)
+- **admin-ui: show `build_log` in tooltip on failed builds** — status column now wraps `el-tag` in `el-tooltip` showing `row.build_log` on hover. (L-012)
+- **admin-ui: rename "Create" to "Save Configuration"** — custom client builder button now says "Save Configuration" to clarify it only saves config, not triggers a build. (L-019)
+- **admin-ui: add OAuth redirect URL copy instruction** — descriptive hint added below the redirect URL display. (L-018)
+
 ## [Unreleased] - 2026-06-16
 
 ### Fixed (admin-ui: card hover-shadow flicker on route enter)

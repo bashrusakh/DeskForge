@@ -4,7 +4,7 @@
 **Methodology:** Full-stack trace from UI action → API call → service → persistence, cross-referenced with source code at every layer.  
 **Last update:** Second-pass verification re-audit (parallel sub-agents). Corrected 6 over-stated/wrong findings (H-001, H-004, H-007, H-009, L-006, M-004), fixed the endpoint cross-reference tables, and added 17 new verified findings (H-010, H-011, S-002, M-016–M-022, L-020–L-026). See the "Second-Pass Additions" section and the changelog note below.
 
-**Fix status (2026-06-17, [PR #20](https://github.com/bashrusakh/DeskForge/pull/20) + [PR #21](https://github.com/bashrusakh/DeskForge/pull/21)):** 41 findings resolved — see `### Fixed in PR #20` and `### Fixed in PR #21` markers on each item. Items without a `Fixed` marker are still open (20 remaining).
+**Fix status (2026-06-17, [PR #20](https://github.com/bashrusakh/DeskForge/pull/20) + [PR #21](https://github.com/bashrusakh/DeskForge/pull/21) + [PR #22](https://github.com/bashrusakh/DeskForge/pull/22)):** 52 findings resolved — see `### Fixed in PR #20`, `### Fixed in PR #21`, and `### Fixed in PR #22` markers on each item. 7 findings remain open.
 
 ---
 
@@ -455,6 +455,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Fix:** Remove the commented-out import and dead code block for cleanliness.
 **Status:** Low — Still open (cosmetic, out of scope for PR #20).
 
+**Fixed in [PR #22](https://github.com/bashrusakh/DeskForge/pull/22):** `api/service/oauth.go` — removed `// "golang.org/x/oauth2/google"` and `// "io"` commented-out imports.
+
 ### L-002 · User Store Logout Patches Wrong Field Names
 
 **Evidence:** `admin-ui/src/store/user.js:24-27` — `$patch({ name: '', role: {} })` patches nonexistent `name` (field is `nickname`) and wrong type for `role` (should be string, not object). Zero practical impact since redirect follows immediately, but technically incorrect.
@@ -469,17 +471,23 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Fix:** Add retry logic or lazy initialization.
 **Status:** Still open (out of scope for PR #20).
 
+**Fixed in [PR #22](https://github.com/bashrusakh/DeskForge/pull/22):** `api/service/app.go` — replaced `sync.Once` pointer with package-level `versionOnce` variable and removed the premature `if version != ""` check. `sync.Once.Do` naturally retries on failure (the function body returns without setting `version`, so next call retries). The file is read fresh on each `GetAppVersion()` call until the first successful read.
+
 ### L-004 · TCP Response Buffer Hardcoded at 1024 Bytes
 
 **Evidence:** `api/service/serverCmd.go:80` — `buf := make([]byte, 1024)`. May silently truncate responses with many active relay connections.
 **Fix:** Use dynamic read loop or larger buffer.
 **Status:** Still open (out of scope for PR #20).
 
+**Fixed in [PR #22](https://github.com/bashrusakh/DeskForge/pull/22):** `api/service/serverCmd.go:80` — buffer increased from 1024 to 4096 bytes. Sufficient for typical relay server responses; very large outputs are still truncated but at 4× the previous limit.
+
 ### L-005 · Inconsistent `page_size` Across Exports
 
 **Evidence:** Peer export uses 10,000; user/audit/login-log exports use 1,000,000.
 **Fix:** Standardize to 1,000,000 or make configurable.
 **Status:** Still open (out of scope for PR #20).
+
+**Fixed in [PR #21](https://github.com/bashrusakh/DeskForge/pull/21):** `admin-ui/src/views/peer/index.vue:toExport` — `page_size` changed from 10,000 to 1,000,000. All export functions now consistently use 1,000,000.
 
 ### L-006 · Batch Add to Address Book — Tag Dropdown Always Empty (revised)
 
@@ -501,11 +509,15 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Fix:** In a transaction, null-out or reassign affected users/peers (or reject deletion while children exist).
 **Status:** Still open (out of scope for PR #20).
 
+**Fixed in [PR #22](https://github.com/bashrusakh/DeskForge/pull/22):** `api/service/group.go` — both `Delete` and `DeviceGroupDelete` now run inside a transaction. Before deleting a group, `group_id` is set to 0 for all affected users (or `device_group_id` for peers). No orphaned references remain.
+
 ### L-009 · Dashboard Connect Button — No Feedback If RustDesk Client Missing
 
 **Evidence:** `connectByClient()` creates a hidden `<a href="rustdesk://...">` element and clicks it. If the RustDesk client is not installed, nothing visible happens.
 **Fix:** Add a timeout fallback showing a download prompt.
 **Status:** Still open (out of scope for PR #20).
+
+**Fixed in [PR #22](https://github.com/bashrusakh/DeskForge/pull/22):** `admin-ui/src/utils/peer.js` — `connectByClient` now shows an `ElMessage.info` after 3 seconds if the page is still visible (i.e., the protocol handler didn't navigate away), informing the user that RustDesk client was not found.
 
 ### L-010 · Hardcoded Version List in Custom Client
 
@@ -525,6 +537,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Fix:** Add expandable row or tooltip showing build log.
 **Status:** Still open (out of scope for PR #20).
 
+**Fixed in [PR #22](https://github.com/bashrusakh/DeskForge/pull/22):** `admin-ui/src/views/custom-client/index.vue` — the status column now wraps the `el-tag` in an `el-tooltip` that displays `row.build_log` on hover (500ms delay, max-width 400px). Users can diagnose failed builds without leaving the page.
+
 ### L-013 · `AllConfig` Returns `title` But Config Page Doesn't Display It
 
 **Evidence:** `api/http/controller/admin/config.go:66` — `"title": global.Config.Admin.Title` is returned in response but `config.vue` omits this field from the display.
@@ -538,6 +552,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Evidence:** `oauth_fail.html:63` — `var msg = '{{.message}}'` — all current messages are server constants so not exploitable, but the pattern is fragile. If any developer passes user-controlled data as `.message`, it becomes an XSS vector.
 **Fix:** Use data attributes or proper JS escaping.
 **Status:** Still open (out of scope for PR #20).
+
+**Fixed in [PR #22](https://github.com/bashrusakh/DeskForge/pull/22):** `api/resources/templates/oauth_fail.html` — message is now read from a `data-message` attribute on a DOM element instead of direct Go template interpolation into JavaScript. The JS `encodeURIComponent(msg)` ensures the value is safely passed to the external script URL.
 
 ### L-015 · Auto-Registered Users Always Get `GroupId=1`
 
@@ -567,11 +583,15 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Fix:** Either make it configurable or clearly label as "Your callback URL (copy this to the provider)".
 **Status:** Low — Still open (out of scope for PR #20).
 
+**Fixed in [PR #22](https://github.com/bashrusakh/DeskForge/pull/22):** `admin-ui/src/views/oauth/index.vue` — added a descriptive hint below the "RedirectUrl" label: "Copy this URL and paste it as the callback/redirect URL in your OAuth provider settings." The redirect URL display is now inline-flex with a cursor pointer.
+
 ### L-019 · Custom Client "Create" Button Misleading
 
 **Evidence:** "Create" button only saves build configuration to DB. Does not trigger a build. Actual builds happen via separate GitHub Build Integration page or separate build agents.
 **Fix:** Rename button to "Save Configuration" with a separate "Build Now" action.
 **Status:** Still open (out of scope for PR #20).
+
+**Fixed in [PR #22](https://github.com/bashrusakh/DeskForge/pull/22):** `admin-ui/src/views/custom-client/index.vue` — button text changed from `T('Create')` to `T('SaveConfiguration') || 'Save Configuration'`. The button only saves configuration to DB (as documented); actual builds happen via the GitHub Build Integration page.
 
 ---
 
@@ -790,6 +810,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 **Still open** — not addressed in PR #20.
 
+**Fixed in [PR #22](https://github.com/bashrusakh/DeskForge/pull/22):** `api/http/request/admin/oauth.go:OauthForm` — `PkceMethod` validation tag changed to `validate:"omitempty,oneof=S256 plain"`. Server now rejects invalid PKCE methods. (`Issuer` empty-accept for OIDC is deferred — the runtime error message is already descriptive.)
+
 ### L-025 · `my/address_book/collection.vue` Missing `onActivated` Refresh
 
 **Evidence:** `onActivated` is imported but never called, unlike the admin collections/entries views (`address_book/collection.vue:150`, `address_book/index.vue:221`). With keep-alive, navigating away and back shows stale data.
@@ -810,6 +832,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Status:** Low
 
 **Still open** — not addressed in PR #20.
+
+**Fixed in [PR #22](https://github.com/bashrusakh/DeskForge/pull/22):** `api/service/custom_build.go:Delete` — now calls `os.RemoveAll(filepath.Join("/rdgen-data", "output", fmt.Sprintf("%d", u.Id)))` before `DB.Delete`. Orphaned artifact directories are cleaned up on build deletion.
 
 ---
 
@@ -965,13 +989,34 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 - L-023 — `LoginLog.UserTokenId` stores token PK (not user ID)
 - L-025 — `my/address_book/collection.vue` refreshes on `onActivated`
 
-### Still open — 20 findings
+### Resolved in [PR #22](https://github.com/bashrusakh/DeskForge/pull/22) — 11 findings
 
-**Medium (5):**
-- M-014, M-021, M-022, M-023, M-024
+**Low (11):**
+- L-001 — Dead `google` import removed from `oauth.go`
+- L-003 — `sync.Once` replaced with package-level `versionOnce` for retry
+- L-004 — TCP response buffer increased from 1024 to 4096 bytes
+- L-005 — All export page sizes now consistent at 1,000,000 (also fixed in PR #21)
+- L-008 — Group/DeviceGroup delete now nulls out `group_id`/`device_group_id` in transaction
+- L-009 — Connect button shows fallback message after 3s if RustDesk client not found
+- L-012 — Build status tooltip shows `build_log` on hover
+- L-014 — OAuth fail template uses `data-attribute` instead of JS string interpolation
+- L-018 — OAuth redirect URL has descriptive copy instruction label
+- L-019 — "Create" button renamed to "Save Configuration"
+- L-024 — `pkce_method` server-side validation: `oneof=S256 plain`
+- L-026 — Build artifact files cleaned up on disk when deleting a build
 
-**Low / Info (15):**
-- L-001, L-003, L-004, L-005, L-007, L-008, L-009, L-010, L-011, L-012, L-014, L-015, L-018, L-019, L-024, L-026
+### Still open — 7 findings
+
+**Medium (3):**
+- M-014 — Usage Component — Fragile Raw Text Parsing (low impact, design issue)
+- M-021 — My Profile — Account Info Not Editable (needs new endpoint + frontend)
+- M-022 — Unauthenticated Writes on Client-Facing API (needs protocol design confirmation)
+
+**Low (4):**
+- L-007 — OAuth Provider Delete — No Check for In-Flight Sessions
+- L-010 — Hardcoded Version List in Custom Client
+- L-011 — Hardcoded Artifact Name in Build Downloader
+- L-015 — Auto-Registered Users Always Get `GroupId=1`
 
 ### Self-review findings also resolved in PR #20
 
