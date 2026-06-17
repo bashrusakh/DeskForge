@@ -190,7 +190,12 @@ func (ps *PeerService) DeleteWithOwner(rowId uint, userId uint) error {
 		return err
 	}
 	if peer.Uuid != "" {
-		return AllService.UserService.FlushTokenByUuid(peer.Uuid)
+		if err := AllService.UserService.FlushTokenByUuid(peer.Uuid); err != nil {
+			// Peer is already deleted (committed). Token rows leak but stay
+			// unreachable; log loudly so an operator can sweep them.
+			Logger.Errorf("DeleteWithOwner: peer %d deleted but token flush failed for uuid=%s: %v", rowId, peer.Uuid, err)
+			return err
+		}
 	}
 	return nil
 }
@@ -216,7 +221,14 @@ func (ps *PeerService) BatchDeleteByOwner(rowIds []uint, userId uint) error {
 	if err != nil {
 		return err
 	}
-	return AllService.UserService.FlushTokenByUuids(uuids)
+	if len(uuids) == 0 {
+		return nil
+	}
+	if err := AllService.UserService.FlushTokenByUuids(uuids); err != nil {
+		Logger.Errorf("BatchDeleteByOwner: peers deleted but token flush failed for %d uuids (user=%d): %v", len(uuids), userId, err)
+		return err
+	}
+	return nil
 }
 
 // Update 

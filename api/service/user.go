@@ -11,6 +11,7 @@ import (
 	"rustdesk-server/api/model"
 	"rustdesk-server/api/utils"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type UserService struct {
@@ -491,7 +492,13 @@ func (us *UserService) getAdminUserCount() int64 {
 // helper functions, getAdminUserCountTx — counted inside a transaction for atomicity
 func (us *UserService) getAdminUserCountTx(tx *gorm.DB) int64 {
 	var count int64
-	if err := tx.Model(&model.User{}).Where("is_admin = ?", true).Count(&count).Error; err != nil {
+	// clause.Locking acquires row-level lock (SELECT ... FOR UPDATE) on admin rows
+	// so concurrent Delete transactions serialize on this check. SQLite ignores the
+	// hint but already serializes writers via BEGIN IMMEDIATE, so the race is closed
+	// on every supported backend.
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Model(&model.User{}).Where("is_admin = ?", true).
+		Count(&count).Error; err != nil {
 		Logger.Errorf("getAdminUserCountTx: %v", err)
 		return 0
 	}

@@ -136,6 +136,13 @@ func (f *File) Upload(c *gin.Context) {
 		response.Fail(c, 101, "file too large (max 5 MB)")
 		return
 	}
+	// Close explicitly before responding so a Close error (flush / disk-full) is
+	// surfaced as a failure instead of being swallowed by defer after Success.
+	if err := out.Close(); err != nil {
+		os.Remove(dst)
+		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
+		return
+	}
 	// web
 	response.Success(c, gin.H{
 		"url": webPath + uniqueName,
