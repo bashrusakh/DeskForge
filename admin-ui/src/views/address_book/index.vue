@@ -214,6 +214,7 @@
     getList,
     label: T('AddressBook'),
     selectionRef: selectedRows,
+    getRemovePayload: (r) => ({ row_id: r.row_id }),
   })
 
   onMounted(getAllUsers)

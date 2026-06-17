@@ -137,6 +137,7 @@
     getList,
     label: T('Collections'),
     selectionRef: selectedRows,
+    warningMessage: T('DeletingCollectionsWarning') !== 'DeletingCollectionsWarning' ? T('DeletingCollectionsWarning') : 'Deleting this collection will also permanently remove ALL address book entries and sharing rules within it.',
   })
 
   const clickRow = ref({})
