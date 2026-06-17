@@ -60,13 +60,13 @@
     <script>
         var lang = navigator.language || navigator.userLanguage || 'zh-CN';
         var title = 'OauthFailed'
-        var msg = '{{.message}}'
+        var msg = document.getElementById('fail-data').getAttribute('data-message') || ''
         var btn = 'Close'
-        document.writeln('<script src="/api/oidc/msg?lang=' + lang + '&msg=' + msg + '&title=OauthFailed"><\/script>');
+        document.writeln('<script src="/api/oidc/msg?lang=' + lang + '&msg=' + encodeURIComponent(msg) + '&title=OauthFailed"><\/script>');
     </script>
 </head>
 <body>
-<div class="success-container">
+<div class="success-container" id="fail-data" data-message="{{.message}}">
     <i class="fas fa-triangle-exclamation checkmark"></i>
     <h1 id="h1"></h1>
     <p id="msg"></p>
