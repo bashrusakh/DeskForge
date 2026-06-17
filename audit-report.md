@@ -303,7 +303,7 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 - `api/http/controller/admin/config.go:53-68` — `AllConfig` returns full values, no PUT/POST endpoint
 - `api/http/router/admin.go:261-266` — `/config/server`,`/config/app`,`/config/all` behind `BackendUserAuth` only, not `AdminPrivilege`
 
-**Fix:** Rename page to "Server Info" (or add edit capability with `AdminPrivilege`); add `AdminPrivilege` to `/config/all` + `/config/server` (see L-016).
+**Fix:** Rename page to "Server Info" (or add edit capability with `AdminPrivilege`); add `AdminPrivilege` to all three: `/config/all`, `/config/server`, and `/config/app` (see L-016).
 
 **Status:** Medium (revised from High)
 
@@ -733,27 +733,30 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 ## Recommendations (Priority Order)
 
-### Immediate fixes (Critical + High):
+### Immediate fixes (Critical + High, ordered by severity):
 
 1. **C-002** — Fix `aur` command destroying relay servers (one-line Rust change)
 2. **C-003** — Fix file upload path traversal (sanitize filename, add magic-byte check)
 3. **C-001** — Add persistence for server settings (minimum: add UI warnings about volatility)
 4. **C-004** — Implement My Devices delete (add backend endpoints + unblock frontend)
 5. **S-001 + S-002** — Gate the whole `/rustdesk/*` group behind `AdminPrivilege` + audit log; harden LDAP (escape filters, TLS, empty-bind)
-6. **H-010** — Fix Address Book bulk delete (send `row_id`, not `id`) — currently a silent no-op
-7. **H-011** — Register the missing `cmdUpdate` route (editing server commands 404s)
-8. **H-006** — Fix preset permission-field synchronization (real data loss; H-007 is now just dead-code cleanup)
-9. **H-008** — Fix batch selection clearing (stale count across 6 views)
-10. **H-003** — Fix CSV import to provide actual feedback on results
-11. **M-016** — Stop returning OAuth `client_secret` in list/detail responses
+6. **M-016** — Stop returning OAuth `client_secret` in list/detail responses (security: secret in every admin list response)
+7. **H-002** — Fix last-admin race condition in user delete (move count check inside transaction)
+8. **H-004** — Fix CSV export `.toString()` crash on null cells; parse `info` JSON field
+9. **H-005** — Add explicit cascade-delete warning for address book collection delete
+10. **H-010** — Fix Address Book bulk delete (send `row_id`, not `id`) — currently a silent no-op
+11. **H-011** — Register the missing `cmdUpdate` route (editing server commands 404s)
+12. **H-006** — Fix preset permission-field synchronization (real data loss; H-007 is now just dead-code cleanup)
+13. **H-008** — Fix batch selection clearing (stale count across 6 views)
+14. **H-003** — Fix CSV import to provide actual feedback on results
 
 ### Next batch (Medium):
 
-9. **M-004** — Fix `useBulkRemove` partial failure messaging
-10. **M-008** — Add user scope filter to preset list
-11. **M-009** — Fix GitHub dispatch 90-minute HTTP hold
-12. **M-013** — Persist blocklist/blacklist changes to disk
-13. **M-012** — Remove `console.log` statements from production code
+1. **M-004** — Fix `useBulkRemove` partial failure messaging
+2. **M-008** — Add user scope filter to preset list
+3. **M-009** — Fix GitHub dispatch 90-minute HTTP hold
+4. **M-013** — Persist blocklist/blacklist changes to disk
+5. **M-012** — Remove `console.log` statements from production code
 
 ### Tests to add first:
 
