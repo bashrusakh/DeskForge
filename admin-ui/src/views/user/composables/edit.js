@@ -57,11 +57,19 @@ export function useSubmit (form, id) {
 
   const submitCreate = async () => {
     const res = await create(form.value).catch(_ => false)
+    if (!res) {
+      ElMessage.error(T('OperationFailed'))
+      return false
+    }
     return res.code === 0
   }
 
   const submitUpdate = async () => {
     const res = await update(form.value).catch(_ => false)
+    if (!res) {
+      ElMessage.error(T('OperationFailed'))
+      return false
+    }
     return res.code === 0
   }
   const submitFunc = id > 0 ? submitUpdate : submitCreate
