@@ -396,7 +396,7 @@
 
   const toExport = async () => {
     const q = { ...listQuery }
-    q.page_size = 10000
+    q.page_size = 1000000
     q.page = 1
     const res = await list(q).catch(_ => false)
     if (res) {
@@ -418,17 +418,22 @@
     reader.onload = async (e) => {
       const data = e.target.result
       const rows = data.split('\n')
-      const keys = rows[0].split(',')
+      const keys = rows[0].split(',').map(k => k.trim().replace(/^"|"$/g, ''))
+      const missing = canKeys.filter(k => k !== 'group_id' && !keys.includes(k))
+      if (missing.length) {
+        ElMessage.error(`${T('Import')}: missing columns: ${missing.join(', ')}`)
+        return
+      }
       const values = rows.slice(1).map(row => {
+        const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/)
         const obj = {}
-        row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).forEach((v, i) => {
-          //去掉两边的"
-          obj[keys[i]] = v.trim().replace(/^"|"$/g, '')
+        keys.forEach((k, i) => {
+          obj[k] = (cols[i] || '').trim().replace(/^"|"$/g, '')
         })
         return obj
       }).filter(item => item.id)
       values.forEach(item => {
-        item.group_id = parseInt(item.group_id)
+        item.group_id = parseInt(item.group_id) || 0
         Object.keys(item).forEach(key => {
           if (!canKeys.includes(key)) {
             delete item[key]
