@@ -4,6 +4,8 @@
 **Methodology:** Full-stack trace from UI action → API call → service → persistence, cross-referenced with source code at every layer.  
 **Last update:** Second-pass verification re-audit (parallel sub-agents). Corrected 6 over-stated/wrong findings (H-001, H-004, H-007, H-009, L-006, M-004), fixed the endpoint cross-reference tables, and added 17 new verified findings (H-010, H-011, S-002, M-016–M-022, L-020–L-026). See the "Second-Pass Additions" section and the changelog note below.
 
+**Fix status (2026-06-17, [PR #20](https://github.com/bashrusakh/DeskForge/pull/20)):** 20 findings resolved — see `### Fixed in PR #20` markers on each item. Items without a `Fixed in PR #20` marker are still open.
+
 ---
 
 ## Summary
@@ -57,6 +59,8 @@ The UI shows "Operation Success" with zero indication settings are volatile.
 
 **Status:** Critical
 
+**Fixed in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20):** Minimum option implemented — `admin-ui/src/views/rustdesk/control.vue` now shows an `el-alert` warning above the Simple controls panel explaining that settings are runtime-only and not persisted to disk. Full persistence layer still pending (out of scope for this PR).
+
 ---
 
 ### C-002 · `always_use_relay` Toggle Destroys Relay Servers List
@@ -80,6 +84,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Fix:** Remove `self.tx.send(Data::RelayServers0(rs.to_owned())).ok()` from the `aur` handler.
 
 **Status:** Critical
+
+**Fixed in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20):** Removed the offending `self.tx.send(Data::RelayServers0(...)).ok()` line in `server/src/rendezvous_server.rs:1244-1251`. The `aur` handler now only updates the `ALWAYS_USE_RELAY` atomic.
 
 ---
 
@@ -107,6 +113,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 4. Fix the empty-Content-Type bypass condition
 
 **Status:** Critical
+
+**Fixed in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20):** `api/http/controller/admin/file.go` now (a) uses `filepath.Base(file.Filename)` to drop path components and rejects `.` / `..` / empty stems; (b) checks the actual PNG signature bytes via `io.ReadFull` instead of trusting `Content-Type`; (c) enforces a 5 MB limit on **actual bytes written**, not the client-declared `Content-Length` (uses `io.LimitReader` + `io.CopyN`); (d) prefixes each stored filename with `time.Now().UnixNano()` to prevent same-day collisions; (e) uses `0755` instead of `os.ModePerm` (0777) on the upload dir; (f) checks the return value of every write call and removes the partial file on failure.
 
 ---
 
@@ -136,6 +144,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 **Status:** Critical
 
+**Fixed in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20):** Added `POST /admin/my/peer/delete` and `POST /admin/my/peer/batchDelete` (registered in `router/admin.go`). New `PeerService.DeleteWithOwner` and `BatchDeleteByOwner` enforce `WHERE row_id = ? AND user_id = ?`, run inside a transaction, treat `gorm.ErrRecordNotFound` as idempotent success, and call `FlushTokenByUuid`/`FlushTokenByUuids` afterwards. `admin-ui/src/api/my/peer.js` exports `remove`/`batchRemove`. `views/my/peer/index.vue` has `del`/`toBatchDelete` uncommented and a Delete / Delete Selected toolbar button pair.
+
 ---
 
 ## High Issues
@@ -160,6 +170,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 **Status:** Medium (revised from High)
 
+**Still open** — the asymmetry between `Delete` (owner-scoped) and `BatchDeleteUserToken` (admin-only but no per-record owner scope) is acknowledged but not addressed in PR #20. Tracked outside this change set.
+
 ---
 
 ### H-002 · User Delete — Last-Admin Race Condition
@@ -179,6 +191,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 **Status:** High
 
+**Fixed in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20):** `api/service/user.go:210` — `Delete` now begins the transaction first, calls `getAdminUserCountTx(tx)` inside it, and only proceeds if the count check passes. The new `getAdminUserCountTx` helper logs the underlying DB error instead of silently returning 0.
+
 ---
 
 ### H-003 · CSV Peer Import — Total Silence on Partial Failure
@@ -195,6 +209,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Fix:** Use `Promise.allSettled()`, report success/fail counts and per-row error details.
 
 **Status:** High
+
+**Fixed in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20):** `admin-ui/src/views/peer/index.vue` `parseCsv` — `Promise.all(pa).catch(_ => false)` replaced with `Promise.allSettled(values.map(create))`. The number of fulfilled vs rejected rows is now reported via `ElMessage.success`/`warning`/`error` and the table always refreshes.
 
 ---
 
@@ -215,6 +231,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 **Status:** High (mechanism corrected)
 
+**Fixed in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20):** `admin-ui/src/utils/file.js:jsonToCsv` now null-guards every cell (`row[key] == null ? '""' : …`) and `JSON.stringify`s nested objects so `info` survives export. The `TypeError` on null fields is gone.
+
 ---
 
 ### H-005 · Address Book Collection Delete — Cascading Data Loss Without Warning
@@ -229,6 +247,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Fix:** Add explicit warning: "Deleting this collection will also permanently remove ALL address book entries and sharing rules within it."
 
 **Status:** High
+
+**Fixed in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20):** `useBulkRemove` now accepts an optional `warningMessage` parameter that is appended to the confirm dialog. `address_book/collection.vue` and `my/address_book/collection.vue` pass a cascade-delete warning through this parameter.
 
 ---
 
@@ -250,6 +270,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 **Status:** High
 
+**Fixed in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20):** `admin-ui/src/views/custom-client/index.vue` — `saveCurrentAsPreset` now serializes all 13 permission flags (`permissions_type`, `enable_keyboard`…`enable_terminal`) and `resetForm` resets them. `loadPresetIntoForm` now reads the same field list, so the round-trip preserves permissions. Stale `custom_*` keys (see H-007) were also removed as a side-effect.
+
 ---
 
 ### H-007 · Custom Client Preset — Branding Images Field Name Mismatch
@@ -270,6 +292,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 **Status:** Low (revised from High — no functional data loss; see H-006 for the real preset data-loss bug)
 
+**Fixed in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20):** The three dead `custom_app_icon_url` / `custom_app_logo_url` / `custom_privacy_screen_url` keys were removed from `saveCurrentAsPreset` together with the H-006 fix. Branding images still round-trip correctly via `app_icon_url` / `app_logo_url` / `privacy_screen_url`.
+
 ---
 
 ### H-008 · Batch Delete — Selection State Not Cleared After Operation (6 Views)
@@ -284,6 +308,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Fix:** Add `multipleSelection.value = []` in each batch delete success handler.
 
 **Status:** High
+
+**Fixed in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20):** All 6 views (`peer/index.vue`, `login/log.vue`, `audit/connList.vue`, `audit/fileList.vue`, `share_record/index.js`, `user/token.vue`) plus `my/peer/index.vue` now reset `multipleSelection` only when the deletion succeeds. `batchdel` in `audit/reponsitories.js` was patched to `return res` so callers can distinguish success from cancellation/network failure.
 
 ---
 
@@ -307,6 +333,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 **Status:** Medium (revised from High)
 
+**Still open** — not addressed in PR #20.
+
 ---
 
 ## Medium Issues
@@ -315,76 +343,91 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 **Evidence:** `admin-ui/src/views/peer/index.vue:414-432` — parses by column position ignoring header names. Wrong column order silently corrupts imported data.
 **Fix:** Validate header row and map by column name instead of position.
+**Status:** Still open — out of scope for PR #20.
 
 ### M-002 · CSV Import — Sends `NaN` for Non-Numeric `group_id`
 
 **Evidence:** `admin-ui/src/views/peer/index.vue:446` — `parseInt(item.group_id)` with no fallback. Empty or non-numeric group_id becomes `NaN` sent to backend.
 **Fix:** Add `|| 0` fallback and validate before sending.
+**Status:** Still open — out of scope for PR #20.
 
 ### M-003 · Peer Export — Silently Truncated at 10,000 Records
 
 **Evidence:** Peer export uses `page_size=10000` vs `1000000` in other views. No truncation warning for deployments with >10k peers.
 **Fix:** Use consistent page_size or show a warning about the cap.
+**Status:** Still open — out of scope for PR #20.
 
 ### M-004 · `useBulkRemove` — Reports "Success" Even When Some Records Fail
 
 **Evidence:** `admin-ui/src/composables/useBulkRemove.js:21-28` — `ok` count computed (`results.filter(Boolean).length`) but never displayed. On *partial* success it shows a flat "Operation Success" with no count; on *total* failure (`ok === 0`) it shows **no message at all** and skips `getList()`, so the user gets zero feedback and a stale table (this is exactly what makes H-010 invisible).
 **Fix:** Show `"Deleted X of N selected items"`, and surface an error toast when `ok < count`.
+**Fixed in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20):** `useBulkRemove` now shows three-state feedback: success / partial `Operation Success (ok/count)` / total-failure `OperationFailed` toast. Selection is only cleared when at least one row was deleted; payload construction errors are logged via `console.error('[useBulkRemove] payloadFn error:', e)`.
 
 ### M-005 · Peer `batchRemove` Backend — Swallows UUID Lookup Error
 
 **Evidence:** `api/service/peer.go:140-148` — `GetUuidListByIDs` error is captured, then `err` is reassigned by the delete operation. UUID lookup failure is silently ignored and delete proceeds anyway.
 **Fix:** Return early if UUID lookup fails.
+**Fixed in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20):** `api/service/peer.go` — the variable shadowing was fixed: `if err != nil { return err }` is now checked between the UUID lookup and the delete, so a lookup failure aborts the operation. (Same fix applied to `Delete` and `BatchDelete` paths.)
 
 ### M-006 · Connection Log Export — Raw Unix Timestamp Instead of Formatted Date
 
 **Evidence:** Export re-fetches raw data; `close_time` remains a raw unix timestamp in CSV, unlike the formatted date shown in the table.
 **Fix:** Apply `formatTime()` during export, or export timestamps consistently.
+**Status:** Still open — out of scope for PR #20.
 
 ### M-007 · Preset Load — 8 Ghost/Stale Field Names That Silently No-Op
 
 **Evidence:** `custom-client/index.vue:413-434` — `hide_connection_management` (form uses `hide_cm`), `allow_offline_input`, `allow_remote_config_modification`, `x11_extra_cmds`, `disable_update` reference form fields that were removed or renamed. Load silently ignores these.
 **Fix:** Remove stale field names from the load function.
+**Fixed in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20):** All 8 stale field names were removed from `loadPresetIntoForm` together with the H-006 fix. The load function now reads exactly the same field list that save uses.
 
 ### M-008 · Preset List — Returns ALL Users' Presets (No User Scope Filter)
 
 **Evidence:** `api/service/custom_preset.go:9-14` — `List` has no `WHERE user_id = ?` filter. Any admin sees all other admins' preset names and configurations.
 **Fix:** Add user scope filter to preset List.
+**Fixed in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20):** `api/service/custom_preset.go:ListByUser(page, pageSize, userId)` adds `WHERE user_id = ?`; `api/http/controller/admin/custom_preset.go:List` calls it with the current user. **`Detail`/`Update`/`Delete` also enforce ownership** (`ex.UserId != u.Id` → `ItemNotFound`) closing the privilege-escalation gap. `CurUser` is now nil-checked before use.
 
 ### M-009 · GitHub Dispatch Test — 90-Minute HTTP Hold Fails Under Standard Proxies
 
 **Evidence:** `api/http/controller/admin/github_build_config.go:108-166` — `context.WithTimeout(90*time.Minute)` while holding Gin response writer open. nginx default `proxy_read_timeout` is 60 seconds — the connection will be killed long before completion.
 **Fix:** Use fire-and-forget goroutine + client polling pattern, as already done in `custom_build.go`.
+**Fixed in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20):** `DispatchTest` now dispatches the workflow with a 60 s timeout and returns `{ run_id, status: "dispatched", message: "https://github.com/<repo>/actions/runs/<id>" }` immediately. The frontend `views/server/github-build.vue` was updated to drop the 95-minute axios timeout, remove the pending-state UI, and parse the new response contract. The URL is built with `fmt.Sprintf` instead of string concatenation.
 
 ### M-010 · `resetForm()` Does Not Reset Branding Images or `x_offline`
 
 **Evidence:** `custom-client/index.vue:588-624` — missing `app_icon_url`, `app_logo_url`, `privacy_screen_url`, `x_offline`. After creating a build, old branding values leak into new form.
 **Fix:** Add all fields to the reset list.
+**Fixed in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20):** `custom-client/index.vue` — `resetForm` now also clears `app_icon_url`, `app_logo_url`, `privacy_screen_url`. (`x_offline` was already reset; the audit was wrong about that one.)
 
 ### M-011 · Password Change Dialog — Form Values Persist Between Opens
 
 **Evidence:** `components/changePwdDialog.vue:44-49` — `showChangePwd()` function is defined but never called. Form values from the previous attempt persist when the dialog reopens, confusing users.
 **Fix:** Reset form fields when dialog opens.
+**Fixed in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20):** Audit diagnosis was incorrect — `showChangePwd` is in fact called from `layout/components/setting/index.vue:34` and `views/my/info.vue:18`, both wired to `<el-dropdown-item>` / `<el-button>` `@click` handlers. The real "form values persist between opens" issue would need an `el-dialog` `@open` hook on `<app-dialog>` or component-level reset. **Status:** symptom (form values persisting) was not actually reproduced in PR #20 testing; flagged as still-open for separate investigation.
 
 ### M-012 · Multiple `console.log` Statements in Production Code
 
 **Evidence:** `changePwdDialog.vue:96`, `login/log.vue:114`, `peer/index.vue:420,424,443`, `custom-client/index.vue` log call, `tag/index.vue:32-149` (multiple). Also `user.js:45` logs the **full login response** including JWT token to browser console.
 **Fix:** Remove all `console.log` calls; replace with structured logging if needed.
+**Fixed in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20):** Removed all 9 audit-flagged `console.log` calls. The `store/user.js:45` one that logged the full login response (including JWT) is gone. Pre-existing console.logs outside the audit's scope (e.g. `tag/index.js`, `webclient.js`) are left untouched — they're not on the audit-fix path.
 
 ### M-013 · Blocklist/Blacklist — Runtime Changes Not Persisted to Disk
 
 **Evidence:** `server/src/relay_server.rs:51-80` — reads `blacklist.txt` and `blocklist.txt` at startup, but **never writes back**. Runtime additions via the admin UI are lost on restart; runtime removals are restored from the file on restart.
 **Fix:** Write back to files on each add/remove command, or use a database.
+**Fixed in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20):** `server/src/relay_server.rs` — new `write_set_to_file(file, lock)` writes the snapshot to `<file>.tmp` and renames atomically. It's called from `blacklist-add` / `blacklist-remove` / `blocklist-add` / `blocklist-remove`. Writes are serialized through a global `tokio::sync::Mutex<()>` to prevent a slow write from being overwritten by a newer concurrent snapshot.
 
 ### M-014 · Usage Component — Fragile Raw Text Parsing
 
 **Evidence:** `admin-ui/src/views/rustdesk/usage.vue:53` — usage table built by splitting TCP response on spaces and mapping by array index. Breaks if server output format changes.
 **Fix:** Use structured parsing or add format versioning.
+**Status:** Still open — out of scope for PR #20.
 
 ### M-015 · OAuth Form — PKCE Method Required Validation Missing
 
 **Evidence:** `admin-ui/src/views/oauth/index.vue:209` — PKCE method field validator has `required: false`. User can save with PKCE enabled but no method selected, sending invalid data.
 **Fix:** Make `required: true` when PKCE is enabled.
+**Status:** Still open — out of scope for PR #20. (Server-side equivalent is L-024, also open.)
 
 ---
 
@@ -394,98 +437,115 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 **Evidence:** `api/service/oauth.go:14` — `// "golang.org/x/oauth2/google"` import commented out. Google OAuth WORKS via OIDC fallback path (`oauth.go:202` — Google falls through to same case as OIDC, `FetchOidcProvider` handles discovery). `FormatOauthInfo` in `api/model/oauth.go:76-78` correctly defaults issuer to `https://accounts.google.com` for Google type. Only dead code remains — the old hardcoded-endpoint path.
 **Fix:** Remove the commented-out import and dead code block for cleanliness.
-**Status:** Low
+**Status:** Low — Still open (cosmetic, out of scope for PR #20).
 
 ### L-002 · User Store Logout Patches Wrong Field Names
 
 **Evidence:** `admin-ui/src/store/user.js:24-27` — `$patch({ name: '', role: {} })` patches nonexistent `name` (field is `nickname`) and wrong type for `role` (should be string, not object). Zero practical impact since redirect follows immediately, but technically incorrect.
 **Fix:** Use correct field names.
+**Status:** Still open (cosmetic, out of scope for PR #20).
 
 ### L-003 · `sync.Once` Prevents Retry of Version File Read
 
 **Evidence:** `api/service/app.go:20-27` — if first read of `resources/version` fails (file not ready during startup race), `version` stays empty permanently.
 **Fix:** Add retry logic or lazy initialization.
+**Status:** Still open (out of scope for PR #20).
 
 ### L-004 · TCP Response Buffer Hardcoded at 1024 Bytes
 
 **Evidence:** `api/service/serverCmd.go:80` — `buf := make([]byte, 1024)`. May silently truncate responses with many active relay connections.
 **Fix:** Use dynamic read loop or larger buffer.
+**Status:** Still open (out of scope for PR #20).
 
 ### L-005 · Inconsistent `page_size` Across Exports
 
 **Evidence:** Peer export uses 10,000; user/audit/login-log exports use 1,000,000.
 **Fix:** Standardize to 1,000,000 or make configurable.
+**Status:** Still open (out of scope for PR #20).
 
 ### L-006 · Batch Add to Address Book — Tag Dropdown Always Empty (revised)
 
 **Evidence (corrected 2nd pass):** The original "always sends empty tags" framing was imprecise — the dialog *does* show a tag `<el-select>` for single-user adds, and tags are intentionally zeroed for *multi*-user batch (`createABForm.vue:112-113`, matching the backend `admin/addressBook.go:117-118`). The real bug is that the tag dropdown is **always empty** because `getTagList()` is never called in `createABForm.vue` (only `getAllUsers()` and `fromPeer()` run on mount). So even a single-user add can't pick a tag.
 **Fix:** Call `getTagList()` on mount in `createABForm.vue`.
+**Status:** Still open (out of scope for PR #20).
 
 ### L-007 · OAuth Provider Delete — No Check for In-Flight Sessions
 
 **Evidence:** Deleting a provider while users are mid-authentication through it breaks their OAuth flow.
 **Fix:** Warn about active use, or add a cooldown/grace period.
+**Status:** Still open (out of scope for PR #20).
 
 ### L-008 · Group / Device-Group Delete — No Orphaned-Reference Check
 
 **Evidence:** `api/service/group.go:37-39` `Delete` — deleting a group leaves users with `group_id` pointing at a nonexistent group (user list then renders a blank group cell). `api/service/group.go:71-73` `DeviceGroupDelete` has the **same** flaw for peers' `device_group_id`. Neither nulls out nor reassigns children, and there is no guard/transaction.
 **Fix:** In a transaction, null-out or reassign affected users/peers (or reject deletion while children exist).
+**Status:** Still open (out of scope for PR #20).
 
 ### L-009 · Dashboard Connect Button — No Feedback If RustDesk Client Missing
 
 **Evidence:** `connectByClient()` creates a hidden `<a href="rustdesk://...">` element and clicks it. If the RustDesk client is not installed, nothing visible happens.
 **Fix:** Add a timeout fallback showing a download prompt.
+**Status:** Still open (out of scope for PR #20).
 
 ### L-010 · Hardcoded Version List in Custom Client
 
 **Evidence:** `custom-client/index.vue:327` — static `VERSIONS` array (`1.3.3`–`1.4.7`) requires manual update for each new RustDesk release.
 **Fix:** Fetch versions from GitHub releases API or configuration.
+**Status:** Still open (out of scope for PR #20).
 
 ### L-011 · Hardcoded Artifact Name in Build Downloader
 
 **Evidence:** `api/service/github_build_config.go:303` — artifact name `"rustdesk-min-test-windows"` hardcoded. If the workflow changes its artifact name, download fails.
 **Fix:** Make configurable or derive from workflow metadata.
+**Status:** Still open (out of scope for PR #20).
 
 ### L-012 · Build History Table — `build_log` Not Shown
 
 **Evidence:** `custom-client/index.vue:282-309` — build status tag displayed but `build_log` (error details) never shown. Users cannot diagnose failed builds without inspecting the API.
 **Fix:** Add expandable row or tooltip showing build log.
+**Status:** Still open (out of scope for PR #20).
 
 ### L-013 · `AllConfig` Returns `title` But Config Page Doesn't Display It
 
 **Evidence:** `api/http/controller/admin/config.go:66` — `"title": global.Config.Admin.Title` is returned in response but `config.vue` omits this field from the display.
 **Fix:** Add the configured title to the config page display.
+**Status:** Still open (out of scope for PR #20).
 
 ### L-014 · OAuth Callback Templates — Fragile JS String Interpolation
 
 **Evidence:** `oauth_fail.html:63` — `var msg = '{{.message}}'` — all current messages are server constants so not exploitable, but the pattern is fragile. If any developer passes user-controlled data as `.message`, it becomes an XSS vector.
 **Fix:** Use data attributes or proper JS escaping.
+**Status:** Still open (out of scope for PR #20).
 
 ### L-015 · Auto-Registered Users Always Get `GroupId=1`
 
 **Evidence:** `api/service/user.go:362-364` — hardcoded to group ID 1 regardless of OAuth provider.
 **Fix:** Make default group configurable per provider.
+**Status:** Still open (out of scope for PR #20).
 
 ### L-016 · Server Config Accessible to Any Authenticated User
 
 **Evidence:** No `AdminPrivilege` middleware on `/config/all` — any user with a valid token can view server endpoints, ports, and truncated public key.
 **Fix:** Add admin privilege check or split sensitive fields into separate endpoint.
+**Status:** Still open (out of scope for PR #20).
 
 ### L-017 · `changePwdDialog` Uses `window.location.reload()`
 
 **Evidence:** `components/changePwdDialog.vue:117` — full page reload instead of `router.push('/login')` after logout.
 **Fix:** Use router navigation after logout for smoother UX.
+**Status:** Still open (out of scope for PR #20).
 
 ### L-018 · OAuth Redirect URL Displayed But Not Configurable
 
 **Evidence:** `oauth/index.vue:90-96` — redirect URL shown as a `<div>` with copy button, not an input. Backend model field `redirect_url` is commented out (`api/model/oauth.go:44`).
 **Fix:** Either make it configurable or clearly label as "Your callback URL (copy this to the provider)".
-**Status:** Low
+**Status:** Low — Still open (out of scope for PR #20).
 
 ### L-019 · Custom Client "Create" Button Misleading
 
 **Evidence:** "Create" button only saves build configuration to DB. Does not trigger a build. Actual builds happen via separate GitHub Build Integration page or separate build agents.
 **Fix:** Rename button to "Save Configuration" with a separate "Build Now" action.
+**Status:** Still open (out of scope for PR #20).
 
 ---
 
@@ -509,6 +569,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Fix:** Restrict the whole `/rustdesk/*` group to `AdminPrivilege`, and add audit logging (admin userId, command, target, timestamp, result).
 
 **Status:** Security Risk (High)
+
+**Fixed in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20):** `api/http/router/admin.go:RustdeskCmdBind` now registers the whole `/rustdesk` group with `middleware.AdminPrivilege()`. All routes (`sendCmd`, `cmdList`, `cmdCreate`, `cmdDelete`, `cmdUpdate`) require admin. Audit logging of who ran what command is still pending (out of scope for this PR — would need a new audit table + middleware).
 
 ---
 
@@ -536,6 +598,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 **Status:** High
 
+**Fixed in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20):** `useBulkRemove` now accepts an optional `getRemovePayload` hook. Both `admin-ui/src/views/address_book/index.vue` and `admin-ui/src/views/my/address_book/index.vue` pass `(r) => ({ row_id: r.row_id })`, so address-book bulk delete now actually deletes.
+
 ---
 
 ### H-011 · Editing a Server Command Returns 404 (`cmdUpdate` handler exists, route missing)
@@ -555,6 +619,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Fix:** Register `rg.POST("/cmdUpdate", cont.CmdUpdate)` (under `AdminPrivilege`, per S-001).
 
 **Status:** High
+
+**Fixed in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20):** Route registered together with the S-001 fix in `api/http/router/admin.go:RustdeskCmdBind` — `rg.POST("/cmdUpdate", cont.CmdUpdate)` is now active under the admin-privileged group.
 
 ---
 
@@ -580,6 +646,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 **Status:** Security Risk (High, conditional on LDAP being enabled)
 
+**Fixed in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20):** `api/service/ldap.go` — (a) `filterField` now wraps the value in `ldap.EscapeFilter`; (b) `Authenticate` rejects empty passwords before the bind; (c) the TLS verify default was inverted via a new `*bool TlsSkipVerify` field (`api/config/ldap.go`). Old `tls-verify: <bool>` key is still read for backward compatibility; `tls-skip-verify` wins when both are present. New deployments should switch to `tls-skip-verify`.
+
 ---
 
 ### M-016 · OAuth `client_secret` Returned in List/Detail Responses
@@ -588,11 +656,15 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Fix:** Add `json:"-"` to `ClientSecret` (or use a response DTO); never return the secret. Note this is a *real* secret, unlike the RustDesk public key in H-009/L-016.
 **Status:** Medium
 
+**Fixed in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20):** `api/model/oauth.go:43` — `ClientSecret string \`json:"-"\`` is now set. List/Detail responses no longer ship secrets to the browser. Edit form population of the secret on update is the next thing to revisit (a separate flow that needs a DTO), but the read-side leak is closed.
+
 ### M-017 · `/user/groupUsers` Discloses Full User + Group Directory to Any Authenticated User
 
 **Evidence:** `api/http/router/admin.go:101-105` — `/user/current`, `/user/groupUsers` (and a few others) are registered on the bare `UserBind` group *before* `AdminPrivilege`. `user.go:298-305` returns **all** users + **all** groups, unscoped. Any non-admin authenticated user can enumerate the whole directory.
 **Fix:** Move `/user/groupUsers` behind `AdminPrivilege`, or scope it.
 **Status:** Medium
+
+**Still open** — not addressed in PR #20.
 
 ### M-018 · Admin Tag Create/Edit — Collection Dropdown Never Populates
 
@@ -600,11 +672,15 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Fix:** Set `collectionListQueryForUpdate.user_id = val`.
 **Status:** Medium
 
+**Still open** — not addressed in PR #20.
+
 ### M-019 · Admin Can Delete or Disable Their Own Account (Self-Lockout)
 
 **Evidence:** `api/service/user.go` `Delete`/`Update` guard only the **last** admin (`getAdminUserCount() <= 1`); neither checks `f.Id == CurUser(c).Id`. With ≥2 admins, the logged-in admin can delete or disable themselves (`user/index.vue` row switch / Delete Selected), producing a ghost-logged-in state until the next API call 403s.
 **Fix:** Reject self-delete / self-disable in the controller; disable the control for the current user's own row.
 **Status:** Medium
+
+**Still open** — not addressed in PR #20.
 
 ### M-020 · Admin User Add/Edit — Backend Errors Silently Swallowed
 
@@ -612,17 +688,23 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Fix:** Detect `!res` and surface the API error message before reading `res.code`.
 **Status:** Medium
 
+**Still open** — not addressed in PR #20.
+
 ### M-021 · My Profile — Account Info Not Editable
 
 **Evidence:** `admin-ui/src/views/my/info.vue` renders username/email as read-only `<div>`s with no inputs, no Save, no update call. A self-service profile-update endpoint isn't exposed (`/user/update` is admin-only). Users cannot change their own nickname/email/avatar despite the "account details" framing.
 **Fix:** Add editable nickname/email fields + a scoped `updateProfile` endpoint (no role/status escalation).
 **Status:** Medium
 
+**Still open** — not addressed in PR #20.
+
 ### M-022 · Unauthenticated Writes on Client-Facing API (review)
 
 **Evidence:** In `api/http/router/api.go`, `frg.Use(RustAuth())` is at line 76, so routes registered *before* it are unauthenticated: `POST /api/sysinfo` (`peer.go:26` creates/updates `Peer` rows keyed by caller-supplied `id`), `POST /api/heartbeat`, `POST /api/audit/conn`, `POST /api/audit/file`. An unauthenticated caller can create/alter peer rows and inject audit entries. `WebClientRoutes` `/api/shared-peer` also does an unchecked `(*j)["share_token"].(string)` assertion (`webClient.go:57`) → panic/500 on missing token.
 **Note:** Some of this may be intentional for the RustDesk client protocol (clients report before login) — **verify against the intended protocol** before "fixing." Flagged because it is at minimum an abuse/DoS surface.
 **Status:** Medium (needs design confirmation)
+
+**Still open** — left for a protocol-design pass after discussion with the maintainer.
 
 ---
 
@@ -632,11 +714,15 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Fix:** Hide/disable "Share Rules" for the `id=0` row.
 **Status:** Low
 
+**Still open** — not addressed in PR #20.
+
 ### L-021 · Batch Edit Tags Cannot *Clear* Tags
 
 **Evidence:** `admin-ui/src/views/address_book/index.js:265-270` — the batch-update-tags submit rejects an empty selection with a warning, so a user can never clear all tags from selected entries. The backend `BatchUpdateTags` supports an empty array fine.
 **Fix:** Drop the `tags.length === 0` guard (keep the `row_ids.length > 0` guard).
 **Status:** Low
+
+**Still open** — not addressed in PR #20.
 
 ### L-022 · Admin Login History Shows Soft-Deleted Records
 
@@ -644,11 +730,15 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Fix:** Add `tx.Where("is_deleted = ?", model.IsDeletedNo)` to the admin list (and reconcile admin hard-delete vs user soft-delete semantics).
 **Status:** Low
 
+**Still open** — not addressed in PR #20.
+
 ### L-023 · `LoginLog.UserTokenId` Populated With Wrong Value
 
 **Evidence:** `api/service/user.go:107` — `llog.UserTokenId = ut.UserId` copies the *user* id instead of the token's own PK (`ut.Id`). The `user_token_id` column is meaningless (duplicates `user_id`). Currently unused for queries, so no functional break.
 **Fix:** `llog.UserTokenId = ut.Id`.
 **Status:** Low
+
+**Still open** — not addressed in PR #20.
 
 ### L-024 · OAuth Backend Validation Gaps (PKCE method, OIDC issuer)
 
@@ -656,11 +746,15 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Fix:** Validate `pkce_method ∈ {S256, plain}` server-side; require `issuer` when type is `oidc`.
 **Status:** Low
 
+**Still open** — not addressed in PR #20.
+
 ### L-025 · `my/address_book/collection.vue` Missing `onActivated` Refresh
 
 **Evidence:** `onActivated` is imported but never called, unlike the admin collections/entries views (`address_book/collection.vue:150`, `address_book/index.vue:221`). With keep-alive, navigating away and back shows stale data.
 **Fix:** Add `onActivated(getList)`.
 **Status:** Low
+
+**Still open** — not addressed in PR #20.
 
 ### L-026 · Custom Client Build Delete — Orphaned Artifact Files on Disk (+ no bulk delete)
 
@@ -670,6 +764,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 **Fix:** In `CustomBuildService.Delete`, best-effort `os.RemoveAll(filepath.Join("/rdgen-data","output", id))` alongside the DB delete; optionally add a bulk-delete action to the history table.
 **Status:** Low
+
+**Still open** — not addressed in PR #20.
 
 ---
 
@@ -689,12 +785,12 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 | UI Feature                         | Page                      | Status                           |
 | ---------------------------------- | ------------------------- | -------------------------------- |
-| Settings persistence across restart| Server Commands (all)     | Critical — volatile, no write-back |
-| My Devices delete                  | `/my/devices`             | Critical — commented out         |
+| Settings persistence across restart| Server Commands (all)     | Critical — partial in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20) (UI warning added); full persistence still pending |
+| My Devices delete                  | `/my/devices`             | **Resolved in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20)** (`C-004`) |
 | Address Book import/export         | `/admin/address-book/books`| Not implemented                 |
 | OAuth redirect URL override        | `/admin/security/oauth`   | Model field commented out        |
 | Server config edit                 | `/admin/server/config`    | Read-only                        |
-| Edit server command (`cmdUpdate`)  | Server → Server Commands  | High — handler exists, route missing → 404 (see H-011) |
+| Edit server command (`cmdUpdate`)  | Server → Server Commands  | **Resolved in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20)** (`H-011`) |
 | Rule `batchCreate`                 | Address Book → Rules      | Frontend `api` wrapper exists, **no backend route** (would 404) |
 | `POST /user/myPeer`                | —                         | Frontend wrapper exists, backend route commented out (`admin.go:104`) → would 404 |
 
@@ -722,12 +818,12 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 ## Dangerous or Unclear UI Sections
 
-1. **Server Commands → Advanced** — sends arbitrary text commands to hbbs/hbbr with no validation, audit, or admin restriction
-2. **RELAY_SERVERS input** — accepts any text; no format validation (expects `host:port,host:port`); changes affect all connected clients
-3. **ALWAYS_USE_RELAY / MUST_LOGIN toggles** — immediately affect all connected clients with no impact warning
+1. **Server Commands → Advanced** — sends arbitrary text commands to hbbs/hbbr with no validation, audit, or admin restriction. **Partially addressed in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20):** admin-restricted (`S-001`); audit logging still pending.
+2. **RELAY_SERVERS input** — accepts any text; no format validation (expects `host:port,host:port`); changes affect all connected clients. **Partially addressed in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20):** runtime volatility warning now shown (`C-001`).
+3. **ALWAYS_USE_RELAY / MUST_LOGIN toggles** — immediately affect all connected clients with no impact warning. **Partially addressed in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20):** runtime volatility warning now shown (`C-001`).
 4. **Blocklist vs Blacklist** — two separate concepts on the relay server with no UI distinction: blocklist completely blocks connections, blacklist rate-limits them. Unclear which is which.
-5. **GitHub Build Config PAT** — stored in DB in plaintext; UI shows placeholder "(already saved)" but token is sensitive
-6. **Custom Client Permanent Password** — entered in plaintext, stored in `custom_json` field without encryption
+5. **GitHub Build Config PAT** — stored in DB in plaintext; UI shows placeholder "(already saved)" but token is sensitive.
+6. **Custom Client Permanent Password** — entered in plaintext, stored in `custom_json` field without encryption.
 
 ---
 
@@ -735,28 +831,27 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 ### Immediate fixes (Critical + High, ordered by severity):
 
-1. **C-002** — Fix `aur` command destroying relay servers (one-line Rust change)
-2. **C-003** — Fix file upload path traversal (sanitize filename, add magic-byte check)
-3. **C-001** — Add persistence for server settings (minimum: add UI warnings about volatility)
-4. **C-004** — Implement My Devices delete (add backend endpoints + unblock frontend)
-5. **S-001 + S-002** — Gate the whole `/rustdesk/*` group behind `AdminPrivilege` + audit log; harden LDAP (escape filters, TLS, empty-bind)
-6. **M-016** — Stop returning OAuth `client_secret` in list/detail responses (security: secret in every admin list response)
-7. **H-002** — Fix last-admin race condition in user delete (move count check inside transaction)
-8. **H-004** — Fix CSV export `.toString()` crash on null cells; parse `info` JSON field
-9. **H-005** — Add explicit cascade-delete warning for address book collection delete
-10. **H-010** — Fix Address Book bulk delete (send `row_id`, not `id`) — currently a silent no-op
-11. **H-011** — Register the missing `cmdUpdate` route (editing server commands 404s)
-12. **H-006** — Fix preset permission-field synchronization (real data loss; H-007 is now just dead-code cleanup)
-13. **H-008** — Fix batch selection clearing (stale count across 6 views)
-14. **H-003** — Fix CSV import to provide actual feedback on results
+1. **C-002** — Fix `aur` command destroying relay servers (one-line Rust change) ✅ **[PR #20](https://github.com/bashrusakh/DeskForge/pull/20)**
+2. **C-003** — Fix file upload path traversal (sanitize filename, add magic-byte check) ✅ **[PR #20](https://github.com/bashrusakh/DeskForge/pull/20)**
+3. **C-001** — Add persistence for server settings (minimum: add UI warnings about volatility) ✅ **[PR #20](https://github.com/bashrusakh/DeskForge/pull/20)** (minimum option only)
+4. **C-004** — Implement My Devices delete (add backend endpoints + unblock frontend) ✅ **[PR #20](https://github.com/bashrusakh/DeskForge/pull/20)**
+5. **S-001 + S-002** — Gate the whole `/rustdesk/*` group behind `AdminPrivilege` + audit log; harden LDAP (escape filters, TLS, empty-bind) ✅ **[PR #20](https://github.com/bashrusakh/DeskForge/pull/20)** (admin gate; audit logging still pending)
+6. **M-016** — Stop returning OAuth `client_secret` in list/detail responses (security: secret in every admin list response) ✅ **[PR #20](https://github.com/bashrusakh/DeskForge/pull/20)**
+7. **H-002** — Fix last-admin race condition in user delete (move count check inside transaction) ✅ **[PR #20](https://github.com/bashrusakh/DeskForge/pull/20)**
+8. **H-004** — Fix CSV export `.toString()` crash on null cells; parse `info` JSON field ✅ **[PR #20](https://github.com/bashrusakh/DeskForge/pull/20)**
+9. **H-005** — Add explicit cascade-delete warning for address book collection delete ✅ **[PR #20](https://github.com/bashrusakh/DeskForge/pull/20)**
+10. **H-010** — Fix Address Book bulk delete (send `row_id`, not `id`) — currently a silent no-op ✅ **[PR #20](https://github.com/bashrusakh/DeskForge/pull/20)**
+11. **H-011** — Register the missing `cmdUpdate` route (editing server commands 404s) ✅ **[PR #20](https://github.com/bashrusakh/DeskForge/pull/20)**
+12. **H-006** — Fix preset permission-field synchronization (real data loss; H-007 is now just dead-code cleanup) ✅ **[PR #20](https://github.com/bashrusakh/DeskForge/pull/20)** (H-007 dead-key cleanup also done)
+13. **H-008** — Fix batch selection clearing (stale count across 6 views) ✅ **[PR #20](https://github.com/bashrusakh/DeskForge/pull/20)**
+14. **H-003** — Fix CSV import to provide actual feedback on results ✅ **[PR #20](https://github.com/bashrusakh/DeskForge/pull/20)**
 
 ### Next batch (Medium):
-
-1. **M-004** — Fix `useBulkRemove` partial failure messaging
-2. **M-008** — Add user scope filter to preset list
-3. **M-009** — Fix GitHub dispatch 90-minute HTTP hold
-4. **M-013** — Persist blocklist/blacklist changes to disk
-5. **M-012** — Remove `console.log` statements from production code
+1. **M-004** — Fix `useBulkRemove` partial failure messaging ✅ **[PR #20](https://github.com/bashrusakh/DeskForge/pull/20)**
+2. **M-008** — Add user scope filter to preset list ✅ **[PR #20](https://github.com/bashrusakh/DeskForge/pull/20)** (also extended ownership checks to Detail/Update/Delete)
+3. **M-009** — Fix GitHub dispatch 90-minute HTTP hold ✅ **[PR #20](https://github.com/bashrusakh/DeskForge/pull/20)** (frontend `github-build.vue` also updated)
+4. **M-013** — Persist blocklist/blacklist changes to disk ✅ **[PR #20](https://github.com/bashrusakh/DeskForge/pull/20)** (atomic write-temp+rename, serialized writes)
+5. **M-012** — Remove `console.log` statements from production code ✅ **[PR #20](https://github.com/bashrusakh/DeskForge/pull/20)** (9 of 9 audit-flagged; pre-existing console.logs outside the audit's scope are left untouched)
 
 ### Tests to add first:
 
@@ -774,3 +869,52 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 ---
 
 *Report generated from cross-referenced code audit covering all 40+ views, 80+ endpoints, and 150+ interactive elements. All findings verified against source code at controller, service, model, and persistence layers.*
+
+---
+
+## Fix Status Summary (as of [PR #20](https://github.com/bashrusakh/DeskForge/pull/20))
+
+### Resolved in [PR #20](https://github.com/bashrusakh/DeskForge/pull/20) — 20 findings
+
+**Critical (4/4):**
+- C-001 ⚠️ (minimum option only — runtime volatility warning; full persistence still pending)
+- C-002
+- C-003
+- C-004
+
+**Security (2/2):**
+- S-001 ⚠️ (admin gate only; audit logging still pending)
+- S-002
+
+**High (8/9):**
+- H-002, H-003, H-004, H-005, H-006, H-008, H-010, H-011
+- (H-001, H-007, H-009 not fixed — H-007/H-009 downgraded to Low/Medium by the 2nd pass, H-001 explicitly deferred)
+
+**Medium (9/24):**
+- M-004, M-005, M-007, M-008, M-009, M-010, M-012, M-013, M-016
+
+### Still open — 41 findings
+
+**High/Medium (not in immediate-fix list):** 15 findings
+- H-001 (revised to Medium; not addressed)
+- H-009 (revised to Medium; not addressed)
+- M-001, M-002, M-003, M-006, M-011, M-014, M-015
+- M-017, M-018, M-019, M-020, M-021, M-022
+
+**Low / Info (26/27):**
+- L-001 through L-019 (19)
+- L-020 through L-026 (7)
+- L-018 still marked "Status: Low" in the original; counted in L-001–L-019
+
+### Self-review findings also resolved in PR #20
+
+3 passes of `open-code-review` (`ocr`) found additional issues, all addressed:
+- Cross-user token invalidation in `BatchDeleteByOwner` → fixed with `GetUuidListByIDsAndOwner`
+- LDAP config rename breaking change → kept deprecated `tls-verify` for backward compat
+- Non-atomic file write → atomic `write_to_tmp + rename`
+- `batchdel` undefined-on-success cleared selection on API failure → `batchdel` now `return res`
+- Preset `Detail`/`Update`/`Delete` ownership gap → all four methods now user-scoped
+- Peer owner-scoped delete TOCTOU → wrapped in `DB.Transaction`
+- `gorm.ErrRecordNotFound` leaked as "OperationFailedrecord not found" → idempotent nil
+- Unchecked `out.Write(header)` corrupted PNG → error checked, partial file removed
+- Relay write race → serialized through `tokio::sync::Mutex`
