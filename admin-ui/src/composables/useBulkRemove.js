@@ -6,6 +6,7 @@ export function useBulkRemove ({ removeApi, getList, label, onAfterRemove, selec
   const _selectedRows = ref([])
   const selectedRows = selectionRef || _selectedRows
   const payloadFn = getRemovePayload || ((r) => ({ id: r.id }))
+  const removing = ref(false)
 
   const removeOne = async (row) => {
     let payload
@@ -19,7 +20,8 @@ export function useBulkRemove ({ removeApi, getList, label, onAfterRemove, selec
   }
 
   const confirmAndRemove = async (rows) => {
-    if (!rows.length) return 0
+    if (!rows.length || removing.value) return 0
+    removing.value = true
     const count = rows.length
     const msg = T('Confirm?', { param: `${T('Delete')} (${count})${label ? ' ' + label : ''}` }) +
       (warningMessage ? '\n\n' + warningMessage : '')
@@ -27,7 +29,7 @@ export function useBulkRemove ({ removeApi, getList, label, onAfterRemove, selec
       msg,
       { confirmButtonText: T('Confirm'), cancelButtonText: T('Cancel'), type: 'warning' }
     ).catch(() => false)
-    if (!cf) return 0
+    if (!cf) { removing.value = false; return 0 }
     const results = await Promise.all(rows.map(r => removeOne(r)))
     const ok = results.filter(Boolean).length
     if (ok) {
@@ -44,6 +46,7 @@ export function useBulkRemove ({ removeApi, getList, label, onAfterRemove, selec
       if (onAfterRemove) onAfterRemove()
       if (getList) getList()
     }
+    removing.value = false
     return ok
   }
 

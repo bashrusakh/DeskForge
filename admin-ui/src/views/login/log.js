@@ -93,6 +93,7 @@ export function useRepositories (api_type = 'my') {
       ElMessage.success(T('OperationSuccess'))
       getList()
     }
+    return res || false
   }
 
   // only Admin

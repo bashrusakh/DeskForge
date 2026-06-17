@@ -1,6 +1,8 @@
 ﻿package admin
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -102,9 +104,19 @@ func (f *File) Upload(c *gin.Context) {
 		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError"))
 		return
 	}
-	ext := filepath.Ext(safeName)
-	stem := safeName[:len(safeName)-len(ext)]
-	uniqueName := fmt.Sprintf("%d_%s%s", time.Now().UnixNano(), stem, ext)
+	// Always save as .png regardless of client-provided extension.
+	// The bytes have been validated as PNG above.
+	stem := safeName
+	if ext := filepath.Ext(safeName); ext != "" {
+		stem = safeName[:len(safeName)-len(ext)]
+	}
+	// Random suffix so O_EXCL collision is astronomically unlikely.
+	randBytes := make([]byte, 4)
+	if _, err := rand.Read(randBytes); err != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
+		return
+	}
+	uniqueName := fmt.Sprintf("%s_%s.png", stem, hex.EncodeToString(randBytes))
 	dst := path + uniqueName
 	err = os.MkdirAll(path, 0755)
 	if err != nil {
@@ -112,8 +124,8 @@ func (f *File) Upload(c *gin.Context) {
 		return
 	}
 
-	// write to disk enforcing size limit on actual bytes
-	out, err := os.Create(dst)
+	// O_CREATE|O_EXCL — atomic name allocation, no silent overwrites.
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
 		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
 		return

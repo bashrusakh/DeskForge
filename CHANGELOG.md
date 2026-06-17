@@ -44,8 +44,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Re-review identified 3 additional High findings — all fixed.
 - 3rd-pass `ocr` review identified 6 additional High findings — all fixed in this change set.
 
-## [Unreleased] - 2026-06-16
-
 ### Fixed (admin-ui: card hover-shadow flicker on route enter)
 - `PageSection` and `DangerZone` switched from `shadow="hover"` to `shadow="never"` so cards no longer animate `box-shadow: none → var(--shadow-card)` on page enter. In dark mode the old transition (`rgba(0, 0, 0, 0.28)` shadow) read as a black-to-blue flash whenever the cursor was already over a card after a route transition; static cards (border + background) make the layout stable on navigation.
 - Same change applied to the six Server Commands `simple-card` views: `always_use_relay.vue`, `blacklist.vue`, `blocklist.vue`, `must_login.vue`, `relay_servers.vue`, `usage.vue` — all now `shadow="never"` for consistency with the rest of the page.

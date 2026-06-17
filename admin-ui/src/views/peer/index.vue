@@ -417,13 +417,40 @@
     const reader = new FileReader()
     reader.onload = async (e) => {
       const data = e.target.result
-      const rows = data.split('\n')
-      const keys = rows[0].split(',')
-      const values = rows.slice(1).map(row => {
+      // RFC4180 row split — respects newlines inside quoted fields
+      const rows = []
+      let row = []
+      let field = ''
+      let inQuotes = false
+      for (let i = 0; i < data.length; i++) {
+        const c = data[i]
+        if (inQuotes) {
+          if (c === '"') {
+            if (data[i + 1] === '"') { field += '"'; i++ }
+            else { inQuotes = false }
+          } else { field += c }
+        } else if (c === '"') {
+          inQuotes = true
+        } else if (c === ',') {
+          row.push(field.trim()); field = ''
+        } else if (c === '\n' || (c === '\r' && data[i + 1] === '\n')) {
+          if (c === '\r') i++
+          row.push(field.trim()); field = ''
+          if (row.some(v => v !== '')) rows.push(row)
+          row = []
+        } else if (c !== '\r') {
+          field += c
+        }
+      }
+      row.push(field.trim())
+      if (row.some(v => v !== '')) rows.push(row)
+
+      if (rows.length < 2) return
+      const keys = rows[0]
+      const values = rows.slice(1).map(rowFields => {
         const obj = {}
-        row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).forEach((v, i) => {
-          //去掉两边的"
-          obj[keys[i]] = v.trim().replace(/^"|"$/g, '')
+        keys.forEach((k, i) => {
+          if (rowFields[i] !== undefined) obj[k] = rowFields[i]
         })
         return obj
       }).filter(item => item.id)

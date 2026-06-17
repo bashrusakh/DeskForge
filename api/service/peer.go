@@ -166,47 +166,35 @@ func (ps *PeerService) BatchDelete(ids []uint) error {
 	return AllService.UserService.FlushTokenByUuids(uuids)
 }
 
-// DeleteWithOwner  peer owned by user
+// DeleteWithOwner  peer owned by user, with token flush in the same tx
 func (ps *PeerService) DeleteWithOwner(rowId uint, userId uint) error {
-	tx := DB.Begin()
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-	var peer model.Peer
-	if err := tx.Where("row_id = ? AND user_id = ?", rowId, userId).First(&peer).Error; err != nil {
-		tx.Rollback()
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil // idempotent: already gone or not owned
-		}
-		return err
-	}
-	if err := tx.Delete(&peer).Error; err != nil {
-		tx.Rollback()
-		return err
-	}
-	if err := tx.Commit().Error; err != nil {
-		return err
-	}
-	if peer.Uuid != "" {
-		if err := AllService.UserService.FlushTokenByUuid(peer.Uuid); err != nil {
-			// Peer is already deleted (committed). Token rows leak but stay
-			// unreachable; log loudly so an operator can sweep them.
-			Logger.Errorf("DeleteWithOwner: peer %d deleted but token flush failed for uuid=%s: %v", rowId, peer.Uuid, err)
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var peer model.Peer
+		if err := tx.Where("row_id = ? AND user_id = ?", rowId, userId).First(&peer).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil // idempotent: already gone or not owned
+			}
 			return err
 		}
-	}
-	return nil
+		if err := tx.Delete(&peer).Error; err != nil {
+			return err
+		}
+		if peer.Uuid != "" {
+			if err := tx.Where("device_uuid = ?", peer.Uuid).Delete(&model.UserToken{}).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
-// BatchDeleteByOwner  peers owned by user
+// BatchDeleteByOwner  peers owned by user, with token flush in the same tx
 func (ps *PeerService) BatchDeleteByOwner(rowIds []uint, userId uint) error {
 	if len(rowIds) == 0 {
 		return nil
 	}
-	var uuids []string
-	err := DB.Transaction(func(tx *gorm.DB) error {
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var uuids []string
 		if err := tx.Model(&model.Peer{}).
 			Where("row_id in (?) AND user_id = ?", rowIds, userId).
 			Pluck("uuid", &uuids).Error; err != nil {
@@ -216,19 +204,19 @@ func (ps *PeerService) BatchDeleteByOwner(rowIds []uint, userId uint) error {
 		if result.Error != nil {
 			return result.Error
 		}
+		var nonEmpty []string
+		for _, uuid := range uuids {
+			if uuid != "" {
+				nonEmpty = append(nonEmpty, uuid)
+			}
+		}
+		if len(nonEmpty) > 0 {
+			if err := tx.Where("device_uuid in (?)", nonEmpty).Delete(&model.UserToken{}).Error; err != nil {
+				return err
+			}
+		}
 		return nil
 	})
-	if err != nil {
-		return err
-	}
-	if len(uuids) == 0 {
-		return nil
-	}
-	if err := AllService.UserService.FlushTokenByUuids(uuids); err != nil {
-		Logger.Errorf("BatchDeleteByOwner: peers deleted but token flush failed for %d uuids (user=%d): %v", len(uuids), userId, err)
-		return err
-	}
-	return nil
 }
 
 // Update 

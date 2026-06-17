@@ -35,6 +35,10 @@ func (ct *Peer) List(c *gin.Context) {
 		return
 	}
 	u := service.AllService.UserService.CurUser(c)
+	if u == nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "Unauthorized"))
+		return
+	}
 	res := service.AllService.PeerService.List(query.Page, query.PageSize, func(tx *gorm.DB) {
 		tx.Where("user_id = ?", u.Id)
 		if query.TimeAgo > 0 {
@@ -80,6 +84,10 @@ func (ct *Peer) Delete(c *gin.Context) {
 		return
 	}
 	u := service.AllService.UserService.CurUser(c)
+	if u == nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "Unauthorized"))
+		return
+	}
 	err := service.AllService.PeerService.DeleteWithOwner(f.RowId, u.Id)
 	if err != nil {
 		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
@@ -110,6 +118,10 @@ func (ct *Peer) BatchDelete(c *gin.Context) {
 		return
 	}
 	u := service.AllService.UserService.CurUser(c)
+	if u == nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "Unauthorized"))
+		return
+	}
 	err := service.AllService.PeerService.BatchDeleteByOwner(f.RowIds, u.Id)
 	if err != nil {
 		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())

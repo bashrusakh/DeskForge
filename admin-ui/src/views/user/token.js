@@ -67,6 +67,7 @@ export function useRepositories () {
       ElMessage.success(T('OperationSuccess'))
       getList()
     }
+    return res || false
   }
 
   return {
