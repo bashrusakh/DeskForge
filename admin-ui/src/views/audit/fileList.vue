@@ -145,11 +145,14 @@ const multipleSelection = ref([])
 const handleSelectionChange = (val) => {
   multipleSelection.value = val
 }
-const toBatchDelete = () => {
+const toBatchDelete = async () => {
   if (multipleSelection.value.length === 0) {
     return
   }
-  batchdel(multipleSelection.value)
+  const result = await batchdel(multipleSelection.value)
+  if (result) {
+    multipleSelection.value = []
+  }
 }
 
 const filterFields = [

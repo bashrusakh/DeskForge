@@ -72,6 +72,7 @@ export function useRepositories () {
       ElMessage.success(T('OperationSuccess'))
       getList()
     }
+    return res || false
   }
 
   const toExport = async () => {
@@ -162,6 +163,7 @@ export function useFileRepositories () {
       ElMessage.success(T('OperationSuccess'))
       getList()
     }
+    return res || false
   }
 
   const toExport = async () => {
