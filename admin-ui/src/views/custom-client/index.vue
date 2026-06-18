@@ -10,14 +10,14 @@
       <el-form :model="form" label-width="180px" v-loading="submitting">
         <el-row :gutter="20" class="mb-10">
           <el-col :span="12">
-            <el-form-item :label="T('LoadPreset') || 'Load preset'" label-width="120px">
+            <el-form-item :label="T('LoadPreset')" label-width="120px">
               <el-select v-model="selectedPresetId" placeholder="Select preset" clearable style="width:calc(100% - 180px)" @change="onPresetSelect">
                 <el-option v-for="p in presets" :key="p.id" :label="p.name + ' (' + p.platform + ')'" :value="p.id">
                   <span style="float:left">{{ p.name }} <el-tag size="small" effect="plain" style="margin-left:6px">{{ p.platform }}</el-tag></span>
                   <el-button type="danger" link size="small" style="float:right" @click.stop="deletePreset(p)">{{ T('Delete') }}</el-button>
                 </el-option>
               </el-select>
-              <el-button type="primary" plain size="small" style="margin-left:8px" @click="saveCurrentAsPreset">{{ T('SaveAsPreset') || 'Save as preset' }}</el-button>
+              <el-button type="primary" plain size="small" style="margin-left:8px" @click="saveCurrentAsPreset">{{ T('SaveAsPreset') }}</el-button>
             </el-form-item>
           </el-col>
         </el-row>
@@ -190,36 +190,36 @@
           <el-col :span="6"><el-form-item :label="T('Terminal')"><el-switch :active-value="true" :inactive-value="false" v-model="form.enable_terminal" /></el-form-item></el-col>
         </el-row>
 
-        <el-divider content-position="left">{{ T('Branding') || 'Branding' }}</el-divider>
+        <el-divider content-position="left">{{ T('Branding') }}</el-divider>
         <el-row :gutter="20">
           <el-col :span="8">
-            <el-form-item :label="T('AppIcon') || 'App Icon (PNG)'">
+            <el-form-item :label="T('AppIcon')">
               <el-input v-model="form.app_icon_url" placeholder="/upload/20260101/icon.png" clearable>
                 <template #append>
                   <el-upload :show-file-list="false" :auto-upload="true" :http-request="(opts) => uploadImage(opts, 'app_icon_url')" accept="image/png">
-                    <el-button>{{ T('Upload') || 'Upload' }}</el-button>
+                    <el-button>{{ T('Upload') }}</el-button>
                   </el-upload>
                 </template>
               </el-input>
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item :label="T('AppLogo') || 'App Logo (PNG)'">
+            <el-form-item :label="T('AppLogo')">
               <el-input v-model="form.app_logo_url" placeholder="/upload/20260101/logo.png" clearable>
                 <template #append>
                   <el-upload :show-file-list="false" :auto-upload="true" :http-request="(opts) => uploadImage(opts, 'app_logo_url')" accept="image/png">
-                    <el-button>{{ T('Upload') || 'Upload' }}</el-button>
+                    <el-button>{{ T('Upload') }}</el-button>
                   </el-upload>
                 </template>
               </el-input>
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item :label="T('PrivacyScreen') || 'Privacy screen (PNG)'">
+            <el-form-item :label="T('PrivacyScreen')">
               <el-input v-model="form.privacy_screen_url" placeholder="/upload/20260101/privacy.png" clearable>
                 <template #append>
                   <el-upload :show-file-list="false" :auto-upload="true" :http-request="(opts) => uploadImage(opts, 'privacy_screen_url')" accept="image/png">
-                    <el-button>{{ T('Upload') || 'Upload' }}</el-button>
+                    <el-button>{{ T('Upload') }}</el-button>
                   </el-upload>
                 </template>
               </el-input>
@@ -272,7 +272,7 @@
         </el-row>
 
         <el-form-item>
-          <el-button type="primary" @click="submitBuild" :loading="submitting">{{ T('Create') }}</el-button>
+          <el-button type="primary" @click="submitBuild" :loading="submitting">{{ T('SaveConfiguration') }}</el-button>
           <el-button @click="resetForm">{{ T('Reset') }}</el-button>
         </el-form-item>
       </el-form>
@@ -294,7 +294,13 @@
           ]"
       >
         <template #status="{ row }">
-          <el-tag :type="statusType(row.status)" size="small">{{ T(statusLabel(row.status)) }}</el-tag>
+          <el-tooltip v-if="row.build_log" placement="top" :show-after="500" :raw-content="false" popper-class="build-log-tooltip">
+            <template #content>
+              <pre style="margin:0;max-width:480px;max-height:300px;overflow:auto;white-space:pre-wrap;word-break:break-word;font-size:12px;line-height:1.4">{{ row.build_log }}</pre>
+            </template>
+            <el-tag :type="statusType(row.status)" size="small" style="cursor: help">{{ T(statusLabel(row.status)) }}</el-tag>
+          </el-tooltip>
+          <el-tag v-else :type="statusType(row.status)" size="small">{{ T(statusLabel(row.status)) }}</el-tag>
         </template>
         <template #actions="{ row }">
           <el-button v-if="row.status === 'done'" type="success" size="small" @click="downloadBuild(row)">{{ T('Download') }}</el-button>
@@ -406,17 +412,20 @@ export default defineComponent({
       }
     }
 
+    // Single source of truth for the fields persisted inside custom_json.
+    // Used by loadPresetIntoForm + saveCurrentAsPreset + submitBuild — extending one
+    // without the other reintroduces the "saved but not restored" bug (audit §8.9).
+    // platform/version/app_name are stored on the preset record itself, not in custom_json.
+    const PRESET_FIELDS = ['server_ip','key','api_server','relay_server','company_name','download_url','direction','pass_approve_mode','permanent_password','deny_lan','enable_direct_ip','auto_close','hide_cm','theme','remove_wallpaper','remove_new_version_notif','permissions_type','enable_keyboard','enable_clipboard','enable_file_transfer','enable_audio','enable_tcp','enable_remote_restart','enable_recording','enable_blocking_input','enable_remote_modi','enable_printer','enable_camera','enable_terminal','cycle_monitor','x_offline','android_app_id','app_icon_url','app_logo_url','privacy_screen_url']
+
     const loadPresetIntoForm = (preset) => {
       if (!preset) return
-      // Должно совпадать со списком в saveCurrentAsPreset (см. ниже) — иначе пресет
-      // сохраняет поле, но не восстанавливает его. §8.9.
-      const fields = ['platform','version','app_name','server_ip','key','api_server','relay_server','company_name','download_url','direction','pass_approve_mode','permanent_password','deny_lan','enable_direct_ip','auto_close','hide_cm','theme','remove_wallpaper','remove_new_version_notif','allow_offline_input','allow_remote_config_modification','custom_app_icon_url','custom_app_logo_url','custom_privacy_screen_url','x11_extra_cmds','cycle_monitor','disable_update','android_app_id','hide_connection_management','app_icon_url','app_logo_url','privacy_screen_url']
       try {
         const cfg = JSON.parse(preset.custom_json || '{}')
-        for (const f of fields) {
+        for (const f of PRESET_FIELDS) {
           if (f in cfg && cfg[f] !== undefined) form[f] = cfg[f]
         }
-        // platform/version/app_name live in the form itself, not in custom_json
+        // platform/version/app_name live on the preset record, not in custom_json
         if (preset.platform) form.platform = preset.platform
         if (preset.version) form.version = preset.version
         if (preset.app_name !== undefined) form.app_name = preset.app_name
@@ -434,39 +443,12 @@ export default defineComponent({
 
     const saveCurrentAsPreset = async () => {
       try {
-        const name = await ElMessageBox.prompt(T('PresetName') || 'Preset name', T('SaveAsPreset') || 'Save as preset', { inputPlaceholder: 'My Preset' })
+        const name = await ElMessageBox.prompt(T('PresetName'), T('SaveAsPreset'), { inputPlaceholder: 'My Preset' })
         if (!name || !name.value) return
-        const customJson = JSON.stringify({
-          server_ip: form.server_ip,
-          key: form.key,
-          api_server: form.api_server,
-          relay_server: form.relay_server,
-          company_name: form.company_name,
-          download_url: form.download_url,
-          direction: form.direction,
-          pass_approve_mode: form.pass_approve_mode,
-          permanent_password: form.permanent_password,
-          deny_lan: form.deny_lan,
-          enable_direct_ip: form.enable_direct_ip,
-          auto_close: form.auto_close,
-          hide_cm: form.hide_cm,
-          theme: form.theme,
-          remove_wallpaper: form.remove_wallpaper,
-          remove_new_version_notif: form.remove_new_version_notif,
-          allow_offline_input: form.allow_offline_input,
-          allow_remote_config_modification: form.allow_remote_config_modification,
-          custom_app_icon_url: form.custom_app_icon_url,
-          custom_app_logo_url: form.custom_app_logo_url,
-          custom_privacy_screen_url: form.custom_privacy_screen_url,
-          x11_extra_cmds: form.x11_extra_cmds,
-          cycle_monitor: form.cycle_monitor,
-          disable_update: form.disable_update,
-          android_app_id: form.android_app_id,
-          hide_connection_management: form.hide_connection_management,
-          app_icon_url: form.app_icon_url,
-          app_logo_url: form.app_logo_url,
-          privacy_screen_url: form.privacy_screen_url,
-        })
+        // Derived from PRESET_FIELDS so submit + save preset stay in sync.
+        const customPayload = {}
+        for (const f of PRESET_FIELDS) customPayload[f] = form[f]
+        const customJson = JSON.stringify(customPayload)
         await createPreset({
           name: name.value,
           platform: form.platform,
@@ -520,43 +502,10 @@ export default defineComponent({
       form.server_ip = stripPort(form.server_ip)
       submitting.value = true
       try {
-        const customJson = JSON.stringify({
-          server_ip: form.server_ip,
-          key: form.key,
-          api_server: form.api_server,
-          relay_server: form.relay_server,
-          company_name: form.company_name,
-          download_url: form.download_url,
-          direction: form.direction,
-          pass_approve_mode: form.pass_approve_mode,
-          permanent_password: form.permanent_password,
-          deny_lan: form.deny_lan,
-          enable_direct_ip: form.enable_direct_ip,
-          auto_close: form.auto_close,
-          hide_cm: form.hide_cm,
-          theme: form.theme,
-          remove_wallpaper: form.remove_wallpaper,
-          permissions_type: form.permissions_type,
-          enable_keyboard: form.enable_keyboard,
-          enable_clipboard: form.enable_clipboard,
-          enable_file_transfer: form.enable_file_transfer,
-          enable_audio: form.enable_audio,
-          enable_tcp: form.enable_tcp,
-          enable_remote_restart: form.enable_remote_restart,
-          enable_recording: form.enable_recording,
-          enable_blocking_input: form.enable_blocking_input,
-          enable_remote_modi: form.enable_remote_modi,
-          enable_printer: form.enable_printer,
-          enable_camera: form.enable_camera,
-          enable_terminal: form.enable_terminal,
-          cycle_monitor: form.cycle_monitor,
-          x_offline: form.x_offline,
-          remove_new_version_notif: form.remove_new_version_notif,
-          android_app_id: form.android_app_id,
-          app_icon_url: form.app_icon_url,
-          app_logo_url: form.app_logo_url,
-          privacy_screen_url: form.privacy_screen_url,
-        })
+        // Derived from PRESET_FIELDS so submit + save preset stay in sync.
+        const customPayload = {}
+        for (const f of PRESET_FIELDS) customPayload[f] = form[f]
+        const customJson = JSON.stringify(customPayload)
         await create({
           name: form.app_name || `${form.platform}-${form.version}`,
           platform: form.platform,
@@ -621,6 +570,9 @@ export default defineComponent({
       form.x_offline = false
       form.remove_new_version_notif = false
       form.android_app_id = ''
+      form.app_icon_url = ''
+      form.app_logo_url = ''
+      form.privacy_screen_url = ''
     }
 
     const downloadBuild = (row) => {
