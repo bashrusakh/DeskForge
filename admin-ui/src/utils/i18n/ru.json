@@ -463,6 +463,9 @@
   "BatchEditTags": {
     "One": "Пакетное редактирование тегов"
   },
+  "ClearTags": {
+    "One": "Очистить теги"
+  },
   "Selected": {
     "One": "выбрано"
   },
@@ -546,6 +549,44 @@
   },
   "RelayOffline": {
     "One": "Relay-сервер недоступен — данные активности отсутствуют."
+  },
+  "ImportMissingColumns": {
+    "One": "Импорт: отсутствуют колонки: {param}"
+  },
+  "ExportTruncated": {
+    "One": "Экспорт обрезан до {param} строк (достигнут лимит)"
+  },
+  "RustDeskClientNotFound": {
+    "One": "Клиент RustDesk не найден. Установите RustDesk для подключения."
+  },
+  "SaveConfiguration": {
+    "One": "Сохранить конфигурацию"
+  },
+  "CopyThisUrlToProvider": {
+    "One": "Скопируйте этот URL и вставьте его как callback/redirect URL в настройках OAuth-провайдера."
+  },
+  "LoadPreset": {
+    "One": "Загрузить пресет"
+  },
+  "SaveAsPreset": {
+    "One": "Сохранить как пресет"
+  },
+  "PresetName": {
+    "One": "Имя пресета"
+  },
+  "Branding": {
+    "One": "Брендинг"
+  },
+  "AppIcon": {
+    "One": "Иконка приложения (PNG)"
+  },
+  "AppLogo": {
+    "One": "Логотип приложения (PNG)"
+  },
+  "PrivacyScreen": {
+    "One": "Экран приватности (PNG)"
+  },
+  "Upload": {
+    "One": "Загрузить"
   }
 }
-

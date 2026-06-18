@@ -463,6 +463,9 @@
   "BatchEditTags": {
     "One": "Batch Edit Tags"
   },
+  "ClearTags": {
+    "One": "Clear tags"
+  },
   "Selected": {
     "One": "selected"
   },
@@ -933,5 +936,20 @@
   },
   "RelayOffline": {
     "One": "Relay server is offline — no activity data available."
+  },
+  "ImportMissingColumns": {
+    "One": "Import: missing columns: {param}"
+  },
+  "ExportTruncated": {
+    "One": "Export truncated to {param} rows (limit reached)"
+  },
+  "RustDeskClientNotFound": {
+    "One": "RustDesk client not found. Please install RustDesk to connect."
+  },
+  "SaveConfiguration": {
+    "One": "Save Configuration"
+  },
+  "CopyThisUrlToProvider": {
+    "One": "Copy this URL and paste it as the callback/redirect URL in your OAuth provider settings."
   }
 }
