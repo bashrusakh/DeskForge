@@ -395,20 +395,30 @@
   ])
 
   const toExport = async () => {
-    const q = { ...listQuery }
-    q.page_size = 1000000
-    q.page = 1
-    const res = await list(q).catch(_ => false)
-    if (res) {
-      const data = res.data.list.map(item => {
-        item.last_online_time = item.last_online_time ? new Date(item.last_online_time * 1000).toLocaleString() : '-'
-        delete item.user_id
-        delete item.user
-        return item
-      })
-      const csv = jsonToCsv(data)
-      downBlob(csv, 'peers.csv')
+    // Paginated export: iterate through pages until the server returns a short
+    // page (or none). Previously this asked for page_size=1000000 in a single
+    // call which could DoS the API on large deployments and never finished if
+    // the dataset exceeded the limit. The MAX_ROWS cap keeps the browser
+    // responsive if pagination is misbehaving server-side.
+    const PAGE_SIZE = 1000
+    const MAX_ROWS = 100000
+    const q = { ...listQuery, page_size: PAGE_SIZE, page: 1 }
+    const all = []
+    while (all.length < MAX_ROWS) {
+      const res = await list(q).catch(_ => false)
+      if (!res || !res.data || !Array.isArray(res.data.list)) break
+      all.push(...res.data.list)
+      if (res.data.list.length < PAGE_SIZE) break
+      q.page++
     }
+    const data = all.map(item => {
+      item.last_online_time = item.last_online_time ? new Date(item.last_online_time * 1000).toLocaleString() : '-'
+      delete item.user_id
+      delete item.user
+      return item
+    })
+    const csv = jsonToCsv(data)
+    downBlob(csv, 'peers.csv')
   }
 
   const showImport = ref(false)
