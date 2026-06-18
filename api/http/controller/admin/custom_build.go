@@ -123,7 +123,7 @@ func (ct *CustomBuild) DownloadByKey(c *gin.Context) {
 		return
 	}
 
-	dir := filepath.Join("/rdgen-data", "output", fmt.Sprintf("%d", build.Id))
+	dir := service.BuildOutputDir(build.Id)
 	entries, err := os.ReadDir(dir)
 	if err != nil || len(entries) == 0 {
 		c.JSON(404, gin.H{
@@ -313,7 +313,7 @@ func (ct *CustomBuild) pollAndDownload(buildId uint, runId int64) {
 		if appName == "" {
 			appName = "rustqs"
 		}
-		outDir := filepath.Join("/rdgen-data", "output", fmt.Sprintf("%d", buildId))
+		outDir := service.BuildOutputDir(buildId)
 		_ = os.MkdirAll(outDir, 0755)
 		zr, err := zip.NewReader(bytes.NewReader(zipBytes), int64(len(zipBytes)))
 		if err != nil {

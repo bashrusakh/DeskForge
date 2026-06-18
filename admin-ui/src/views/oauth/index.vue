@@ -88,7 +88,8 @@
           </el-input>
         </el-form-item>
         <el-form-item label="RedirectUrl" prop="redirect_url">
-          <div @click="copyRedirectUrl">{{ defaultRedirect() }}
+          <div style="font-size: 0.85em; color: var(--color-muted); margin-bottom: 4px;">{{ T('CopyThisUrlToProvider') }}</div>
+          <div @click="copyRedirectUrl" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">{{ defaultRedirect() }}
             <el-icon>
               <CopyDocument></CopyDocument>
             </el-icon>

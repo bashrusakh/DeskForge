@@ -482,12 +482,6 @@
   "ClearTags": {
     "One": "清空标签"
   },
-  "ImportMissingColumns": {
-    "One": "导入失败：缺少列：{param}"
-  },
-  "ExportTruncated": {
-    "One": "导出已在 {param} 行处停止"
-  },
   "Selected": {
     "One": "已选"
   },
@@ -574,5 +568,47 @@
   },
   "RelayOffline": {
     "One": "中继服务器离线 — 无活动数据。"
+  },
+  "ImportMissingColumns": {
+    "One": "导入：缺少列：{param}"
+  },
+  "ExportTruncated": {
+    "One": "导出已截断至 {param} 行（达到上限）"
+  },
+  "ExportPageFailed": {
+    "One": "导出失败：无法加载所有页面。请重试。"
+  },
+  "RustDeskClientNotFound": {
+    "One": "未找到 RustDesk 客户端。请安装 RustDesk 以连接。"
+  },
+  "SaveConfiguration": {
+    "One": "保存配置"
+  },
+  "CopyThisUrlToProvider": {
+    "One": "请复制此 URL 并粘贴到您的 OAuth 服务商设置中作为回调/重定向 URL。"
+  },
+  "LoadPreset": {
+    "One": "加载预设"
+  },
+  "SaveAsPreset": {
+    "One": "另存为预设"
+  },
+  "PresetName": {
+    "One": "预设名称"
+  },
+  "Branding": {
+    "One": "品牌定制"
+  },
+  "AppIcon": {
+    "One": "应用图标 (PNG)"
+  },
+  "AppLogo": {
+    "One": "应用 Logo (PNG)"
+  },
+  "PrivacyScreen": {
+    "One": "隐私屏幕 (PNG)"
+  },
+  "Upload": {
+    "One": "上传"
   }
 }

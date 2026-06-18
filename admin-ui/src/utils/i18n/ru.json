@@ -472,12 +472,6 @@
   "ClearTags": {
     "One": "Очистить теги"
   },
-  "ImportMissingColumns": {
-    "One": "Импорт не выполнен: отсутствуют столбцы: {param}"
-  },
-  "ExportTruncated": {
-    "One": "Экспорт остановлен на {param} строках"
-  },
   "Selected": {
     "One": "выбрано"
   },
@@ -561,5 +555,47 @@
   },
   "RelayOffline": {
     "One": "Relay-сервер недоступен — данные активности отсутствуют."
+  },
+  "ImportMissingColumns": {
+    "One": "Импорт: отсутствуют колонки: {param}"
+  },
+  "ExportTruncated": {
+    "One": "Экспорт обрезан до {param} строк (достигнут лимит)"
+  },
+  "ExportPageFailed": {
+    "One": "Ошибка экспорта: не удалось загрузить все страницы. Попробуйте ещё раз."
+  },
+  "RustDeskClientNotFound": {
+    "One": "Клиент RustDesk не найден. Установите RustDesk для подключения."
+  },
+  "SaveConfiguration": {
+    "One": "Сохранить конфигурацию"
+  },
+  "CopyThisUrlToProvider": {
+    "One": "Скопируйте этот URL и вставьте его как callback/redirect URL в настройках OAuth-провайдера."
+  },
+  "LoadPreset": {
+    "One": "Загрузить пресет"
+  },
+  "SaveAsPreset": {
+    "One": "Сохранить как пресет"
+  },
+  "PresetName": {
+    "One": "Имя пресета"
+  },
+  "Branding": {
+    "One": "Брендинг"
+  },
+  "AppIcon": {
+    "One": "Иконка приложения (PNG)"
+  },
+  "AppLogo": {
+    "One": "Логотип приложения (PNG)"
+  },
+  "PrivacyScreen": {
+    "One": "Экран приватности (PNG)"
+  },
+  "Upload": {
+    "One": "Загрузить"
   }
 }

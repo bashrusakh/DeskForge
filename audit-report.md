@@ -4,7 +4,7 @@
 **Methodology:** Full-stack trace from UI action → API call → service → persistence, cross-referenced with source code at every layer.  
 **Last update:** Second-pass verification re-audit (parallel sub-agents). Corrected 6 over-stated/wrong findings (H-001, H-004, H-007, H-009, L-006, M-004), fixed the endpoint cross-reference tables, and added 17 new verified findings (H-010, H-011, S-002, M-016–M-022, L-020–L-026). See the "Second-Pass Additions" section and the changelog note below.
 
-**Fix status (2026-06-17, [PR #20](https://github.com/bashrusakh/DeskForge/pull/20) + [PR #21](https://github.com/bashrusakh/DeskForge/pull/21)):** 41 findings resolved — see `### Fixed in PR #20` and `### Fixed in PR #21` markers on each item. Items without a `Fixed` marker are still open (20 remaining).
+**Fix status (2026-06-19, [PR #20](https://github.com/bashrusakh/DeskForge/pull/20) + [PR #21](https://github.com/bashrusakh/DeskForge/pull/21) + [PR #22](https://github.com/bashrusakh/DeskForge/pull/22)):** 51 findings resolved — see `### Fixed in PR #20`, `### Fixed in PR #21`, and `### Fixed in PR #22` markers on each item. 7 findings remain open.
 
 ---
 
@@ -455,6 +455,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Fix:** Remove the commented-out import and dead code block for cleanliness.
 **Status:** Low — Still open (cosmetic, out of scope for PR #20).
 
+**Fixed in [PR #22](https://github.com/bashrusakh/DeskForge/pull/22):** `api/service/oauth.go` — `// "golang.org/x/oauth2/google"` and `// "io"` commented imports removed.
+
 ### L-002 · User Store Logout Patches Wrong Field Names
 
 **Evidence:** `admin-ui/src/store/user.js:24-27` — `$patch({ name: '', role: {} })` patches nonexistent `name` (field is `nickname`) and wrong type for `role` (should be string, not object). Zero practical impact since redirect follows immediately, but technically incorrect.
@@ -469,11 +471,15 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Fix:** Add retry logic or lazy initialization.
 **Status:** Still open (out of scope for PR #20).
 
+**Fixed in [PR #22](https://github.com/bashrusakh/DeskForge/pull/22):** `api/service/app.go` — `sync.Once` replaced with `sync.Mutex`+double-check. The read is retried on every call until it succeeds and the value is cached; the existing concurrent test still passes (`-race` clean).
+
 ### L-004 · TCP Response Buffer Hardcoded at 1024 Bytes
 
 **Evidence:** `api/service/serverCmd.go:80` — `buf := make([]byte, 1024)`. May silently truncate responses with many active relay connections.
 **Fix:** Use dynamic read loop or larger buffer.
 **Status:** Still open (out of scope for PR #20).
+
+**Fixed in [PR #22](https://github.com/bashrusakh/DeskForge/pull/22):** `api/service/serverCmd.go:SendSocketCmd` — replaced the `Sleep(100ms) + Read(1024)` workaround with `io.Copy + io.LimitReader(conn, 1 MiB)` under a 2s read deadline. Long `blocklist`/`blocklist_add` responses are no longer truncated and the previous fixed sleep is gone.
 
 ### L-005 · Inconsistent `page_size` Across Exports
 
@@ -497,15 +503,19 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 ### L-008 · Group / Device-Group Delete — No Orphaned-Reference Check
 
-**Evidence:** `api/service/group.go:37-39` `Delete` — deleting a group leaves users with `group_id` pointing at a nonexistent group (user list then renders a blank group cell). `api/service/group.go:71-73` `DeviceGroupDelete` has the **same** flaw for peers' `device_group_id`. Neither nulls out nor reassigns children, and there is no guard/transaction.
-**Fix:** In a transaction, null-out or reassign affected users/peers (or reject deletion while children exist).
+**Evidence:** `api/service/group.go:37-39` `Delete` — deleting a group leaves users with `group_id` pointing at a nonexistent group (user list then renders a blank group cell). `api/service/group.go:71-73` `DeviceGroupDelete` has the **same** flaw for peers — the audit originally said "for peers' `device_group_id`", but `peers` has no `device_group_id` column. The schema overloads `peer.group_id` to hold either a Group or DeviceGroup id (see `api/http/controller/api/group.go:97-110` and `admin-ui/src/views/peer/index.vue:237` which populates the `group_id` dropdown from `/device_group/list`).
+**Fix:** In a transaction, null-out the overloaded `peer.group_id` for both Group and DeviceGroup deletes, and null `user.group_id` for Group deletes. Long-term, split the overloaded column into a dedicated `peer.device_group_id` so the two concepts don't share storage.
 **Status:** Still open (out of scope for PR #20).
+
+**Fixed in [PR #22](https://github.com/bashrusakh/DeskForge/pull/22):** `api/service/group.go` — both `Delete` and `DeviceGroupDelete` now run inside `DB.Transaction`. `Group.Delete` clears `user.group_id` AND `peer.group_id`; `DeviceGroupDelete` clears `peer.group_id` (the column overload is documented inline). The schema split into a dedicated `peer.device_group_id` is intentionally deferred to a separate PR.
 
 ### L-009 · Dashboard Connect Button — No Feedback If RustDesk Client Missing
 
 **Evidence:** `connectByClient()` creates a hidden `<a href="rustdesk://...">` element and clicks it. If the RustDesk client is not installed, nothing visible happens.
 **Fix:** Add a timeout fallback showing a download prompt.
 **Status:** Still open (out of scope for PR #20).
+
+**Fixed in [PR #22](https://github.com/bashrusakh/DeskForge/pull/22):** `admin-ui/src/utils/peer.js:connectByClient` — shows `ElMessage.info(T('RustDeskClientNotFound'))` after 3s if the page is still visible (i.e. the protocol handler did not switch focus). Documented as best-effort: false positives on slow client launches, false negatives on tab switches. Fix applies to all 5 callers via the shared helper.
 
 ### L-010 · Hardcoded Version List in Custom Client
 
@@ -525,6 +535,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Fix:** Add expandable row or tooltip showing build log.
 **Status:** Still open (out of scope for PR #20).
 
+**Fixed in [PR #22](https://github.com/bashrusakh/DeskForge/pull/22):** `admin-ui/src/views/custom-client/index.vue` — status column wraps the `el-tag` in an `el-tooltip` whose content is a `<pre>` block (wrap, scroll, max-height 300px, max-width 480px) so multi-line shell transcripts stay readable. Tooltip shows on hover with a 500ms delay.
+
 ### L-013 · `AllConfig` Returns `title` But Config Page Doesn't Display It
 
 **Evidence:** `api/http/controller/admin/config.go:66` — `"title": global.Config.Admin.Title` is returned in response but `config.vue` omits this field from the display.
@@ -536,8 +548,12 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 ### L-014 · OAuth Callback Templates — Fragile JS String Interpolation
 
 **Evidence:** `oauth_fail.html:63` — `var msg = '{{.message}}'` — all current messages are server constants so not exploitable, but the pattern is fragile. If any developer passes user-controlled data as `.message`, it becomes an XSS vector.
-**Fix:** Use data attributes or proper JS escaping.
+**Fix:** Use data attributes or proper JS escaping. Better: fix the underlying primitive — the `/api/oidc/msg` Go handler that emits JS — so the templates can't reintroduce the sink.
 **Status:** Still open (out of scope for PR #20).
+
+**Fixed in [PR #22](https://github.com/bashrusakh/DeskForge/pull/22):**
+- `api/resources/templates/oauth_fail.html` + `oauth_success.html` — message read via `getAttribute('data-message')`; script URL uses `encodeURIComponent`. Both templates patched identically (the original round-3 commit fixed only `_fail`; the followup mirrors it).
+- `api/http/controller/api/ouath.go:Message` — rewritten to emit JS via `encoding/json.Marshal` instead of raw concat into single-quoted literals. Any character (apostrophe, line break, control chars, future user-controlled text) now ends up as a valid JS string literal. This is the primitive fix; the template patch is defence in depth.
 
 ### L-015 · Auto-Registered Users Always Get `GroupId=1`
 
@@ -567,11 +583,15 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Fix:** Either make it configurable or clearly label as "Your callback URL (copy this to the provider)".
 **Status:** Low — Still open (out of scope for PR #20).
 
+**Fixed in [PR #22](https://github.com/bashrusakh/DeskForge/pull/22):** `admin-ui/src/views/oauth/index.vue` — descriptive hint added above the redirect URL: "Copy this URL and paste it as the callback/redirect URL in your OAuth provider settings." (i18n key `CopyThisUrlToProvider`).
+
 ### L-019 · Custom Client "Create" Button Misleading
 
 **Evidence:** "Create" button only saves build configuration to DB. Does not trigger a build. Actual builds happen via separate GitHub Build Integration page or separate build agents.
 **Fix:** Rename button to "Save Configuration" with a separate "Build Now" action.
 **Status:** Still open (out of scope for PR #20).
+
+**Fixed in [PR #22](https://github.com/bashrusakh/DeskForge/pull/22):** `admin-ui/src/views/custom-client/index.vue` — button now reads `T('SaveConfiguration')` (i18n key added to en/ru/zh_CN).
 
 ---
 
@@ -790,6 +810,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 
 **Still open** — not addressed in PR #20.
 
+**Fixed in [PR #22](https://github.com/bashrusakh/DeskForge/pull/22):** `api/http/request/admin/oauth.go:OauthForm.PkceMethod` — validation tag changed to `validate:"omitempty,oneof=S256 plain,required_if=PkceEnable true"`. Invalid methods are rejected; when `pkce_enable=true` the method is required, so the runtime layer no longer silently falls back to a hidden default. (`Issuer` empty-accept for OIDC is deferred — the runtime error is already descriptive.)
+
 ### L-025 · `my/address_book/collection.vue` Missing `onActivated` Refresh
 
 **Evidence:** `onActivated` is imported but never called, unlike the admin collections/entries views (`address_book/collection.vue:150`, `address_book/index.vue:221`). With keep-alive, navigating away and back shows stale data.
@@ -810,6 +832,8 @@ A frontend workaround exists (`control.vue:187-189` re-saves relay servers after
 **Status:** Low
 
 **Still open** — not addressed in PR #20.
+
+**Fixed in [PR #22](https://github.com/bashrusakh/DeskForge/pull/22):** `api/service/custom_build.go:Delete` — drops the DB row first, then best-effort removes the build's artifact directory and logs any cleanup failure. The path is now built via the shared `service.BuildOutputDir(id)` helper and reused by the download/build-result controllers so the `/rdgen-data/output/<id>` convention has a single source of truth. Bulk-delete UI is intentionally deferred.
 
 ---
 
@@ -976,13 +1000,35 @@ markers on H-009 / L-016 / M-017 for the final scope.
 
 Total: 10 + 9 − 1 (L-016 is the Low restatement of H-009) = **18 unique findings** from this PR, 21 counting the 3 still-open H-001/H-007/H-009 → H-001/H-009/M-017.
 
-### Still open — 20 findings
+### Resolved in [PR #22](https://github.com/bashrusakh/DeskForge/pull/22) — 10 unique findings
 
-**Medium (5):**
-- M-014, M-021, M-022
+**Low (10):**
+- L-001 — Dead `google` import removed from `service/oauth.go`
+- L-003 — `sync.Once` replaced with mutex+double-check for retry
+- L-004 — TCP response read switched to `io.Copy + LimitReader(1 MiB)` under 2s deadline (no more 1024-byte truncation, no more 100ms sleep)
+- L-008 — `Group.Delete` and `DeviceGroup.Delete` run in transactions; both clear the overloaded `peer.group_id`, `Group.Delete` also clears `user.group_id`
+- L-009 — Connect button shows fallback message after 3s if RustDesk client not detected
+- L-012 — Build status tooltip shows `build_log` (multi-line `<pre>` with wrap + max-height)
+- L-014 — OAuth fail/success templates use `data-attribute` + `getAttribute`, and the underlying `Message` handler now emits JS via `encoding/json` instead of raw concat
+- L-018 — OAuth redirect URL has descriptive copy instruction label
+- L-019 — "Create" button renamed to "Save Configuration"
+- L-024 — `pkce_method` server-side validation: `omitempty,oneof=S256 plain,required_if=PkceEnable true`
+- L-026 — Build artifact files removed on disk after the DB delete (path centralized in `service.BuildOutputDir`)
 
-**Low / Info (15):**
-- L-001, L-003, L-004, L-005, L-007, L-008, L-009, L-010, L-011, L-012, L-014, L-015, L-018, L-019, L-024, L-026
+L-005 was already resolved in PR #21 and is not double-counted here.
+
+### Still open — 7 findings
+
+**Medium (3):**
+- M-014 — Usage Component — Fragile Raw Text Parsing (low impact, design issue)
+- M-021 — My Profile — Account Info Not Editable (needs new endpoint + frontend)
+- M-022 — Unauthenticated Writes on Client-Facing API (needs protocol design confirmation)
+
+**Low (4):**
+- L-007 — OAuth Provider Delete — No Check for In-Flight Sessions
+- L-010 — Hardcoded Version List in Custom Client
+- L-011 — Hardcoded Artifact Name in Build Downloader
+- L-015 — Auto-Registered Users Always Get `GroupId=1`
 
 ### Self-review findings also resolved in PR #20
 

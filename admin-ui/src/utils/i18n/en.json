@@ -472,12 +472,6 @@
   "ClearTags": {
     "One": "Clear tags"
   },
-  "ImportMissingColumns": {
-    "One": "Import failed: missing columns: {param}"
-  },
-  "ExportTruncated": {
-    "One": "Export stopped at {param} rows"
-  },
   "Selected": {
     "One": "selected"
   },
@@ -948,5 +942,23 @@
   },
   "RelayOffline": {
     "One": "Relay server is offline — no activity data available."
+  },
+  "ImportMissingColumns": {
+    "One": "Import: missing columns: {param}"
+  },
+  "ExportTruncated": {
+    "One": "Export truncated to {param} rows (limit reached)"
+  },
+  "ExportPageFailed": {
+    "One": "Export failed: could not load all pages. Please try again."
+  },
+  "RustDeskClientNotFound": {
+    "One": "RustDesk client not found. Please install RustDesk to connect."
+  },
+  "SaveConfiguration": {
+    "One": "Save Configuration"
+  },
+  "CopyThisUrlToProvider": {
+    "One": "Copy this URL and paste it as the callback/redirect URL in your OAuth provider settings."
   }
 }

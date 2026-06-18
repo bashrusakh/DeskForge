@@ -34,8 +34,17 @@ func (us *GroupService) Create(u *model.Group) error {
 	res := DB.Create(u).Error
 	return res
 }
+// Delete removes a Group and nulls out user.group_id references in a transaction.
+// peer.group_id is NOT touched here: it stores DeviceGroup IDs, never Group IDs
+// (the peer admin UI populates the group dropdown from /device_group/list).
+// Peer–DeviceGroup cleanup is handled exclusively by DeviceGroupDelete.
 func (us *GroupService) Delete(u *model.Group) error {
-	return DB.Delete(u).Error
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.User{}).Where("group_id = ?", u.Id).Update("group_id", 0).Error; err != nil {
+			return err
+		}
+		return tx.Delete(u).Error
+	})
 }
 
 // Update 
@@ -68,8 +77,17 @@ func (us *GroupService) DeviceGroupCreate(u *model.DeviceGroup) error {
 	res := DB.Create(u).Error
 	return res
 }
+// DeviceGroupDelete removes a DeviceGroup and nulls out peer.group_id references
+// in a transaction. peer.group_id stores DeviceGroup IDs (the peer admin UI
+// populates the group dropdown from /device_group/list), so this is the correct
+// and only place that clears peer–group assignments.
 func (us *GroupService) DeviceGroupDelete(u *model.DeviceGroup) error {
-	return DB.Delete(u).Error
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.Peer{}).Where("group_id = ?", u.Id).Update("group_id", 0).Error; err != nil {
+			return err
+		}
+		return tx.Delete(u).Error
+	})
 }
 
 func (us *GroupService) DeviceGroupUpdate(u *model.DeviceGroup) error {

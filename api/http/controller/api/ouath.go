@@ -1,7 +1,9 @@
 ﻿package api
 
 import (
+	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"rustdesk-server/api/global"
@@ -10,7 +12,6 @@ import (
 	apiResp "rustdesk-server/api/http/response/api"
 	"rustdesk-server/api/model"
 	"rustdesk-server/api/service"
-	"rustdesk-server/api/utils"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
@@ -275,26 +276,35 @@ func (o *Oauth) Message(c *gin.Context) {
 		return
 	}
 	localizer := global.Localizer(mp.Lang)
-	res := ""
+	// Emit values via encoding/json so that any character in the localized
+	// string (apostrophes, line breaks, NUL, control chars, future
+	// user-controlled text) ends up as a valid JS string literal. Earlier
+	// versions concatenated raw strings into single-quoted literals, which
+	// is a JS-injection sink waiting for the first translation containing a
+	// quote — or for someone to route caller-controlled text into mp.Title /
+	// mp.Msg.
+	var sb strings.Builder
 	if mp.Title != "" {
-		title, err := localizer.LocalizeMessage(&i18n.Message{
-			ID: mp.Title,
-		})
+		title, err := localizer.LocalizeMessage(&i18n.Message{ID: mp.Title})
 		if err == nil {
-			res = utils.StringConcat(";title='", title, "';")
+			if b, mErr := json.Marshal(title); mErr == nil {
+				sb.WriteString(";title=")
+				sb.Write(b)
+				sb.WriteString(";")
+			}
 		}
-
 	}
 	if mp.Msg != "" {
-		msg, err := localizer.LocalizeMessage(&i18n.Message{
-			ID: mp.Msg,
-		})
+		msg, err := localizer.LocalizeMessage(&i18n.Message{ID: mp.Msg})
 		if err == nil {
-			res = utils.StringConcat(res, "msg = '", msg, "';")
+			if b, mErr := json.Marshal(msg); mErr == nil {
+				sb.WriteString("msg=")
+				sb.Write(b)
+				sb.WriteString(";")
+			}
 		}
 	}
 
-	//js
 	c.Header("Content-Type", "application/javascript")
-	c.String(http.StatusOK, res)
+	c.String(http.StatusOK, sb.String())
 }
