@@ -1,9 +1,12 @@
 ﻿package service
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
-	"rustdesk-server/api/model"
+	"io"
 	"net"
+	"rustdesk-server/api/model"
 	"time"
 )
 
@@ -75,15 +78,27 @@ func (is *ServerCmdService) SendSocketCmd(ty string, port int, cmd string) (stri
 		Logger.Debugf("%s send cmd failed: %v", ty, err)
 		return "", err
 	}
-	time.Sleep(100 * time.Millisecond)
-
-	buf := make([]byte, 4096)
-	n, err := conn.Read(buf)
-	if err != nil && err.Error() != "EOF" {
-		Logger.Debugf("%s read response failed: %v", ty, err)
+	// Read until the server closes the connection or our deadline fires. A single
+	// conn.Read() with a fixed-size buffer truncated long responses (the relay's
+	// blocklist / blocklist_add reply scales with the number of entries and
+	// trivially exceeds 4 KB on a populated server) and returned partial data when
+	// the kernel handed us only the first packet of a multi-packet response.
+	if err := conn.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		Logger.Debugf("%s set read deadline failed: %v", ty, err)
 		return "", err
 	}
-	return string(buf[:n]), nil
+	var resp bytes.Buffer
+	// Cap the response so a misbehaving server cannot exhaust memory.
+	const maxResponseSize = 1 << 20 // 1 MiB
+	_, err = io.Copy(&resp, io.LimitReader(conn, maxResponseSize))
+	if err != nil && !errors.Is(err, io.EOF) {
+		var nerr net.Error
+		if !(errors.As(err, &nerr) && nerr.Timeout()) {
+			Logger.Debugf("%s read response failed: %v", ty, err)
+			return "", err
+		}
+	}
+	return resp.String(), nil
 }
 
 func (is *ServerCmdService) Update(f *model.ServerCmd) error {

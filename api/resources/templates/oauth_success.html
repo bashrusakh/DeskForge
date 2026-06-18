@@ -59,13 +59,13 @@
     <script>
         var lang = navigator.language || navigator.userLanguage || 'en';
         var title = 'OauthSuccess'
-        var msg = '{{.message}}'
+        var msg = document.getElementById('success-data').getAttribute('data-message') || ''
         var btn = 'Close'
-        document.writeln('<script src="/api/oidc/msg?lang=' + lang + '&msg=' + msg + '&title=OauthSuccess"><\/script>');
+        document.writeln('<script src="/api/oidc/msg?lang=' + lang + '&msg=' + encodeURIComponent(msg) + '&title=OauthSuccess"><\/script>');
     </script>
 </head>
 <body>
-<div class="success-container">
+<div class="success-container" id="success-data" data-message="{{.message}}">
     <i class="fas fa-check-circle checkmark"></i>
     <h1 id="h1"></h1>
 
