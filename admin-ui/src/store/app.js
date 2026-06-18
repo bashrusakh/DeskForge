@@ -89,7 +89,6 @@ export const useAppStore = defineStore({
       this.setting.mobileMenuOpen = false
     },
     setLang (lang) {
-      console.log('setLang', lang)
       this.setting.lang = lang
       this.setting.locale = langs[lang]
       localStorage.setItem('lang', lang)
@@ -103,7 +102,6 @@ export const useAppStore = defineStore({
       this.loadRustdeskConfig()
     },
     getAppConfig () {
-      console.log('getAppConfig')
       return app().then(res => {
         this.setting.appConfig = res.data
       })

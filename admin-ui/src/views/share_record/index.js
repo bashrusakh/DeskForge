@@ -74,6 +74,7 @@ export function useRepositories (api_type = 'my') {
     const res = await apis[api_type].batchDelete({ ids }).catch(_ => false)
     if (res) {
       ElMessage.success(T('OperationSuccess'))
+      multipleSelection.value = []
       getList()
     }
   }

@@ -25,13 +25,13 @@ type LdapUser struct {
 // }
 
 type Ldap struct {
-	Enable       bool     `mapstructure:"enable"`
-	Url          string   `mapstructure:"url"`
-	TlsCaFile    string   `mapstructure:"tls-ca-file"`
-	TlsVerify    bool     `mapstructure:"tls-verify"`
-	BaseDn       string   `mapstructure:"base-dn"`
-	BindDn       string   `mapstructure:"bind-dn"`
-	BindPassword string   `mapstructure:"bind-password"`
+	Enable       bool   `mapstructure:"enable"`
+	Url          string `mapstructure:"url"`
+	TlsCaFile    string `mapstructure:"tls-ca-file"`
+	TlsVerify    bool   `mapstructure:"tls-verify"`            // deprecated: use tls-skip-verify instead (inverted semantics)
+	TlsSkipVerify *bool `mapstructure:"tls-skip-verify"`       // preferred: nil means "not set", fall back to deprecated TlsVerify
+	BaseDn       string `mapstructure:"base-dn"`
+	BindDn       string `mapstructure:"bind-dn"`
+	BindPassword string `mapstructure:"bind-password"`
 	User         LdapUser `mapstructure:"user"`
-	// Group        LdapGroup `mapstructure:"group"`
 }

@@ -108,11 +108,14 @@
   const handleSelectionChange = (val) => {
     multipleSelection.value = val
   }
-  const toBatchDelete = () => {
+  const toBatchDelete = async () => {
     if (multipleSelection.value.length === 0) {
       return
     }
-    batchDelete(multipleSelection.value.map(v => v.id))
+    const result = await batchDelete(multipleSelection.value.map(v => v.id))
+    if (result) {
+      multipleSelection.value = []
+    }
   }
 </script>
 

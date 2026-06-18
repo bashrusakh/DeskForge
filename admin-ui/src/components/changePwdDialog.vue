@@ -93,7 +93,6 @@
     if (!valid) {
       return
     }
-    console.log('changePassword')
     const confirm = await ElMessageBox.confirm(T('Confirm?', { param: T('ChangePassword') }), {
       confirmButtonText: T('Confirm'),
       cancelButtonText: T('Cancel'),

@@ -7,10 +7,28 @@ import (
 	"rustdesk-server/api/global"
 	"rustdesk-server/api/http/request/admin"
 	"rustdesk-server/api/http/response"
+	"rustdesk-server/api/model"
 	"rustdesk-server/api/service"
 )
 
 type CustomPreset struct{}
+
+// getOwnedPreset loads a preset by id and verifies it belongs to the current user.
+// On any failure it writes the error response and returns ok=false, so callers
+// just `return` instead of repeating the not-found / ownership checks.
+func (p *CustomPreset) getOwnedPreset(c *gin.Context, id uint) (*model.CustomPreset, bool) {
+	ex := service.AllService.CustomPresetService.Info(id)
+	if ex.Id == 0 {
+		response.Fail(c, 101, response.TranslateMsg(c, "ItemNotFound"))
+		return nil, false
+	}
+	u := service.AllService.UserService.CurUser(c)
+	if u == nil || ex.UserId != u.Id {
+		response.Fail(c, 101, response.TranslateMsg(c, "ItemNotFound"))
+		return nil, false
+	}
+	return ex, true
+}
 
 func (p *CustomPreset) List(c *gin.Context) {
 	q := &admin.CustomPresetQuery{}
@@ -18,19 +36,23 @@ func (p *CustomPreset) List(c *gin.Context) {
 		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+err.Error())
 		return
 	}
-	res := service.AllService.CustomPresetService.List(uint(q.Page), uint(q.PageSize))
+	u := service.AllService.UserService.CurUser(c)
+	if u == nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "Unauthorized"))
+		return
+	}
+	res := service.AllService.CustomPresetService.ListByUser(uint(q.Page), uint(q.PageSize), u.Id)
 	response.Success(c, res)
 }
 
 func (p *CustomPreset) Detail(c *gin.Context) {
 	id := c.Param("id")
 	iid, _ := strconv.Atoi(id)
-	preset := service.AllService.CustomPresetService.Info(uint(iid))
-	if preset.Id > 0 {
-		response.Success(c, preset)
+	preset, ok := p.getOwnedPreset(c, uint(iid))
+	if !ok {
 		return
 	}
-	response.Fail(c, 101, response.TranslateMsg(c, "ItemNotFound"))
+	response.Success(c, preset)
 }
 
 func (p *CustomPreset) Create(c *gin.Context) {
@@ -46,6 +68,10 @@ func (p *CustomPreset) Create(c *gin.Context) {
 	}
 
 	user := service.AllService.UserService.CurUser(c)
+	if user == nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "Unauthorized"))
+		return
+	}
 	preset := f.ToCustomPreset()
 	preset.UserId = user.Id
 
@@ -62,9 +88,8 @@ func (p *CustomPreset) Update(c *gin.Context) {
 		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+err.Error())
 		return
 	}
-	ex := service.AllService.CustomPresetService.Info(f.Id)
-	if ex.Id == 0 {
-		response.Fail(c, 101, response.TranslateMsg(c, "ItemNotFound"))
+	ex, ok := p.getOwnedPreset(c, f.Id)
+	if !ok {
 		return
 	}
 	ex.Name = f.Name
@@ -86,9 +111,8 @@ func (p *CustomPreset) Delete(c *gin.Context) {
 		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+err.Error())
 		return
 	}
-	ex := service.AllService.CustomPresetService.Info(f.Id)
-	if ex.Id == 0 {
-		response.Fail(c, 101, response.TranslateMsg(c, "ItemNotFound"))
+	ex, ok := p.getOwnedPreset(c, f.Id)
+	if !ok {
 		return
 	}
 	if err := service.AllService.CustomPresetService.Delete(ex); err != nil {

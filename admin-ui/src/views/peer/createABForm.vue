@@ -85,7 +85,6 @@
   } = useABRepositories('admin')
   onMounted(() => {
     fromPeer(props.peer)
-    console.log(collectionListResForUpdate)
   })
 
   const changeUser = async (val) => {

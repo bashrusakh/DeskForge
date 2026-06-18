@@ -4,7 +4,45 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased] - 2026-06-16
+## [Unreleased] - 2026-06-17
+
+### Security
+- **api: stop exposing OAuth `client_secret`** — `Oauth.ClientSecret` now `json:"-"` so list/detail responses never ship secrets to the browser. (M-016)
+- **api: harden LDAP** — `filterField` now escapes user-supplied values via `ldap.EscapeFilter`; empty-password bind is rejected; TLS verification defaults to secure. (S-002)
+- **api: gate `/rustdesk/*` behind `AdminPrivilege`** — server-command send/list/create/delete/update were open to any authenticated user. (S-001 + H-011)
+- **api: fix file upload path traversal** — `Upload` sanitizes filename with `filepath.Base`, enforces PNG magic bytes via `io.ReadFull` + signature check, and limits total size to 5 MB on actual bytes (not client-declared `Content-Length`); 0755 instead of 0777 on the upload dir; filename now prefixed with `UnixNano()` to prevent same-day collisions. (C-003)
+- **api: scope UUID lookup to owner in `BatchDeleteByOwner`** — added `GetUuidListByIDsAndOwner` so a user cannot invalidate tokens of other users' peers by guessing row_ids. (re-review)
+- **api: enforce preset ownership on Detail/Update/Delete** — closes privilege-escalation gap introduced by user-scoped List. (3rd-pass review)
+- **server: atomic blocklist/blacklist file write** — `write_set_to_file` writes to `.tmp` then `rename`s; writes serialized through `tokio::sync::Mutex` to prevent stale-snapshot races. (re-review + 3rd-pass review)
+
+### Fixed (critical)
+- **server: stop `aur` command from destroying relay servers** — removed stray `Data::RelayServers0` send. (C-002)
+- **api + admin-ui: implement My Devices delete** — `/admin/my/peer/delete` and `/admin/my/peer/batchDelete` with ownership-scoped SQL inside a transaction; `gorm.ErrRecordNotFound` treated as idempotent success; frontend `del` / `toBatchDelete` uncommented and wired. (C-004)
+
+### Fixed (high)
+- **api: last-admin race condition** — `getAdminUserCount` moved inside the deletion transaction. (H-002)
+- **admin-ui: address book bulk delete silently no-op** — `useBulkRemove` now supports `getRemovePayload`; AB entries correctly send `{ row_id }`. (H-010)
+- **admin-ui: missing server-command edit route** — `cmdUpdate` registered under `AdminPrivilege`. (H-011)
+- **admin-ui: custom client preset permission fields lost** — save/load/reset now round-trip all 13 permission flags + `x_offline` + branding URLs; stale field names removed. (H-006 + M-010)
+- **admin-ui: batch delete cleared selection on cancel or API failure** — waiters now use truthy check after `batchdel` was patched to return `res`. (H-008 + 3rd-pass review)
+- **admin-ui: csv peer import gave no feedback** — replaced `Promise.all().catch(_=>false)` with `Promise.allSettled` + counts. (H-003)
+- **admin-ui: csv export crashed on null cells** — `jsonToCsv` now null-guards and `JSON.stringify`s nested objects. (H-004)
+
+### Fixed (medium)
+- **admin-ui: partial-failure messaging in `useBulkRemove`** — three-state success/partial/total-failure feedback; payloadFn errors logged instead of swallowed. (M-004 + 3rd-pass review)
+- **admin-ui: address book collection delete cascade warning** — new `warningMessage` option surfaces "this also deletes entries and rules" in the confirm dialog. (H-005)
+- **admin-ui: GitHub dispatch no longer holds HTTP for 90 min** — `DispatchTest` returns `run_id` immediately; frontend `github-build.vue` updated to match new response contract. (M-009)
+- **admin-ui: persist blocklist/blacklist runtime changes** — relay server writes back to `blacklist.txt` / `blocklist.txt` atomically after every add/remove. (M-013)
+- **admin-ui: preset list scoped by current user** — `ListByUser` so admins no longer see each other's presets. (M-008)
+
+### Changed
+- **admin-ui: removed all `console.log` statements** flagged by the audit — including one in `store/user.js:45` that logged the full login response with the JWT. (M-012)
+- **api: `Ldap` config retains deprecated `tls-verify` key** for backward compat; `tls-skip-verify` is now `*bool` so "unset" cleanly falls back. New deployments should use `tls-skip-verify`. (S-002 + 3rd-pass review)
+
+### Reference
+- Functional audit report: `audit-report.md` (PR #19).
+- Re-review identified 3 additional High findings — all fixed.
+- 3rd-pass `ocr` review identified 6 additional High findings — all fixed in this change set.
 
 ### Fixed (admin-ui: card hover-shadow flicker on route enter)
 - `PageSection` and `DangerZone` switched from `shadow="hover"` to `shadow="never"` so cards no longer animate `box-shadow: none → var(--shadow-card)` on page enter. In dark mode the old transition (`rgba(0, 0, 0, 0.28)` shadow) read as a black-to-blue flash whenever the cursor was already over a card after a route transition; static cards (border + background) make the layout stable on navigation.

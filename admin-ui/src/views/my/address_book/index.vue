@@ -259,6 +259,7 @@
     label: T('AddressBook'),
     onAfterRemove: () => { multipleSelection.value = [] },
     selectionRef: multipleSelection,
+    getRemovePayload: (r) => ({ row_id: r.row_id }),
   })
 
 </script>

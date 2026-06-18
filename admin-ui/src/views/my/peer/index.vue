@@ -39,9 +39,13 @@
             <el-button v-if="appStore.setting.appConfig.web_client" @click="toWebClientLink(selected[0])">Web Client</el-button>
             <el-button @click="toAddressBook(selected[0])">{{ T('AddToAddressBook') }}</el-button>
             <el-button type="primary" @click="toView(selected[0])">{{ T('View') }}</el-button>
+            <el-button type="danger" @click="del(selected[0])">{{ T('Delete') }}</el-button>
           </template>
           <el-button type="primary" :disabled="disabled" @click="toBatchAddToAB">
             {{ T('BatchAddToAB') }} ({{ selected.length }})
+          </el-button>
+          <el-button type="danger" :disabled="disabled" @click="toBatchDelete">
+            {{ T('DeleteSelected') }} ({{ selected.length }})
           </el-button>
         </template>
       </actions-toolbar>
@@ -201,12 +205,13 @@
 
 <script setup>
   import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue'
-  import { list } from '@/api/my/peer'
+  import { list, remove, batchRemove } from '@/api/my/peer'
   import { ElMessage, ElMessageBox } from 'element-plus'
   import { toWebClientLink } from '@/utils/webclient'
   import { T } from '@/utils/i18n'
   import { timeAgo } from '@/utils/time'
   import { jsonToCsv, downBlob } from '@/utils/file'
+  import { useBatchRemove } from '@/composables/useBatchRemove'
   import { useRepositories as useABRepositories } from '@/views/address_book/index'
   import { useAppStore } from '@/store/app'
   import { connectByClient } from '@/utils/peer'
@@ -263,6 +268,22 @@
       getList()
     }
   }*/
+  const del = async (row) => {
+    const cf = await ElMessageBox.confirm(T('Confirm?', { param: T('Delete') }), {
+      confirmButtonText: T('Confirm'),
+      cancelButtonText: T('Cancel'),
+      type: 'warning',
+    }).catch(_ => false)
+    if (!cf) {
+      return false
+    }
+
+    const res = await remove({ row_id: row.row_id }).catch(_ => false)
+    if (res) {
+      ElMessage.success(T('OperationSuccess'))
+      getList()
+    }
+  }
   onMounted(getList)
   onActivated(getList)
 
@@ -367,6 +388,13 @@
       getList()
     }
   }*/
+  const { confirmAndRemove: batchRemovePeers } = useBatchRemove({
+    batchApi: batchRemove,
+    buildPayload: (rows) => ({ row_ids: rows.map(i => i.row_id) }),
+    getList,
+    selectionRef: multipleSelection,
+  })
+  const toBatchDelete = () => batchRemovePeers(multipleSelection.value)
 
   const batchABFormVisible = ref(false)
   const toBatchAddToAB = () => {

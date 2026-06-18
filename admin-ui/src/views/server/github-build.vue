@@ -74,22 +74,14 @@
         </el-alert>
         <el-alert
           v-if="dispatchResult"
-          :type="dispatchResult.pending ? 'info' : (dispatchResult.ok === true ? 'success' : (dispatchResult.ok === false ? 'error' : (dispatchResult.run_id ? 'info' : 'error')))"
+          :type="dispatchResult.run_id ? 'success' : 'error'"
           :closable="false"
         >
-          <div v-if="dispatchResult.pending">
-            <el-icon class="is-loading"><Loading /></el-icon>
-            {{ dispatchResult.message }}
+          <div v-if="dispatchResult.message">{{ dispatchResult.message }}</div>
+          <div v-if="dispatchResult.run_id">
+            Run id={{ dispatchResult.run_id }}
+            · <a :href="runUrl(dispatchResult.run_id)" target="_blank">Open in GitHub</a>
           </div>
-          <div v-else-if="dispatchResult.run_id">
-            <div v-if="dispatchResult.message">{{ dispatchResult.message }}</div>
-            <div>
-              Run id={{ dispatchResult.run_id }}
-              <span v-if="dispatchResult.conclusion"> · conclusion=<strong>{{ dispatchResult.conclusion }}</strong></span>
-              · <a :href="runUrl(dispatchResult.run_id)" target="_blank">Open in GitHub</a>
-            </div>
-          </div>
-          <div v-else>{{ dispatchResult.message || dispatchResult.error || 'Unknown error' }}</div>
         </el-alert>
       </el-form>
     </page-section>
@@ -98,8 +90,6 @@
 
 <script setup>
 import { ref, onMounted, reactive } from 'vue'
-import axios from 'axios'
-import { Loading } from '@element-plus/icons-vue'
 import * as api from '@/api/github_build_config'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import PageSection from '@/components/ui/PageSection.vue'
@@ -203,24 +193,12 @@ async function onTest () {
 
 async function onDispatchTest () {
   dispatching.value = true
-  dispatchResult.value = { pending: true, message: '⏳ Build running, polling for completion (up to 90 min)...' }
+  dispatchResult.value = null
   try {
-    // Сервер поллит GitHub внутри запроса до 90 мин → увеличиваем таймаут axios.
-    // Берём базовый URL из env и path из api.dispatchTest, чтобы выставить кастомный таймаут.
-    const base = import.meta.env.VITE_SERVER_API
-    const path = '/admin/github_build_config/dispatch_test'
-    const token = (await import('@/utils/auth')).getToken()
-    const userStore = (await import('@/store/user')).useUserStore((await import('@/store')).pinia)
-    const tok = token || userStore.token
-    const res = await axios.post(base + path, {}, {
-      timeout: 95 * 60 * 1000,
-      withCredentials: true,
-      headers: { 'api-token': tok },
-    })
-    const body = res.data
-    dispatchResult.value = (body && body.data) || body
+    const res = await api.dispatchTest()
+    dispatchResult.value = res.data || res
   } catch (e) {
-    dispatchResult.value = { ok: false, message: e.message || String(e) }
+    dispatchResult.value = { message: e.message || String(e) }
   } finally {
     dispatching.value = false
   }

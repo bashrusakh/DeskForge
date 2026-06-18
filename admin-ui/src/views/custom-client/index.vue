@@ -406,17 +406,20 @@ export default defineComponent({
       }
     }
 
+    // Single source of truth for the fields persisted inside custom_json.
+    // Used by loadPresetIntoForm + saveCurrentAsPreset + submitBuild — extending one
+    // without the other reintroduces the "saved but not restored" bug (audit §8.9).
+    // platform/version/app_name are stored on the preset record itself, not in custom_json.
+    const PRESET_FIELDS = ['server_ip','key','api_server','relay_server','company_name','download_url','direction','pass_approve_mode','permanent_password','deny_lan','enable_direct_ip','auto_close','hide_cm','theme','remove_wallpaper','remove_new_version_notif','permissions_type','enable_keyboard','enable_clipboard','enable_file_transfer','enable_audio','enable_tcp','enable_remote_restart','enable_recording','enable_blocking_input','enable_remote_modi','enable_printer','enable_camera','enable_terminal','cycle_monitor','x_offline','android_app_id','app_icon_url','app_logo_url','privacy_screen_url']
+
     const loadPresetIntoForm = (preset) => {
       if (!preset) return
-      // Должно совпадать со списком в saveCurrentAsPreset (см. ниже) — иначе пресет
-      // сохраняет поле, но не восстанавливает его. §8.9.
-      const fields = ['platform','version','app_name','server_ip','key','api_server','relay_server','company_name','download_url','direction','pass_approve_mode','permanent_password','deny_lan','enable_direct_ip','auto_close','hide_cm','theme','remove_wallpaper','remove_new_version_notif','allow_offline_input','allow_remote_config_modification','custom_app_icon_url','custom_app_logo_url','custom_privacy_screen_url','x11_extra_cmds','cycle_monitor','disable_update','android_app_id','hide_connection_management','app_icon_url','app_logo_url','privacy_screen_url']
       try {
         const cfg = JSON.parse(preset.custom_json || '{}')
-        for (const f of fields) {
+        for (const f of PRESET_FIELDS) {
           if (f in cfg && cfg[f] !== undefined) form[f] = cfg[f]
         }
-        // platform/version/app_name live in the form itself, not in custom_json
+        // platform/version/app_name live on the preset record, not in custom_json
         if (preset.platform) form.platform = preset.platform
         if (preset.version) form.version = preset.version
         if (preset.app_name !== undefined) form.app_name = preset.app_name
@@ -436,37 +439,10 @@ export default defineComponent({
       try {
         const name = await ElMessageBox.prompt(T('PresetName') || 'Preset name', T('SaveAsPreset') || 'Save as preset', { inputPlaceholder: 'My Preset' })
         if (!name || !name.value) return
-        const customJson = JSON.stringify({
-          server_ip: form.server_ip,
-          key: form.key,
-          api_server: form.api_server,
-          relay_server: form.relay_server,
-          company_name: form.company_name,
-          download_url: form.download_url,
-          direction: form.direction,
-          pass_approve_mode: form.pass_approve_mode,
-          permanent_password: form.permanent_password,
-          deny_lan: form.deny_lan,
-          enable_direct_ip: form.enable_direct_ip,
-          auto_close: form.auto_close,
-          hide_cm: form.hide_cm,
-          theme: form.theme,
-          remove_wallpaper: form.remove_wallpaper,
-          remove_new_version_notif: form.remove_new_version_notif,
-          allow_offline_input: form.allow_offline_input,
-          allow_remote_config_modification: form.allow_remote_config_modification,
-          custom_app_icon_url: form.custom_app_icon_url,
-          custom_app_logo_url: form.custom_app_logo_url,
-          custom_privacy_screen_url: form.custom_privacy_screen_url,
-          x11_extra_cmds: form.x11_extra_cmds,
-          cycle_monitor: form.cycle_monitor,
-          disable_update: form.disable_update,
-          android_app_id: form.android_app_id,
-          hide_connection_management: form.hide_connection_management,
-          app_icon_url: form.app_icon_url,
-          app_logo_url: form.app_logo_url,
-          privacy_screen_url: form.privacy_screen_url,
-        })
+        // Derived from PRESET_FIELDS so submit + save preset stay in sync.
+        const customPayload = {}
+        for (const f of PRESET_FIELDS) customPayload[f] = form[f]
+        const customJson = JSON.stringify(customPayload)
         await createPreset({
           name: name.value,
           platform: form.platform,
@@ -520,43 +496,10 @@ export default defineComponent({
       form.server_ip = stripPort(form.server_ip)
       submitting.value = true
       try {
-        const customJson = JSON.stringify({
-          server_ip: form.server_ip,
-          key: form.key,
-          api_server: form.api_server,
-          relay_server: form.relay_server,
-          company_name: form.company_name,
-          download_url: form.download_url,
-          direction: form.direction,
-          pass_approve_mode: form.pass_approve_mode,
-          permanent_password: form.permanent_password,
-          deny_lan: form.deny_lan,
-          enable_direct_ip: form.enable_direct_ip,
-          auto_close: form.auto_close,
-          hide_cm: form.hide_cm,
-          theme: form.theme,
-          remove_wallpaper: form.remove_wallpaper,
-          permissions_type: form.permissions_type,
-          enable_keyboard: form.enable_keyboard,
-          enable_clipboard: form.enable_clipboard,
-          enable_file_transfer: form.enable_file_transfer,
-          enable_audio: form.enable_audio,
-          enable_tcp: form.enable_tcp,
-          enable_remote_restart: form.enable_remote_restart,
-          enable_recording: form.enable_recording,
-          enable_blocking_input: form.enable_blocking_input,
-          enable_remote_modi: form.enable_remote_modi,
-          enable_printer: form.enable_printer,
-          enable_camera: form.enable_camera,
-          enable_terminal: form.enable_terminal,
-          cycle_monitor: form.cycle_monitor,
-          x_offline: form.x_offline,
-          remove_new_version_notif: form.remove_new_version_notif,
-          android_app_id: form.android_app_id,
-          app_icon_url: form.app_icon_url,
-          app_logo_url: form.app_logo_url,
-          privacy_screen_url: form.privacy_screen_url,
-        })
+        // Derived from PRESET_FIELDS so submit + save preset stay in sync.
+        const customPayload = {}
+        for (const f of PRESET_FIELDS) customPayload[f] = form[f]
+        const customJson = JSON.stringify(customPayload)
         await create({
           name: form.app_name || `${form.platform}-${form.version}`,
           platform: form.platform,
@@ -621,6 +564,9 @@ export default defineComponent({
       form.x_offline = false
       form.remove_new_version_notif = false
       form.android_app_id = ''
+      form.app_icon_url = ''
+      form.app_logo_url = ''
+      form.privacy_screen_url = ''
     }
 
     const downloadBuild = (row) => {
