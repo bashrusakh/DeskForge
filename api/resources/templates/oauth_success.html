@@ -56,16 +56,9 @@
             background-color: #45a049;
         }
     </style>
-    <script>
-        var lang = navigator.language || navigator.userLanguage || 'en';
-        var title = 'OauthSuccess'
-        var msg = '{{.message}}'
-        var btn = 'Close'
-        document.writeln('<script src="/api/oidc/msg?lang=' + lang + '&msg=' + msg + '&title=OauthSuccess"><\/script>');
-    </script>
 </head>
 <body>
-<div class="success-container">
+<div class="success-container" id="success-data" data-message="{{.message}}">
     <i class="fas fa-check-circle checkmark"></i>
     <h1 id="h1"></h1>
 
@@ -73,9 +66,19 @@
 </div>
 
 <script>
+    // Scripts live at the end of <body> so we can safely read the data-message
+    // attribute populated by the Go template above — see oauth_fail.html for
+    // the full reasoning (a <head> script would run before the body parsed
+    // and document.getElementById would return null).
+    var lang = navigator.language || navigator.userLanguage || 'en';
+    var title = 'OauthSuccess';
+    var successData = document.getElementById('success-data');
+    var msg = successData ? (successData.getAttribute('data-message') || '') : '';
+    document.writeln('<script src="/api/oidc/msg?lang=' + encodeURIComponent(lang) + '&msg=' + encodeURIComponent(msg) + '&title=OauthSuccess"><\/script>');
     document.title = title + ' - DeskForge';
     document.getElementById('h1').innerText = title;
-    document.getElementById('msg').innerText = msg;
+    // (No <p id="msg"> on the success page — keep title/msg variables for the
+    //  /api/oidc/msg script which references them.)
 </script>
 </body>
 </html>
