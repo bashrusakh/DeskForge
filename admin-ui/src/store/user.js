@@ -21,10 +21,7 @@ export const useUserStore = defineStore({
     logout () {
       removeToken()
       removeCode()
-      this.$patch({
-        name: '',
-        role: {},
-      })
+      this.$reset()
     },
 
     saveUserData (userData) {

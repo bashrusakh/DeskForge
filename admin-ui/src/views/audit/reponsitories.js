@@ -65,7 +65,10 @@ export function useRepositories () {
     q.page = 1
     const res = await list(q).catch(_ => false)
     if (res) {
-      const csv = jsonToCsv(res.data.list)
+      const csv = jsonToCsv(res.data.list.map(item => ({
+        ...item,
+        close_time: item.close_time ? formatTime(item.close_time * 1000) : '-',
+      })))
       downBlob(csv, 'connectLog.csv')
     }
   }

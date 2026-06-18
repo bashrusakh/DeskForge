@@ -19,8 +19,8 @@
       <actions-toolbar :selected="selectedRows">
         <template #default="{ disabled, selected }">
           <template v-if="selected.length === 1">
-            <el-button type="primary" @click="showRules(selected[0])">{{ T('ShareRules') }}</el-button>
-            <el-button type="primary" @click="toEdit(selected[0])">{{ T('Edit') }}</el-button>
+            <el-button v-if="selected[0].id !== 0" type="primary" @click="showRules(selected[0])">{{ T('ShareRules') }}</el-button>
+            <el-button type="primary" @click="toEdit(selected[0])" :disabled="selected[0].id === 0">{{ T('Edit') }}</el-button>
           </template>
           <el-button type="danger" :disabled="disabled" @click="bulkDel">
             {{ T('DeleteSelected') }} ({{ selected.length }})
@@ -112,6 +112,7 @@
   })
 
   onMounted(getList)
+  onActivated(getList)
 
   watch(() => listQuery.page, getList)
 

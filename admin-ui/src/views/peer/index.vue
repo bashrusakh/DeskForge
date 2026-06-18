@@ -396,12 +396,28 @@
   ])
 
   const toExport = async () => {
-    const q = { ...listQuery }
-    q.page_size = 10000
-    q.page = 1
-    const res = await list(q).catch(_ => false)
-    if (res) {
-      const data = res.data.list.map(item => {
+    // Paginated export: iterate through pages until the server returns a short
+    // page (or none). Previously this asked for page_size=1000000 in a single
+    // call which could DoS the API on large deployments and never finished if
+    // the dataset exceeded the limit. The MAX_ROWS cap keeps the browser
+    // responsive if pagination is misbehaving server-side.
+    const PAGE_SIZE = 1000
+    const MAX_ROWS = 100000
+    const q = { ...listQuery, page_size: PAGE_SIZE, page: 1 }
+    const all = []
+    let truncated = false
+    while (all.length < MAX_ROWS) {
+      const res = await list(q).catch(_ => false)
+      if (!res || !res.data || !Array.isArray(res.data.list)) break
+      all.push(...res.data.list)
+      if (res.data.list.length < PAGE_SIZE) break
+      q.page++
+    }
+    if (all.length >= MAX_ROWS) {
+      truncated = true
+    }
+    if (all.length) {
+      const data = all.slice(0, MAX_ROWS).map(item => {
         item.last_online_time = item.last_online_time ? new Date(item.last_online_time * 1000).toLocaleString() : '-'
         delete item.user_id
         delete item.user
@@ -409,6 +425,9 @@
       })
       const csv = jsonToCsv(data)
       downBlob(csv, 'peers.csv')
+      if (truncated) {
+        ElMessage.warning(T('ExportTruncated', { param: MAX_ROWS }))
+      }
     }
   }
 
@@ -423,7 +442,14 @@
         ElMessage.warning(T('CsvNoData'))
         return
       }
+      // Strip UTF-8 BOM from first column header
+      rows[0][0] = (rows[0][0] || '').replace(/^\uFEFF/, '')
       const keys = rows[0]
+      const missing = canKeys.filter(k => k !== 'group_id' && !keys.includes(k))
+      if (missing.length) {
+        ElMessage.error(T('ImportMissingColumns', { param: missing.join(', ') }))
+        return
+      }
       const values = rows.slice(1).map(rowFields => {
         const obj = {}
         keys.forEach((k, i) => {
@@ -432,7 +458,7 @@
         return obj
       }).filter(item => item.id)
       values.forEach(item => {
-        item.group_id = parseInt(item.group_id)
+        item.group_id = parseInt(item.group_id) || 0
         Object.keys(item).forEach(key => {
           if (!canKeys.includes(key)) {
             delete item[key]

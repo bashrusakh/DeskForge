@@ -22,3 +22,15 @@ type UserOauthItem struct {
 	Op     string `json:"op"`
 	Status int    `json:"status"`
 }
+
+type ShareUserItem struct {
+	Id      uint   `json:"id"`
+	Username string `json:"username"`
+	GroupId uint   `json:"group_id"`
+}
+
+type ShareGroupItem struct {
+	Id   uint   `json:"id"`
+	Name string `json:"name"`
+	Type int    `json:"type"`
+}

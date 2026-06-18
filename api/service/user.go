@@ -105,7 +105,7 @@ func (us *UserService) Login(u *model.User, llog *model.LoginLog) *model.UserTok
 		ExpiredAt:  us.UserTokenExpireTimestamp(),
 	}
 	DB.Create(ut)
-	llog.UserTokenId = ut.UserId
+	llog.UserTokenId = ut.Id
 	DB.Create(llog)
 	if llog.Uuid != "" {
 		AllService.PeerService.UuidBindUserId(llog.DeviceId, llog.Uuid, u.Id)
@@ -320,6 +320,29 @@ func (us *UserService) RouteNames(u *model.User) []string {
 		return model.AdminRouteNames
 	}
 	return model.UserRouteNames
+}
+
+// GroupUsersForShare returns the minimum directory data needed by the
+// address-book share-rule picker without exposing the full admin directory.
+func (us *UserService) GroupUsersForShare(currentUser *model.User) ([]*model.Group, []*model.User) {
+	if currentUser == nil || currentUser.Id == 0 {
+		return nil, nil
+	}
+	if us.IsAdmin(currentUser) {
+		allGroups := AllService.GroupService.List(1, 999, nil)
+		allUsers := us.List(1, 9999, nil)
+		return allGroups.Groups, allUsers.Users
+	}
+	group := AllService.GroupService.InfoById(currentUser.GroupId)
+	groups := make([]*model.Group, 0, 1)
+	if group.Id > 0 {
+		groups = append(groups, group)
+	}
+	if group.Type == model.GroupTypeShare {
+		users := us.ListByGroupId(currentUser.GroupId, 1, 9999)
+		return groups, users.Users
+	}
+	return groups, []*model.User{currentUser}
 }
 
 // InfoByOauthId oauthnameopenId
@@ -545,6 +568,10 @@ func (us *UserService) AutoRefreshAccessToken(ut *model.UserToken) {
 
 func (us *UserService) BatchDeleteUserToken(ids []uint) error {
 	return DB.Where("id in ?", ids).Delete(&model.UserToken{}).Error
+}
+
+func (us *UserService) BatchDeleteUserTokenByUser(ids []uint, userId uint) error {
+	return DB.Where("id in ? AND user_id = ?", ids, userId).Delete(&model.UserToken{}).Error
 }
 
 func (us *UserService) VerifyJWT(token string) (uint, error) {
