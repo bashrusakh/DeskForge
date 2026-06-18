@@ -4,7 +4,86 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased] - 2026-06-16
+## [Unreleased] - 2026-06-17
+
+### Security
+- **api: stop exposing OAuth `client_secret`** — `Oauth.ClientSecret` now `json:"-"` so list/detail responses never ship secrets to the browser. (M-016)
+- **api: harden LDAP** — `filterField` now escapes user-supplied values via `ldap.EscapeFilter`; empty-password bind is rejected; TLS verification defaults to secure. (S-002)
+- **api: gate `/rustdesk/*` behind `AdminPrivilege`** — server-command send/list/create/delete/update were open to any authenticated user. (S-001 + H-011)
+- **api: fix file upload path traversal** — `Upload` sanitizes filename with `filepath.Base`, enforces PNG magic bytes via `io.ReadFull` + signature check, and limits total size to 5 MB on actual bytes (not client-declared `Content-Length`); 0755 instead of 0777 on the upload dir; filename now prefixed with `UnixNano()` to prevent same-day collisions. (C-003)
+- **api: scope UUID lookup to owner in `BatchDeleteByOwner`** — added `GetUuidListByIDsAndOwner` so a user cannot invalidate tokens of other users' peers by guessing row_ids. (re-review)
+- **api: enforce preset ownership on Detail/Update/Delete** — closes privilege-escalation gap introduced by user-scoped List. (3rd-pass review)
+- **server: atomic blocklist/blacklist file write** — `write_set_to_file` writes to `.tmp` then `rename`s; writes serialized through `tokio::sync::Mutex` to prevent stale-snapshot races. (re-review + 3rd-pass review)
+
+### Fixed (critical)
+- **server: stop `aur` command from destroying relay servers** — removed stray `Data::RelayServers0` send. (C-002)
+- **api + admin-ui: implement My Devices delete** — `/admin/my/peer/delete` and `/admin/my/peer/batchDelete` with ownership-scoped SQL inside a transaction; `gorm.ErrRecordNotFound` treated as idempotent success; frontend `del` / `toBatchDelete` uncommented and wired. (C-004)
+
+### Fixed (high)
+- **api: last-admin race condition** — `getAdminUserCount` moved inside the deletion transaction. (H-002)
+- **admin-ui: address book bulk delete silently no-op** — `useBulkRemove` now supports `getRemovePayload`; AB entries correctly send `{ row_id }`. (H-010)
+- **admin-ui: missing server-command edit route** — `cmdUpdate` registered under `AdminPrivilege`. (H-011)
+- **admin-ui: custom client preset permission fields lost** — save/load/reset now round-trip all 13 permission flags + `x_offline` + branding URLs; stale field names removed. (H-006 + M-010)
+- **admin-ui: batch delete cleared selection on cancel or API failure** — waiters now use truthy check after `batchdel` was patched to return `res`. (H-008 + 3rd-pass review)
+- **admin-ui: csv peer import gave no feedback** — replaced `Promise.all().catch(_=>false)` with `Promise.allSettled` + counts. (H-003)
+- **admin-ui: csv export crashed on null cells** — `jsonToCsv` now null-guards and `JSON.stringify`s nested objects. (H-004)
+
+### Fixed (medium)
+- **admin-ui: partial-failure messaging in `useBulkRemove`** — three-state success/partial/total-failure feedback; payloadFn errors logged instead of swallowed. (M-004 + 3rd-pass review)
+- **admin-ui: address book collection delete cascade warning** — new `warningMessage` option surfaces "this also deletes entries and rules" in the confirm dialog. (H-005)
+- **admin-ui: GitHub dispatch no longer holds HTTP for 90 min** — `DispatchTest` returns `run_id` immediately; frontend `github-build.vue` updated to match new response contract. (M-009)
+- **admin-ui: persist blocklist/blacklist runtime changes** — relay server writes back to `blacklist.txt` / `blocklist.txt` atomically after every add/remove. (M-013)
+- **admin-ui: preset list scoped by current user** — `ListByUser` so admins no longer see each other's presets. (M-008)
+
+### Changed
+- **admin-ui: removed all `console.log` statements** flagged by the audit — including one in `store/user.js:45` that logged the full login response with the JWT. (M-012)
+- **api: `Ldap` config retains deprecated `tls-verify` key** for backward compat; `tls-skip-verify` is now `*bool` so "unset" cleanly falls back. New deployments should use `tls-skip-verify`. (S-002 + 3rd-pass review)
+
+### Reference
+- Functional audit report: `audit-report.md` (PR #19).
+- Re-review identified 3 additional High findings — all fixed.
+- 3rd-pass `ocr` review identified 6 additional High findings — all fixed in this change set.
+- Round 2 (PR #21) resolved 15 more findings — see below.
+
+### Security (round 2)
+- **api: scope token batch-delete to current user** — non-admin callers now have `AND user_id = ?` applied to the `BatchDeleteUserToken` query; admins retain full scope. The route is currently behind `AdminPrivilege`, so the non-admin branch is defense-in-depth that matches the per-row owner check already in `(ct *UserToken).Delete`. (H-001)
+- **api: gate `/config/all` behind `AdminPrivilege`** — the supermarket endpoint that returns `register`, `ws_host`, `show_swagger`, `personal`, etc. is now admin-only. `/config/server` and `/config/app` stay behind `BackendUserAuth` because the web-client login flow writes `id_server`/`key`/`api-server` into `localStorage` for every authenticated user, and `web_client` drives UI rendering. (H-009 / L-016)
+- **api: split `/user/groupUsers` into admin and personal endpoints** — `/user/groupUsers` is admin-only; new `/my/groupUsers` (`BackendUserAuth`, reuses the same handler) lets non-admins populate the grantee picker for their Personal Address Book share rules. Frontend `admin-ui/src/views/address_book/rule.js` dispatches by `api_type`. (M-017)
+
+### Fixed (round 2)
+- **api: reject admin self-lockout in three shapes** — `Update` rejects `curUser.Id == u.Id` when the request would either disable the current user (`Status == COMMON_STATUS_DISABLED`) or demote them (`IsAdmin(curUser) && !*u.IsAdmin`); `Delete` rejects `curUser.Id == u.Id` outright. Backend is authoritative; frontend disable/delete controls for the current user's own row are not yet visually disabled. (M-019)
+- **api: filter soft-deleted records from admin login history** — admin list now includes `is_deleted = ?` filter using `model.IsDeletedNo`, consistent with the user-facing path. (L-022)
+- **api: fix `LoginLog.UserTokenId` assignment** — was `ut.UserId` (duplicates user_id), now correctly stores `ut.Id` (the token's own PK). (L-023)
+- **admin-ui: validate csv import headers by name + strip UTF-8 BOM** — import strips the leading BOM from the header line before splitting, trims and unquotes each column name, checks for required columns and maps by header name instead of positional index; missing columns produce a descriptive error toast. (M-001)
+- **admin-ui: fix csv import `group_id` NaN fallback** — `parseInt(group_id)` → `parseInt(group_id) || 0`. (M-002)
+- **admin-ui: normalize peer export page_size** — changed from 10,000 to 1,000,000, consistent with other export functions. Not a true cap removal — deployments with >1M peers still need a server-side streaming export. (M-003)
+- **admin-ui: conditionally require `pkce_method`** — replaced the unconditional `required: true` with a `validator` that requires (and constrains to `S256`/`plain`) only when `formData.pkce_enable === true`. OAuth configs with PKCE disabled still save even if the stored method is empty. (M-015)
+- **admin-ui: fix tag collection dropdown query** — `changeUserForUpdate` was setting the wrong query variable, so the dropdown never populated for the selected user. (M-018)
+- **admin-ui: stop double-toasting backend errors on user create/update** — both `submitCreate` and `submitUpdate` now coerce the falsy `res` from `.catch(_ => false)` before dereferencing `res.code`; the real error toast (`UsernameExists`, etc.) comes from the global axios interceptor's `res.message`, so the composable no longer stacks a generic `OperationFailed` on top. (M-020)
+- **admin-ui: hide Share Rules for personal address book row** — the synthetic `id=0` row now hides "Share Rules" and disables "Edit". (L-020)
+- **admin-ui: allow clearing tags in batch edit (with confirm)** — removed the silent `tags.length === 0` guard; an empty tag list now triggers an `ElMessageBox.confirm` ("Confirm? Clear tags") so an accidental "Save" no longer wipes every selected entry. New i18n key `ClearTags`. (L-021)
+- **admin-ui: refresh my collections on `onActivated`** — `my/address_book/collection.vue` now refreshes the list when navigating back with keep-alive. (L-025)
+- **admin-ui: format `close_time` in connection log export** — raw unix timestamp now converted to formatted date string in CSV. (M-006)
+- **admin-ui: reset password dialog fields on open** — `changePwdDialog` now clears form on dialog open via `watch`; `window.location.reload()` replaced with `router.push('/login')`. (M-011 + L-017)
+- **admin-ui: fix logout `$patch` field names** — `name` → `nickname`, `{}` → `''` for `role`. (L-002)
+- **admin-ui: populate tag dropdown in address book add dialog** — `createABForm.vue` now imports `getTagList` from `useABRepositories`. (L-006)
+- **admin-ui: display `title` field on server config page** — added `el-descriptions-item` for `cfg.title`. (L-013)
+
+### Fixed (round 3 — cleanup, security, ux polish)
+
+- **api: remove dead `google` oauth import** — commented-out `golang.org/x/oauth2/google` and `// "io"` removed from `oauth.go`. (L-001)
+- **api: fix `sync.Once` version read** — replaced `sync.Once` with a `sync.Mutex`+double-check so a transient read failure on first call retries on the next call instead of being sticky forever. (L-003)
+- **api: stream TCP command response instead of fixed buffer** — `serverCmd.SendSocketCmd` now uses `io.Copy + io.LimitReader(1 MiB)` under a 2s read deadline, replacing the `Sleep(100ms) + Read(1024)` workaround. Long `blocklist`/`blocklist_add` responses are no longer truncated. (L-004)
+- **api: null-out group references before deleting groups** — `Group.Delete` and `DeviceGroup.Delete` now run inside a transaction and clear `group_id` on referencing rows. `Group.Delete` clears both `user.group_id` and `peer.group_id`; `DeviceGroup.Delete` clears `peer.group_id` (the peers table reuses the same column for both — see comments in `service/group.go`). (L-008)
+- **api: harden oauth callback templates against JS-context injection** — `oauth_fail.html` and `oauth_success.html` now read the message via a `data-message` HTML attribute (`getAttribute`) instead of interpolating directly into a JS string literal, and the script URL uses `encodeURIComponent`. (L-014)
+- **api: rewrite `/api/oidc/msg` handler to emit JS via `encoding/json`** — the previous raw-concat into single-quoted literals broke on the first translation containing an apostrophe and would have become an XSS the moment caller-controlled text reached `mp.Title` / `mp.Msg`. `json.Marshal` produces valid JS string literals with proper escaping.
+- **api: validate `pkce_method` server-side** — `OauthForm.PkceMethod` now has `validate:"omitempty,oneof=S256 plain,required_if=PkceEnable true"`. Invalid values are rejected and an empty value is required when PKCE is enabled. (L-024)
+- **api: clean up orphaned build artifacts on disk** — `CustomBuildService.Delete` removes the build's `/rdgen-data/output/<id>` directory after the DB delete. The path is now centralized in `service.BuildOutputDir(id)` and reused by the download/build-result controllers so the convention has a single source of truth. (L-026)
+- **admin-ui: show fallback message when RustDesk client missing** — `connectByClient` shows `ElMessage.info('RustDeskClientNotFound')` after 3s if the page is still visible. Best-effort: the browser has no reliable signal, so false positives on slow client launches and false negatives on tab switches are documented in the helper. (L-009)
+- **admin-ui: show `build_log` in tooltip on failed builds** — status column now wraps the `el-tag` in an `el-tooltip` whose content is a `<pre>` block (wrap, scroll, max-height 300px) so multi-line shell transcripts stay readable. (L-012)
+- **admin-ui: rename "Create" to "Save Configuration"** — custom client builder button now says "Save Configuration" to clarify it only persists config, not triggers a build. (L-019)
+- **admin-ui: add OAuth redirect URL copy instruction** — descriptive hint added below the redirect URL display. (L-018)
+- **admin-ui: ship i18n keys + drop dead `T() || 'fallback'` chains** — `RustDeskClientNotFound`, `SaveConfiguration`, `CopyThisUrlToProvider` added to `en/ru/zh_CN.json`. `LoadPreset`, `SaveAsPreset`, `PresetName`, `Branding`, `AppIcon`, `AppLogo`, `PrivacyScreen`, `Upload` (already in `en.json`) added to `ru.json` and `zh_CN.json` so non-English users no longer see the bare key. All `T('Key') || 'English fallback'` patterns dropped now that the i18n side carries the canonical text.
 
 ### Fixed (admin-ui: card hover-shadow flicker on route enter)
 - `PageSection` and `DangerZone` switched from `shadow="hover"` to `shadow="never"` so cards no longer animate `box-shadow: none → var(--shadow-card)` on page enter. In dark mode the old transition (`rgba(0, 0, 0, 0.28)` shadow) read as a black-to-blue flash whenever the cursor was already over a card after a route transition; static cards (border + background) make the layout stable on navigation.
