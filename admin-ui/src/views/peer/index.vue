@@ -404,6 +404,7 @@
     const MAX_ROWS = 100000
     const q = { ...listQuery, page_size: PAGE_SIZE, page: 1 }
     const all = []
+    let truncated = false
     while (all.length < MAX_ROWS) {
       const res = await list(q).catch(_ => false)
       if (!res || !res.data || !Array.isArray(res.data.list)) break
@@ -411,14 +412,22 @@
       if (res.data.list.length < PAGE_SIZE) break
       q.page++
     }
-    const data = all.map(item => {
-      item.last_online_time = item.last_online_time ? new Date(item.last_online_time * 1000).toLocaleString() : '-'
-      delete item.user_id
-      delete item.user
-      return item
-    })
-    const csv = jsonToCsv(data)
-    downBlob(csv, 'peers.csv')
+    if (all.length >= MAX_ROWS) {
+      truncated = true
+    }
+    if (all.length) {
+      const data = all.slice(0, MAX_ROWS).map(item => {
+        item.last_online_time = item.last_online_time ? new Date(item.last_online_time * 1000).toLocaleString() : '-'
+        delete item.user_id
+        delete item.user
+        return item
+      })
+      const csv = jsonToCsv(data)
+      downBlob(csv, 'peers.csv')
+      if (truncated) {
+        ElMessage.warning(T('ExportTruncated', { param: MAX_ROWS }))
+      }
+    }
   }
 
   const showImport = ref(false)
@@ -455,13 +464,16 @@
       row.push(field.trim())
       if (row.some(v => v !== '')) rows.push(row)
 
-      if (rows.length < 2) return
+      if (rows.length < 2) {
+        ElMessage.warning(T('CsvNoData'))
+        return
+      }
       // Strip UTF-8 BOM from first column header
       rows[0][0] = (rows[0][0] || '').replace(/^\uFEFF/, '')
       const keys = rows[0]
       const missing = canKeys.filter(k => k !== 'group_id' && !keys.includes(k))
       if (missing.length) {
-        ElMessage.error(`${T('Import')}: missing columns: ${missing.join(', ')}`)
+        ElMessage.error(T('ImportMissingColumns', { param: missing.join(', ') }))
         return
       }
       const values = rows.slice(1).map(rowFields => {

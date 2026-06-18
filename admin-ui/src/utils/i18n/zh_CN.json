@@ -476,6 +476,12 @@
   "ClearTags": {
     "One": "清空标签"
   },
+  "ImportMissingColumns": {
+    "One": "导入失败：缺少列：{param}"
+  },
+  "ExportTruncated": {
+    "One": "导出已在 {param} 行处停止"
+  },
   "Selected": {
     "One": "已选"
   },

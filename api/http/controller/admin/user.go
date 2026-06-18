@@ -323,6 +323,35 @@ func (ct *User) GroupUsers(c *gin.Context) {
 	})
 }
 
+func (ct *User) GroupUsersForShare(c *gin.Context) {
+	cu := service.AllService.UserService.CurUser(c)
+	if cu == nil || cu.Id == 0 {
+		response.Fail(c, 403, response.TranslateMsg(c, "NeedLogin"))
+		return
+	}
+	groups, users := service.AllService.UserService.GroupUsersForShare(cu)
+	groupItems := make([]*adResp.ShareGroupItem, 0, len(groups))
+	for _, group := range groups {
+		groupItems = append(groupItems, &adResp.ShareGroupItem{
+			Id:   group.Id,
+			Name: group.Name,
+			Type: group.Type,
+		})
+	}
+	userItems := make([]*adResp.ShareUserItem, 0, len(users))
+	for _, user := range users {
+		userItems = append(userItems, &adResp.ShareUserItem{
+			Id:       user.Id,
+			Username: user.Username,
+			GroupId:  user.GroupId,
+		})
+	}
+	response.Success(c, gin.H{
+		"groups": groupItems,
+		"users":  userItems,
+	})
+}
+
 // Register
 func (ct *User) Register(c *gin.Context) {
 	if !global.Config.App.Register {

@@ -290,10 +290,9 @@ func FileBind(rg *gin.RouterGroup) {
 func MyBind(rg *gin.RouterGroup) {
 	{
 		// Personal Address Book share rules need to list groups+users
-		// for the picker. Reuses admin.User.GroupUsers, scoped here to
-		// BackendUserAuth (inherited from adg) instead of AdminPrivilege.
+		// for the picker without exposing the full admin directory.
 		cont := &admin.User{}
-		rg.POST("/my/groupUsers", cont.GroupUsers)
+		rg.POST("/my/groupUsers", cont.GroupUsersForShare)
 	}
 
 	{

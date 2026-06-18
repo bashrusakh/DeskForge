@@ -81,8 +81,6 @@
     changeCollectionForUpdate,
     collectionListResForUpdate,
     tagListRes,
-    tagListQuery,
-    getTagList,
     fromPeer,
   } = useABRepositories('admin')
   onMounted(() => {

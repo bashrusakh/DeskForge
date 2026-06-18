@@ -311,6 +311,29 @@ func (us *UserService) RouteNames(u *model.User) []string {
 	return model.UserRouteNames
 }
 
+// GroupUsersForShare returns the minimum directory data needed by the
+// address-book share-rule picker without exposing the full admin directory.
+func (us *UserService) GroupUsersForShare(currentUser *model.User) ([]*model.Group, []*model.User) {
+	if currentUser == nil || currentUser.Id == 0 {
+		return nil, nil
+	}
+	if us.IsAdmin(currentUser) {
+		allGroups := AllService.GroupService.List(1, 999, nil)
+		allUsers := us.List(1, 9999, nil)
+		return allGroups.Groups, allUsers.Users
+	}
+	group := AllService.GroupService.InfoById(currentUser.GroupId)
+	groups := make([]*model.Group, 0, 1)
+	if group.Id > 0 {
+		groups = append(groups, group)
+	}
+	if group.Type == model.GroupTypeShare {
+		users := us.ListByGroupId(currentUser.GroupId, 1, 9999)
+		return groups, users.Users
+	}
+	return groups, []*model.User{currentUser}
+}
+
 // InfoByOauthId oauthnameopenId
 func (us *UserService) InfoByOauthId(op string, openId string) *model.User {
 	ut := AllService.OauthService.UserThirdInfo(op, openId)

@@ -466,6 +466,12 @@
   "ClearTags": {
     "One": "Clear tags"
   },
+  "ImportMissingColumns": {
+    "One": "Import failed: missing columns: {param}"
+  },
+  "ExportTruncated": {
+    "One": "Export stopped at {param} rows"
+  },
   "Selected": {
     "One": "selected"
   },
