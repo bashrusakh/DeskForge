@@ -406,15 +406,23 @@
     const q = { ...listQuery, page_size: PAGE_SIZE, page: 1 }
     const all = []
     let truncated = false
+    let pageFailed = false
     while (all.length < MAX_ROWS) {
       const res = await list(q).catch(_ => false)
-      if (!res || !res.data || !Array.isArray(res.data.list)) break
+      if (!res || !res.data || !Array.isArray(res.data.list)) {
+        pageFailed = true
+        break
+      }
       all.push(...res.data.list)
       if (res.data.list.length < PAGE_SIZE) break
       q.page++
     }
     if (all.length >= MAX_ROWS) {
       truncated = true
+    }
+    if (pageFailed) {
+      ElMessage.error(T('ExportPageFailed'))
+      return
     }
     if (all.length) {
       const data = all.slice(0, MAX_ROWS).map(item => {

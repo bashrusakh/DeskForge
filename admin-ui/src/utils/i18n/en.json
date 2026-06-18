@@ -943,6 +943,9 @@
   "ExportTruncated": {
     "One": "Export truncated to {param} rows (limit reached)"
   },
+  "ExportPageFailed": {
+    "One": "Export failed: could not load all pages. Please try again."
+  },
   "RustDeskClientNotFound": {
     "One": "RustDesk client not found. Please install RustDesk to connect."
   },

@@ -569,6 +569,9 @@
   "ExportTruncated": {
     "One": "导出已截断至 {param} 行（达到上限）"
   },
+  "ExportPageFailed": {
+    "One": "导出失败：无法加载所有页面。请重试。"
+  },
   "RustDeskClientNotFound": {
     "One": "未找到 RustDesk 客户端。请安装 RustDesk 以连接。"
   },
