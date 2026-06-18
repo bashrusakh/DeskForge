@@ -143,7 +143,8 @@ func (f *File) Upload(c *gin.Context) {
 		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
 		return
 	}
-	if written+8 > maxSize {
+	// total size = header bytes already read (len(header)) + body bytes written
+	if int64(len(header))+written > maxSize {
 		os.Remove(dst)
 		response.Fail(c, 101, "file too large (max 5 MB)")
 		return

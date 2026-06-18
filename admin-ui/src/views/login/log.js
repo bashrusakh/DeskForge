@@ -6,6 +6,7 @@ import { T } from '@/utils/i18n'
 import { batchDelete as admin_batchDelete, list as admin_list, remove as admin_remove } from '@/api/login_log'
 import { batchDelete as my_batchDelete, list as my_list, remove as my_remove } from '@/api/my/login_log'
 import { downBlob, jsonToCsv } from '@/utils/file'
+import { useBatchRemove } from '@/composables/useBatchRemove'
 
 const apis = {
   admin: { batchDelete: admin_batchDelete, list: admin_list, remove: admin_remove, fetchPeers: admin_fetchPeers },
@@ -73,28 +74,11 @@ export function useRepositories (api_type = 'my') {
     }
   }
 
-  const batchdel = async (rows) => {
-    const ids = rows.map(r => r.id)
-    if (!ids.length) {
-      ElMessage.warning(T('PleaseSelectData'))
-      return false
-    }
-    const cf = await ElMessageBox.confirm(T('Confirm?', { param: T('BatchDelete') }), {
-      confirmButtonText: T('Confirm'),
-      cancelButtonText: T('Cancel'),
-      type: 'warning',
-    }).catch(_ => false)
-    if (!cf) {
-      return false
-    }
-
-    const res = await apis[api_type].batchDelete({ ids }).catch(_ => false)
-    if (res) {
-      ElMessage.success(T('OperationSuccess'))
-      getList()
-    }
-    return res || false
-  }
+  const { confirmAndRemove: batchdel } = useBatchRemove({
+    batchApi: (payload) => apis[api_type].batchDelete(payload),
+    buildPayload: (rows) => ({ ids: rows.map(r => r.id) }),
+    getList,
+  })
 
   // only Admin
   const toExport = async () => {

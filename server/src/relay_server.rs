@@ -76,6 +76,34 @@ async fn write_set_to_file(file: &str, lock: &RwLock<HashSet<String>>) {
     }
 }
 
+// Insert IP(s) ('|'-separated) into `set`, then persist atomically. Co-locating the
+// mutation with the disk write means a new call site cannot forget to persist.
+async fn set_insert(file: &str, set: &RwLock<HashSet<String>>, ips: &str) {
+    {
+        let mut w = set.write().await;
+        for ip in ips.split('|') {
+            w.insert(ip.to_owned());
+        }
+    } // drop write guard before write_set_to_file re-locks for reading
+    write_set_to_file(file, set).await;
+}
+
+// Remove IP(s) ('|'-separated), or clear the whole set when `ips == "all"`, then
+// persist atomically.
+async fn set_remove(file: &str, set: &RwLock<HashSet<String>>, ips: &str) {
+    {
+        let mut w = set.write().await;
+        if ips == "all" {
+            w.clear();
+        } else {
+            for ip in ips.split('|') {
+                w.remove(ip);
+            }
+        }
+    } // drop write guard before write_set_to_file re-locks for reading
+    write_set_to_file(file, set).await;
+}
+
 #[tokio::main(flavor = "multi_thread")]
 pub async fn start(port: &str, key: &str) -> ResultType<()> {
     let key = get_server_sk(key);
@@ -205,22 +233,12 @@ async fn check_cmd(cmd: &str, limiter: Limiter) -> String {
         }
         Some("blacklist-add" | "ba") => {
             if let Some(ip) = fds.next() {
-                for ip in ip.split('|') {
-                    BLACKLIST.write().await.insert(ip.to_owned());
-                }
-                write_set_to_file(BLACKLIST_FILE, &BLACKLIST).await;
+                set_insert(BLACKLIST_FILE, &BLACKLIST, ip).await;
             }
         }
         Some("blacklist-remove" | "br") => {
             if let Some(ip) = fds.next() {
-                if ip == "all" {
-                    BLACKLIST.write().await.clear();
-                } else {
-                    for ip in ip.split('|') {
-                        BLACKLIST.write().await.remove(ip);
-                    }
-                }
-                write_set_to_file(BLACKLIST_FILE, &BLACKLIST).await;
+                set_remove(BLACKLIST_FILE, &BLACKLIST, ip).await;
             }
         }
         Some("blacklist" | "b") => {
@@ -234,22 +252,12 @@ async fn check_cmd(cmd: &str, limiter: Limiter) -> String {
         }
         Some("blocklist-add" | "Ba") => {
             if let Some(ip) = fds.next() {
-                for ip in ip.split('|') {
-                    BLOCKLIST.write().await.insert(ip.to_owned());
-                }
-                write_set_to_file(BLOCKLIST_FILE, &BLOCKLIST).await;
+                set_insert(BLOCKLIST_FILE, &BLOCKLIST, ip).await;
             }
         }
         Some("blocklist-remove" | "Br") => {
             if let Some(ip) = fds.next() {
-                if ip == "all" {
-                    BLOCKLIST.write().await.clear();
-                } else {
-                    for ip in ip.split('|') {
-                        BLOCKLIST.write().await.remove(ip);
-                    }
-                }
-                write_set_to_file(BLOCKLIST_FILE, &BLOCKLIST).await;
+                set_remove(BLOCKLIST_FILE, &BLOCKLIST, ip).await;
             }
         }
         Some("blocklist" | "B") => {

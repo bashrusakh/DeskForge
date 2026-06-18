@@ -15,7 +15,7 @@
         <page-section title="Simple controls" subtitle="Common server controls are grouped here and remain guarded by per-card availability states.">
           <el-alert type="warning" :closable="false" show-icon class="mb-15">
             <template #title>
-              {{ T('RuntimeSettingsWarning') !== 'RuntimeSettingsWarning' ? T('RuntimeSettingsWarning') : 'These settings are applied at runtime only and will be reset to defaults on server restart. Changes are not persisted to disk.' }}
+              {{ T('RuntimeSettingsWarning') }}
             </template>
           </el-alert>
           <el-space wrap>

@@ -277,7 +277,12 @@ func (s *GithubBuildConfigService) DispatchBuild(ctx context.Context, c *model.G
 		b, _ := io.ReadAll(resp.Body)
 		return 0, fmt.Errorf("dispatch HTTP %d: %s", resp.StatusCode, string(b))
 	}
-	// найти id свежезапущенного рана (поллинг — GitHub индексирует не моментально)
+	// найти id свежезапущенного рана (GitHub индексирует не моментально).
+	// ВАЖНО: принимаем только ран, созданный не раньше момента dispatch (минус
+	// небольшой допуск на рассинхрон часов сервера и GitHub). Иначе per_page=1
+	// вернёт ПРЕДЫДУЩИЙ ран этого воркфлоу, пока новый не проиндексирован, и UI
+	// покажет ссылку на чужую сборку.
+	dispatchedAt := time.Now().UTC().Add(-10 * time.Second)
 	for i := 0; i < 10; i++ {
 		time.Sleep(2 * time.Second)
 		listPath := fmt.Sprintf("/repos/%s/actions/workflows/%s/runs?per_page=1&branch=%s",
@@ -296,7 +301,13 @@ func (s *GithubBuildConfigService) DispatchBuild(ctx context.Context, c *model.G
 		_ = json.NewDecoder(rr.Body).Decode(&data)
 		rr.Body.Close()
 		if len(data.WorkflowRuns) > 0 {
-			return data.WorkflowRuns[0].Id, nil
+			run := data.WorkflowRuns[0]
+			created, perr := time.Parse(time.RFC3339, run.CreatedAt)
+			// если created_at непарсится — не блокируемся, берём как есть;
+			// иначе ждём появления именно нового рана.
+			if perr != nil || !created.Before(dispatchedAt) {
+				return run.Id, nil
+			}
 		}
 	}
 	return 0, errors.New("dispatch ok but run id not found after polling")

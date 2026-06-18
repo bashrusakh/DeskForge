@@ -73,6 +73,13 @@ func (lu *LdapUser) ToUser(u *model.User) *model.User {
 
 // connectAndBind creates an LDAP connection, optionally starts TLS, and then binds using the provided credentials.
 func (ls *LdapService) connectAndBind(cfg *config.Ldap, username, password string) (*ldap.Conn, error) {
+	// Reject unauthenticated simple bind (non-empty DN + empty password): RFC 4513
+	// §5.1.2 — many servers treat it as an anonymous bind that "succeeds" without
+	// verifying credentials. Fail before opening a connection. (A fully anonymous
+	// bind with both DN and password empty is still permitted.)
+	if username != "" && password == "" {
+		return nil, ErrLdapBindService
+	}
 	u, err := url.Parse(cfg.Url)
 	if err != nil {
 		return nil, errors.Join(ErrUrlParseFailed, err)

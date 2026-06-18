@@ -137,21 +137,6 @@ func (ps *PeerService) GetUuidListByIDs(ids []uint) ([]string, error) {
 	return newUuids, err
 }
 
-// GetUuidListByIDsAndOwner  idsuuid scoped to owner
-func (ps *PeerService) GetUuidListByIDsAndOwner(ids []uint, userId uint) ([]string, error) {
-	var uuids []string
-	err := DB.Model(&model.Peer{}).
-		Where("row_id in (?) AND user_id = ?", ids, userId).
-		Pluck("uuid", &uuids).Error
-	var newUuids []string
-	for _, uuid := range uuids {
-		if uuid != "" {
-			newUuids = append(newUuids, uuid)
-		}
-	}
-	return newUuids, err
-}
-
 // BatchDelete , token
 func (ps *PeerService) BatchDelete(ids []uint) error {
 	uuids, err := ps.GetUuidListByIDs(ids)
@@ -180,7 +165,7 @@ func (ps *PeerService) DeleteWithOwner(rowId uint, userId uint) error {
 			return err
 		}
 		if peer.Uuid != "" {
-			if err := tx.Where("device_uuid = ?", peer.Uuid).Delete(&model.UserToken{}).Error; err != nil {
+			if err := AllService.UserService.FlushTokenByUuidsTx(tx, []string{peer.Uuid}); err != nil {
 				return err
 			}
 		}
@@ -210,10 +195,8 @@ func (ps *PeerService) BatchDeleteByOwner(rowIds []uint, userId uint) error {
 				nonEmpty = append(nonEmpty, uuid)
 			}
 		}
-		if len(nonEmpty) > 0 {
-			if err := tx.Where("device_uuid in (?)", nonEmpty).Delete(&model.UserToken{}).Error; err != nil {
-				return err
-			}
+		if err := AllService.UserService.FlushTokenByUuidsTx(tx, nonEmpty); err != nil {
+			return err
 		}
 		return nil
 	})
