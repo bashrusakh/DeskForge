@@ -239,7 +239,8 @@
   import { toWebClientLink } from '@/utils/webclient'
   import { T } from '@/utils/i18n'
   import { timeAgo } from '@/utils/time'
-  import { jsonToCsv, downBlob } from '@/utils/file'
+  import { jsonToCsv, downBlob, parseCsvRows } from '@/utils/file'
+  import { useBatchRemove } from '@/composables/useBatchRemove'
   import { loadAllUsers } from '@/global'
   import { useAppStore } from '@/store/app'
   import { connectByClient } from '@/utils/peer'
@@ -395,12 +396,28 @@
   ])
 
   const toExport = async () => {
-    const q = { ...listQuery }
-    q.page_size = 10000
-    q.page = 1
-    const res = await list(q).catch(_ => false)
-    if (res) {
-      const data = res.data.list.map(item => {
+    // Paginated export: iterate through pages until the server returns a short
+    // page (or none). Previously this asked for page_size=1000000 in a single
+    // call which could DoS the API on large deployments and never finished if
+    // the dataset exceeded the limit. The MAX_ROWS cap keeps the browser
+    // responsive if pagination is misbehaving server-side.
+    const PAGE_SIZE = 1000
+    const MAX_ROWS = 100000
+    const q = { ...listQuery, page_size: PAGE_SIZE, page: 1 }
+    const all = []
+    let truncated = false
+    while (all.length < MAX_ROWS) {
+      const res = await list(q).catch(_ => false)
+      if (!res || !res.data || !Array.isArray(res.data.list)) break
+      all.push(...res.data.list)
+      if (res.data.list.length < PAGE_SIZE) break
+      q.page++
+    }
+    if (all.length >= MAX_ROWS) {
+      truncated = true
+    }
+    if (all.length) {
+      const data = all.slice(0, MAX_ROWS).map(item => {
         item.last_online_time = item.last_online_time ? new Date(item.last_online_time * 1000).toLocaleString() : '-'
         delete item.user_id
         delete item.user
@@ -408,6 +425,9 @@
       })
       const csv = jsonToCsv(data)
       downBlob(csv, 'peers.csv')
+      if (truncated) {
+        ElMessage.warning(T('ExportTruncated', { param: MAX_ROWS }))
+      }
     }
   }
 
@@ -417,39 +437,45 @@
     const reader = new FileReader()
     reader.onload = async (e) => {
       const data = e.target.result
-      console.log(data)
-      //组装数据
-      const rows = data.split('\n')
-      const keys = rows[0].split(',')
-      console.log(keys, rows.slice(1).map(row => row.split(',')))
-      const values = rows.slice(1).map(row => {
+      const rows = parseCsvRows(data)
+      if (rows.length < 2) {
+        ElMessage.warning(T('CsvNoData'))
+        return
+      }
+      // Strip UTF-8 BOM from first column header
+      rows[0][0] = (rows[0][0] || '').replace(/^\uFEFF/, '')
+      const keys = rows[0]
+      const missing = canKeys.filter(k => k !== 'group_id' && !keys.includes(k))
+      if (missing.length) {
+        ElMessage.error(T('ImportMissingColumns', { param: missing.join(', ') }))
+        return
+      }
+      const values = rows.slice(1).map(rowFields => {
         const obj = {}
-        row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).forEach((v, i) => {
-          //去掉两边的"
-          obj[keys[i]] = v.trim().replace(/^"|"$/g, '')
+        keys.forEach((k, i) => {
+          if (rowFields[i] !== undefined) obj[k] = rowFields[i]
         })
         return obj
       }).filter(item => item.id)
-      // console.log(values)
-      //移除不需要的key
       values.forEach(item => {
-        item.group_id = parseInt(item.group_id)
+        item.group_id = parseInt(item.group_id) || 0
         Object.keys(item).forEach(key => {
           if (!canKeys.includes(key)) {
             delete item[key]
           }
         })
       })
-      console.log(values)
-      const pa = []
-      values.map(item => {
-        pa.push(create(item))
-      })
-      const res = await Promise.all(pa).catch(_ => false)
-      if (res) {
+      const results = await Promise.allSettled(values.map(item => create(item)))
+      const ok = results.filter(r => r.status === 'fulfilled').length
+      const fail = results.filter(r => r.status === 'rejected').length
+      if (fail === 0) {
         ElMessage.success(T('OperationSuccess'))
-        getList()
+      } else if (ok > 0) {
+        ElMessage.warning(`${T('Import')}: ${ok} ${T('Success')}, ${fail} ${T('Failed')}`)
+      } else {
+        ElMessage.error(T('OperationFailed'))
       }
+      getList()
 
     }
     reader.readAsText(file)
@@ -467,26 +493,13 @@
   const handleSelectionChange = (val) => {
     multipleSelection.value = val
   }
-  const toBatchDelete = async () => {
-    if (!multipleSelection.value.length) {
-      ElMessage.warning(T('PleaseSelectData'))
-      return false
-    }
-    const cf = await ElMessageBox.confirm(T('Confirm?', { param: T('BatchDelete') }), {
-      confirmButtonText: T('Confirm'),
-      cancelButtonText: T('Cancel'),
-      type: 'warning',
-    }).catch(_ => false)
-    if (!cf) {
-      return false
-    }
-
-    const res = await batchRemove({ row_ids: multipleSelection.value.map(i => i.row_id) }).catch(_ => false)
-    if (res) {
-      ElMessage.success(T('OperationSuccess'))
-      getList()
-    }
-  }
+  const { confirmAndRemove: batchRemovePeers } = useBatchRemove({
+    batchApi: batchRemove,
+    buildPayload: (rows) => ({ row_ids: rows.map(i => i.row_id) }),
+    getList,
+    selectionRef: multipleSelection,
+  })
+  const toBatchDelete = () => batchRemovePeers(multipleSelection.value)
 
   // 批量添加到地址簿 start
   const { allUsers, getAllUsers } = loadAllUsers()
