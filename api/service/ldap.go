@@ -73,6 +73,13 @@ func (lu *LdapUser) ToUser(u *model.User) *model.User {
 
 // connectAndBind creates an LDAP connection, optionally starts TLS, and then binds using the provided credentials.
 func (ls *LdapService) connectAndBind(cfg *config.Ldap, username, password string) (*ldap.Conn, error) {
+	// Reject unauthenticated simple bind (non-empty DN + empty password): RFC 4513
+	// §5.1.2 — many servers treat it as an anonymous bind that "succeeds" without
+	// verifying credentials. Fail before opening a connection. (A fully anonymous
+	// bind with both DN and password empty is still permitted.)
+	if username != "" && password == "" {
+		return nil, ErrLdapBindService
+	}
 	u, err := url.Parse(cfg.Url)
 	if err != nil {
 		return nil, errors.Join(ErrUrlParseFailed, err)
@@ -81,7 +88,12 @@ func (ls *LdapService) connectAndBind(cfg *config.Ldap, username, password strin
 	var conn *ldap.Conn
 	if u.Scheme == "ldaps" {
 		// WARNING: InsecureSkipVerify: true is not recommended for production
-		tlsConfig := &tls.Config{InsecureSkipVerify: !cfg.TlsVerify}
+		tlsConfig := &tls.Config{InsecureSkipVerify: false}
+		if cfg.TlsSkipVerify != nil {
+			tlsConfig.InsecureSkipVerify = *cfg.TlsSkipVerify
+		} else {
+			tlsConfig.InsecureSkipVerify = !cfg.TlsVerify
+		}
 		if cfg.TlsCaFile != "" {
 			caCert, err := os.ReadFile(cfg.TlsCaFile)
 			if err != nil {
@@ -129,6 +141,9 @@ func (ls *LdapService) verifyCredentials(cfg *config.Ldap, username, password st
 // Authenticate checks the provided username and password against LDAP.
 // Returns the corresponding *model.User if successful, or an error if not.
 func (ls *LdapService) Authenticate(username, password string) (*model.User, error) {
+	if password == "" {
+		return nil, ErrLdapPasswordNotMatch
+	}
 	ldapUser, err := ls.GetUserInfoByUsernameLdap(username)
 	if err != nil {
 		return nil, err
@@ -397,7 +412,7 @@ func (ls *LdapService) userResultToLdapUser(cfg *config.Ldap, entry *ldap.Entry)
 
 // filterField helps build simple attribute filters, e.g. (uid=username).
 func (ls *LdapService) filterField(field, value string) string {
-	return fmt.Sprintf("(%s=%s)", field, value)
+	return fmt.Sprintf("(%s=%s)", field, ldap.EscapeFilter(value))
 }
 
 // fieldUsername returns the configured username attribute or "uid" if not set.

@@ -14,7 +14,11 @@ type SqliteConfig struct {
 }
 
 func NewSqlite(sqliteConf *SqliteConfig, logwriter logger.Writer) *gorm.DB {
-	db, err := gorm.Open(sqlite.Open("./data/rustdeskapi.db"), &gorm.Config{
+	// _txlock=immediate: begin every transaction with BEGIN IMMEDIATE so writers
+	// serialize at BEGIN — closes the last-admin delete race (see getAdminUserCountTx),
+	// since SQLite ignores the FOR UPDATE row hint.
+	// _busy_timeout=5000: wait up to 5s for the write lock instead of erroring SQLITE_BUSY.
+	db, err := gorm.Open(sqlite.Open("./data/rustdeskapi.db?_txlock=immediate&_busy_timeout=5000"), &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
 		Logger: logger.New(
 			logwriter, // io writer

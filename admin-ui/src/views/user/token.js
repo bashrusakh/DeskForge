@@ -3,6 +3,7 @@ import { batchRemove, list, remove } from '@/api/user_token'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute } from 'vue-router'
 import { T } from '@/utils/i18n'
+import { useBatchRemove } from '@/composables/useBatchRemove'
 
 export function useRepositories () {
   const route = useRoute()
@@ -52,22 +53,12 @@ export function useRepositories () {
     }
   }
 
-  const batchDelete = async (ids) => {
-    const cf = await ElMessageBox.confirm(T('Confirm?', { param: `${T('Logout')} (${ids.length})` }), {
-      confirmButtonText: T('Confirm'),
-      cancelButtonText: T('Cancel'),
-      type: 'warning',
-    }).catch(_ => false)
-    if (!cf) {
-      return false
-    }
-
-    const res = await batchRemove({ ids }).catch(_ => false)
-    if (res) {
-      ElMessage.success(T('OperationSuccess'))
-      getList()
-    }
-  }
+  const { confirmAndRemove: batchDelete } = useBatchRemove({
+    batchApi: batchRemove,
+    buildPayload: (ids) => ({ ids }),
+    label: (ids) => `${T('Logout')} (${ids.length})`,
+    getList,
+  })
 
   return {
     listRes,

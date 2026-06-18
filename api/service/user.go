@@ -11,6 +11,7 @@ import (
 	"rustdesk-server/api/model"
 	"rustdesk-server/api/utils"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type UserService struct {
@@ -104,7 +105,7 @@ func (us *UserService) Login(u *model.User, llog *model.LoginLog) *model.UserTok
 		ExpiredAt:  us.UserTokenExpireTimestamp(),
 	}
 	DB.Create(ut)
-	llog.UserTokenId = ut.UserId
+	llog.UserTokenId = ut.Id
 	DB.Create(llog)
 	if llog.Uuid != "" {
 		AllService.PeerService.UuidBindUserId(llog.DeviceId, llog.Uuid, u.Id)
@@ -208,11 +209,17 @@ func (us *UserService) Logout(u *model.User, token string) error {
 
 // Delete oauth
 func (us *UserService) Delete(u *model.User) error {
-	userCount := us.getAdminUserCount()
+	tx := DB.Begin()
+
+	userCount, err := us.getAdminUserCountTx(tx)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
 	if userCount <= 1 && us.IsAdmin(u) {
+		tx.Rollback()
 		return errors.New("The last admin user cannot be deleted")
 	}
-	tx := DB.Begin()
 
 	if err := tx.Delete(u).Error; err != nil {
 		tx.Rollback()
@@ -273,7 +280,18 @@ func (us *UserService) FlushTokenByUuid(uuid string) error {
 
 // FlushTokenByUuids token
 func (us *UserService) FlushTokenByUuids(uuids []string) error {
-	return DB.Where("device_uuid in (?)", uuids).Delete(&model.UserToken{}).Error
+	return us.FlushTokenByUuidsTx(DB, uuids)
+}
+
+// FlushTokenByUuidsTx deletes all user tokens bound to the given device uuids
+// using the supplied *gorm.DB (typically a transaction), so peer deletion and
+// token cleanup commit atomically. Single source of truth for device_uuid -> token
+// removal (was previously duplicated inline in PeerService).
+func (us *UserService) FlushTokenByUuidsTx(tx *gorm.DB, uuids []string) error {
+	if len(uuids) == 0 {
+		return nil
+	}
+	return tx.Where("device_uuid in (?)", uuids).Delete(&model.UserToken{}).Error
 }
 
 // UpdatePassword 
@@ -302,6 +320,29 @@ func (us *UserService) RouteNames(u *model.User) []string {
 		return model.AdminRouteNames
 	}
 	return model.UserRouteNames
+}
+
+// GroupUsersForShare returns the minimum directory data needed by the
+// address-book share-rule picker without exposing the full admin directory.
+func (us *UserService) GroupUsersForShare(currentUser *model.User) ([]*model.Group, []*model.User) {
+	if currentUser == nil || currentUser.Id == 0 {
+		return nil, nil
+	}
+	if us.IsAdmin(currentUser) {
+		allGroups := AllService.GroupService.List(1, 999, nil)
+		allUsers := us.List(1, 9999, nil)
+		return allGroups.Groups, allUsers.Users
+	}
+	group := AllService.GroupService.InfoById(currentUser.GroupId)
+	groups := make([]*model.Group, 0, 1)
+	if group.Id > 0 {
+		groups = append(groups, group)
+	}
+	if group.Type == model.GroupTypeShare {
+		users := us.ListByGroupId(currentUser.GroupId, 1, 9999)
+		return groups, users.Users
+	}
+	return groups, []*model.User{currentUser}
 }
 
 // InfoByOauthId oauthnameopenId
@@ -486,6 +527,24 @@ func (us *UserService) getAdminUserCount() int64 {
 	return count
 }
 
+// helper functions, getAdminUserCountTx — counted inside a transaction for atomicity
+func (us *UserService) getAdminUserCountTx(tx *gorm.DB) (int64, error) {
+	// Lock the admin rows FOR UPDATE so a concurrent delete cannot read the same
+	// count and also proceed. We Find() rows and count in Go instead of COUNT(*):
+	// clause.Locking on an aggregate breaks Postgres
+	// (ERROR: FOR UPDATE is not allowed with aggregate functions).
+	// On SQLite the row-lock hint is a no-op, but the DB is opened with
+	// _txlock=immediate (see api/lib/orm/sqlite.go) so every transaction takes the
+	// write lock at BEGIN, serializing writers and closing the same race.
+	var admins []model.User
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("is_admin = ?", true).
+		Find(&admins).Error; err != nil {
+		return 0, err
+	}
+	return int64(len(admins)), nil
+}
+
 // UserTokenExpireTimestamp token
 func (us *UserService) UserTokenExpireTimestamp() int64 {
 	exp := Config.App.TokenExpire
@@ -509,6 +568,10 @@ func (us *UserService) AutoRefreshAccessToken(ut *model.UserToken) {
 
 func (us *UserService) BatchDeleteUserToken(ids []uint) error {
 	return DB.Where("id in ?", ids).Delete(&model.UserToken{}).Error
+}
+
+func (us *UserService) BatchDeleteUserTokenByUser(ids []uint, userId uint) error {
+	return DB.Where("id in ? AND user_id = ?", ids, userId).Delete(&model.UserToken{}).Error
 }
 
 func (us *UserService) VerifyJWT(token string) (uint, error) {

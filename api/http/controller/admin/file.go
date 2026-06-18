@@ -1,13 +1,19 @@
 ﻿package admin
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"time"
+
 	"github.com/gin-gonic/gin"
+
 	"rustdesk-server/api/global"
 	"rustdesk-server/api/http/response"
 	"rustdesk-server/api/lib/upload"
-	"os"
-	"time"
 )
 
 type File struct {
@@ -62,37 +68,96 @@ func (f *File) Notify(c *gin.Context) {
 // @Router /admin/file/upload [post]
 // @Security token
 func (f *File) Upload(c *gin.Context) {
-	file, _ := c.FormFile("file")
-	if file == nil {
-		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError"))
+	file, err := c.FormFile("file")
+	if err != nil || file == nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+": file required")
 		return
 	}
-	// PNG-only validation (security)
-	if len(file.Header) > 0 {
-		ct := file.Header.Get("Content-Type")
-		if ct != "" && ct != "image/png" {
-			response.Fail(c, 101, "only PNG allowed")
+	// file size limit (5 MB) — enforce on actual bytes, not declared Content-Length
+	const maxSize = 5 * 1024 * 1024
+	src, err := file.Open()
+	if err != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
+		return
+	}
+	defer src.Close()
+
+	limited := io.LimitReader(src, maxSize+1)
+	header := make([]byte, 8)
+	if _, err := io.ReadFull(limited, header); err != nil {
+		response.Fail(c, 101, "cannot read file header")
+		return
+	}
+	pngSig := []byte{137, 80, 78, 71, 13, 10, 26, 10}
+	for i := range pngSig {
+		if header[i] != pngSig[i] {
+			response.Fail(c, 101, "only PNG files allowed")
 			return
 		}
 	}
+
 	timePath := time.Now().Format("20060102") + "/"
 	webPath := "/upload/" + timePath
-	// write under public/upload so g.StaticFS("/upload", ...) can serve it
 	path := global.Config.Gin.ResourcesPath + "/public" + webPath
-	dst := path + file.Filename
-	err := os.MkdirAll(path, os.ModePerm)
+	safeName := filepath.Base(file.Filename)
+	if safeName == "." || safeName == ".." || safeName == "" {
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError"))
+		return
+	}
+	// Always save as .png regardless of client-provided extension.
+	// The bytes have been validated as PNG above.
+	stem := safeName
+	if ext := filepath.Ext(safeName); ext != "" {
+		stem = safeName[:len(safeName)-len(ext)]
+	}
+	// Random suffix so O_EXCL collision is astronomically unlikely.
+	randBytes := make([]byte, 4)
+	if _, err := rand.Read(randBytes); err != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
+		return
+	}
+	uniqueName := fmt.Sprintf("%s_%s.png", stem, hex.EncodeToString(randBytes))
+	dst := path + uniqueName
+	err = os.MkdirAll(path, 0755)
 	if err != nil {
 		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
 		return
 	}
 
-	err = c.SaveUploadedFile(file, dst)
+	// O_CREATE|O_EXCL — atomic name allocation, no silent overwrites.
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
+		return
+	}
+	defer out.Close()
+	if _, err := out.Write(header); err != nil {
+		out.Close()
+		os.Remove(dst)
+		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
+		return
+	}
+	written, err := io.CopyN(out, limited, maxSize+1)
+	if err != nil && err != io.EOF {
+		os.Remove(dst)
+		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
+		return
+	}
+	// total size = header bytes already read (len(header)) + body bytes written
+	if int64(len(header))+written > maxSize {
+		os.Remove(dst)
+		response.Fail(c, 101, "file too large (max 5 MB)")
+		return
+	}
+	// Close explicitly before responding so a Close error (flush / disk-full) is
+	// surfaced as a failure instead of being swallowed by defer after Success.
+	if err := out.Close(); err != nil {
+		os.Remove(dst)
 		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
 		return
 	}
 	// web
 	response.Success(c, gin.H{
-		"url": webPath + file.Filename,
+		"url": webPath + uniqueName,
 	})
 }

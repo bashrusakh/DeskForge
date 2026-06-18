@@ -124,6 +124,20 @@ func (ct *User) Update(c *gin.Context) {
 		return
 	}
 	u := f.ToUser()
+	curUser := service.AllService.UserService.CurUser(c)
+	if curUser != nil && curUser.Id == u.Id {
+		// Self-lockout guards: an admin must not be able to lock
+		// themselves out via the admin Update endpoint. Frontend
+		// controls for the current user's own row are not yet disabled.
+		if u.Status == model.COMMON_STATUS_DISABLED {
+			response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+": cannot disable your own account")
+			return
+		}
+		if service.AllService.UserService.IsAdmin(curUser) && u.IsAdmin != nil && !*u.IsAdmin {
+			response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+": cannot remove admin from your own account")
+			return
+		}
+	}
 	err := service.AllService.UserService.Update(u)
 	if err != nil {
 		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
@@ -157,6 +171,11 @@ func (ct *User) Delete(c *gin.Context) {
 	}
 	u := service.AllService.UserService.InfoById(f.Id)
 	if u.Id > 0 {
+		curUser := service.AllService.UserService.CurUser(c)
+		if curUser != nil && curUser.Id == u.Id {
+			response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+": cannot delete your own account")
+			return
+		}
 		err := service.AllService.UserService.Delete(u)
 		if err == nil {
 			response.Success(c, nil)
@@ -301,6 +320,35 @@ func (ct *User) GroupUsers(c *gin.Context) {
 	response.Success(c, gin.H{
 		"groups": aG.Groups,
 		"users":  aU.Users,
+	})
+}
+
+func (ct *User) GroupUsersForShare(c *gin.Context) {
+	cu := service.AllService.UserService.CurUser(c)
+	if cu == nil || cu.Id == 0 {
+		response.Fail(c, 403, response.TranslateMsg(c, "NeedLogin"))
+		return
+	}
+	groups, users := service.AllService.UserService.GroupUsersForShare(cu)
+	groupItems := make([]*adResp.ShareGroupItem, 0, len(groups))
+	for _, group := range groups {
+		groupItems = append(groupItems, &adResp.ShareGroupItem{
+			Id:   group.Id,
+			Name: group.Name,
+			Type: group.Type,
+		})
+	}
+	userItems := make([]*adResp.ShareUserItem, 0, len(users))
+	for _, user := range users {
+		userItems = append(userItems, &adResp.ShareUserItem{
+			Id:       user.Id,
+			Username: user.Username,
+			GroupId:  user.GroupId,
+		})
+	}
+	response.Success(c, gin.H{
+		"groups": groupItems,
+		"users":  userItems,
 	})
 }
 

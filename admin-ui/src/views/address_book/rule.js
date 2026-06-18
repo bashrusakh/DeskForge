@@ -1,13 +1,14 @@
 import { computed, reactive, ref } from 'vue'
 import { list as admin_list, create as admin_create, update as admin_update, remove as admin_remove } from '@/api/address_book_collection_rule'
 import { list as my_list, create as my_create, update as my_update, remove as my_remove } from '@/api/my/address_book_collection_rule'
-import { groupUsers } from '@/api/user'
+import { groupUsers as admin_groupUsers } from '@/api/user'
+import { groupUsers as my_groupUsers } from '@/api/my/user'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { T } from '@/utils/i18n'
 
 const apis = {
-  admin: { list: admin_list, remove: admin_remove, update: admin_update, create: admin_create },
-  my: { list: my_list, remove: my_remove, create: my_create, update: my_update },
+  admin: { list: admin_list, remove: admin_remove, update: admin_update, create: admin_create, groupUsers: admin_groupUsers },
+  my: { list: my_list, remove: my_remove, create: my_create, update: my_update, groupUsers: my_groupUsers },
 }
 
 export function useRepositories (api_type = 'my') {
@@ -118,7 +119,10 @@ export function useRepositories (api_type = 'my') {
   const groups = ref([])
   const users = ref([])
   const getGroupUsers = async () => {
-    const res = await groupUsers().catch(_ => false)
+    // /user/groupUsers is admin-only; the personal address book uses
+    // /my/groupUsers (BackendUserAuth) so non-admins can still pick
+    // grantees for their own collection rules.
+    const res = await apis[api_type].groupUsers().catch(_ => false)
     if (res) {
       groups.value = res.data.groups.map(item => {
         if (!item.children) {

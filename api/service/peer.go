@@ -1,6 +1,8 @@
 ﻿package service
 
 import (
+	"errors"
+
 	"rustdesk-server/api/model"
 	"gorm.io/gorm"
 )
@@ -126,7 +128,6 @@ func (ps *PeerService) GetUuidListByIDs(ids []uint) ([]string, error) {
 	err := DB.Model(&model.Peer{}).
 		Where("row_id in (?)", ids).
 		Pluck("uuid", &uuids).Error
-	//uuids
 	var newUuids []string
 	for _, uuid := range uuids {
 		if uuid != "" {
@@ -139,12 +140,66 @@ func (ps *PeerService) GetUuidListByIDs(ids []uint) ([]string, error) {
 // BatchDelete , token
 func (ps *PeerService) BatchDelete(ids []uint) error {
 	uuids, err := ps.GetUuidListByIDs(ids)
+	if err != nil {
+		return err
+	}
 	err = DB.Where("row_id in (?)", ids).Delete(&model.Peer{}).Error
 	if err != nil {
 		return err
 	}
 	// token
 	return AllService.UserService.FlushTokenByUuids(uuids)
+}
+
+// DeleteWithOwner  peer owned by user, with token flush in the same tx
+func (ps *PeerService) DeleteWithOwner(rowId uint, userId uint) error {
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var peer model.Peer
+		if err := tx.Where("row_id = ? AND user_id = ?", rowId, userId).First(&peer).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil // idempotent: already gone or not owned
+			}
+			return err
+		}
+		if err := tx.Delete(&peer).Error; err != nil {
+			return err
+		}
+		if peer.Uuid != "" {
+			if err := AllService.UserService.FlushTokenByUuidsTx(tx, []string{peer.Uuid}); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// BatchDeleteByOwner  peers owned by user, with token flush in the same tx
+func (ps *PeerService) BatchDeleteByOwner(rowIds []uint, userId uint) error {
+	if len(rowIds) == 0 {
+		return nil
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var uuids []string
+		if err := tx.Model(&model.Peer{}).
+			Where("row_id in (?) AND user_id = ?", rowIds, userId).
+			Pluck("uuid", &uuids).Error; err != nil {
+			return err
+		}
+		result := tx.Where("row_id in (?) AND user_id = ?", rowIds, userId).Delete(&model.Peer{})
+		if result.Error != nil {
+			return result.Error
+		}
+		var nonEmpty []string
+		for _, uuid := range uuids {
+			if uuid != "" {
+				nonEmpty = append(nonEmpty, uuid)
+			}
+		}
+		if err := AllService.UserService.FlushTokenByUuidsTx(tx, nonEmpty); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 // Update 

@@ -101,6 +101,12 @@
   "OperationSuccess": {
     "One": "Operation Success"
   },
+  "RuntimeSettingsWarning": {
+    "One": "These settings are applied at runtime only and reset to defaults on server restart — they are not persisted to disk."
+  },
+  "CsvNoData": {
+    "One": "No data rows found in the CSV file."
+  },
   "Owner": {
     "One": "Owner"
   },

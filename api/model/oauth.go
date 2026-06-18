@@ -40,7 +40,7 @@ type Oauth struct {
 	Op           string `json:"op"`
 	OauthType    string `json:"oauth_type"`
 	ClientId     string `json:"client_id"`
-	ClientSecret string `json:"client_secret"`
+	ClientSecret string `json:"-"`
 	//RedirectUrl  string `json:"redirect_url"`
 	AutoRegister *bool  `json:"auto_register"`
 	Scopes       string `json:"scopes"`

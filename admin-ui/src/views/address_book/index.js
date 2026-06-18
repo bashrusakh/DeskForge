@@ -267,8 +267,16 @@ export function useBatchUpdateTagsRepositories () {
       return false
     }
     if (formData.value.tags.length === 0) {
-      ElMessage.warning(T('PleaseSelectData'))
-      return false
+      // Allow clearing tags, but confirm first — an accidental "Save"
+      // with an empty list would wipe tags from every selected entry.
+      const cf = await ElMessageBox.confirm(T('Confirm?', { param: T('ClearTags') }), {
+        confirmButtonText: T('Confirm'),
+        cancelButtonText: T('Cancel'),
+        type: 'warning',
+      }).catch(_ => false)
+      if (!cf) {
+        return false
+      }
     }
     const res = await batchUpdateTags(formData.value).catch(_ => false)
     if (res) {
