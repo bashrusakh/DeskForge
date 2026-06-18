@@ -24,7 +24,11 @@ type OauthForm struct {
 	ClientSecret string `json:"client_secret" validate:"required"`
 	AutoRegister *bool  `json:"auto_register"`
 	PkceEnable   *bool  `json:"pkce_enable"`
-	PkceMethod   string `json:"pkce_method"`
+	// PkceMethod is constrained to S256/plain when set. When pkce_enable is
+	// true the field is required so the runtime layer can pick a hashing
+	// strategy without falling back to a hidden default. When pkce_enable is
+	// false/nil it is ignored and may be empty.
+	PkceMethod string `json:"pkce_method" validate:"omitempty,oneof=S256 plain,required_if=PkceEnable true"`
 }
 
 func (of *OauthForm) ToOauth() *model.Oauth {
