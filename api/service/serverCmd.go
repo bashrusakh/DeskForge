@@ -93,7 +93,12 @@ func (is *ServerCmdService) SendSocketCmd(ty string, port int, cmd string) (stri
 	_, err = io.Copy(&resp, io.LimitReader(conn, maxResponseSize))
 	if err != nil && !errors.Is(err, io.EOF) {
 		var nerr net.Error
-		if !(errors.As(err, &nerr) && nerr.Timeout()) {
+		if errors.As(err, &nerr) && nerr.Timeout() {
+			if resp.Len() == 0 {
+				return "", fmt.Errorf("%s: server did not respond within deadline", ty)
+			}
+			// partial data arrived before deadline — return what we have
+		} else {
 			Logger.Debugf("%s read response failed: %v", ty, err)
 			return "", err
 		}
