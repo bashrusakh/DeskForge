@@ -48,6 +48,52 @@ export function jsonToCsv (data) {
   return new Blob([csv], { type: 'text/csv' })
 }
 
+// Parse CSV text into an array of row arrays (RFC 4180 quoting): fields may be
+// double-quoted, "" is an escaped quote, and commas/newlines inside quotes are
+// literal. Unquoted fields are trimmed; quoted fields are preserved verbatim
+// (so leading/trailing spaces inside quotes are kept). Fully-empty rows are skipped.
+export function parseCsvRows (text) {
+  const rows = []
+  let row = []
+  let field = ''
+  let inQuotes = false
+  let quoted = false // current field contained a quoted segment -> don't trim it
+  const endField = () => {
+    row.push(quoted ? field : field.trim())
+    field = ''
+    quoted = false
+  }
+  const endRow = () => {
+    endField()
+    if (row.some(v => v !== '')) rows.push(row)
+    row = []
+  }
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++ } else { inQuotes = false }
+      } else {
+        field += c
+      }
+    } else if (c === '"') {
+      inQuotes = true
+      quoted = true
+    } else if (c === ',') {
+      endField()
+    } else if (c === '\n') {
+      endRow()
+    } else if (c === '\r') {
+      if (text[i + 1] === '\n') i++
+      endRow()
+    } else {
+      field += c
+    }
+  }
+  if (field !== '' || row.length > 0) endRow()
+  return rows
+}
+
 export function downBlob (blob, filename) {
   const url = window.URL.createObjectURL(blob)
   const a = document.createElement('a')

@@ -239,7 +239,8 @@
   import { toWebClientLink } from '@/utils/webclient'
   import { T } from '@/utils/i18n'
   import { timeAgo } from '@/utils/time'
-  import { jsonToCsv, downBlob } from '@/utils/file'
+  import { jsonToCsv, downBlob, parseCsvRows } from '@/utils/file'
+  import { useBatchRemove } from '@/composables/useBatchRemove'
   import { loadAllUsers } from '@/global'
   import { useAppStore } from '@/store/app'
   import { connectByClient } from '@/utils/peer'
@@ -436,34 +437,7 @@
     const reader = new FileReader()
     reader.onload = async (e) => {
       const data = e.target.result
-      // RFC4180 row split — respects newlines inside quoted fields
-      const rows = []
-      let row = []
-      let field = ''
-      let inQuotes = false
-      for (let i = 0; i < data.length; i++) {
-        const c = data[i]
-        if (inQuotes) {
-          if (c === '"') {
-            if (data[i + 1] === '"') { field += '"'; i++ }
-            else { inQuotes = false }
-          } else { field += c }
-        } else if (c === '"') {
-          inQuotes = true
-        } else if (c === ',') {
-          row.push(field.trim()); field = ''
-        } else if (c === '\n' || (c === '\r' && data[i + 1] === '\n')) {
-          if (c === '\r') i++
-          row.push(field.trim()); field = ''
-          if (row.some(v => v !== '')) rows.push(row)
-          row = []
-        } else if (c !== '\r') {
-          field += c
-        }
-      }
-      row.push(field.trim())
-      if (row.some(v => v !== '')) rows.push(row)
-
+      const rows = parseCsvRows(data)
       if (rows.length < 2) {
         ElMessage.warning(T('CsvNoData'))
         return
@@ -519,27 +493,13 @@
   const handleSelectionChange = (val) => {
     multipleSelection.value = val
   }
-  const toBatchDelete = async () => {
-    if (!multipleSelection.value.length) {
-      ElMessage.warning(T('PleaseSelectData'))
-      return false
-    }
-    const cf = await ElMessageBox.confirm(T('Confirm?', { param: T('BatchDelete') }), {
-      confirmButtonText: T('Confirm'),
-      cancelButtonText: T('Cancel'),
-      type: 'warning',
-    }).catch(_ => false)
-    if (!cf) {
-      return false
-    }
-
-    const res = await batchRemove({ row_ids: multipleSelection.value.map(i => i.row_id) }).catch(_ => false)
-    if (res) {
-      ElMessage.success(T('OperationSuccess'))
-      multipleSelection.value = []
-      getList()
-    }
-  }
+  const { confirmAndRemove: batchRemovePeers } = useBatchRemove({
+    batchApi: batchRemove,
+    buildPayload: (rows) => ({ row_ids: rows.map(i => i.row_id) }),
+    getList,
+    selectionRef: multipleSelection,
+  })
+  const toBatchDelete = () => batchRemovePeers(multipleSelection.value)
 
   // 批量添加到地址簿 start
   const { allUsers, getAllUsers } = loadAllUsers()

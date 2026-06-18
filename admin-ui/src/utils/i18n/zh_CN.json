@@ -101,6 +101,12 @@
   "OperationSuccess": {
     "One": "操作成功"
   },
+  "RuntimeSettingsWarning": {
+    "One": "这些设置仅在运行时生效，服务器重启后将重置为默认值，不会持久化到磁盘。"
+  },
+  "CsvNoData": {
+    "One": "CSV 文件中未找到数据行。"
+  },
   "Owner": {
     "One": "所有者"
   },

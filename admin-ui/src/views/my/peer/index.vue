@@ -211,6 +211,7 @@
   import { T } from '@/utils/i18n'
   import { timeAgo } from '@/utils/time'
   import { jsonToCsv, downBlob } from '@/utils/file'
+  import { useBatchRemove } from '@/composables/useBatchRemove'
   import { useRepositories as useABRepositories } from '@/views/address_book/index'
   import { useAppStore } from '@/store/app'
   import { connectByClient } from '@/utils/peer'
@@ -387,27 +388,13 @@
       getList()
     }
   }*/
-  const toBatchDelete = async () => {
-    if (!multipleSelection.value.length) {
-      ElMessage.warning(T('PleaseSelectData'))
-      return false
-    }
-    const cf = await ElMessageBox.confirm(T('Confirm?', { param: T('BatchDelete') }), {
-      confirmButtonText: T('Confirm'),
-      cancelButtonText: T('Cancel'),
-      type: 'warning',
-    }).catch(_ => false)
-    if (!cf) {
-      return false
-    }
-
-    const res = await batchRemove({ row_ids: multipleSelection.value.map(i => i.row_id) }).catch(_ => false)
-    if (res) {
-      ElMessage.success(T('OperationSuccess'))
-      multipleSelection.value = []
-      getList()
-    }
-  }
+  const { confirmAndRemove: batchRemovePeers } = useBatchRemove({
+    batchApi: batchRemove,
+    buildPayload: (rows) => ({ row_ids: rows.map(i => i.row_id) }),
+    getList,
+    selectionRef: multipleSelection,
+  })
+  const toBatchDelete = () => batchRemovePeers(multipleSelection.value)
 
   const batchABFormVisible = ref(false)
   const toBatchAddToAB = () => {
