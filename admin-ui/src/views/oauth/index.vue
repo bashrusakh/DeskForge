@@ -88,7 +88,8 @@
           </el-input>
         </el-form-item>
         <el-form-item label="RedirectUrl" prop="redirect_url">
-          <div @click="copyRedirectUrl">{{ defaultRedirect() }}
+          <div style="font-size: 0.85em; color: var(--color-muted); margin-bottom: 4px;">{{ T('CopyThisUrlToProvider') }}</div>
+          <div @click="copyRedirectUrl" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">{{ defaultRedirect() }}
             <el-icon>
               <CopyDocument></CopyDocument>
             </el-icon>
@@ -207,17 +208,28 @@
     oauth_type: [{ required: true, message: T('ParamRequired', { param: 'oauth_type' }), trigger: 'blur' }],
     issuer: [{ required: true, message: T('ParamRequired', { param: 'issuer' }), trigger: 'blur' }],
     pkce_method: [
-      { required: false, message: T('ParamRequired', { param: 'pkce_method' }), trigger: 'blur' },
       {
         validator: (rule, value, callback) => {
+          // pkce_method is only meaningful when PKCE is enabled. The
+          // form field is hidden via v-if when pkce_enable is false,
+          // so skip validation in that case to allow saving non-PKCE
+          // configs even if the stored method is empty.
+          if (!formData.pkce_enable) {
+            callback()
+            return
+          }
+          if (!value) {
+            callback(new Error(T('ParamRequired', { param: 'pkce_method' })))
+            return
+          }
           const allowedValues = ['S256', 'plain']
           if (!allowedValues.includes(value)) {
             callback(new Error(T('InvalidParam', { param: 'pkce_method' })))
-          } else {
-            callback() // 校验通过
+            return
           }
+          callback()
         },
-        trigger: 'change',
+        trigger: ['blur', 'change'],
       },
     ],
   }
