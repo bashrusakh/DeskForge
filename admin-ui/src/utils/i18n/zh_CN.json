@@ -559,5 +559,14 @@
   },
   "RelayOffline": {
     "One": "中继服务器离线 — 无活动数据。"
+  },
+  "RustDeskClientNotFound": {
+    "One": "未找到 RustDesk 客户端。请安装 RustDesk 以连接。"
+  },
+  "SaveConfiguration": {
+    "One": "保存配置"
+  },
+  "CopyThisUrlToProvider": {
+    "One": "请复制此 URL 并粘贴到您的 OAuth 服务商设置中作为回调/重定向 URL。"
   }
 }

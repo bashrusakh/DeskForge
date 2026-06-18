@@ -88,7 +88,7 @@
           </el-input>
         </el-form-item>
         <el-form-item label="RedirectUrl" prop="redirect_url">
-          <div style="font-size: 0.85em; color: var(--color-muted); margin-bottom: 4px;">{{ T('CopyThisUrlToProvider') || 'Copy this URL and paste it as the callback/redirect URL in your OAuth provider settings.' }}</div>
+          <div style="font-size: 0.85em; color: var(--color-muted); margin-bottom: 4px;">{{ T('CopyThisUrlToProvider') }}</div>
           <div @click="copyRedirectUrl" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">{{ defaultRedirect() }}
             <el-icon>
               <CopyDocument></CopyDocument>

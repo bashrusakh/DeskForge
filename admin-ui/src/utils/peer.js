@@ -11,7 +11,7 @@ export const connectByClient = (id) => {
   // Show a fallback message after a short delay.
   setTimeout(() => {
     if (!document.hidden) {
-      ElMessage.info(T('RustDeskClientNotFound') || 'RustDesk client not found. Please install RustDesk to connect.')
+      ElMessage.info(T('RustDeskClientNotFound'))
     }
   }, 3000)
 }

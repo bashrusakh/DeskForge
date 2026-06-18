@@ -546,6 +546,14 @@
   },
   "RelayOffline": {
     "One": "Relay-сервер недоступен — данные активности отсутствуют."
+  },
+  "RustDeskClientNotFound": {
+    "One": "Клиент RustDesk не найден. Установите RustDesk для подключения."
+  },
+  "SaveConfiguration": {
+    "One": "Сохранить конфигурацию"
+  },
+  "CopyThisUrlToProvider": {
+    "One": "Скопируйте этот URL и вставьте его как callback/redirect URL в настройках OAuth-провайдера."
   }
 }
-
