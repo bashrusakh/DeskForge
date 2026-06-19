@@ -327,14 +327,14 @@ func (ct *CustomBuild) pollAndDownload(buildId uint, runId int64) {
 			// артефакт — flat zip с rustqs.exe (или rustdesk.exe) + dll + custom_.txt
 			name := filepath.Base(zf.Name)
 			if name == appName+".exe" || name == "rustdesk.exe" {
-				if n, e := extractZipFile(zf, filepath.Join(outDir, appName+".exe")); e == nil {
+				if n, e := extractZipFile(zf, outDir, appName+".exe"); e == nil {
 					b.FileSize = n
 					exeWritten = true
 				}
 			}
 			// дополнительно — custom_.txt и DLL рядом
 			if name == "custom_.txt" || filepath.Ext(name) == ".dll" {
-				_, _ = extractZipFile(zf, filepath.Join(outDir, name))
+				_, _ = extractZipFile(zf, outDir, name)
 			}
 		}
 		if !exeWritten {
@@ -408,8 +408,17 @@ func buildCustomTxtFromForm(raw map[string]any) string {
 	return base64.StdEncoding.EncodeToString(j)
 }
 
-// extractZipFile извлекает один файл из zip в dst, возвращает (записано байт, error).
-func extractZipFile(zf *zip.File, dst string) (int64, error) {
+// extractZipFile извлекает один файл из zip в outDir/name, возвращает (записано байт, error).
+// Проверяет, что итоговый путь остаётся внутри outDir (защита от Zip Slip).
+func extractZipFile(zf *zip.File, outDir, name string) (int64, error) {
+	absOut, err := filepath.Abs(outDir)
+	if err != nil {
+		return 0, err
+	}
+	dst := filepath.Join(absOut, filepath.Base(name))
+	if !strings.HasPrefix(dst+string(os.PathSeparator), absOut+string(os.PathSeparator)) {
+		return 0, fmt.Errorf("zip slip: path %q escapes output directory", dst)
+	}
 	rc, err := zf.Open()
 	if err != nil {
 		return 0, err

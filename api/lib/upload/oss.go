@@ -17,7 +17,9 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -173,7 +175,11 @@ func getPublicKey(r *http.Request) ([]byte, error) {
 		return bytePublicKey, errors.New("no x-oss-pub-key-url field in Request header ")
 	}
 	publicKeyURL, _ := base64.StdEncoding.DecodeString(publicKeyURLBase64)
-	// fmt.Printf("publicKeyURL={%s}\n", publicKeyURL)
+	// Validate URL to prevent SSRF: only Alibaba Cloud OSS public-key endpoints are accepted.
+	parsedURL, urlErr := url.Parse(string(publicKeyURL))
+	if urlErr != nil || !strings.HasSuffix(parsedURL.Hostname(), ".aliyuncs.com") {
+		return bytePublicKey, errors.New("invalid public key URL: must be an aliyuncs.com endpoint")
+	}
 	// get PublicKey Content from URL
 	responsePublicKeyURL, err := http.Get(string(publicKeyURL))
 	if err != nil {

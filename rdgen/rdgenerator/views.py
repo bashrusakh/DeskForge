@@ -3,6 +3,7 @@ from pathlib import Path
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.core.files.base import ContentFile
+from django.views.decorators.csrf import csrf_exempt
 import os
 import secrets
 import re
@@ -17,6 +18,32 @@ from .forms import GenerateForm
 from .models import GithubRun
 from PIL import Image
 from urllib.parse import quote
+
+
+def _validate_uuid(value):
+    """Raise ValueError if value is not a valid UUID string."""
+    try:
+        return str(uuid.UUID(str(value)))
+    except (ValueError, AttributeError):
+        raise ValueError("Invalid UUID")
+
+
+def _validate_filename(value):
+    """Raise ValueError if filename contains path traversal or unsafe chars."""
+    if not value or '..' in value or '/' in value or '\\' in value:
+        raise ValueError("Invalid filename")
+    if not re.match(r'^[\w\-. ]+$', value):
+        raise ValueError("Invalid filename characters")
+    return value
+
+
+def _safe_open_path(base_dir, *parts):
+    """Return a path only if it resolves strictly inside base_dir."""
+    base = Path(base_dir).resolve()
+    target = Path(base_dir, *parts).resolve()
+    if base not in target.parents and target != base:
+        raise PermissionError("Path traversal detected")
+    return target
 
 def generator_view(request):
     if request.method == 'POST':
@@ -330,9 +357,9 @@ def generator_view(request):
                 else:
                     #new_github_run.delete()
                     return JsonResponse({"error": "GitHub rejected the start request"}, status=500)
-            except Exception as e:
+            except Exception:
                 #new_github_run.delete()
-                return JsonResponse({"error": f"Connection error: {str(e)}"}, status=500)
+                return JsonResponse({"error": "Connection error"}, status=500)
     else:
         form = GenerateForm()
     #return render(request, 'maintenance.html')
@@ -393,28 +420,32 @@ def check_for_file(request):
         })
 
 def download(request):
-    filename = request.GET['filename']
-    uuid = request.GET['uuid']
-    file_path = os.path.join('exe', uuid, filename)
+    try:
+        safe_uuid = _validate_uuid(request.GET['uuid'])
+        safe_filename = _validate_filename(request.GET['filename'])
+    except (ValueError, KeyError):
+        return HttpResponse(status=400)
+    file_path = _safe_open_path('exe', safe_uuid, safe_filename)
     with open(file_path, 'rb') as file:
         content = file.read()
     response = HttpResponse(content, headers={
         'Content-Type': 'application/vnd.microsoft.portable-executable',
-        'Content-Disposition': f'attachment; filename="{filename}"'
+        'Content-Disposition': f'attachment; filename="{safe_filename}"'
     })
     return response
 
 def get_png(request):
-    filename = request.GET['filename']
-    uuid = request.GET['uuid']
-    #filename = filename+".exe"
-    file_path = os.path.join('png',uuid,filename)
+    try:
+        safe_uuid = _validate_uuid(request.GET['uuid'])
+        safe_filename = _validate_filename(request.GET['filename'])
+    except (ValueError, KeyError):
+        return HttpResponse(status=400)
+    file_path = _safe_open_path('png', safe_uuid, safe_filename)
     with open(file_path, 'rb') as file:
         response = HttpResponse(file, headers={
             'Content-Type': 'application/vnd.microsoft.portable-executable',
-            'Content-Disposition': f'attachment; filename="{filename}"'
+            'Content-Disposition': f'attachment; filename="{safe_filename}"'
         })
-
     return response
 
 def create_github_run(myuuid):
@@ -424,6 +455,7 @@ def create_github_run(myuuid):
     )
     new_github_run.save()
 
+@csrf_exempt
 def update_github_run(request):
     data = json.loads(request.body)
     myuuid = data.get('uuid')
@@ -471,6 +503,7 @@ def resize_and_encode_icon(imagefile):
     return resized64
  
 #the following is used when accessed from an external source, like the rustdesk api server
+@csrf_exempt
 def startgh(request):
     #print(request)
     data_ = json.loads(request.body)
@@ -527,17 +560,23 @@ def save_png(file, uuid, domain, name):
     #return "%s/%s" % (domain, file_save_path)
     return domain, uuid, name
 
+@csrf_exempt
 def save_custom_client(request):
+    try:
+        safe_uuid = _validate_uuid(request.POST.get('uuid', ''))
+        safe_filename = _validate_filename(request.FILES['file'].name)
+    except (ValueError, KeyError):
+        return HttpResponse(status=400)
     file = request.FILES['file']
-    myuuid = request.POST.get('uuid')
-    file_save_path = "exe/%s/%s" % (myuuid, file.name)
-    Path("exe/%s" % myuuid).mkdir(parents=True, exist_ok=True)
+    dir_path = Path('exe') / safe_uuid
+    dir_path.mkdir(parents=True, exist_ok=True)
+    file_save_path = _safe_open_path('exe', safe_uuid, safe_filename)
     with open(file_save_path, "wb+") as f:
         for chunk in file.chunks():
             f.write(chunk)
-
     return HttpResponse("File saved successfully!")
 
+@csrf_exempt
 def cleanup_secrets(request):
     # Pass the UUID as a query param or in JSON body
     data = json.loads(request.body)
@@ -562,13 +601,14 @@ def cleanup_secrets(request):
     return HttpResponse("Cleanup successful", status=200)
 
 def get_zip(request):
-    filename = request.GET['filename']
-    #filename = filename+".exe"
-    file_path = os.path.join('temp_zips',filename)
+    try:
+        safe_filename = _validate_filename(request.GET['filename'])
+    except (ValueError, KeyError):
+        return HttpResponse(status=400)
+    file_path = _safe_open_path('temp_zips', safe_filename)
     with open(file_path, 'rb') as file:
         response = HttpResponse(file, headers={
             'Content-Type': 'application/vnd.microsoft.portable-executable',
-            'Content-Disposition': f'attachment; filename="{filename}"'
+            'Content-Disposition': f'attachment; filename="{safe_filename}"'
         })
-
     return response

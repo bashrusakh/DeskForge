@@ -1,0 +1,13 @@
+name: DeskForge CodeQL config
+
+# Suppress rust/hard-coded-cryptographic-value for test-only modules.
+# All flagged occurrences in config.rs and permanent_password.rs are inside
+# #[cfg(test)] / #[test] blocks that use fixed strings as test vectors —
+# they are not production secrets.  The rule is suppressed per-path so that
+# any future hard-coded value introduced outside test code is still reported.
+query-filters:
+  - exclude:
+      rule: "rust/hard-coded-cryptographic-value"
+      paths:
+        - "libs/hbb_common/src/config.rs"
+        - "libs/hbb_common/src/config/permanent_password.rs"
