@@ -1,13 +1,22 @@
 name: DeskForge CodeQL config
 
-# Suppress rust/hard-coded-cryptographic-value for test-only modules.
-# All flagged occurrences in config.rs and permanent_password.rs are inside
-# #[cfg(test)] / #[test] blocks that use fixed strings as test vectors —
-# they are not production secrets.  The rule is suppressed per-path so that
-# any future hard-coded value introduced outside test code is still reported.
 query-filters:
+  # rust/hard-coded-cryptographic-value — all 37 alerts are in #[cfg(test)] /
+  # #[test] blocks using fixed test vectors ("p@ssw0rd", "salt123", …), not
+  # production secrets.  Suppressed per-path so any future hard-coded value
+  # outside test code is still reported.
   - exclude:
       rule: "rust/hard-coded-cryptographic-value"
       paths:
         - "libs/hbb_common/src/config.rs"
         - "libs/hbb_common/src/config/permanent_password.rs"
+
+  # go/weak-sensitive-data-hashing — the Md5 helper is retained solely for
+  # comparing legacy MD5 password hashes during the bcrypt migration path in
+  # VerifyPassword.  No new passwords are stored as MD5; existing ones are
+  # upgraded to bcrypt on the next successful login.
+  - exclude:
+      rule: "go/weak-sensitive-data-hashing"
+      paths:
+        - "api/utils/tools.go"
+        - "api/utils/password.go"
