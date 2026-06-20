@@ -33,7 +33,11 @@ type Oss struct {
 }
 
 const (
-	base64Table = "1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-_"
+	base64Table                 = "1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-_"
+	ossCallbackPublicKeyHost    = "gosspublic.alicdn.com"
+	ossCallbackPublicKeyPath    = "/callback_pub_key_v1.pem"
+	ossCallbackPublicKeyURL     = "https://gosspublic.alicdn.com/callback_pub_key_v1.pem"
+	ossCallbackPublicKeyMaxSize = 16 * 1024
 )
 
 var coder = base64.NewEncoding(base64Table)
@@ -174,32 +178,60 @@ func getPublicKey(r *http.Request) ([]byte, error) {
 		fmt.Println("GetPublicKey from Request header failed :  No x-oss-pub-key-url field. ")
 		return bytePublicKey, errors.New("no x-oss-pub-key-url field in Request header ")
 	}
-	publicKeyURL, _ := base64.StdEncoding.DecodeString(publicKeyURLBase64)
-	// SSRF guard: accept only the public-key hosts Alibaba Cloud OSS documents
-	// for callback signature verification.
-	// See: https://www.alibabacloud.com/help/en/oss/developer-reference/callback
-	parsedURL, urlErr := url.Parse(string(publicKeyURL))
-	if urlErr != nil || parsedURL.Scheme != "https" {
-		return bytePublicKey, errors.New("invalid public key URL: must be https")
+	publicKeyURL, err := base64.StdEncoding.DecodeString(publicKeyURLBase64)
+	if err != nil {
+		return bytePublicKey, errors.New("invalid x-oss-pub-key-url encoding")
 	}
-	host := parsedURL.Hostname()
-	if host != "gosspublic.alicdn.com" && !strings.HasSuffix(host, ".aliyuncs.com") {
-		return bytePublicKey, errors.New("invalid public key URL: host not in OSS allowlist")
+	if err := validateOSSPublicKeyURL(string(publicKeyURL)); err != nil {
+		return bytePublicKey, err
 	}
 	// get PublicKey Content from URL
-	responsePublicKeyURL, err := http.Get(string(publicKeyURL))
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	responsePublicKeyURL, err := client.Get(ossCallbackPublicKeyURL)
 	if err != nil {
 		fmt.Printf("Get PublicKey Content from URL failed : %s \n", err.Error())
 		return bytePublicKey, err
 	}
-	bytePublicKey, err = ioutil.ReadAll(responsePublicKeyURL.Body)
+	defer responsePublicKeyURL.Body.Close()
+	if responsePublicKeyURL.StatusCode != http.StatusOK {
+		return bytePublicKey, fmt.Errorf("get public key failed: unexpected status %d", responsePublicKeyURL.StatusCode)
+	}
+	bytePublicKey, err = ioutil.ReadAll(io.LimitReader(responsePublicKeyURL.Body, ossCallbackPublicKeyMaxSize+1))
 	if err != nil {
 		fmt.Printf("Read PublicKey Content from URL failed : %s \n", err.Error())
 		return bytePublicKey, err
 	}
-	defer responsePublicKeyURL.Body.Close()
+	if len(bytePublicKey) > ossCallbackPublicKeyMaxSize {
+		return nil, errors.New("public key response too large")
+	}
 	// fmt.Printf("publicKey={%s}\n", bytePublicKey)
 	return bytePublicKey, nil
+}
+
+func validateOSSPublicKeyURL(publicKeyURL string) error {
+	// SSRF guard: accept only the exact public-key endpoint Alibaba Cloud OSS
+	// documents for callback signature verification. Do not fetch the decoded
+	// user-controlled URL directly; after validation, fetch the canonical HTTPS
+	// endpoint instead.
+	// See: https://www.alibabacloud.com/help/en/oss/developer-reference/callback
+	parsedURL, err := url.Parse(publicKeyURL)
+	if err != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
+		return errors.New("invalid public key URL: must be http or https")
+	}
+	if !strings.EqualFold(parsedURL.Hostname(), ossCallbackPublicKeyHost) ||
+		parsedURL.Port() != "" ||
+		parsedURL.EscapedPath() != ossCallbackPublicKeyPath ||
+		parsedURL.RawQuery != "" ||
+		parsedURL.Fragment != "" ||
+		parsedURL.User != nil {
+		return errors.New("invalid public key URL: not the OSS callback public key endpoint")
+	}
+	return nil
 }
 
 // getAuthorization : decode from Base64String
