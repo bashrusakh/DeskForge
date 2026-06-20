@@ -24,24 +24,27 @@ from urllib.parse import quote
 def _require_workflow_token(view):
     """Bearer-token gate for endpoints called by the GitHub Actions runners.
 
-    The runners already send ``Authorization: Bearer ${{ env.token }}`` —
-    this view validates that the header matches ``SH_SECRET``. When
-    ``SH_SECRET`` is still the placeholder ``"secret"`` (the dev default
-    in ``settings.py``), the check is skipped with a warning so existing
-    dev deployments keep working; production MUST set ``SH_SECRET``.
+    The runners send ``Authorization: Bearer ${{ env.token }}``; this view
+    validates that the header matches ``SH_SECRET``. The development default
+    ``SH_SECRET=secret`` is allowed to bypass auth only when ``DEBUG`` is
+    enabled. Production deployments fail closed if ``SH_SECRET`` is missing
+    or still set to the placeholder value.
     """
 
     @wraps(view)
     def wrapper(request, *args, **kwargs):
         expected = getattr(_settings, 'SH_SECRET', '')
-        if not expected or expected == 'secret':
+        debug_mode = getattr(_settings, 'DEBUG', False)
+        if debug_mode and (not expected or expected == 'secret'):
             print(f"WARNING: {view.__name__} is unauthenticated "
-                  f"(SH_SECRET not set). Set SH_SECRET in production.")
+                  f"(DEBUG with placeholder SH_SECRET).")
             return view(request, *args, **kwargs)
+        if not expected or expected == 'secret':
+            return HttpResponse(status=401)
         header = request.META.get('HTTP_AUTHORIZATION', '')
         if not header.startswith('Bearer '):
             return HttpResponse(status=401)
-        if header[len('Bearer '):].strip() != expected:
+        if not secrets.compare_digest(header[len('Bearer '):].strip(), expected):
             return HttpResponse(status=401)
         return view(request, *args, **kwargs)
 
@@ -72,6 +75,7 @@ def _safe_open_path(base_dir, *parts):
     if base not in target.parents and target != base:
         raise PermissionError("Path traversal detected")
     return target
+
 
 def generator_view(request):
     if request.method == 'POST':
@@ -573,6 +577,9 @@ def startgh(request):
     data = {
         "ref": _settings.GHBRANCH,
         "inputs":{
+            # Shared secret the runner echoes back as Authorization: Bearer
+            # when calling updategh/save_custom_client/cleanzip.
+            "token": _settings.SH_SECRET,
             "server":data_.get('server'),
             "key":data_.get('key'),
             "apiServer":data_.get('apiServer'),
