@@ -95,8 +95,10 @@ func (us *UserService) GenerateToken(u *model.User) string {
 	}
 	b := make([]byte, 32)
 	// crypto/rand.Read fills the buffer or returns an unrecoverable OS error.
+	// Returning an empty token here would let the caller persist a useless
+	// "" token and silently break auth; panic is safer than degraded auth.
 	if _, err := crand.Read(b); err != nil {
-		return ""
+		panic("crypto/rand failure generating user token: " + err.Error())
 	}
 	return hex.EncodeToString(b)
 }

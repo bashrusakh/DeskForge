@@ -53,20 +53,22 @@ jobs:
 
       - name: Build Go
         if: matrix.language == 'go'
-        run: cd api && go mod download && go build ./... || true
+        working-directory: api
+        run: |
+          go mod download
+          go build ./...
 
       - name: Build Python (trace imports)
         if: matrix.language == 'python'
         run: |
-          pip install -r rdgen/requirements.txt 2>/dev/null || true
-          python -m compileall rdgen 2>/dev/null || true
+          if [ -f rdgen/requirements.txt ]; then
+            pip install -r rdgen/requirements.txt
+          fi
+          python -m compileall rdgen
 
       - name: Build Rust
         if: matrix.language == 'rust'
-        run: |
-          cargo build --manifest-path libs/hbb_common/Cargo.toml 2>/dev/null \
-            || cargo build 2>/dev/null \
-            || true
+        run: cargo build --manifest-path libs/hbb_common/Cargo.toml
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4

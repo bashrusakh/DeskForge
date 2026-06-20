@@ -175,10 +175,16 @@ func getPublicKey(r *http.Request) ([]byte, error) {
 		return bytePublicKey, errors.New("no x-oss-pub-key-url field in Request header ")
 	}
 	publicKeyURL, _ := base64.StdEncoding.DecodeString(publicKeyURLBase64)
-	// Validate URL to prevent SSRF: only Alibaba Cloud OSS public-key endpoints are accepted.
+	// SSRF guard: accept only the public-key hosts Alibaba Cloud OSS documents
+	// for callback signature verification.
+	// See: https://www.alibabacloud.com/help/en/oss/developer-reference/callback
 	parsedURL, urlErr := url.Parse(string(publicKeyURL))
-	if urlErr != nil || !strings.HasSuffix(parsedURL.Hostname(), ".aliyuncs.com") {
-		return bytePublicKey, errors.New("invalid public key URL: must be an aliyuncs.com endpoint")
+	if urlErr != nil || parsedURL.Scheme != "https" {
+		return bytePublicKey, errors.New("invalid public key URL: must be https")
+	}
+	host := parsedURL.Hostname()
+	if host != "gosspublic.alicdn.com" && !strings.HasSuffix(host, ".aliyuncs.com") {
+		return bytePublicKey, errors.New("invalid public key URL: host not in OSS allowlist")
 	}
 	// get PublicKey Content from URL
 	responsePublicKeyURL, err := http.Get(string(publicKeyURL))

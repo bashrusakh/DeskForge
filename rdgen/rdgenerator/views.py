@@ -423,9 +423,9 @@ def download(request):
     try:
         safe_uuid = _validate_uuid(request.GET['uuid'])
         safe_filename = _validate_filename(request.GET['filename'])
-    except (ValueError, KeyError):
+        file_path = _safe_open_path('exe', safe_uuid, safe_filename)
+    except (ValueError, KeyError, PermissionError):
         return HttpResponse(status=400)
-    file_path = _safe_open_path('exe', safe_uuid, safe_filename)
     with open(file_path, 'rb') as file:
         content = file.read()
     response = HttpResponse(content, headers={
@@ -438,9 +438,9 @@ def get_png(request):
     try:
         safe_uuid = _validate_uuid(request.GET['uuid'])
         safe_filename = _validate_filename(request.GET['filename'])
-    except (ValueError, KeyError):
+        file_path = _safe_open_path('png', safe_uuid, safe_filename)
+    except (ValueError, KeyError, PermissionError):
         return HttpResponse(status=400)
-    file_path = _safe_open_path('png', safe_uuid, safe_filename)
     with open(file_path, 'rb') as file:
         response = HttpResponse(file, headers={
             'Content-Type': 'application/vnd.microsoft.portable-executable',
@@ -565,12 +565,11 @@ def save_custom_client(request):
     try:
         safe_uuid = _validate_uuid(request.POST.get('uuid', ''))
         safe_filename = _validate_filename(request.FILES['file'].name)
-    except (ValueError, KeyError):
+        file_save_path = _safe_open_path('exe', safe_uuid, safe_filename)
+    except (ValueError, KeyError, PermissionError):
         return HttpResponse(status=400)
     file = request.FILES['file']
-    dir_path = Path('exe') / safe_uuid
-    dir_path.mkdir(parents=True, exist_ok=True)
-    file_save_path = _safe_open_path('exe', safe_uuid, safe_filename)
+    (Path('exe') / safe_uuid).mkdir(parents=True, exist_ok=True)
     with open(file_save_path, "wb+") as f:
         for chunk in file.chunks():
             f.write(chunk)
@@ -603,9 +602,9 @@ def cleanup_secrets(request):
 def get_zip(request):
     try:
         safe_filename = _validate_filename(request.GET['filename'])
-    except (ValueError, KeyError):
+        file_path = _safe_open_path('temp_zips', safe_filename)
+    except (ValueError, KeyError, PermissionError):
         return HttpResponse(status=400)
-    file_path = _safe_open_path('temp_zips', safe_filename)
     with open(file_path, 'rb') as file:
         response = HttpResponse(file, headers={
             'Content-Type': 'application/vnd.microsoft.portable-executable',
