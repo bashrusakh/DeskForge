@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"rustdesk-server/api/global"
 	"rustdesk-server/api/http/response"
 	"rustdesk-server/api/model"
 	"rustdesk-server/api/service"
@@ -103,19 +104,50 @@ func (h *GithubBuildConfig) SyncSecret(c *gin.Context) {
 }
 
 // POST /admin/github_build_config/dispatch_test
-// Диспетчит workflow_dispatch с пустым enc_payload и немедленно возвращает run_id.
-// Статус воркфлоу можно отслеживать в GitHub Actions — длинный poll здесь не держится,
-// чтобы избежать обрыва прокси (nginx proxy_read_timeout).
+// Диспетчит workflow_dispatch и возвращает run_id. Статус — в GitHub Actions
+// (длинный poll здесь не держим, чтобы не ловить обрыв прокси).
+//
+// BUGS.md B-009: раньше слался ПУСТОЙ payload (`map[string]any{}`) → реальная
+// сборка с пустыми server/key/app_name падала поздно или давала непригодный
+// артефакт, впустую тратя минуты Actions и засоряя историю. Теперь:
+//   - запуск требует явного подтверждения (`{"confirm": true}` в теле) — это
+//     реальный билд, а не дешёвая проверка (для read-only есть /test);
+//   - payload заполняется реальными server/key самого сервера и понятным
+//     app_name "deskforge-smoketest", так что smoke-сборка валидна и пригодна.
 func (h *GithubBuildConfig) DispatchTest(c *gin.Context) {
+	var req struct {
+		Confirm bool `json:"confirm"`
+	}
+	_ = c.ShouldBindJSON(&req) // тело опционально; нас интересует только confirm
+	if !req.Confirm {
+		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+
+			"this triggers a REAL GitHub Actions build and consumes Actions minutes; "+
+			"resend with confirm=true to proceed (use /test for a read-only check)")
+		return
+	}
+
 	svc := service.AllService.GithubBuildConfigService
 	cur, err := svc.Get()
 	if err != nil {
 		response.Fail(c, 101, err.Error())
 		return
 	}
+
+	// Реальные параметры сервера, чтобы smoke-артефакт был рабочим, а не пустым.
+	server := global.Config.Rustdesk.IdServer
+	if server == "" {
+		server = global.Config.Rustdesk.ApiServer
+	}
+	params := map[string]any{
+		"app_name":   "deskforge-smoketest",
+		"server":     server,
+		"key":        global.Config.Rustdesk.Key,
+		"custom_txt": "",
+	}
+
 	dispatchCtx, dispatchCancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
 	defer dispatchCancel()
-	runId, err := svc.DispatchBuild(dispatchCtx, cur, map[string]any{})
+	runId, err := svc.DispatchBuild(dispatchCtx, cur, params)
 	if err != nil {
 		response.Fail(c, 101, err.Error())
 		return
@@ -123,6 +155,6 @@ func (h *GithubBuildConfig) DispatchTest(c *gin.Context) {
 	response.Success(c, gin.H{
 		"run_id":  runId,
 		"status":  "dispatched",
-		"message": fmt.Sprintf("Workflow dispatched. Check status at https://github.com/%s/actions/runs/%d", cur.Repo, runId),
+		"message": fmt.Sprintf("Smoke-test build dispatched. Check status at https://github.com/%s/actions/runs/%d", cur.Repo, runId),
 	})
 }
