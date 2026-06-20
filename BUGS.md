@@ -239,7 +239,15 @@ overwrite preset values. Race-y but harmless on fast networks.
 **Fix:** only fill empty fields from `fetchConfig`, or move `fetchConfig` before
 `loadPresets`.
 
-### [ ] B-017 · Build history doesn't auto-refresh
+### [x] B-017 · Build history doesn't auto-refresh
+**Fixed on branch `fix/build-history-autorefresh`:** `loadBuilds` now schedules a 12 s poll
+(`ensurePolling`) whenever any row is `pending`/`building`, reloading the list silently (no
+spinner flicker) and stopping itself once every row is terminal. The timer is cleared on
+`onUnmounted`. `loadBuilds(silent)` gained a flag so background refreshes don't toggle the
+loading state; the `[page,pageSize]` watcher calls `loadBuilds()` explicitly so it keeps the
+spinner.
+
+
 **Where:** `admin-ui/src/views/custom-client/index.vue:602`.
 **Symptom:** rows transition `pending → building → done` server-side, but the table keeps
 showing stale status until the user reloads.
