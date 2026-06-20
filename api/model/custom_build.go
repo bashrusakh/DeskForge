@@ -1,5 +1,11 @@
 package model
 
+import (
+	"rustdesk-server/api/utils"
+
+	"gorm.io/gorm"
+)
+
 type CustomBuild struct {
 	IdModel
 	UserId      uint   `json:"user_id" gorm:"default:0;not null;"`
@@ -30,3 +36,24 @@ const (
 	CustomBuildStatusDone      = "done"
 	CustomBuildStatusFailed    = "failed"
 )
+
+// --- BUGS.md B-008: permanent_password лежит внутри custom_json. Шифруем весь
+// JSON-блоб at rest; вызывающий код видит открытый JSON как раньше. ------------
+
+func (c *CustomBuild) BeforeSave(tx *gorm.DB) error {
+	var err error
+	c.CustomJson, err = utils.EncryptSecret(c.CustomJson)
+	return err
+}
+
+func (c *CustomBuild) AfterSave(tx *gorm.DB) error {
+	var err error
+	c.CustomJson, err = utils.DecryptSecret(c.CustomJson)
+	return err
+}
+
+func (c *CustomBuild) AfterFind(tx *gorm.DB) error {
+	var err error
+	c.CustomJson, err = utils.DecryptSecret(c.CustomJson)
+	return err
+}

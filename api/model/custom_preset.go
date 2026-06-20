@@ -1,5 +1,11 @@
 package model
 
+import (
+	"rustdesk-server/api/utils"
+
+	"gorm.io/gorm"
+)
+
 type CustomPreset struct {
 	IdModel
 	UserId     uint   `json:"user_id" gorm:"default:0;not null;"`
@@ -14,4 +20,25 @@ type CustomPreset struct {
 type CustomPresetList struct {
 	CustomPresets []*CustomPreset `json:"list"`
 	Pagination
+}
+
+// --- BUGS.md B-008: permanent_password лежит внутри custom_json. Шифруем весь
+// JSON-блоб at rest; вызывающий код видит открытый JSON как раньше. ------------
+
+func (c *CustomPreset) BeforeSave(tx *gorm.DB) error {
+	var err error
+	c.CustomJson, err = utils.EncryptSecret(c.CustomJson)
+	return err
+}
+
+func (c *CustomPreset) AfterSave(tx *gorm.DB) error {
+	var err error
+	c.CustomJson, err = utils.DecryptSecret(c.CustomJson)
+	return err
+}
+
+func (c *CustomPreset) AfterFind(tx *gorm.DB) error {
+	var err error
+	c.CustomJson, err = utils.DecryptSecret(c.CustomJson)
+	return err
 }
