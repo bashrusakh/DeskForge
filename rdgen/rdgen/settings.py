@@ -38,6 +38,26 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 DEBUG_ENV = os.environ.get("DEBUG", "False")
 DEBUG = DEBUG_ENV.lower() in ['true', '1', 't']
 
+# Refuse to boot in production with placeholder secrets. Three of the
+# defaults above (SECRET_KEY, ZIP_PASSWORD, SH_SECRET) ship insecure
+# values so `manage.py` works out of the box for dev, but in production
+# they let an attacker forge sessions, decrypt the secrets zip, or
+# bypass workflow auth. Fail loud at startup instead.
+if not DEBUG:
+    _insecure_settings = []
+    if SECRET_KEY.startswith('django-insecure-'):
+        _insecure_settings.append('SECRET_KEY')
+    if ZIP_PASSWORD == 'insecure':
+        _insecure_settings.append('ZIP_PASSWORD')
+    if SH_SECRET == 'secret':
+        _insecure_settings.append('SH_SECRET')
+    if _insecure_settings:
+        raise RuntimeError(
+            "Refusing to start with default insecure values for: "
+            + ", ".join(_insecure_settings)
+            + ". Set these env vars before deploying with DEBUG=False."
+        )
+
 ALLOWED_HOSTS = ['*']
 #CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', '').split()
 
@@ -57,7 +77,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    #'django.middleware.csrf.CsrfViewMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -136,4 +156,9 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-DATA_UPLOAD_MAX_MEMORY_SIZE = None
+# Cap POST body size at 200 MiB — fits the largest real artifacts the
+# Actions runners post back (signed APK/AppImage/dmg) with headroom,
+# and bounds disk/memory abuse on the unauthenticated path before
+# SH_SECRET is configured. Set to a different value via env if larger
+# artifacts become necessary.
+DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get('DATA_UPLOAD_MAX_MEMORY_SIZE', 200 * 1024 * 1024))
