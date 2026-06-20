@@ -45,6 +45,31 @@ def _safe_open_path(base_dir, *parts):
         raise PermissionError("Path traversal detected")
     return target
 
+
+# Bearer token shared with the GitHub Actions runners. The runners already
+# send `Authorization: Bearer ${{ env.token }}`; this checks the header
+# matches SH_SECRET. When SH_SECRET is left as the placeholder "secret"
+# (dev default), the check is skipped with a warning so existing dev
+# deployments aren't broken — production MUST set SH_SECRET.
+def _require_workflow_token(view):
+    from functools import wraps
+
+    @wraps(view)
+    def wrapper(request, *args, **kwargs):
+        expected = getattr(_settings, 'SH_SECRET', '')
+        if not expected or expected == 'secret':
+            print(f"WARNING: {view.__name__} is unauthenticated "
+                  f"(SH_SECRET not set). Set SH_SECRET in production.")
+            return view(request, *args, **kwargs)
+        header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not header.startswith('Bearer '):
+            return HttpResponse(status=401)
+        if header[len('Bearer '):].strip() != expected:
+            return HttpResponse(status=401)
+        return view(request, *args, **kwargs)
+
+    return wrapper
+
 def generator_view(request):
     if request.method == 'POST':
         form = GenerateForm(request.POST, request.FILES)
@@ -167,7 +192,7 @@ def generator_view(request):
                 decodedCustom['disable-installation'] = 'Y'
             if settings == "settingsN":
                 decodedCustom['disable-settings'] = 'Y'
-            if appname.upper != "rustdesk".upper and appname != "":
+            if appname and appname.lower() != "rustdesk":
                 decodedCustom['app-name'] = appname
             decodedCustom['override-settings'] = {}
             decodedCustom['default-settings'] = {}
@@ -227,11 +252,15 @@ def generator_view(request):
                 decodedCustom['override-settings']['enable-terminal'] = 'Y' if enableTerminal else 'N'
 
             for line in defaultManual.splitlines():
-                k, value = line.split('=')
+                if not line.strip() or '=' not in line:
+                    continue
+                k, _, value = line.partition('=')
                 decodedCustom['default-settings'][k.strip()] = value.strip()
 
             for line in overrideManual.splitlines():
-                k, value = line.split('=')
+                if not line.strip() or '=' not in line:
+                    continue
+                k, _, value = line.partition('=')
                 decodedCustom['override-settings'][k.strip()] = value.strip()
             
             decodedCustomJson = json.dumps(decodedCustom)
@@ -275,6 +304,10 @@ def generator_view(request):
 
             #url = 'https://api.github.com/repos/'+_settings.GHUSER+'/rustdesk/actions/workflows/test.yml/dispatches'  
             inputs_raw = {
+                # Shared secret the runner echoes back as Authorization:
+                # Bearer when calling save_custom_client / updategh /
+                # cleanzip. Receiving side checks against SH_SECRET.
+                "token": _settings.SH_SECRET,
                 "server":server,
                 "key":key,
                 "apiServer":apiServer,
@@ -347,9 +380,15 @@ def generator_view(request):
                 response = requests.post(url, json=data, headers=headers)
                 #print(response)
                 if response.status_code == 204 or response.status_code == 200:
-                    github_data = response.json()
-                    print(github_data)
-                    new_github_run.github_run_id = github_data.get('workflow_run_id')
+                    # GitHub's dispatch endpoint returns 204 with no body.
+                    # Only attempt to parse JSON when the response actually
+                    # carries content; otherwise leave github_run_id unset.
+                    if response.content:
+                        try:
+                            github_data = response.json()
+                        except ValueError:
+                            github_data = {}
+                        new_github_run.github_run_id = github_data.get('workflow_run_id')
                     new_github_run.status = "in_progress"
                     new_github_run.save()
 
@@ -374,20 +413,26 @@ def check_for_file(request):
     uuid = request.GET.get('uuid')
     platform = request.GET.get('platform')
     gh_run = get_object_or_404(GithubRun, uuid=uuid)
-    github_log_url = f"https://github.com/{_settings.GHUSER}/{_settings.REPONAME}/actions/runs/{gh_run.github_run_id}"
+    # github_run_id can be None when the dispatch returned 204 (no body)
+    # or when it failed entirely — fall back to the workflow runs index
+    # instead of producing a broken /runs/None link.
+    if gh_run.github_run_id:
+        github_log_url = f"https://github.com/{_settings.GHUSER}/{_settings.REPONAME}/actions/runs/{gh_run.github_run_id}"
+    else:
+        github_log_url = f"https://github.com/{_settings.GHUSER}/{_settings.REPONAME}/actions"
 
-    if gh_run.status not in ['success', 'failure', 'cancelled', 'timed_out', 'skipped']:
+    if gh_run.status not in ['success', 'failure', 'cancelled', 'timed_out', 'skipped'] and gh_run.github_run_id:
         headers = {
             "Authorization": f"Bearer {_settings.GHBEARER}",
             "Accept": "application/vnd.github+json"
         }
         api_url = f"https://api.github.com/repos/{_settings.GHUSER}/{_settings.REPONAME}/actions/runs/{gh_run.github_run_id}"
-        
+
         try:
             gh_response = requests.get(api_url, headers=headers)
             if gh_response.status_code == 200:
                 gh_data = gh_response.json()
-                
+
                 if gh_data['status'] == 'completed':
                     gh_run.status = gh_data['conclusion']
                     gh_run.save()
@@ -426,8 +471,11 @@ def download(request):
         file_path = _safe_open_path('exe', safe_uuid, safe_filename)
     except (ValueError, KeyError, PermissionError):
         return HttpResponse(status=400)
-    with open(file_path, 'rb') as file:
-        content = file.read()
+    try:
+        with open(file_path, 'rb') as file:
+            content = file.read()
+    except FileNotFoundError:
+        return HttpResponse(status=404)
     response = HttpResponse(content, headers={
         'Content-Type': 'application/vnd.microsoft.portable-executable',
         'Content-Disposition': f'attachment; filename="{safe_filename}"'
@@ -441,11 +489,14 @@ def get_png(request):
         file_path = _safe_open_path('png', safe_uuid, safe_filename)
     except (ValueError, KeyError, PermissionError):
         return HttpResponse(status=400)
-    with open(file_path, 'rb') as file:
-        response = HttpResponse(file, headers={
-            'Content-Type': 'application/vnd.microsoft.portable-executable',
-            'Content-Disposition': f'attachment; filename="{safe_filename}"'
-        })
+    try:
+        with open(file_path, 'rb') as file:
+            response = HttpResponse(file, headers={
+                'Content-Type': 'application/vnd.microsoft.portable-executable',
+                'Content-Disposition': f'attachment; filename="{safe_filename}"'
+            })
+    except FileNotFoundError:
+        return HttpResponse(status=404)
     return response
 
 def create_github_run(myuuid):
@@ -456,10 +507,16 @@ def create_github_run(myuuid):
     new_github_run.save()
 
 @csrf_exempt
+@_require_workflow_token
 def update_github_run(request):
-    data = json.loads(request.body)
+    try:
+        data = json.loads(request.body)
+    except (ValueError, json.JSONDecodeError):
+        return HttpResponse(status=400)
     myuuid = data.get('uuid')
     mystatus = data.get('status')
+    if not myuuid or not mystatus:
+        return HttpResponse(status=400)
     GithubRun.objects.filter(Q(uuid=myuuid)).update(status=mystatus)
     return HttpResponse('')
 
@@ -504,6 +561,7 @@ def resize_and_encode_icon(imagefile):
  
 #the following is used when accessed from an external source, like the rustdesk api server
 @csrf_exempt
+@_require_workflow_token
 def startgh(request):
     #print(request)
     data_ = json.loads(request.body)
@@ -561,6 +619,7 @@ def save_png(file, uuid, domain, name):
     return domain, uuid, name
 
 @csrf_exempt
+@_require_workflow_token
 def save_custom_client(request):
     try:
         safe_uuid = _validate_uuid(request.POST.get('uuid', ''))
@@ -576,17 +635,24 @@ def save_custom_client(request):
     return HttpResponse("File saved successfully!")
 
 @csrf_exempt
+@_require_workflow_token
 def cleanup_secrets(request):
     # Pass the UUID as a query param or in JSON body
-    data = json.loads(request.body)
+    try:
+        data = json.loads(request.body)
+    except (ValueError, json.JSONDecodeError):
+        return HttpResponse("Invalid JSON body", status=400)
     my_uuid = data.get('uuid')
-    
+
     if not my_uuid:
         return HttpResponse("Missing UUID", status=400)
 
-    # 1. Find the files in your temp directory matching the UUID
+    # 1. Find the files in your temp directory matching the UUID.
+    # Create the directory first so the first run after a clean deploy
+    # doesn't raise FileNotFoundError.
     temp_dir = os.path.join('temp_zips')
-    
+    os.makedirs(temp_dir, exist_ok=True)
+
     # We look for any file starting with 'secrets_' and containing the uuid
     for filename in os.listdir(temp_dir):
         if my_uuid in filename and filename.endswith('.zip'):
@@ -605,9 +671,12 @@ def get_zip(request):
         file_path = _safe_open_path('temp_zips', safe_filename)
     except (ValueError, KeyError, PermissionError):
         return HttpResponse(status=400)
-    with open(file_path, 'rb') as file:
-        response = HttpResponse(file, headers={
-            'Content-Type': 'application/vnd.microsoft.portable-executable',
-            'Content-Disposition': f'attachment; filename="{safe_filename}"'
-        })
+    try:
+        with open(file_path, 'rb') as file:
+            response = HttpResponse(file, headers={
+                'Content-Type': 'application/vnd.microsoft.portable-executable',
+                'Content-Disposition': f'attachment; filename="{safe_filename}"'
+            })
+    except FileNotFoundError:
+        return HttpResponse(status=404)
     return response
