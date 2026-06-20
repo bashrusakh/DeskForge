@@ -63,6 +63,13 @@ func (ct *CustomBuild) Create(c *gin.Context) {
 	b.UserId = user.Id
 	b.Status = model.CustomBuildStatusPending
 	b.DownloadKey = utils.RandomString(32)
+	// BUGS.md B-006: capability-ссылка должна протухать. TTL из конфига,
+	// дефолт 7 дней если не задан/невалиден.
+	ttl := global.Config.App.DownloadKeyTTL
+	if ttl <= 0 {
+		ttl = 7 * 24 * time.Hour
+	}
+	b.DownloadKeyExpiresAt = time.Now().Add(ttl).Unix()
 
 	err := service.AllService.CustomBuildService.Create(b)
 	if err != nil {
@@ -94,15 +101,34 @@ func (ct *CustomBuild) Delete(c *gin.Context) {
 	response.Success(c, nil)
 }
 
+// findBuildByDownloadKey — единая точка валидации capability-ключа для всех
+// публичных эндпоинтов (DetailByKey/DownloadByKey). Проверяет и существование,
+// и срок жизни (BUGS.md B-006), чтобы протухание нельзя было забыть проверить
+// в одном из обработчиков. Возвращает (build, httpStatus, ok), где httpStatus =
+// 404 для ненайденного ключа, 410 для протухшего, 200 для валидного.
+func findBuildByDownloadKey(key string) (*model.CustomBuild, int, bool) {
+	var build model.CustomBuild
+	if err := global.DB.Where("download_key = ?", key).First(&build).Error; err != nil {
+		return nil, 404, false
+	}
+	if build.DownloadKeyExpiresAt > 0 && time.Now().Unix() > build.DownloadKeyExpiresAt {
+		return nil, 410, false
+	}
+	return &build, 200, true
+}
+
 func (ct *CustomBuild) DetailByKey(c *gin.Context) {
 	key := c.Param("key")
-	var builds []*model.CustomBuild
-	global.DB.Where("download_key = ?", key).Find(&builds)
-	if len(builds) > 0 {
-		response.Success(c, builds[0])
+	build, status, ok := findBuildByDownloadKey(key)
+	if !ok {
+		if status == 410 {
+			c.JSON(410, gin.H{"code": 410, "message": "download link has expired"})
+			return
+		}
+		response.Fail(c, 101, response.TranslateMsg(c, "ItemNotFound"))
 		return
 	}
-	response.Fail(c, 101, response.TranslateMsg(c, "ItemNotFound"))
+	response.Success(c, build)
 }
 
 // DownloadByKey — public: отдаёт zip с файлами собранного билда из
@@ -115,8 +141,12 @@ func (ct *CustomBuild) DetailByKey(c *gin.Context) {
 // Content-Length не отдаём — длину знаем только после Close(), стрим уйдёт chunked.
 func (ct *CustomBuild) DownloadByKey(c *gin.Context) {
 	key := c.Param("key")
-	var build model.CustomBuild
-	if err := global.DB.Where("download_key = ?", key).First(&build).Error; err != nil {
+	build, status, ok := findBuildByDownloadKey(key)
+	if !ok {
+		if status == 410 {
+			c.JSON(410, gin.H{"code": 410, "message": "download link has expired"})
+			return
+		}
 		response.Fail(c, 101, response.TranslateMsg(c, "ItemNotFound"))
 		return
 	}

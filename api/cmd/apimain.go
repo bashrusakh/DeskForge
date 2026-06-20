@@ -23,9 +23,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// DatabaseVersion bumped to 269 in 2026-06-20 to add `github_run_id` column on
-// `custom_builds` for restart-safe GitHub Actions polling (BUGS.md B-003).
-const DatabaseVersion = 269
+// DatabaseVersion bumped to 270 in 2026-06-21 to add `download_key_expires_at`
+// column on `custom_builds` for capability-URL expiry (BUGS.md B-006). 269 added
+// `github_run_id` for restart-safe GitHub Actions polling (BUGS.md B-003).
+const DatabaseVersion = 270
 
 // @title API
 // @version 1.0

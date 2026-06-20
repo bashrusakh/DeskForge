@@ -127,7 +127,22 @@ Always off in the produced client.
 
 ## HIGH — known but unfixed gaps
 
-### [ ] B-006 · `download_key` is permanent and rate-limit-free
+### [x] B-006 · `download_key` is permanent and rate-limit-free
+**Fixed on branch `fix/download-key-expiry`:** added expiry to the capability URL.
+- New `download_key_expires_at` (unix-seconds) column on `custom_builds`
+  (`api/model/custom_build.go`); `DatabaseVersion` 269 → 270 so AutoMigrate adds it.
+- New `download-key-ttl` config (`api/config/config.go`, `api/conf/config.yaml`,
+  default `168h`); `CustomBuild.Create` stamps `now + TTL` when minting the key
+  (falls back to 7 days if unset/≤0). Legacy rows keep `0` = no expiry.
+- `DownloadByKey` and `DetailByKey` now both go through a single
+  `findBuildByDownloadKey` helper that checks existence **and** expiry and returns
+  `410 Gone` on an expired link — so expiry can't be enforced in one handler and
+  forgotten in the other.
+
+Still optional follow-ups (not in this PR): explicit revoke action and per-IP rate
+limit on `/public/download/:key`.
+
+
 **Where:** `api/http/controller/admin/custom_build.go:97-167`.
 **Symptom:** leaked key = forever-public artifact. 32 random characters so brute force is fine,
 but there's no revoke/expiry/single-use.
