@@ -11,16 +11,6 @@ type CustomBuildForm struct {
 	CustomJson string `json:"custom_json"`
 }
 
-func (f *CustomBuildForm) FromCustomBuild(b *model.CustomBuild) *CustomBuildForm {
-	f.Id = b.Id
-	f.Name = b.Name
-	f.Platform = b.Platform
-	f.Version = b.Version
-	f.AppName = b.AppName
-	f.CustomJson = b.CustomJson
-	return f
-}
-
 func (f *CustomBuildForm) ToCustomBuild() *model.CustomBuild {
 	return &model.CustomBuild{
 		Name:       f.Name,

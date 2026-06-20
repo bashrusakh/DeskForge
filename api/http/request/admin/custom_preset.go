@@ -21,16 +21,6 @@ func (f *CustomPresetForm) ToCustomPreset() *model.CustomPreset {
 	}
 }
 
-func (f *CustomPresetForm) FromCustomPreset(p *model.CustomPreset) *CustomPresetForm {
-	f.Id = p.Id
-	f.Name = p.Name
-	f.Platform = p.Platform
-	f.Version = p.Version
-	f.AppName = p.AppName
-	f.CustomJson = p.CustomJson
-	return f
-}
-
 type CustomPresetQuery struct {
 	PageQuery
 }

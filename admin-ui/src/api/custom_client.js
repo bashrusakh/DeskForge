@@ -7,12 +7,6 @@ export function list (params) {
   })
 }
 
-export function detail (id) {
-  return request({
-    url: '/custom_build/detail/' + id,
-  })
-}
-
 export function create (data) {
   return request({
     url: '/custom_build/create',

@@ -5,7 +5,9 @@
 > file, it is outdated. Trust `PLAN.md` only.
 > Related file: [CHANGELOG.md](CHANGELOG.md) - chronological change log.
 >
-> Last updated: 2026-06-11.
+> Last updated: 2026-06-20.
+>
+> Companion file: [BUGS.md](BUGS.md) — open issues in the Custom Client Builder workflow.
 
 ---
 
@@ -39,6 +41,13 @@ in the rustdesk fork (fast, free Windows runners). The standalone Windows builde
 prepared but **frozen as a fallback** and should only be activated if GitHub becomes unacceptable.
 At the same time, the GitHub path is made **sovereign from rustdesk** (see §8.8): builds run
 from the fork and fetch artifacts from fork releases, not from `rustdesk.com`.
+
+**Owner decision (2026-06-20): same model for Linux and Android.** The existing Docker
+`build-linux` agent (and the abandoned MinGW `build-win` agent) become **manual fallbacks**.
+Default route for `platform=linux` / `platform=android` will be a GitHub workflow mirroring
+the windows-min-test pipeline (see §8.14). `windows-x86` is dropped as a supported target —
+we don't ship 32-bit clients in 2026 (see §8.15). The server side (`hbbs`/`hbbr` + Go API
++ admin-ui) stays as it is.
 
 | Level | Independence from | How it is achieved | Status |
 |---|---|---|---|
@@ -100,7 +109,12 @@ Go API stores the binary -> admin-ui Download
 It is sent to your server. Inputs (`server`/`key`/`password`) are encrypted in the rdgen style
 and decrypted with a secret inside the run, so nothing sensitive leaks from the public fork.
 
-### Fallback path (standalone) - frozen, not active
+### Fallback path (standalone Docker / Windows) - frozen, not active
+
+The Docker `build-linux` and `build-win` agents are kept on disk as manual fallbacks but are
+not part of the default workflow. They consume the same `/rdgen-data/jobs/{id}.json` queue,
+but the api never reads their `output_dir/status` files back into the DB (see BUGS.md
+**B-001**). They should not be relied on until that loop is closed.
 
 ```
 PROD HOST (Linux)                               WINDOWS SERVER (separate)
@@ -296,7 +310,7 @@ Priority order only. Each item should be detailed separately before implementati
     - L2 quick-support validated, including `allowCustom` patch and writing `custom_.txt`.
     - Encrypted inputs implemented and verified; open-input fallback preserved.
     - `save_custom_client` to the server works.
-  - [x] **8.8.5. Go API integration - FULLY WORKING.**
+  - [~] **8.8.5. Go API integration - WORKING for windows, but with regressions (see BUGS.md).**
     Completed pieces:
     - `api/model/github_build_config.go` singleton model.
     - `api/service/github_build_config.go` with Get/Save, payload encryption,
@@ -309,6 +323,18 @@ Priority order only. Each item should be detailed separately before implementati
       updates build status, and falls back to file queue when GitHub config is absent.
     - `SetWorkflowSecret` implemented with `golang.org/x/crypto/nacl/box` and exposed as
       `/admin/github_build_config/sync_secret` plus a UI button.
+
+    Open follow-ups (2026-06-20 audit, tracked in BUGS.md):
+    - **B-003** `pollAndDownload` is orphaned on api restart — needs persistent
+      `github_run_id` column + startup reconciler.
+    - **B-004** `buildCustomTxtFromForm` packs ~6 of ~30 form fields into `custom_.txt`;
+      everything else (permissions, branding URLs, theme, direction, ...) is silently dropped
+      for the windows-via-GitHub path.
+    - **B-005** UI key `enable_remote_modi` vs mapper key `allow_remote_config_modification`
+      — toggle never lands in the built client.
+    - **B-009** `dispatchTest` posts an empty payload and triggers a real run.
+    - **B-010** clearing `Branch` in the UI persists as `""` (`Save` doesn't preserve like
+      it does for `Token` / `PayloadKey`).
   - [x] **8.8.4. Security - DONE.**
     Inputs are encrypted (`enc_payload`, AES-256-CBC + PBKDF2) and decrypted with
     `WORKFLOW_PAYLOAD_KEY` from GitHub Secrets. Key resync works. Binary goes to the server,
@@ -329,6 +355,10 @@ Priority order only. Each item should be detailed separately before implementati
 - [ ] **8.7. Final ballast cleanup.**
   Remove test containers `build-win-test*`, `rdgen-data/output/test-win-*`, duplicate compose files,
   and experimental scripts. Do it last, because the build system was still being reshaped.
+  Pulled in 2026-06-20: also remove the abandoned MinGW `docker/Dockerfile.build-win` +
+  `entrypoint-win.sh` (§9 already marks this path as dead), and switch
+  `docker/docker-compose.yml` so that `build-linux` is started behind a `--profile fallback`
+  flag instead of by default.
 
 - [ ] **8.11. Full client rebranding (remove "RustDesk" from sources) - FUTURE.**
   Current L3 only covers exe metadata and portable launcher. Real branding still leaves "RustDesk"
@@ -443,6 +473,24 @@ Priority order only. Each item should be detailed separately before implementati
     `CustomPresetService.Create` now performs an upsert on `(user_id, name)`.
   - `loadPresetIntoForm` was missing some fields: `app_icon_url`, `app_logo_url`,
     `privacy_screen_url` are now restored too.
+
+- [ ] **8.14. GitHub Actions for Linux + Android (NEW, 2026-06-20).**
+  Mirror the windows-min-test approach for the other two supported platforms:
+  - Port `rdgen/.github/workflows/generator-linux.yml` and
+    `rdgen/.github/workflows/generator-android.yml` into `github-build/linux.yml`
+    + `github-build/android.yml` in the rustdesk fork, keeping the same `enc_payload`
+    contract.
+  - Extend `custom_build.go::submitBuild` to dispatch them based on `b.Platform`.
+  - Teach `pollAndDownload` to recognize platform-specific artifact filenames
+    (`rustqs` binary, `rustqs.apk`).
+  - Until shipped, the platform select in `admin-ui/src/views/custom-client/index.vue`
+    should restrict to Windows (BUGS.md **B-013**); macOS stays off the menu.
+  - Docker `build-linux` agent stays on disk as a manual-only fallback (§8.7).
+
+- [ ] **8.15. Drop `windows-x86` as a build target (NEW, 2026-06-20).**
+  Owner decision: 32-bit Windows is not a supported target in 2026. Remove the option from
+  `admin-ui/src/views/custom-client/index.vue`, the default branches, and any router
+  detection that currently falls back to the file queue for it (BUGS.md **B-002**).
 
 - [x] **8.10. Single-binary `rustqs.exe` - DONE.**
   The workflow was reworked so that:
