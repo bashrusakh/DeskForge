@@ -54,6 +54,9 @@ func (is *CustomBuildService) Create(u *model.CustomBuild) error {
 	return DB.Create(u).Error
 }
 
+// Update — full-row save. Раньше использовался `Updates(struct)`, который в gorm
+// тихо игнорирует zero-value поля (status="", file_size=0, github_run_id=0). Для
+// pollAndDownload это уже ловило баги (BUGS.md B-011); переход на Save снимает мину.
 func (is *CustomBuildService) Update(u *model.CustomBuild) error {
-	return DB.Model(u).Updates(u).Error
+	return DB.Save(u).Error
 }

@@ -1,4 +1,5 @@
 import io
+from functools import wraps
 from pathlib import Path
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
@@ -18,6 +19,33 @@ from .forms import GenerateForm
 from .models import GithubRun
 from PIL import Image
 from urllib.parse import quote
+
+
+def _require_workflow_token(view):
+    """Bearer-token gate for endpoints called by the GitHub Actions runners.
+
+    The runners already send ``Authorization: Bearer ${{ env.token }}`` —
+    this view validates that the header matches ``SH_SECRET``. When
+    ``SH_SECRET`` is still the placeholder ``"secret"`` (the dev default
+    in ``settings.py``), the check is skipped with a warning so existing
+    dev deployments keep working; production MUST set ``SH_SECRET``.
+    """
+
+    @wraps(view)
+    def wrapper(request, *args, **kwargs):
+        expected = getattr(_settings, 'SH_SECRET', '')
+        if not expected or expected == 'secret':
+            print(f"WARNING: {view.__name__} is unauthenticated "
+                  f"(SH_SECRET not set). Set SH_SECRET in production.")
+            return view(request, *args, **kwargs)
+        header = request.META.get('HTTP_AUTHORIZATION', '')
+        if not header.startswith('Bearer '):
+            return HttpResponse(status=401)
+        if header[len('Bearer '):].strip() != expected:
+            return HttpResponse(status=401)
+        return view(request, *args, **kwargs)
+
+    return wrapper
 
 
 def _validate_uuid(value):
@@ -279,6 +307,10 @@ def generator_view(request):
 
             #url = 'https://api.github.com/repos/'+_settings.GHUSER+'/rustdesk/actions/workflows/test.yml/dispatches'  
             inputs_raw = {
+                # Shared secret the runner echoes back as
+                # Authorization: Bearer when calling save_custom_client,
+                # updategh, cleanzip; receiving side checks SH_SECRET.
+                "token": _settings.SH_SECRET,
                 "server":server,
                 "key":key,
                 "apiServer":apiServer,
@@ -478,6 +510,7 @@ def create_github_run(myuuid):
     new_github_run.save()
 
 @csrf_exempt
+@_require_workflow_token
 def update_github_run(request):
     try:
         data = json.loads(request.body)
@@ -531,6 +564,7 @@ def resize_and_encode_icon(imagefile):
  
 #the following is used when accessed from an external source, like the rustdesk api server
 @csrf_exempt
+@_require_workflow_token
 def startgh(request):
     #print(request)
     data_ = json.loads(request.body)
@@ -588,6 +622,7 @@ def save_png(file, uuid, domain, name):
     return domain, uuid, name
 
 @csrf_exempt
+@_require_workflow_token
 def save_custom_client(request):
     try:
         safe_uuid = _validate_uuid(request.POST.get('uuid', ''))
@@ -603,6 +638,7 @@ def save_custom_client(request):
     return HttpResponse("File saved successfully!")
 
 @csrf_exempt
+@_require_workflow_token
 def cleanup_secrets(request):
     # Pass the UUID as a query param or in JSON body
     try:

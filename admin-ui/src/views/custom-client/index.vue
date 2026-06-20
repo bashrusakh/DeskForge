@@ -25,12 +25,14 @@
         <el-row :gutter="20">
           <el-col :span="8">
             <el-form-item :label="T('Platform')">
-              <el-select v-model="form.platform" style="width:100%">
+              <!--
+                Only Windows x64 is wired end-to-end (GitHub Actions). Linux/Android need
+                their own GitHub workflows (PLAN.md §8.14); the file-queue path is a
+                manual fallback that doesn't mirror status back to the DB (BUGS.md B-001).
+                32-bit Windows and macOS are not supported (PLAN.md §8.15).
+              -->
+              <el-select v-model="form.platform" style="width:100%" disabled>
                 <el-option label="Windows 64Bit" value="windows" />
-                <el-option label="Windows 32Bit" value="windows-x86" />
-                <el-option label="Linux" value="linux" />
-                <el-option label="Android" value="android" />
-                <el-option label="macOS" value="macos" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -320,7 +322,7 @@
 <script>
 import { defineComponent, ref, reactive, onMounted, watch } from 'vue'
 import { list, create, remove } from '@/api/custom_client'
-import { list as listPresets, create as createPreset, remove as removePreset, detail as detailPreset } from '@/api/custom_preset'
+import { list as listPresets, create as createPreset, remove as removePreset } from '@/api/custom_preset'
 import { all as fetchConfig } from '@/api/config'
 import { upload as uploadFile } from '@/api/file'
 import { ElMessage, ElMessageBox } from 'element-plus'

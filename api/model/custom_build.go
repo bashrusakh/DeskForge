@@ -12,6 +12,10 @@ type CustomBuild struct {
 	BuildLog    string `json:"build_log" gorm:"type:text;"`
 	FileSize    int64  `json:"file_size" gorm:"default:0;not null;"`
 	DownloadKey string `json:"download_key" gorm:"size:64;default:'';not null;"`
+	// GithubRunId — id рана GitHub Actions, если билд диспетчился туда. Нужен для
+	// возобновления `pollAndDownload` после рестарта api (BUGS.md B-003). 0 = file-queue
+	// или ещё не диспетчен.
+	GithubRunId int64 `json:"github_run_id" gorm:"default:0;not null;"`
 	TimeModel
 }
 
