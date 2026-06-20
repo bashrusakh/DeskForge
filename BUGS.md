@@ -149,8 +149,7 @@ first `Write`.
 ### [ ] B-008 · GitHub PAT and `permanent_password` stored in plaintext
 **Where:** `api/model/github_build_config.go:19`, `api/model/custom_build.go:11` (in
 `custom_json`).
-**Symptom:** anyone with DB access reads both. Already flagged in `audit-report.md:893-894`,
-not yet fixed.
+**Symptom:** anyone with DB access reads both. Not yet fixed.
 **Fix:** symmetric encryption at rest using a key from environment (deployer-supplied,
 mirrored by an env-var on rotate). Don't roll the same key twice — `WORKFLOW_PAYLOAD_KEY`
 is already cluster-shared and not a good fit.
@@ -273,6 +272,75 @@ Linux/Android behind a feature flag.
 **Fix:** until B-012 lands, restrict the platform select to `windows`. Re-add Linux/Android
 behind a feature flag once their GitHub workflows are live. Drop the macOS option entirely
 unless it goes on a roadmap item.
+
+---
+
+## ADMIN UI / API — open findings (consolidated from the removed `audit-report.md`)
+
+The functional admin-UI audit (PR #19) had 65 findings; 58 were fixed in PR #20–#22.
+The full report file was removed during doc consolidation (2026-06-21). The findings
+still open are preserved here:
+
+### [~] AU-C-001 · Server settings are volatile — runtime changes lost on restart
+**Where:** `api/service/serverCmd.go:43-87` (pure TCP proxy, stores nothing).
+**Symptom:** RELAY_SERVERS / ALWAYS_USE_RELAY / MUST_LOGIN / blocklist additions applied via
+the UI revert to env vars / files on container restart. PR #20 only added a volatility warning
+in the UI; real persistence is still missing.
+**Fix:** persist server-command state (DB or config file) and reapply on startup.
+
+### [~] AU-S-001 · No audit logging for server commands
+**Where:** `api/http/controller/admin/rustdesk.go`, `api/http/router/admin.go`.
+**Symptom:** PR #20 gated the whole `/rustdesk/*` group behind `AdminPrivilege`, but there is
+still no audit trail of who ran which server command. Needs a new audit table + middleware.
+
+### [ ] AU-M-014 · Usage component — fragile raw-text parsing
+**Symptom:** usage stats parsed from raw text; brittle if the upstream format changes. Low impact.
+
+### [ ] AU-M-021 · My Profile — account info not editable
+**Symptom:** profile fields are read-only; needs a new endpoint + frontend form.
+
+### [ ] AU-M-022 · Unauthenticated writes on the client-facing API
+**Where:** `api/http/router/api.go` — routes registered before `frg.Use(RustAuth())` (line 76).
+**Symptom:** `POST /api/sysinfo` (creates/updates `Peer` rows by caller-supplied `id`),
+`/api/heartbeat`, `/api/audit/conn`, `/api/audit/file` are unauthenticated; an anonymous caller
+can create/alter peers and inject audit entries. `/api/shared-peer` also does an unchecked
+`(*j)["share_token"].(string)` assertion (`webClient.go:57`) → 500 on missing token.
+**Fix:** needs RustDesk protocol design confirmation (the PC client hits these before auth).
+
+### [ ] AU-L-007 · OAuth provider delete — no check for in-flight sessions
+### [ ] AU-L-010 · Hardcoded version list in Custom Client UI
+### [ ] AU-L-011 · Hardcoded artifact name in the build downloader
+### [ ] AU-L-015 · Auto-registered users always get `GroupId=1`
+
+---
+
+## rdgen generator — open findings (consolidated from the removed `AUDIT.md`)
+
+The custom-agent build workflow audit (Django `rdgen/` + Go `api/`) landed all its ✅ fixes.
+The flagged-but-unfixed items are preserved here:
+
+### [ ] RD-A4 · Hard-coded `X-GitHub-Api-Version: '2026-03-10'`
+**Where:** `rdgen/rdgenerator/views.py:340,498`. Placeholder version; GitHub silently falls back
+to default so it works, but the header is misleading. Should be `2022-11-28`.
+
+### [ ] RD-B1 · Four POST endpoints have no authentication (verify landed)
+**Where:** `update_github_run`, `save_custom_client`, `cleanup_secrets`, `startgh`.
+Reachable by any anonymous client; the workflows send `Authorization: Bearer ${{ env.token }}`
+but Django never validates it. Enables DoS on `startgh`, anonymous artifact overwrite, status
+spoofing, and secrets-zip deletion. Was split into its own PR (workflow Bearer auth) — confirm
+it actually merged.
+
+### [ ] RD-B5 · `ALLOWED_HOSTS = ['*']`
+**Where:** `rdgen/rdgen/settings.py:41`. Wildcard host trust → host-header injection. Needs the
+operator to supply real hostnames via env.
+
+### [ ] RD-B6 · `download` / `get_png` / `get_zip` are unauthenticated
+Serve any file under `exe/<uuid>/`, `png/<uuid>/`, `temp_zips/` to anyone who knows the UUID;
+UUIDs leak into HTML templates and Actions logs. Relies entirely on UUID secrecy.
+
+### [ ] RD-C4 · Bare `except:` clauses in `generator_view`
+**Where:** `rdgen/rdgenerator/views.py:136,146,156`. Hides `KeyboardInterrupt`/`SystemExit`;
+masks real errors behind "false" placeholders.
 
 ---
 

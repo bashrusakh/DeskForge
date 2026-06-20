@@ -35,6 +35,24 @@ The admin panel has been fully reworked (2026-06).
 | --- | --- |
 | ![Dashboard](docs/screenshots/dashboard.png) | ![Custom Client Builder](docs/screenshots/client-builder.png) |
 
+## Feature matrix
+
+**Implemented:** username/password (bcrypt), JWT, per-device access tokens, captcha +
+brute-force protection, OAuth/OIDC (GitHub, Google, generic), LDAP/LDAPS/AD; user CRUD with
+admin/regular roles, groups, registration; peer CRUD, device groups, online status,
+peer-UUID binding; personal + shared address books with collections, rules, tags, token-based
+web-client sharing, batch ops; connection / file-transfer / login audit; server commands to
+hbbs/hbbr; admin panel, web client, Swagger; SQLite / MySQL / PostgreSQL.
+
+**Not implemented (vs RustDesk Pro):** 2FA/MFA, fine-grained RBAC, session recording, device
+policy/assignment, remote script execution, unattended-access management, webhook/SIEM
+integrations, HA/clustering, backup/restore, license-key management, custom branding,
+policy-based device groups.
+
+**Localization:** admin-ui ships English, Russian, Chinese (Simplified) — 3 locales under
+`admin-ui/src/utils/i18n/`. The Go API message catalog (`api/resources/i18n/`) additionally
+carries `zh_TW`, `ko`, `fr`, `es` — 7 locales total on the backend.
+
 ## Quick Start
 
 ### 1. Clone the repository

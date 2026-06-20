@@ -3,7 +3,7 @@
 Go implementation of the RustDesk-compatible API server with a bundled web UI and web client. Part of the [DeskForge](../README.md) monorepo — a unified, self-hosted, RustDesk-compatible server.
 
 <div align=center>
-<img src="https://img.shields.io/badge/golang-1.22-blue"/>
+<img src="https://img.shields.io/badge/golang-1.23-blue"/>
 <img src="https://img.shields.io/badge/gin-v1.9.0-lightBlue"/>
 <img src="https://img.shields.io/badge/gorm-v1.25.7-green"/>
 <img src="https://img.shields.io/badge/swag-v1.16.3-yellow"/>

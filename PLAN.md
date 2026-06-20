@@ -425,7 +425,7 @@ Priority order only. Each item should be detailed separately before implementati
   | `admin-ui/` (`lejianwen/rustdesk-api-web`) | MIT |
   | `rdgen/` (`bryangerlach/rdgen`) | GPL-3.0; only workflow patches are used |
 
-- [~] **8.13. admin-ui UI rework - FOUNDATION IN PR #3.** Goal: turn admin-ui from a generic CRUD admin panel into an operational remote-access console (see `ui-rework.md`).
+- [~] **8.13. admin-ui UI rework - FOUNDATION IN PR #3.** Goal: turn admin-ui from a generic CRUD admin panel into an operational remote-access console (overview in `admin-ui/README.md`).
   Done in PR #3 / branch `ui-refract`:
   - design tokens for light/dark surface/text/border/status colors, radius, shadows, typography (`admin-ui/src/styles/style.scss`);
   - theme system `auto` / `light` / `dark` via `html[data-theme]`, `localStorage` (`theme-mode`), and Element Plus dark class sync;
@@ -487,10 +487,11 @@ Priority order only. Each item should be detailed separately before implementati
     should restrict to Windows (BUGS.md **B-013**); macOS stays off the menu.
   - Docker `build-linux` agent stays on disk as a manual-only fallback (§8.7).
 
-- [ ] **8.15. Drop `windows-x86` as a build target (NEW, 2026-06-20).**
-  Owner decision: 32-bit Windows is not a supported target in 2026. Remove the option from
-  `admin-ui/src/views/custom-client/index.vue`, the default branches, and any router
-  detection that currently falls back to the file queue for it (BUGS.md **B-002**).
+- [~] **8.15. Drop `windows-x86` as a build target (NEW, 2026-06-20).**
+  Owner decision: 32-bit Windows is not a supported target in 2026. UI part done — the platform
+  select in `admin-ui/src/views/custom-client/index.vue:34-35` is now locked to `Windows 64Bit`
+  (BUGS.md **B-002**). Remaining: prune any backend default branches / router detection that
+  still reference `windows-x86`.
 
 - [x] **8.10. Single-binary `rustqs.exe` - DONE.**
   The workflow was reworked so that:
