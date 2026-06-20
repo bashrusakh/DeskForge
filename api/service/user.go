@@ -1,6 +1,8 @@
 ﻿package service
 
 import (
+	crand "crypto/rand"
+	"encoding/hex"
 	"errors"
 	"math/rand"
 	"strconv"
@@ -91,7 +93,14 @@ func (us *UserService) GenerateToken(u *model.User) string {
 	if len(Jwt.Key) > 0 {
 		return Jwt.GenerateToken(u.Id)
 	}
-	return utils.Md5(u.Username + time.Now().String())
+	b := make([]byte, 32)
+	// crypto/rand.Read fills the buffer or returns an unrecoverable OS error.
+	// Returning an empty token here would let the caller persist a useless
+	// "" token and silently break auth; panic is safer than degraded auth.
+	if _, err := crand.Read(b); err != nil {
+		panic("crypto/rand failure generating user token: " + err.Error())
+	}
+	return hex.EncodeToString(b)
 }
 
 // Login 
