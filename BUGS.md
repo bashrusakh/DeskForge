@@ -338,8 +338,15 @@ operator to supply real hostnames via env.
 Serve any file under `exe/<uuid>/`, `png/<uuid>/`, `temp_zips/` to anyone who knows the UUID;
 UUIDs leak into HTML templates and Actions logs. Relies entirely on UUID secrecy.
 
-### [ ] RD-C4 · Bare `except:` clauses in `generator_view`
-**Where:** `rdgen/rdgenerator/views.py:136,146,156`. Hides `KeyboardInterrupt`/`SystemExit`;
+### [x] RD-C4 · Bare `except:` clauses in `generator_view`
+**Fixed on branch `fix/rdgen-bare-except`:** the three bare `except:` arms in
+`generator_view` (icon/logo/privacy `save_png` calls) are now `except Exception as e:` and
+log the actual error (`f"...: {e}"`), so `KeyboardInterrupt`/`SystemExit` propagate and real
+failures are no longer hidden behind the `"false"` placeholders. The mislabelled
+"failed to get logo" message on the privacy block was corrected to "failed to get privacy screen".
+
+
+**Where:** `rdgen/rdgenerator/views.py:168,178,188`. Hides `KeyboardInterrupt`/`SystemExit`;
 masks real errors behind "false" placeholders.
 
 ---
