@@ -69,7 +69,7 @@ should be `2022-11-28`.
 
 ## B. Critical — security / auth
 
-### B1 — Four POST endpoints have no authentication ❌ partially mitigated
+### B1 — Four POST endpoints have no authentication 🔀 split out to its own PR
 `update_github_run`, `save_custom_client`, `cleanup_secrets`, `startgh`
 are all reachable by any anonymous client. The GitHub workflows send
 `Authorization: Bearer ${{ env.token }}`, but Django doesn't validate
@@ -86,18 +86,8 @@ What this enables:
   "failed"/"success" without permission.
 - Anonymous deletion on `cleanup_secrets` — wipe any UUID's secrets zip.
 
-Fix in this PR:
-- Add `token` to `inputs_raw` so the runners receive the same shared
-  secret currently stored as `SH_SECRET` (the only secret already
-  shipped via the encrypted zip).
-- Decorate the four views with `_require_workflow_token`, which checks
-  `Authorization: Bearer <SH_SECRET>` and returns 401 otherwise.
-- When `SH_SECRET` is the literal placeholder `"secret"` (the default),
-  log a warning and skip the check so existing dev deployments don't
-  immediately 401. Production deployments **must** set `SH_SECRET`.
-
-This keeps the existing protocol — workflows already send the header —
-and only tightens enforcement on the server.
+Per the "one bug — one PR" rule, this is being landed separately.
+See the linked PR (workflow Bearer auth) for the fix.
 
 ### B2 — `SECRET_KEY` default is `django-insecure-…` ✅
 `rdgen/rdgen/settings.py:23` falls back to the insecure literal when
