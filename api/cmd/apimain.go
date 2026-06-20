@@ -10,6 +10,7 @@ import (
 	"rustdesk-server/api/config"
 	"rustdesk-server/api/global"
 	"rustdesk-server/api/http"
+	"rustdesk-server/api/http/controller/admin"
 	"rustdesk-server/api/lib/cache"
 	"rustdesk-server/api/lib/jwt"
 	"rustdesk-server/api/lib/lock"
@@ -22,7 +23,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const DatabaseVersion = 268
+// DatabaseVersion bumped to 269 in 2026-06-20 to add `github_run_id` column on
+// `custom_builds` for restart-safe GitHub Actions polling (BUGS.md B-003).
+const DatabaseVersion = 269
 
 // @title API
 // @version 1.0
@@ -209,6 +212,10 @@ func InitGlobal() {
 	})
 	global.LoginLimiter.RegisterProvider(utils.B64StringCaptchaProvider{})
 	DatabaseAutoUpdate()
+
+	// Возобновить поллинг in-flight GitHub-сборок после рестарта (BUGS.md B-003).
+	// Запускается ПОСЛЕ AutoMigrate — иначе колонки github_run_id может ещё не быть.
+	admin.ResumePendingPolls()
 }
 
 func DatabaseAutoUpdate() {

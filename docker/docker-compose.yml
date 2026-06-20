@@ -37,7 +37,14 @@ services:
       - rustdesk-net
     restart: unless-stopped
 
+  # Сборочные агенты — frozen fallback (PLAN.md §3, §8.7). Активный путь сейчас
+  # GitHub Actions (Windows x64) через github_build_config. Эти контейнеры
+  # стартуют только с `--profile fallback`, обычный `docker compose up` их
+  # не поднимает. Linux/Android агент будет вытеснен GitHub-воркфлоу (§8.14).
+  # MinGW build-win — абандон (§9), оставлен как историческая ссылка до §8.7
+  # cleanup.
   build-linux:
+    profiles: ["fallback"]
     build:
       context: ..
       dockerfile: docker/Dockerfile.build-linux
@@ -49,6 +56,7 @@ services:
     restart: unless-stopped
 
   build-win:
+    profiles: ["fallback"]
     build:
       context: ..
       dockerfile: docker/Dockerfile.build-win

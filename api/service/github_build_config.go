@@ -40,7 +40,13 @@ func (s *GithubBuildConfigService) Get() (*model.GithubBuildConfig, error) {
 	return c, err
 }
 
-// Save обновляет настройки. Пустые секреты (Token/PayloadKey) не затирают существующие.
+// Save обновляет настройки.
+//   - Repo / WorkflowFilename: всегда копируем (включая пустое значение — это
+//     валидный способ очистить настройку).
+//   - Branch / Token / PayloadKey: пустая строка означает «оставить как есть».
+//     Это удобство UI: показывать секреты нельзя, а Branch имеет осмысленный
+//     default (`master`), и обнулять его пустым полем формы — почти всегда
+//     случайность (см. BUGS.md B-010).
 func (s *GithubBuildConfigService) Save(in *model.GithubBuildConfig) error {
 	cur, err := s.Get()
 	if err != nil {
@@ -48,7 +54,9 @@ func (s *GithubBuildConfigService) Save(in *model.GithubBuildConfig) error {
 	}
 	cur.Repo = in.Repo
 	cur.WorkflowFilename = in.WorkflowFilename
-	cur.Branch = in.Branch
+	if in.Branch != "" {
+		cur.Branch = in.Branch
+	}
 	if in.Token != "" {
 		cur.Token = in.Token
 	}

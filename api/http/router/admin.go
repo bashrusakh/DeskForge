@@ -372,7 +372,7 @@ func CustomBuildBind(rg *gin.RouterGroup) {
 	cont := &admin.CustomBuild{}
 	aR := rg.Group("/custom_build").Use(middleware.AdminPrivilege())
 	aR.GET("/list", cont.List)
-	aR.GET("/detail/:id", cont.Detail)
+	// /detail/:id intentionally not exposed: never had a UI consumer (BUGS.md B-014).
 	aR.POST("/create", cont.Create)
 	aR.POST("/delete", cont.Delete)
 }
