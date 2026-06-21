@@ -23,12 +23,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// DatabaseVersion bumped to 271 in 2026-06-21 to add the `server_cmd_audits`
-// table for admin server-command auditing (BUGS.md AU-S-001). 270 added
+// DatabaseVersion bumped to 272 in 2026-06-21 to add the `server_cmd_states`
+// table for persisting admin server-command state across restarts (BUGS.md
+// AU-C-001). Earlier bumps: 271 `server_cmd_audits` (AU-S-001), 270
 // `download_key_expires_at` on `custom_builds` for capability-URL expiry
-// (BUGS.md B-006); 269 added `github_run_id` for restart-safe GitHub Actions
-// polling (BUGS.md B-003). AutoMigrate is idempotent.
-const DatabaseVersion = 271
+// (B-006), 269 `github_run_id` for restart-safe GitHub Actions polling (B-003).
+// AutoMigrate is idempotent so all tables/columns are still created.
+const DatabaseVersion = 272
 
 // @title API
 // @version 1.0
@@ -219,6 +220,9 @@ func InitGlobal() {
 	// Возобновить поллинг in-flight GitHub-сборок после рестарта (BUGS.md B-003).
 	// Запускается ПОСЛЕ AutoMigrate — иначе колонки github_run_id может ещё не быть.
 	admin.ResumePendingPolls()
+	// AU-C-001: переприменяем сохранённые server-команды (relay/aur/ml/blocklist),
+	// иначе они откатываются к env/файлам при рестарте.
+	admin.ReplayServerCmds()
 }
 
 func DatabaseAutoUpdate() {
@@ -316,7 +320,11 @@ func Migrate(version uint) {
 		&model.CustomBuild{},
 		&model.CustomPreset{},
 		&model.GithubBuildConfig{},
+<<<<<<< HEAD
 		&model.ServerCmdAudit{},
+=======
+		&model.ServerCmdState{},
+>>>>>>> fix/server-cmd-persistence
 	)
 	if err != nil {
 		global.Logger.Error("migrate err :=>", err)

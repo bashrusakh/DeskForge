@@ -362,12 +362,19 @@ The functional admin-UI audit (PR #19) had 65 findings; 58 were fixed in PR #20�
 The full report file was removed during doc consolidation (2026-06-21). The findings
 still open are preserved here:
 
-### [~] AU-C-001 · Server settings are volatile — runtime changes lost on restart
-**Where:** `api/service/serverCmd.go:43-87` (pure TCP proxy, stores nothing).
-**Symptom:** RELAY_SERVERS / ALWAYS_USE_RELAY / MUST_LOGIN / blocklist additions applied via
-the UI revert to env vars / files on container restart. PR #20 only added a volatility warning
-in the UI; real persistence is still missing.
-**Fix:** persist server-command state (DB or config file) and reapply on startup.
+### [x] AU-C-001 · Server settings are volatile — runtime changes lost on restart
+**Fixed on branch `fix/server-cmd-persistence`:** server-command state is now persisted in a
+new `server_cmd_states` table and replayed on startup.
+- `model.ServerCmdState` (`target`,`cmd`,`option`); in AutoMigrate, `DatabaseVersion` → 272.
+- `ServerCmdService.PersistCmd` stores applied **set** commands (skips read commands that have
+  no `option`): replace-by-(target,cmd) for `rs`/`aur`/`ml`/custom; for additive
+  `<x>-add`/`<x>-remove` it keeps one row per active add and a `-remove` deletes the matching
+  `-add`, so the table always equals the live set. Called from `SendCmd` after a successful send.
+- `admin.ReplayServerCmds()` (startup hook in `apimain`, after AutoMigrate) re-sends the stored
+  commands to the id/relay sockets, best-effort with a short delay to let hbbs/hbbr bind.
+
+Note: `DatabaseVersion` 272 collides with the 270/271 bumps on the B-006/AU-S-001 branches —
+on merge keep the highest; AutoMigrate is idempotent.
 
 ### [x] AU-S-001 · No audit logging for server commands
 **Fixed on branch `fix/server-cmd-audit`:** added an audit trail for admin server-commands.

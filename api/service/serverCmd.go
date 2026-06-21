@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 	"rustdesk-server/api/model"
 	"time"
 )
@@ -40,6 +41,45 @@ func (is *ServerCmdService) Delete(u *model.ServerCmd) error {
 func (is *ServerCmdService) Create(u *model.ServerCmd) error {
 	res := DB.Create(u).Error
 	return res
+}
+
+// PersistCmd сохраняет применённую set-команду для последующего реаплея на старте
+// (BUGS.md AU-C-001). Пустой option — это read-команда (h/u/get-варианты), её не
+// храним. Семантика:
+//   - `<x>-remove`: удаляем соответствующую сохранённую `<x>-add` с тем же option;
+//   - `<x>-add`: добавляем (без дублей);
+//   - остальное (rs/aur/ml/произвольное): replace по (target, cmd).
+func (is *ServerCmdService) PersistCmd(target, cmd, option string) error {
+	if cmd == "" || option == "" {
+		return nil
+	}
+	switch {
+	case strings.HasSuffix(cmd, "-remove"):
+		base := strings.TrimSuffix(cmd, "-remove")
+		return DB.Where("target = ? AND cmd = ? AND option = ?", target, base+"-add", option).
+			Delete(&model.ServerCmdState{}).Error
+	case strings.HasSuffix(cmd, "-add"):
+		var n int64
+		DB.Model(&model.ServerCmdState{}).
+			Where("target = ? AND cmd = ? AND option = ?", target, cmd, option).Count(&n)
+		if n > 0 {
+			return nil
+		}
+		return DB.Create(&model.ServerCmdState{Target: target, Cmd: cmd, Option: option}).Error
+	default:
+		if err := DB.Where("target = ? AND cmd = ?", target, cmd).
+			Delete(&model.ServerCmdState{}).Error; err != nil {
+			return err
+		}
+		return DB.Create(&model.ServerCmdState{Target: target, Cmd: cmd, Option: option}).Error
+	}
+}
+
+// AllCmdStates — все сохранённые состояния в порядке применения (для реаплея).
+func (is *ServerCmdService) AllCmdStates() []*model.ServerCmdState {
+	var states []*model.ServerCmdState
+	DB.Order("id asc").Find(&states)
+	return states
 }
 
 // SendCmd 
