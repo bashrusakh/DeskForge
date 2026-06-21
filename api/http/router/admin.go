@@ -69,11 +69,14 @@ func Init(g *gin.Engine) {
 func RustdeskCmdBind(adg *gin.RouterGroup) {
 	cont := &admin.Rustdesk{}
 	rg := adg.Group("/rustdesk").Use(middleware.AdminPrivilege())
-	rg.POST("/sendCmd", cont.SendCmd)
+	// AU-S-001: журналируем мутирующие server-команды (кто/что/когда/результат).
+	audit := middleware.ServerCmdAudit()
+	rg.POST("/sendCmd", audit, cont.SendCmd)
 	rg.GET("/cmdList", cont.CmdList)
-	rg.POST("/cmdDelete", cont.CmdDelete)
-	rg.POST("/cmdCreate", cont.CmdCreate)
-	rg.POST("/cmdUpdate", cont.CmdUpdate)
+	rg.POST("/cmdDelete", audit, cont.CmdDelete)
+	rg.POST("/cmdCreate", audit, cont.CmdCreate)
+	rg.POST("/cmdUpdate", audit, cont.CmdUpdate)
+	rg.GET("/cmdAuditList", cont.CmdAuditList)
 }
 func LoginBind(rg *gin.RouterGroup) {
 	cont := &admin.Login{}

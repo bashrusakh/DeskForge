@@ -23,9 +23,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// DatabaseVersion bumped to 269 in 2026-06-20 to add `github_run_id` column on
-// `custom_builds` for restart-safe GitHub Actions polling (BUGS.md B-003).
-const DatabaseVersion = 269
+// DatabaseVersion bumped to 271 in 2026-06-21 to add the `server_cmd_audits`
+// table for admin server-command auditing (BUGS.md AU-S-001). 270 added
+// `download_key_expires_at` (B-006); 269 added `github_run_id` (B-003).
+// NOTE: 270 is also used by the B-006 branch — if both land, keep the highest
+// number and ensure Migrate() runs (AutoMigrate is idempotent).
+const DatabaseVersion = 271
 
 // @title API
 // @version 1.0
@@ -313,6 +316,7 @@ func Migrate(version uint) {
 		&model.CustomBuild{},
 		&model.CustomPreset{},
 		&model.GithubBuildConfig{},
+		&model.ServerCmdAudit{},
 	)
 	if err != nil {
 		global.Logger.Error("migrate err :=>", err)
