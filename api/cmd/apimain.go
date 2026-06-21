@@ -320,11 +320,8 @@ func Migrate(version uint) {
 		&model.CustomBuild{},
 		&model.CustomPreset{},
 		&model.GithubBuildConfig{},
-<<<<<<< HEAD
 		&model.ServerCmdAudit{},
-=======
 		&model.ServerCmdState{},
->>>>>>> fix/server-cmd-persistence
 	)
 	if err != nil {
 		global.Logger.Error("migrate err :=>", err)
