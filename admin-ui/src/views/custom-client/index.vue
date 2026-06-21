@@ -320,7 +320,7 @@
 </template>
 
 <script>
-import { defineComponent, ref, reactive, onMounted, watch } from 'vue'
+import { defineComponent, ref, reactive, onMounted, onUnmounted, watch } from 'vue'
 import { list, create, remove } from '@/api/custom_client'
 import { list as listPresets, create as createPreset, remove as removePreset } from '@/api/custom_preset'
 import { all as fetchConfig } from '@/api/config'
@@ -390,8 +390,9 @@ export default defineComponent({
     const total = ref(0)
     const versions = VERSIONS
 
-    const loadBuilds = async () => {
-      loading.value = true
+    // B-017: при silent=true не дёргаем спиннер — для фонового поллинга.
+    const loadBuilds = async (silent = false) => {
+      if (!silent) loading.value = true
       try {
         const res = await list({ page: page.value, page_size: pageSize.value })
         builds.value = res.data.list || []
@@ -399,9 +400,36 @@ export default defineComponent({
       } catch (e) {
         console.error(e)
       } finally {
-        loading.value = false
+        if (!silent) loading.value = false
+      }
+      ensurePolling()
+    }
+
+    // B-017: история билдов не обновлялась сама — строки висели в pending/building,
+    // пока пользователь не перезагрузит. Поллим список пока есть незавершённые
+    // билды и останавливаемся, когда все терминальные.
+    const POLL_MS = 12000
+    let pollTimer = null
+    const hasActiveBuilds = () =>
+      builds.value.some((b) => b.status === 'pending' || b.status === 'building')
+    const stopPolling = () => {
+      if (pollTimer) {
+        clearInterval(pollTimer)
+        pollTimer = null
       }
     }
+    const ensurePolling = () => {
+      if (!hasActiveBuilds()) {
+        stopPolling()
+        return
+      }
+      if (pollTimer) return
+      pollTimer = setInterval(async () => {
+        await loadBuilds(true)
+        if (!hasActiveBuilds()) stopPolling()
+      }, POLL_MS)
+    }
+    onUnmounted(stopPolling)
 
     const presets = ref([])
     const selectedPresetId = ref(null)
@@ -601,7 +629,7 @@ export default defineComponent({
       }
     }
 
-    watch([page, pageSize], loadBuilds)
+    watch([page, pageSize], () => loadBuilds())
     onMounted(async () => {
       loadBuilds()
       loadPresets()
