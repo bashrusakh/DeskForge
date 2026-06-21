@@ -438,7 +438,14 @@ but Django never validates it. Enables DoS on `startgh`, anonymous artifact over
 spoofing, and secrets-zip deletion. Was split into its own PR (workflow Bearer auth) — confirm
 it actually merged.
 
-### [ ] RD-B5 · `ALLOWED_HOSTS = ['*']`
+### [x] RD-B5 · `ALLOWED_HOSTS = ['*']`
+**Fixed on branch `fix/rdgen-allowed-hosts`:** `ALLOWED_HOSTS` is read from the `ALLOWED_HOSTS`
+env var (comma/space separated). Under `DEBUG` it falls back to `['*']` for dev convenience;
+with `DEBUG=False` it must be set or Django refuses to boot (same fail-loud style as the
+SECRET_KEY/ZIP_PASSWORD/SH_SECRET checks). Documented as a placeholder in
+`rdgen/docker-compose.yml`.
+
+
 **Where:** `rdgen/rdgen/settings.py:41`. Wildcard host trust → host-header injection. Needs the
 operator to supply real hostnames via env.
 
