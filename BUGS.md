@@ -293,8 +293,11 @@ in the UI; real persistence is still missing.
 **Symptom:** PR #20 gated the whole `/rustdesk/*` group behind `AdminPrivilege`, but there is
 still no audit trail of who ran which server command. Needs a new audit table + middleware.
 
-### [ ] AU-M-014 · Usage component — fragile raw-text parsing
-**Symptom:** usage stats parsed from raw text; brittle if the upstream format changes. Low impact.
+### [x] AU-M-014 · Usage component — fragile raw-text parsing
+**Fixed on branch `fix/usage-parsing`:** `usage.vue` now parses through a guarded `parseUsage`
+helper — bails out (empty list) if the payload isn't a string, splits lines on `/\r?\n/` and
+columns on `/\s+/`, and trims/filters blank lines. Previously `res.data.split('\n')...
+split(" ")` threw on a non-string payload and mis-split on CRLF or repeated spaces.
 
 ### [ ] AU-M-021 · My Profile — account info not editable
 **Symptom:** profile fields are read-only; needs a new endpoint + frontend form.

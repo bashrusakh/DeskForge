@@ -44,10 +44,22 @@
     list: [],
     target: RELAY_TARGET,
   })
+  // AU-M-014: устойчивый парсинг ответа usage. Раньше res.data.split('\n')...
+  // split(" ") падал, если data не строка, и ломался на CRLF / повторных пробелах.
+  const parseUsage = (raw) => {
+    if (typeof raw !== 'string') {
+      return []
+    }
+    return raw
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .map(line => line.split(/\s+/))
+  }
   const getList = async () => {
     const res = await sendCmd({ cmd: form.get_cmd, target: RELAY_TARGET }).catch(_ => false)
     if (res) {
-      form.list = res.data.split('\n').filter(i => i).map(i => i.split(" "))
+      form.list = parseUsage(res.data)
     }
   }
   watch(() => props.canSend, (v) => {
