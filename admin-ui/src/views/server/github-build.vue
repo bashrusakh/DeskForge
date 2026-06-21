@@ -192,6 +192,8 @@ async function onTest () {
 }
 
 async function onDispatchTest () {
+  // B-009: это реальная сборка на GitHub Actions (тратит минуты) — подтверждаем.
+  if (!window.confirm('This triggers a REAL build on GitHub Actions and consumes Actions minutes. Continue?')) return
   dispatching.value = true
   dispatchResult.value = null
   try {

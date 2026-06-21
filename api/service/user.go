@@ -264,6 +264,15 @@ func (us *UserService) Delete(u *model.User) error {
 }
 
 // Update 
+// UpdateProfile обновляет поля профиля, которые пользователь правит сам
+// (nickname, email). Явный Select — чтобы очистка nickname сохранялась
+// (Updates(struct) пропускает zero-value). BUGS.md AU-M-021.
+func (us *UserService) UpdateProfile(id uint, nickname, email string) error {
+	return DB.Model(&model.User{}).Where("id = ?", id).
+		Select("nickname", "email").
+		Updates(map[string]interface{}{"nickname": nickname, "email": email}).Error
+}
+
 func (us *UserService) Update(u *model.User) error {
 	currentUser := us.InfoById(u.Id)
 	//  IsAdmin пјЊ
@@ -411,7 +420,7 @@ func (us *UserService) RegisterByOauth(oauthUser *model.OauthUser, op string) (e
 	usernameUnique := us.GenerateUsernameByOauth(username)
 	user := &model.User{
 		Username: usernameUnique,
-		GroupId:  1,
+		GroupId:  AllService.GroupService.DefaultGroupId(),
 	}
 	oauthUser.ToUser(user, false)
 	tx.Create(user)
@@ -481,7 +490,7 @@ func (us *UserService) Register(username string, email string, password string, 
 		Username: username,
 		Email:    email,
 		Password: password,
-		GroupId:  1,
+		GroupId:  AllService.GroupService.DefaultGroupId(),
 		Status:   status,
 	}
 	err := us.Create(u)

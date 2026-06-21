@@ -10,6 +10,7 @@ app:
   web-sso: true #web auth sso
   disable-pwd-login: false #
   api-base: "" # public URL where build agents can fetch uploaded images, e.g. http://your-server:21114
+  download-key-ttl: 168h # custom-build download capability URL lifetime (BUGS.md B-006); <=0 => 7d default
 
 admin:
   title: "DeskForge Admin"

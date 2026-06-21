@@ -21,5 +21,6 @@ export function syncSecret () {
 }
 
 export function dispatchTest () {
-  return request({ url: '/github_build_config/dispatch_test', method: 'post' })
+  // B-009: confirm=true — это реальный билд (тратит минуты Actions), не дешёвый чек.
+  return request({ url: '/github_build_config/dispatch_test', method: 'post', data: { confirm: true } })
 }

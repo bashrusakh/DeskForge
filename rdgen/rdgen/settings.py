@@ -58,7 +58,20 @@ if not DEBUG:
             + ". Set these env vars before deploying with DEBUG=False."
         )
 
-ALLOWED_HOSTS = ['*']
+# ALLOWED_HOSTS from env, comma- or space-separated (BUGS.md RD-B5). A wildcard
+# '*' trusts any Host header → host-header injection. Keep '*' only as a dev
+# convenience under DEBUG; production must list real hostnames or refuse to boot
+# (consistent with the insecure-secret checks above).
+_allowed_hosts = os.environ.get('ALLOWED_HOSTS', '').replace(',', ' ').split()
+if DEBUG:
+    ALLOWED_HOSTS = _allowed_hosts or ['*']
+else:
+    ALLOWED_HOSTS = _allowed_hosts
+    if not ALLOWED_HOSTS:
+        raise RuntimeError(
+            "ALLOWED_HOSTS must be set (comma/space separated) when DEBUG=False. "
+            "Refusing to start with a wildcard host (BUGS.md RD-B5)."
+        )
 #CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', '').split()
 
 # Application definition

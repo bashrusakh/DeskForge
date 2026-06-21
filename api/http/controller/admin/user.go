@@ -11,6 +11,7 @@ import (
 	"rustdesk-server/api/utils"
 	"gorm.io/gorm"
 	"strconv"
+	"strings"
 )
 
 type User struct {
@@ -273,6 +274,39 @@ func (ct *User) ChangeCurPwd(c *gin.Context) {
 	}
 	err := service.AllService.UserService.UpdatePassword(u, f.NewPassword)
 	if err != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
+		return
+	}
+	response.Success(c, nil)
+}
+
+// UpdateCurrent — обновление профиля текущего пользователя (BUGS.md AU-M-021).
+// Редактируемы только nickname и email; username — идентификатор, role/status/group
+// меняет лишь админ. Email проверяется на уникальность.
+func (ct *User) UpdateCurrent(c *gin.Context) {
+	f := &admin.UpdateCurrentForm{}
+	if err := c.ShouldBindJSON(f); err != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+err.Error())
+		return
+	}
+	errList := global.Validator.ValidStruct(c, f)
+	if len(errList) > 0 {
+		response.Fail(c, 101, errList[0])
+		return
+	}
+	u := service.AllService.UserService.CurUser(c)
+	if u == nil {
+		response.Fail(c, 403, response.TranslateMsg(c, "NeedLogin"))
+		return
+	}
+	email := strings.TrimSpace(f.Email)
+	if email != "" && email != u.Email {
+		if ex := service.AllService.UserService.InfoByEmail(email); ex.Id != 0 && ex.Id != u.Id {
+			response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+"email already in use")
+			return
+		}
+	}
+	if err := service.AllService.UserService.UpdateProfile(u.Id, strings.TrimSpace(f.Nickname), email); err != nil {
 		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
 		return
 	}

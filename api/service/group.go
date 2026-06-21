@@ -15,6 +15,18 @@ func (us *GroupService) InfoById(id uint) *model.Group {
 	return u
 }
 
+// DefaultGroupId возвращает id системной группы по умолчанию (Type=GroupTypeDefault),
+// в которую попадают новорегистрируемые пользователи. Раньше id=1 был зашит в коде
+// (BUGS.md AU-L-015) — это ломается, если порядок создания групп иной. Фолбэк на 1
+// сохраняет прежнее поведение, если группа почему-то не найдена.
+func (us *GroupService) DefaultGroupId() uint {
+	g := &model.Group{}
+	if err := DB.Where("type = ?", model.GroupTypeDefault).Order("id asc").First(g).Error; err == nil && g.Id > 0 {
+		return g.Id
+	}
+	return 1
+}
+
 func (us *GroupService) List(page, pageSize uint, where func(tx *gorm.DB)) (res *model.GroupList) {
 	res = &model.GroupList{}
 	res.Page = int64(page)
