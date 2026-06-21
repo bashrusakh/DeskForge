@@ -250,7 +250,25 @@ stop polling when everything is terminal.
 
 ## STRUCTURAL — to enable B-001/B-002/B-013 fixes
 
-### [ ] B-012 · Build Linux + Android GitHub Actions workflows
+### [~] B-012 · Build Linux + Android GitHub Actions workflows
+**Partially done on branch `fix/build-linux-routing` (Linux):**
+- Backend routing (build/vet-tested): `submitBuild` now dispatches `platform=linux` to GitHub
+  (alongside `windows`); `tryGithubDispatch` picks the workflow per platform (`windows` →
+  configurable `gcfg.WorkflowFilename`; `linux` → const `defaultLinuxWorkflowFilename`
+  = `rustqs-linux.yml`) via a gcfg copy; `pollAndDownload` selects the artifact by platform
+  (`rustdesk-min-test-linux`, with the single-artifact fallback from AU-L-011) and extracts the
+  Linux bundle (all files, FileSize = largest) instead of looking for an `.exe`.
+- **Draft workflow `github-build/linux.yml`** mirrors the fork contract (enc_payload + L1
+  config.rs + L2 allowCustom, both platform-independent; L3 brand adapted for Linux) and a
+  Flutter-Linux x86_64 build ported from `rdgen/.github/workflows/generator-linux.yml`.
+  **NOT yet validated by a real Actions run** — the build steps (vcpkg/flutter/build.py/
+  packaging/artifact paths) need CI iteration like windows-min-test did.
+
+Still open: validate `linux.yml` on Actions; Android workflow; re-expose Linux in the UI
+(B-013) behind a feature flag once the run is green; optionally move the Linux workflow name
+into `GithubBuildConfig` (it's a const for now).
+
+
 **Where (new):** `github-build/linux.yml`, `github-build/android.yml`. Reference templates:
 `rdgen/.github/workflows/generator-linux.yml`, `rdgen/.github/workflows/generator-android.yml`.
 **Symptom:** today there's no GitHub path for Linux/Android, so submit goes to the deprecated
