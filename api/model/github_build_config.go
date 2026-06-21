@@ -1,5 +1,11 @@
 package model
 
+import (
+	"rustdesk-server/api/utils"
+
+	"gorm.io/gorm"
+)
+
 // GithubBuildConfig — настройки GitHub-интеграции для сборки Windows-клиента (§8.8.5).
 // Singleton: всегда одна запись с id=1. Используется service/custom_build.go для
 // `platform=windows` — вместо локальной job-очереди дёргает workflow_dispatch в форке.
@@ -44,3 +50,33 @@ func (c *GithubBuildConfig) Safe() *GithubBuildConfigSafe {
 		TimeModel:        c.TimeModel,
 	}
 }
+
+// --- BUGS.md B-008: прозрачное шифрование секретов at rest ---------------------
+// Token (PAT) и PayloadKey шифруются перед записью и расшифровываются при чтении,
+// так что вызывающий код работает с открытыми значениями, а в БД лежит шифртекст.
+
+func (c *GithubBuildConfig) encryptSecrets() error {
+	var err error
+	if c.Token, err = utils.EncryptSecret(c.Token); err != nil {
+		return err
+	}
+	c.PayloadKey, err = utils.EncryptSecret(c.PayloadKey)
+	return err
+}
+
+func (c *GithubBuildConfig) decryptSecrets() error {
+	var err error
+	if c.Token, err = utils.DecryptSecret(c.Token); err != nil {
+		return err
+	}
+	c.PayloadKey, err = utils.DecryptSecret(c.PayloadKey)
+	return err
+}
+
+func (c *GithubBuildConfig) BeforeSave(tx *gorm.DB) error { return c.encryptSecrets() }
+
+// AfterSave возвращает структуру в открытый вид: GORM не расшифровывает поля
+// автоматически после записи, а вызывающий код ожидает plaintext.
+func (c *GithubBuildConfig) AfterSave(tx *gorm.DB) error { return c.decryptSecrets() }
+
+func (c *GithubBuildConfig) AfterFind(tx *gorm.DB) error { return c.decryptSecrets() }

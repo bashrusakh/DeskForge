@@ -161,7 +161,24 @@ response will be chunked. `bytes`/`strconv` imports still used by other helpers 
 **Fix:** stream `zip.NewWriter(c.Writer)` directly to the response, set headers before the
 first `Write`.
 
-### [ ] B-008 · GitHub PAT and `permanent_password` stored in plaintext
+### [x] B-008 · GitHub PAT and `permanent_password` stored in plaintext
+**Fixed on branch `fix/encrypt-secrets-at-rest`:** symmetric AES-256-GCM encryption at rest.
+- New helper `api/utils/secretcrypt.go` (`EncryptSecret`/`DecryptSecret`): AES-256-GCM
+  under a key derived (SHA-256) from a **new** `SECRET_ENCRYPTION_KEY` env var — deliberately
+  not `WORKFLOW_PAYLOAD_KEY` (that one is cluster-shared with GitHub). Ciphertext is tagged
+  `enc:v1:`; `EncryptSecret` is idempotent and values without the tag pass through, so legacy
+  plaintext rows keep working and get encrypted on next write. If the key is unset, encryption
+  is disabled (plaintext) with a one-time warning, so existing deployments don't break.
+- Transparent GORM hooks (`BeforeSave`/`AfterSave`/`AfterFind`) on `GithubBuildConfig`
+  (Token + PayloadKey) and on `CustomBuild`/`CustomPreset` (`custom_json`, which carries
+  `permanent_password`). Callers keep seeing plaintext; only the DB holds ciphertext.
+- `.env.example` documents `SECRET_ENCRYPTION_KEY`. Unit tests cover round-trip, idempotency,
+  legacy passthrough, and key-unset behaviour.
+
+Note: rotating `SECRET_ENCRYPTION_KEY` makes existing ciphertext unreadable; a re-encrypt
+migration would be a separate task if rotation is ever needed.
+
+
 **Where:** `api/model/github_build_config.go:19`, `api/model/custom_build.go:11` (in
 `custom_json`).
 **Symptom:** anyone with DB access reads both. Not yet fixed.
