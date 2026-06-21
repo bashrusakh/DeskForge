@@ -1,4 +1,5 @@
 import io
+import time
 from functools import wraps
 from pathlib import Path
 from django.http import HttpResponse, JsonResponse
@@ -49,6 +50,29 @@ def _require_workflow_token(view):
         return view(request, *args, **kwargs)
 
     return wrapper
+
+
+def _ttl_from_env(name, default):
+    """Read an integer TTL (seconds) from env; <=0 disables expiry."""
+    try:
+        return int(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _is_expired(file_path, ttl_seconds):
+    """RD-B6: bound exposure of UUID-addressed files. These endpoints are
+    consumed by unauthenticated callers (build runners fetch png/zip, users
+    download the exe), so we can't gate them with a token without breaking the
+    flow. Instead we refuse to serve files older than a TTL, so a leaked UUID
+    is not a permanent capability. ttl<=0 disables the check."""
+    if ttl_seconds <= 0:
+        return False
+    try:
+        age = time.time() - os.path.getmtime(file_path)
+    except OSError:
+        return False
+    return age > ttl_seconds
 
 
 def _validate_uuid(value):
@@ -478,6 +502,9 @@ def download(request):
         file_path = _safe_open_path('exe', safe_uuid, safe_filename)
     except (ValueError, KeyError, PermissionError):
         return HttpResponse(status=400)
+    # RD-B6: built artifacts expire (default 7 days) so a leaked UUID link is not forever.
+    if _is_expired(file_path, _ttl_from_env('RDGEN_EXE_TTL', 604800)):
+        return HttpResponse(status=410)
     try:
         with open(file_path, 'rb') as file:
             content = file.read()
@@ -496,6 +523,9 @@ def get_png(request):
         file_path = _safe_open_path('png', safe_uuid, safe_filename)
     except (ValueError, KeyError, PermissionError):
         return HttpResponse(status=400)
+    # RD-B6: icons are fetched by the runner during the build; expire after 6h by default.
+    if _is_expired(file_path, _ttl_from_env('RDGEN_PNG_TTL', 21600)):
+        return HttpResponse(status=410)
     try:
         with open(file_path, 'rb') as file:
             response = HttpResponse(file, headers={
@@ -681,6 +711,10 @@ def get_zip(request):
         file_path = _safe_open_path('temp_zips', safe_filename)
     except (ValueError, KeyError, PermissionError):
         return HttpResponse(status=400)
+    # RD-B6: the secrets zip is fetched by the runner right after dispatch; expire
+    # after 1h by default to minimise the window a leaked filename is usable.
+    if _is_expired(file_path, _ttl_from_env('RDGEN_ZIP_TTL', 3600)):
+        return HttpResponse(status=410)
     try:
         with open(file_path, 'rb') as file:
             response = HttpResponse(file, headers={
