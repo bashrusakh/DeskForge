@@ -319,11 +319,24 @@ can create/alter peers and inject audit entries. `/api/shared-peer` also does an
 The custom-agent build workflow audit (Django `rdgen/` + Go `api/`) landed all its ✅ fixes.
 The flagged-but-unfixed items are preserved here:
 
-### [ ] RD-A4 · Hard-coded `X-GitHub-Api-Version: '2026-03-10'`
-**Where:** `rdgen/rdgenerator/views.py:340,498`. Placeholder version; GitHub silently falls back
+### [x] RD-A4 · Hard-coded `X-GitHub-Api-Version: '2026-03-10'`
+**Fixed (PR #25, `f17c439` "fix(rdgen): use real GitHub API version header"):** both call
+sites in `rdgen/rdgenerator/views.py` now send `X-GitHub-Api-Version: '2022-11-28'`. Verified
+present on `main`, `chore/doc-consolidation`, and `fix/build-custom-agent`; the placeholder
+`'2026-03-10'` no longer appears anywhere in the codebase.
+
+
+**Where:** `rdgen/rdgenerator/views.py:380,599`. Placeholder version; GitHub silently falls back
 to default so it works, but the header is misleading. Should be `2022-11-28`.
 
-### [ ] RD-B1 · Four POST endpoints have no authentication (verify landed)
+### [x] RD-B1 · Four POST endpoints have no authentication
+**Fixed (PR #26 `fix/workflow-bearer-auth`, `b22cd9a` "require Bearer token on
+runner-callable endpoints"):** `update_github_run`, `startgh`, `save_custom_client`, and
+`cleanup_secrets` are each decorated with `@_require_workflow_token`, which validates the
+`Authorization: Bearer <SH_SECRET>` header (constant-time compare) and fails closed when
+`SH_SECRET` is missing or still the placeholder. Confirmed merged into `main`.
+
+
 **Where:** `update_github_run`, `save_custom_client`, `cleanup_secrets`, `startgh`.
 Reachable by any anonymous client; the workflows send `Authorization: Bearer ${{ env.token }}`
 but Django never validates it. Enables DoS on `startgh`, anonymous artifact overwrite, status
