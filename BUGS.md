@@ -154,7 +154,17 @@ first `Write`.
 mirrored by an env-var on rotate). Don't roll the same key twice — `WORKFLOW_PAYLOAD_KEY`
 is already cluster-shared and not a good fit.
 
-### [ ] B-009 · `dispatchTest` sends an empty payload to the workflow
+### [x] B-009 · `dispatchTest` sends an empty payload to the workflow
+**Fixed on branch `fix/dispatch-test-payload`:** combined two of the suggested fixes.
+- Confirmation gate: `DispatchTest` now requires `{"confirm": true}` in the body and rejects
+  unconfirmed calls with a clear message (a read-only check already exists at `/test`). The UI
+  (`github-build.vue`) asks `window.confirm(...)` and `dispatchTest()` sends `confirm: true`.
+- Real payload: instead of `map[string]any{}`, the smoke test now sends the server's own
+  configured `server` (Rustdesk id-server, falling back to api-server), `key`, and a clear
+  `app_name` "deskforge-smoketest", so the produced artifact is valid rather than an empty,
+  late-failing build.
+
+
 **Where:** `api/http/controller/admin/github_build_config.go:118` (`map[string]any{}`).
 **Symptom:** smoke-test dispatches a real build with empty `server/key/app_name`. The
 workflow will either fail late or produce an unusable artifact. Wastes minutes and clutters
