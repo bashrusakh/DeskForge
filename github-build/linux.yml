@@ -1,0 +1,236 @@
+name: rustqs linux min test
+# ============================================================================
+# DRAFT (B-012) — НЕ ВАЛИДИРОВАН РЕАЛЬНЫМ ПРОГОНОМ GITHUB ACTIONS.
+# Перенос generator-linux.yml в контракт форка (enc_payload + L1/L2/L3), по образцу
+# github-build/windows-min-test.yml. Build-шаги Flutter-Linux требуют доводки на
+# реальных прогонах (vcpkg, движок, build.py, упаковка, пути артефактов) — как это
+# делалось для windows-min-test. Бэкенд уже умеет диспетчить platform=linux сюда и
+# забирать артефакт `rustdesk-min-test-linux`.
+#
+# Контракт параметров идентичен windows-min-test:
+#   enc_payload = base64(openssl aes-256-cbc -pbkdf2 -pass pass:$WORKFLOW_PAYLOAD_KEY)
+#                 от JSON {server,key,app_name,custom_txt}; либо открытые inputs (debug).
+# ============================================================================
+
+on:
+  workflow_dispatch:
+    inputs:
+      enc_payload:
+        description: 'Encrypted payload (base64 openssl aes-256-cbc -pbkdf2). Overrides open inputs below.'
+        required: false
+        type: string
+        default: ''
+      server:
+        description: '[Debug] RustDesk server (rendezvous host:port). Ignored if enc_payload set.'
+        required: false
+        type: string
+        default: ''
+      key:
+        description: '[Debug] RustDesk server public key (base64). Ignored if enc_payload set.'
+        required: false
+        type: string
+        default: ''
+      app_name:
+        description: '[Debug] Brand name. Ignored if enc_payload set.'
+        required: false
+        type: string
+        default: ''
+      custom_txt:
+        description: '[Debug] Base64 custom_.txt payload. Ignored if enc_payload set.'
+        required: false
+        type: string
+        default: ''
+
+env:
+  RUST_VERSION: "1.75"
+  LLVM_VERSION: "15.0.6"
+  FLUTTER_VERSION: "3.24.5"
+  VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  VERSION: "1.4.7"
+
+jobs:
+  bridge:
+    uses: ./.github/workflows/bridge.yml
+
+  build:
+    needs: [bridge]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Maximize build space
+        run: |
+          sudo rm -rf /opt/ghc /usr/local/lib/android /usr/share/dotnet
+          df -h
+
+      - name: Export GitHub Actions cache environment variables
+        uses: actions/github-script@v6
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # Разрешение параметров: расшифровать enc_payload (prod) или взять открытые inputs (debug).
+      # Идентично windows-min-test: на выходе env RQS_*, секреты замаскированы.
+      - name: 'Resolve build config (decrypt or pass-through)'
+        shell: bash
+        env:
+          ENC: ${{ inputs.enc_payload }}
+          PAYLOAD_KEY: ${{ secrets.WORKFLOW_PAYLOAD_KEY }}
+          IN_SERVER: ${{ inputs.server }}
+          IN_KEY: ${{ inputs.key }}
+          IN_APP: ${{ inputs.app_name }}
+          IN_CT: ${{ inputs.custom_txt }}
+        run: |
+          set -eu
+          if [ -n "${ENC:-}" ]; then
+            if [ -z "${PAYLOAD_KEY:-}" ]; then
+              echo "::error::enc_payload provided but secret WORKFLOW_PAYLOAD_KEY is not set in this repo"
+              exit 1
+            fi
+            decrypted=$(printf '%s' "$ENC" | base64 -d \
+              | openssl enc -d -aes-256-cbc -pbkdf2 -pass "pass:${PAYLOAD_KEY}")
+            RQS_SERVER=$(printf '%s' "$decrypted" | jq -r '.server // ""')
+            RQS_KEY=$(printf '%s' "$decrypted" | jq -r '.key // ""')
+            RQS_APP=$(printf '%s' "$decrypted" | jq -r '.app_name // ""')
+            RQS_CT=$(printf '%s' "$decrypted" | jq -r '.custom_txt // ""')
+          else
+            RQS_SERVER="${IN_SERVER:-}"; RQS_KEY="${IN_KEY:-}"; RQS_APP="${IN_APP:-}"; RQS_CT="${IN_CT:-}"
+          fi
+          for v in "$RQS_KEY" "$RQS_CT"; do [ -n "$v" ] && echo "::add-mask::$v" || true; done
+          {
+            echo "RQS_SERVER=$RQS_SERVER"
+            echo "RQS_KEY=$RQS_KEY"
+            echo "RQS_APP_NAME=$RQS_APP"
+            echo "RQS_CUSTOM_TXT=$RQS_CT"
+          } >> "$GITHUB_ENV"
+
+      # L1: вшить сервер+ключ в config.rs (платформо-независимо, идентично windows).
+      - name: 'L1 inject: server + key into hbb_common/config.rs'
+        if: env.RQS_SERVER != '' || env.RQS_KEY != ''
+        shell: bash
+        run: |
+          set -eu
+          f=libs/hbb_common/src/config.rs
+          if [ -n "${RQS_SERVER:-}" ]; then
+            esc=$(printf '%s' "$RQS_SERVER" | sed -e 's/[\/&]/\\&/g')
+            sed -i "s/rs-ny\.rustdesk\.com/${esc}/" "$f"
+            grep -F -q -- "$RQS_SERVER" "$f" || { echo "L1: server marker not found"; exit 1; }
+          fi
+          if [ -n "${RQS_KEY:-}" ]; then
+            esc=$(printf '%s' "$RQS_KEY" | sed -e 's/[\/&]/\\&/g')
+            sed -i "s|OeVuKk5nlHiXp+APNn0Y3pC1Iwpwn44JGqrQCsWqmBw=|${esc}|" "$f"
+            grep -F -q -- "$RQS_KEY" "$f" || { echo "L1: key marker not found"; exit 1; }
+          fi
+
+      # L2: allowCustom — снять проверку подписи custom.txt (платформо-независимо).
+      - name: 'L2 patch: allowCustom'
+        if: env.RQS_CUSTOM_TXT != ''
+        shell: bash
+        run: |
+          set -eu
+          python3 .github/patches/rdgen-allowCustom.py
+          if grep -q '5Qbwsde3unUcJBtrx9ZkvUmwFNoExHzpryHuPUdqlWM=' src/common.rs; then
+            echo "L2: allowCustom FAILED"; exit 1
+          fi
+
+      # L3: брендинг для Linux (без .exe/Runner.rc — только Cargo.toml/portable/lang).
+      - name: 'L3 brand: rename RustDesk → app_name'
+        if: env.RQS_APP_NAME != ''
+        shell: bash
+        run: |
+          set -eu
+          esc=$(printf '%s' "$RQS_APP_NAME" | sed -e 's/[\/&]/\\&/g')
+          for f in Cargo.toml libs/portable/Cargo.toml; do
+            sed -i -e "s|description = \"RustDesk Remote Desktop\"|description = \"${esc}\"|" "$f"
+          done
+          find ./src/lang -name "*.rs" -exec sed -i -e "s|RustDesk|${esc}|" {} \;
+
+      - name: Restore bridge files
+        uses: actions/download-artifact@v8
+        with:
+          name: bridge-artifact
+          path: ./
+
+      - name: Build dependencies (apt)
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y nasm libva-dev imagemagick \
+            libgtk-3-dev libxcb-randr0-dev libxdo-dev libxfixes-dev \
+            libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev libpulse-dev \
+            libpam0g-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-unknown-linux-gnu
+          components: "rustfmt"
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: ubuntu-22.04
+
+      - name: Disable rust bridge build (cdylib only)
+        run: sed -i 's/\["cdylib", "staticlib", "rlib"\]/\["cdylib"\]/g' Cargo.toml
+
+      - name: Setup vcpkg with Github Actions binary cache
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: /opt/artifacts/vcpkg
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
+
+      - name: Install vcpkg dependencies
+        run: |
+          if ! $VCPKG_ROOT/vcpkg install --triplet x64-linux --x-install-root="$VCPKG_ROOT/installed"; then
+            find "${VCPKG_ROOT}/" -name "*.log" | while read -r f; do echo "=== $f ==="; cat "$f"; done
+            exit 1
+          fi
+
+      - name: Install flutter
+        uses: subosito/flutter-action@v2.12.0
+        with:
+          channel: "stable"
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+
+      - name: Build rustdesk (Flutter Linux)
+        run: |
+          export VCPKG_ROOT=/opt/artifacts/vcpkg
+          python3 ./build.py --flutter --hwcodec
+
+      # L2 payload: положить custom_.txt рядом с бинарём в bundle (читается клиентом).
+      - name: 'L2 payload: place custom_.txt into bundle'
+        if: env.RQS_CUSTOM_TXT != ''
+        shell: bash
+        run: |
+          set -eu
+          dst=flutter/build/linux/x64/release/bundle/custom_.txt
+          printf '%s' "$RQS_CUSTOM_TXT" > "$dst"
+          ls -la "$dst"
+
+      - name: Package artifact
+        shell: bash
+        run: |
+          set -eu
+          APP="${RQS_APP_NAME:-rustdesk}"
+          mkdir -p ./output
+          bundle=flutter/build/linux/x64/release/bundle
+          # Переименуем основной бинарь в ${APP} и упакуем bundle в tar.gz.
+          if [ -f "$bundle/rustdesk" ]; then
+            cp "$bundle/rustdesk" "$bundle/${APP}" || true
+          fi
+          tar -C "$bundle" -czf "./output/${APP}-linux-x86_64.tar.gz" .
+          # Плюс «голый» бинарь для прямого запуска/быстрой проверки.
+          [ -f "$bundle/${APP}" ] && cp "$bundle/${APP}" "./output/${APP}" || true
+          ls -lh ./output/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: rustdesk-min-test-linux
+          path: output

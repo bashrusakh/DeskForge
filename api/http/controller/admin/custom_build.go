@@ -31,6 +31,15 @@ type CustomBuild struct{}
 // имя не совпало, так что смена воркфлоу не ломает скачивание.
 const defaultWindowsArtifactName = "rustdesk-min-test-windows"
 
+// defaultLinuxWorkflowFilename — имя GitHub-workflow для Linux-сборки (B-012).
+// Linux пока за флагом/не выставлен в UI (B-013), поэтому имя задано константой;
+// при продуктизации Linux его стоит вынести в GithubBuildConfig рядом с windows.
+const defaultLinuxWorkflowFilename = "rustqs-linux.yml"
+
+// defaultAndroidWorkflowFilename — имя GitHub-workflow для Android-сборки (B-012),
+// аналогично Linux: пока константа, Android скрыт в UI до валидации CI.
+const defaultAndroidWorkflowFilename = "rustqs-android.yml"
+
 func (ct *CustomBuild) List(c *gin.Context) {
 	q := &admin.CustomBuildQuery{}
 	if err := c.ShouldBindQuery(q); err != nil {
@@ -187,7 +196,8 @@ func (ct *CustomBuild) DownloadByKey(c *gin.Context) {
 //   - windows + настроенный GithubBuildConfig → workflow_dispatch + async polling (PLAN §8.8.5)
 //   - иначе → файл-очередь rdgen-data/jobs (для linux/android агентов)
 func (ct *CustomBuild) submitBuild(b *model.CustomBuild) {
-	if b.Platform == "windows" {
+	// windows и linux (B-012) маршрутизируются в GitHub Actions; остальное — файл-очередь.
+	if b.Platform == "windows" || b.Platform == "linux" || b.Platform == "android" {
 		if ct.tryGithubDispatch(b) {
 			return
 		}
@@ -221,9 +231,24 @@ func (ct *CustomBuild) submitBuild(b *model.CustomBuild) {
 // Возвращает false если GithubBuildConfig не настроен (тогда вызывающий делает fallback).
 func (ct *CustomBuild) tryGithubDispatch(b *model.CustomBuild) bool {
 	gcfg, err := service.AllService.GithubBuildConfigService.Get()
-	if err != nil || gcfg == nil || gcfg.Token == "" || gcfg.Repo == "" || gcfg.WorkflowFilename == "" || gcfg.PayloadKey == "" {
+	if err != nil || gcfg == nil || gcfg.Token == "" || gcfg.Repo == "" || gcfg.PayloadKey == "" {
 		return false
 	}
+	// B-012: выбираем workflow по платформе. windows — настраиваемый
+	// gcfg.WorkflowFilename; linux — пока константа (см. defaultLinuxWorkflowFilename).
+	workflow := gcfg.WorkflowFilename
+	switch b.Platform {
+	case "linux":
+		workflow = defaultLinuxWorkflowFilename
+	case "android":
+		workflow = defaultAndroidWorkflowFilename
+	}
+	if workflow == "" {
+		return false
+	}
+	// Копия конфига с подменённым именем workflow — DispatchBuild читает c.WorkflowFilename.
+	dispatchCfg := *gcfg
+	dispatchCfg.WorkflowFilename = workflow
 
 	// Извлекаем параметры из CustomJson (произвольный JSON формы).
 	params := map[string]any{
@@ -261,7 +286,7 @@ func (ct *CustomBuild) tryGithubDispatch(b *model.CustomBuild) bool {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	runId, err := service.AllService.GithubBuildConfigService.DispatchBuild(ctx, gcfg, params)
+	runId, err := service.AllService.GithubBuildConfigService.DispatchBuild(ctx, &dispatchCfg, params)
 	if err != nil {
 		global.Logger.Errorf("github dispatch failed for build %d: %v", b.Id, err)
 		b.Status = model.CustomBuildStatusFailed
@@ -341,9 +366,17 @@ func (ct *CustomBuild) pollAndDownload(buildId uint, runId int64) {
 			_ = service.AllService.CustomBuildService.Update(b)
 			return
 		}
-		// скачать артефакт
+		// скачать артефакт. Имя зависит от платформы (B-012); DownloadArtifact
+		// дополнительно фолбэчит на единственный артефакт рана, если имя не совпало.
+		artifactName := defaultWindowsArtifactName
+		switch b.Platform {
+		case "linux":
+			artifactName = "rustdesk-min-test-linux"
+		case "android":
+			artifactName = "rustdesk-min-test-android"
+		}
 		dlCtx, dlCancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		zipBytes, err := service.AllService.GithubBuildConfigService.DownloadArtifact(dlCtx, gcfg, runId, defaultWindowsArtifactName)
+		zipBytes, err := service.AllService.GithubBuildConfigService.DownloadArtifact(dlCtx, gcfg, runId, artifactName)
 		dlCancel()
 		if err != nil {
 			b.Status = model.CustomBuildStatusFailed
@@ -365,24 +398,43 @@ func (ct *CustomBuild) pollAndDownload(buildId uint, runId int64) {
 			_ = service.AllService.CustomBuildService.Update(b)
 			return
 		}
-		var exeWritten bool
-		for _, zf := range zr.File {
-			// артефакт — flat zip с rustqs.exe (или rustdesk.exe) + dll + custom_.txt
-			name := filepath.Base(zf.Name)
-			if name == appName+".exe" || name == "rustdesk.exe" {
-				if n, e := extractZipFile(zf, outDir, appName+".exe"); e == nil {
-					b.FileSize = n
-					exeWritten = true
+		var extracted bool
+		if b.Platform == "linux" || b.Platform == "android" {
+			// Linux/Android-артефакт (B-012): плоский набор файлов (бинарь/.deb/.apk
+			// + custom_.txt). Извлекаем всё; FileSize — размер самого крупного файла.
+			for _, zf := range zr.File {
+				if zf.FileInfo().IsDir() {
+					continue
+				}
+				name := filepath.Base(zf.Name)
+				if name == "" {
+					continue
+				}
+				if n, e := extractZipFile(zf, outDir, name); e == nil {
+					extracted = true
+					if n > b.FileSize {
+						b.FileSize = n
+					}
 				}
 			}
-			// дополнительно — custom_.txt и DLL рядом
-			if name == "custom_.txt" || filepath.Ext(name) == ".dll" {
-				_, _ = extractZipFile(zf, outDir, name)
+		} else {
+			// Windows-артефакт — flat zip с rustqs.exe (или rustdesk.exe) + dll + custom_.txt.
+			for _, zf := range zr.File {
+				name := filepath.Base(zf.Name)
+				if name == appName+".exe" || name == "rustdesk.exe" {
+					if n, e := extractZipFile(zf, outDir, appName+".exe"); e == nil {
+						b.FileSize = n
+						extracted = true
+					}
+				}
+				if name == "custom_.txt" || filepath.Ext(name) == ".dll" {
+					_, _ = extractZipFile(zf, outDir, name)
+				}
 			}
 		}
-		if !exeWritten {
+		if !extracted {
 			b.Status = model.CustomBuildStatusFailed
-			b.BuildLog += "\nexe not found in artifact"
+			b.BuildLog += "\nno usable files found in artifact"
 			_ = service.AllService.CustomBuildService.Update(b)
 			return
 		}
