@@ -354,14 +354,25 @@ func (s *GithubBuildConfigService) DownloadArtifact(ctx context.Context, c *mode
 	_ = json.NewDecoder(resp.Body).Decode(&data)
 	resp.Body.Close()
 	var aid int64
-	for _, a := range data.Artifacts {
-		if a.Name == artifactName {
-			aid = a.Id
-			break
+	if artifactName != "" {
+		for _, a := range data.Artifacts {
+			if a.Name == artifactName {
+				aid = a.Id
+				break
+			}
 		}
 	}
+	// AU-L-011: не завязываемся жёстко на имя артефакта. Если имя не задано или
+	// не найдено, но ран произвёл ровно один артефакт — берём его.
+	if aid == 0 && len(data.Artifacts) == 1 {
+		aid = data.Artifacts[0].Id
+	}
 	if aid == 0 {
-		return nil, fmt.Errorf("artifact %q not found in run %d", artifactName, runId)
+		names := make([]string, 0, len(data.Artifacts))
+		for _, a := range data.Artifacts {
+			names = append(names, a.Name)
+		}
+		return nil, fmt.Errorf("artifact %q not found in run %d (available: %v)", artifactName, runId, names)
 	}
 	// /artifacts/{id}/zip → 302 redirect → CDN. http.Client сам не следует на скачивание
 	// большого файла — но в нашем случае GitHub отдаёт 302 на signed URL.
