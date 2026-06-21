@@ -11,8 +11,14 @@
         <el-form-item :label="T('Username')">
           <div>{{ userStore.username }}</div>
         </el-form-item>
+        <el-form-item :label="T('Nickname')">
+          <el-input v-model="profileForm.nickname" maxlength="128" style="max-width: 360px" />
+        </el-form-item>
         <el-form-item :label="T('Email')">
-          <div>{{ userStore.email }}</div>
+          <el-input v-model="profileForm.email" maxlength="128" style="max-width: 360px" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :loading="saving" @click="saveProfile">{{ T('Save') }}</el-button>
         </el-form-item>
         <el-form-item :label="T('Password')" prop="password">
           <el-button type="danger" @click="showChangePwd">{{ T('ChangePassword') }}</el-button>
@@ -45,11 +51,11 @@
 
 <script setup>
   import changePwdDialog from '@/components/changePwdDialog.vue'
-  import { ref } from 'vue'
+  import { ref, reactive } from 'vue'
   import { useUserStore } from '@/store/user'
   import { bind, unbind } from '@/api/oauth'
-  import { myOauth } from '@/api/user'
-  import { ElMessageBox } from 'element-plus'
+  import { myOauth, updateCurrent } from '@/api/user'
+  import { ElMessage, ElMessageBox } from 'element-plus'
   import { T } from '@/utils/i18n'
   import PageHeader from '@/components/ui/PageHeader.vue'
   import PageSection from '@/components/ui/PageSection.vue'
@@ -59,6 +65,26 @@
   const changePwdVisible = ref(false)
   const showChangePwd = () => {
     changePwdVisible.value = true
+  }
+
+  // AU-M-021: профиль теперь редактируемый (nickname, email).
+  const profileForm = reactive({
+    nickname: userStore.nickname || '',
+    email: userStore.email || '',
+  })
+  const saving = ref(false)
+  const saveProfile = async () => {
+    saving.value = true
+    const res = await updateCurrent({ ...profileForm }).catch(e => e)
+    saving.value = false
+    if (res && !res.code) {
+      ElMessage.success(T('OperationSuccess'))
+      await userStore.info()
+      profileForm.nickname = userStore.nickname || ''
+      profileForm.email = userStore.email || ''
+    } else {
+      ElMessage.error((res && (res.msg || res.message)) || T('OperationFailed'))
+    }
   }
   const oidcData = ref([])
   const getMyOauth = async () => {
