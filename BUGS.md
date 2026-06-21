@@ -7,7 +7,7 @@
 >
 > Status legend: `[ ]` open · `[x]` fixed · `[~]` partial · `[skip]` won't fix (owner decision).
 >
-> Last audit: 2026-06-20.
+> Last audit: 2026-06-22 (statuses consolidated across all fix branches).
 
 ---
 
@@ -424,7 +424,11 @@ can create/alter peers and inject audit entries. `/api/shared-peer` also does an
 refuses deletion with a clear message when any accounts are still linked, so deleting a
 provider can't silently orphan users' only login method. Unlink the accounts first.
 ### [ ] AU-L-010 · Hardcoded version list in Custom Client UI
-### [ ] AU-L-011 · Hardcoded artifact name in the build downloader
+### [x] AU-L-011 · Hardcoded artifact name in the build downloader
+**Fixed on branch `fix/artifact-name-fallback`:** the inline `"rustdesk-min-test-windows"` is
+now a named const `defaultWindowsArtifactName`, and `DownloadArtifact` falls back to the run's
+single artifact when the name is empty or doesn't match (with a helpful error listing the
+available artifact names) — so changing the workflow's artifact name no longer breaks downloads.
 ### [x] AU-L-015 · Auto-registered users always get `GroupId=1`
 **Fixed on branch `fix/default-group-id`:** new `GroupService.DefaultGroupId()` looks up the
 group with `Type = GroupTypeDefault` (lowest id) and is used by both registration paths
