@@ -14,6 +14,9 @@ services:
       PROTOCOL: "https"
       REPONAME: "rdgen"
       SH_SECRET: ""
+      # Comma/space-separated hostnames this server answers on (BUGS.md RD-B5).
+      # Required when DEBUG is off; do NOT use "*". e.g. "rdgen.example.com"
+      ALLOWED_HOSTS: ""
     ports:
       - "8000:8000"
     dns:
