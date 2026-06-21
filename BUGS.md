@@ -309,7 +309,11 @@ can create/alter peers and inject audit entries. `/api/shared-peer` also does an
 
 ### [ ] AU-L-007 · OAuth provider delete — no check for in-flight sessions
 ### [ ] AU-L-010 · Hardcoded version list in Custom Client UI
-### [ ] AU-L-011 · Hardcoded artifact name in the build downloader
+### [x] AU-L-011 · Hardcoded artifact name in the build downloader
+**Fixed on branch `fix/artifact-name-fallback`:** the inline `"rustdesk-min-test-windows"` is
+now a named const `defaultWindowsArtifactName`, and `DownloadArtifact` falls back to the run's
+single artifact when the name is empty or doesn't match (with a helpful error listing the
+available artifact names) — so changing the workflow's artifact name no longer breaks downloads.
 ### [ ] AU-L-015 · Auto-registered users always get `GroupId=1`
 
 ---

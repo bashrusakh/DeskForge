@@ -25,6 +25,12 @@ import (
 
 type CustomBuild struct{}
 
+// defaultWindowsArtifactName — имя GitHub-артефакта, который продюсит
+// windows-min-test workflow. Вынесено из inline-строки (BUGS.md AU-L-011);
+// DownloadArtifact дополнительно умеет взять единственный артефакт рана, если
+// имя не совпало, так что смена воркфлоу не ломает скачивание.
+const defaultWindowsArtifactName = "rustdesk-min-test-windows"
+
 func (ct *CustomBuild) List(c *gin.Context) {
 	q := &admin.CustomBuildQuery{}
 	if err := c.ShouldBindQuery(q); err != nil {
@@ -337,7 +343,7 @@ func (ct *CustomBuild) pollAndDownload(buildId uint, runId int64) {
 		}
 		// скачать артефакт
 		dlCtx, dlCancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		zipBytes, err := service.AllService.GithubBuildConfigService.DownloadArtifact(dlCtx, gcfg, runId, "rustdesk-min-test-windows")
+		zipBytes, err := service.AllService.GithubBuildConfigService.DownloadArtifact(dlCtx, gcfg, runId, defaultWindowsArtifactName)
 		dlCancel()
 		if err != nil {
 			b.Status = model.CustomBuildStatusFailed
