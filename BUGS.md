@@ -334,9 +334,16 @@ it actually merged.
 **Where:** `rdgen/rdgen/settings.py:41`. Wildcard host trust → host-header injection. Needs the
 operator to supply real hostnames via env.
 
-### [ ] RD-B6 · `download` / `get_png` / `get_zip` are unauthenticated
-Serve any file under `exe/<uuid>/`, `png/<uuid>/`, `temp_zips/` to anyone who knows the UUID;
-UUIDs leak into HTML templates and Actions logs. Relies entirely on UUID secrecy.
+### [~] RD-B6 · `download` / `get_png` / `get_zip` are unauthenticated
+**Hardened on branch `fix/rdgen-file-ttl`:** these endpoints are consumed by unauthenticated
+callers by protocol (build runners fetch `get_png`/`get_zip`; users fetch the built exe), so a
+token gate would break the flow. Instead each now refuses to serve files older than a TTL, so a
+leaked UUID/filename is no longer a permanent capability: `download` 7 days (`RDGEN_EXE_TTL`),
+`get_png` 6h (`RDGEN_PNG_TTL`), `get_zip` (encrypted secrets) 1h (`RDGEN_ZIP_TTL`); all env-tunable,
+`<=0` disables. Path-traversal + UUID validation were already in place from an earlier audit.
+
+Still open (needs design): true per-request auth via signed/expiring URLs generated server-side
+and threaded through the workflows — a larger coordinated change across all URL-generation sites.
 
 ### [ ] RD-C4 · Bare `except:` clauses in `generator_view`
 **Where:** `rdgen/rdgenerator/views.py:136,146,156`. Hides `KeyboardInterrupt`/`SystemExit`;

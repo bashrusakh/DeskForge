@@ -14,6 +14,10 @@ services:
       PROTOCOL: "https"
       REPONAME: "rdgen"
       SH_SECRET: ""
+      # RD-B6: TTL (seconds) for UUID-addressed file endpoints. <=0 disables.
+      RDGEN_EXE_TTL: "604800"   # built exe download link (default 7 days)
+      RDGEN_PNG_TTL: "21600"    # uploaded icons (default 6h)
+      RDGEN_ZIP_TTL: "3600"     # encrypted secrets zip (default 1h)
     ports:
       - "8000:8000"
     dns:
