@@ -101,6 +101,7 @@ func UserBind(rg *gin.RouterGroup) {
 		cont := &admin.User{}
 		aR.GET("/current", cont.Current)
 		aR.POST("/changeCurPwd", cont.ChangeCurPwd)
+		aR.POST("/updateCurrent", cont.UpdateCurrent) // AU-M-021
 		aR.POST("/myOauth", cont.MyOauth)
 		//aR.GET("/myPeer", cont.MyPeer)
 	}

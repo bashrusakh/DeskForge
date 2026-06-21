@@ -377,8 +377,14 @@ still no audit trail of who ran which server command. Needs a new audit table + 
 ### [ ] AU-M-014 · Usage component — fragile raw-text parsing
 **Symptom:** usage stats parsed from raw text; brittle if the upstream format changes. Low impact.
 
-### [ ] AU-M-021 · My Profile — account info not editable
-**Symptom:** profile fields are read-only; needs a new endpoint + frontend form.
+### [x] AU-M-021 · My Profile — account info not editable
+**Fixed on branch `fix/profile-edit`:** users can now edit their own `nickname` and `email`.
+- Backend: `POST /admin/user/updateCurrent` (`User.UpdateCurrent`) with `UpdateCurrentForm`
+  (validated, email format + uniqueness check excluding self) and
+  `UserService.UpdateProfile(id, nickname, email)` using an explicit field `Select` so clearing
+  nickname persists. `username` stays read-only; role/status/group remain admin-only.
+- Frontend: `my/info.vue` turns nickname/email into inputs with a Save button
+  (`api/user.js#updateCurrent`); on success it refreshes the user store.
 
 ### [ ] AU-M-022 · Unauthenticated writes on the client-facing API
 **Where:** `api/http/router/api.go` — routes registered before `frg.Use(RustAuth())` (line 76).

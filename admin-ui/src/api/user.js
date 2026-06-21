@@ -75,6 +75,15 @@ export function myOauth () {
   })
 }
 
+// AU-M-021: update the current user's own profile (nickname, email)
+export function updateCurrent (data) {
+  return request({
+    url: '/user/updateCurrent',
+    method: 'post',
+    data,
+  })
+}
+
 export function myPeer (params) {
   return request({
     url: '/user/myPeer',
