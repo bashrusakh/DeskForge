@@ -274,7 +274,13 @@ Left in place because it's a documented capability URL and may have third-party 
 one.
 **Fix:** drop the `b == nil` arm.
 
-### [ ] B-016 · `onMounted` clobbers prefilled fields with `/config/all` values
+### [x] B-016 · `onMounted` clobbers prefilled fields with `/config/all` values
+**Fixed on branch `fix/onmounted-config-race`:** `onMounted` now fills `server_ip`, `key`,
+`api_server`, `relay_server` from `fetchConfig` **only when the field is still empty**, so a
+preset applied before `fetchConfig` resolves is no longer overwritten by server defaults.
+Order-independent (doesn't rely on `fetchConfig` winning the race).
+
+
 **Where:** `admin-ui/src/views/custom-client/index.vue:603-617`.
 **Symptom:** if a preset is selected before `fetchConfig` resolves, server-side defaults
 overwrite preset values. Race-y but harmless on fast networks.

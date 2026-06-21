@@ -636,10 +636,13 @@ export default defineComponent({
       try {
         const res = await fetchConfig()
         if (res?.data) {
-          form.server_ip = stripPort(res.data.id_server || '')
-          form.key = res.data.key || ''
-          form.api_server = res.data.api_server || ''
-          form.relay_server = res.data.relay_server || ''
+          // B-016: заполняем ТОЛЬКО пустые поля. Пресет (loadPresets/onPresetSelect)
+          // может примениться раньше, чем резолвится fetchConfig — нельзя затирать
+          // уже выставленные им значения серверными дефолтами.
+          if (!form.server_ip) form.server_ip = stripPort(res.data.id_server || '')
+          if (!form.key) form.key = res.data.key || ''
+          if (!form.api_server) form.api_server = res.data.api_server || ''
+          if (!form.relay_server) form.relay_server = res.data.relay_server || ''
         }
       } catch (e) {
         // user can fill manually
