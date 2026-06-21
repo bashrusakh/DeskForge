@@ -7,7 +7,7 @@
 >
 > Status legend: `[ ]` open · `[x]` fixed · `[~]` partial · `[skip]` won't fix (owner decision).
 >
-> Last audit: 2026-06-20.
+> Last audit: 2026-06-22 (statuses consolidated across all fix branches).
 
 ---
 
@@ -127,7 +127,22 @@ Always off in the produced client.
 
 ## HIGH — known but unfixed gaps
 
-### [ ] B-006 · `download_key` is permanent and rate-limit-free
+### [x] B-006 · `download_key` is permanent and rate-limit-free
+**Fixed on branch `fix/download-key-expiry`:** added expiry to the capability URL.
+- New `download_key_expires_at` (unix-seconds) column on `custom_builds`
+  (`api/model/custom_build.go`); `DatabaseVersion` 269 → 270 so AutoMigrate adds it.
+- New `download-key-ttl` config (`api/config/config.go`, `api/conf/config.yaml`,
+  default `168h`); `CustomBuild.Create` stamps `now + TTL` when minting the key
+  (falls back to 7 days if unset/≤0). Legacy rows keep `0` = no expiry.
+- `DownloadByKey` and `DetailByKey` now both go through a single
+  `findBuildByDownloadKey` helper that checks existence **and** expiry and returns
+  `410 Gone` on an expired link — so expiry can't be enforced in one handler and
+  forgotten in the other.
+
+Still optional follow-ups (not in this PR): explicit revoke action and per-IP rate
+limit on `/public/download/:key`.
+
+
 **Where:** `api/http/controller/admin/custom_build.go:97-167`.
 **Symptom:** leaked key = forever-public artifact. 32 random characters so brute force is fine,
 but there's no revoke/expiry/single-use.
@@ -146,7 +161,24 @@ response will be chunked. `bytes`/`strconv` imports still used by other helpers 
 **Fix:** stream `zip.NewWriter(c.Writer)` directly to the response, set headers before the
 first `Write`.
 
-### [ ] B-008 · GitHub PAT and `permanent_password` stored in plaintext
+### [x] B-008 · GitHub PAT and `permanent_password` stored in plaintext
+**Fixed on branch `fix/encrypt-secrets-at-rest`:** symmetric AES-256-GCM encryption at rest.
+- New helper `api/utils/secretcrypt.go` (`EncryptSecret`/`DecryptSecret`): AES-256-GCM
+  under a key derived (SHA-256) from a **new** `SECRET_ENCRYPTION_KEY` env var — deliberately
+  not `WORKFLOW_PAYLOAD_KEY` (that one is cluster-shared with GitHub). Ciphertext is tagged
+  `enc:v1:`; `EncryptSecret` is idempotent and values without the tag pass through, so legacy
+  plaintext rows keep working and get encrypted on next write. If the key is unset, encryption
+  is disabled (plaintext) with a one-time warning, so existing deployments don't break.
+- Transparent GORM hooks (`BeforeSave`/`AfterSave`/`AfterFind`) on `GithubBuildConfig`
+  (Token + PayloadKey) and on `CustomBuild`/`CustomPreset` (`custom_json`, which carries
+  `permanent_password`). Callers keep seeing plaintext; only the DB holds ciphertext.
+- `.env.example` documents `SECRET_ENCRYPTION_KEY`. Unit tests cover round-trip, idempotency,
+  legacy passthrough, and key-unset behaviour.
+
+Note: rotating `SECRET_ENCRYPTION_KEY` makes existing ciphertext unreadable; a re-encrypt
+migration would be a separate task if rotation is ever needed.
+
+
 **Where:** `api/model/github_build_config.go:19`, `api/model/custom_build.go:11` (in
 `custom_json`).
 **Symptom:** anyone with DB access reads both. Not yet fixed.
@@ -154,7 +186,17 @@ first `Write`.
 mirrored by an env-var on rotate). Don't roll the same key twice — `WORKFLOW_PAYLOAD_KEY`
 is already cluster-shared and not a good fit.
 
-### [ ] B-009 · `dispatchTest` sends an empty payload to the workflow
+### [x] B-009 · `dispatchTest` sends an empty payload to the workflow
+**Fixed on branch `fix/dispatch-test-payload`:** combined two of the suggested fixes.
+- Confirmation gate: `DispatchTest` now requires `{"confirm": true}` in the body and rejects
+  unconfirmed calls with a clear message (a read-only check already exists at `/test`). The UI
+  (`github-build.vue`) asks `window.confirm(...)` and `dispatchTest()` sends `confirm: true`.
+- Real payload: instead of `map[string]any{}`, the smoke test now sends the server's own
+  configured `server` (Rustdesk id-server, falling back to api-server), `key`, and a clear
+  `app_name` "deskforge-smoketest", so the produced artifact is valid rather than an empty,
+  late-failing build.
+
+
 **Where:** `api/http/controller/admin/github_build_config.go:118` (`map[string]any{}`).
 **Symptom:** smoke-test dispatches a real build with empty `server/key/app_name`. The
 workflow will either fail late or produce an unusable artifact. Wastes minutes and clutters
@@ -232,14 +274,28 @@ Left in place because it's a documented capability URL and may have third-party 
 one.
 **Fix:** drop the `b == nil` arm.
 
-### [ ] B-016 · `onMounted` clobbers prefilled fields with `/config/all` values
+### [x] B-016 · `onMounted` clobbers prefilled fields with `/config/all` values
+**Fixed on branch `fix/onmounted-config-race`:** `onMounted` now fills `server_ip`, `key`,
+`api_server`, `relay_server` from `fetchConfig` **only when the field is still empty**, so a
+preset applied before `fetchConfig` resolves is no longer overwritten by server defaults.
+Order-independent (doesn't rely on `fetchConfig` winning the race).
+
+
 **Where:** `admin-ui/src/views/custom-client/index.vue:603-617`.
 **Symptom:** if a preset is selected before `fetchConfig` resolves, server-side defaults
 overwrite preset values. Race-y but harmless on fast networks.
 **Fix:** only fill empty fields from `fetchConfig`, or move `fetchConfig` before
 `loadPresets`.
 
-### [ ] B-017 · Build history doesn't auto-refresh
+### [x] B-017 · Build history doesn't auto-refresh
+**Fixed on branch `fix/build-history-autorefresh`:** `loadBuilds` now schedules a 12 s poll
+(`ensurePolling`) whenever any row is `pending`/`building`, reloading the list silently (no
+spinner flicker) and stopping itself once every row is terminal. The timer is cleared on
+`onUnmounted`. `loadBuilds(silent)` gained a flag so background refreshes don't toggle the
+loading state; the `[page,pageSize]` watcher calls `loadBuilds()` explicitly so it keeps the
+spinner.
+
+
 **Where:** `admin-ui/src/views/custom-client/index.vue:602`.
 **Symptom:** rows transition `pending → building → done` server-side, but the table keeps
 showing stale status until the user reloads.
@@ -250,7 +306,32 @@ stop polling when everything is terminal.
 
 ## STRUCTURAL — to enable B-001/B-002/B-013 fixes
 
-### [ ] B-012 · Build Linux + Android GitHub Actions workflows
+### [~] B-012 · Build Linux + Android GitHub Actions workflows
+**Partially done on branch `fix/build-linux-routing` (Linux):**
+- Backend routing (build/vet-tested): `submitBuild` now dispatches `platform=linux` to GitHub
+  (alongside `windows`); `tryGithubDispatch` picks the workflow per platform (`windows` →
+  configurable `gcfg.WorkflowFilename`; `linux` → const `defaultLinuxWorkflowFilename`
+  = `rustqs-linux.yml`) via a gcfg copy; `pollAndDownload` selects the artifact by platform
+  (`rustdesk-min-test-linux`, with the single-artifact fallback from AU-L-011) and extracts the
+  Linux bundle (all files, FileSize = largest) instead of looking for an `.exe`.
+- **Draft workflow `github-build/linux.yml`** mirrors the fork contract (enc_payload + L1
+  config.rs + L2 allowCustom, both platform-independent; L3 brand adapted for Linux) and a
+  Flutter-Linux x86_64 build ported from `rdgen/.github/workflows/generator-linux.yml`.
+  **NOT yet validated by a real Actions run** — the build steps (vcpkg/flutter/build.py/
+  packaging/artifact paths) need CI iteration like windows-min-test did.
+
+**Android (branch `fix/build-android-routing`, stacked on the Linux branch):** backend extended
+the same way (`submitBuild`/`tryGithubDispatch` const `defaultAndroidWorkflowFilename`
+= `rustqs-android.yml`; `pollAndDownload` artifact `rustdesk-min-test-android`, shared
+linux/android extract-all path). **Draft `github-build/android.yml`** (single ABI arm64-v8a)
+ported from `generator-android.yml` with the fork contract — also **NOT CI-validated**;
+note the Android `custom_.txt` embedding is best-effort and needs verification.
+
+Still open: validate `linux.yml` and `android.yml` on Actions; re-expose Linux/Android in the
+UI (B-013) behind a feature flag once runs are green; optionally move the workflow names into
+`GithubBuildConfig` (consts for now).
+
+
 **Where (new):** `github-build/linux.yml`, `github-build/android.yml`. Reference templates:
 `rdgen/.github/workflows/generator-linux.yml`, `rdgen/.github/workflows/generator-android.yml`.
 **Symptom:** today there's no GitHub path for Linux/Android, so submit goes to the deprecated
@@ -281,23 +362,53 @@ The functional admin-UI audit (PR #19) had 65 findings; 58 were fixed in PR #20�
 The full report file was removed during doc consolidation (2026-06-21). The findings
 still open are preserved here:
 
-### [~] AU-C-001 · Server settings are volatile — runtime changes lost on restart
-**Where:** `api/service/serverCmd.go:43-87` (pure TCP proxy, stores nothing).
-**Symptom:** RELAY_SERVERS / ALWAYS_USE_RELAY / MUST_LOGIN / blocklist additions applied via
-the UI revert to env vars / files on container restart. PR #20 only added a volatility warning
-in the UI; real persistence is still missing.
-**Fix:** persist server-command state (DB or config file) and reapply on startup.
+### [x] AU-C-001 · Server settings are volatile — runtime changes lost on restart
+**Fixed on branch `fix/server-cmd-persistence`:** server-command state is now persisted in a
+new `server_cmd_states` table and replayed on startup.
+- `model.ServerCmdState` (`target`,`cmd`,`option`); in AutoMigrate, `DatabaseVersion` → 272.
+- `ServerCmdService.PersistCmd` stores applied **set** commands (skips read commands that have
+  no `option`): replace-by-(target,cmd) for `rs`/`aur`/`ml`/custom; for additive
+  `<x>-add`/`<x>-remove` it keeps one row per active add and a `-remove` deletes the matching
+  `-add`, so the table always equals the live set. Called from `SendCmd` after a successful send.
+- `admin.ReplayServerCmds()` (startup hook in `apimain`, after AutoMigrate) re-sends the stored
+  commands to the id/relay sockets, best-effort with a short delay to let hbbs/hbbr bind.
 
-### [~] AU-S-001 · No audit logging for server commands
+Note: `DatabaseVersion` 272 collides with the 270/271 bumps on the B-006/AU-S-001 branches —
+on merge keep the highest; AutoMigrate is idempotent.
+
+### [x] AU-S-001 · No audit logging for server commands
+**Fixed on branch `fix/server-cmd-audit`:** added an audit trail for admin server-commands.
+- New `server_cmd_audits` table (`api/model/server_cmd_audit.go`); `DatabaseVersion` → 271 and
+  the model is in the AutoMigrate list.
+- New `middleware.ServerCmdAudit()` (`api/http/middleware/audit.go`) records userId/username,
+  method, path, truncated request body, client IP and response status for each mutating call.
+  Wired on `POST /rustdesk/{sendCmd,cmdCreate,cmdUpdate,cmdDelete}` (after `AdminPrivilege`,
+  so `curUser` is set); `cmdList` (read) is left unaudited.
+- `GET /rustdesk/cmdAuditList` (paginated, newest first) exposes the log via API. A UI view is
+  a follow-up.
+
+Note: the `DatabaseVersion` bump collides with B-006's 270 — on merge keep the highest number;
+AutoMigrate is idempotent so the table/column are created as long as `Migrate()` runs.
+
+
 **Where:** `api/http/controller/admin/rustdesk.go`, `api/http/router/admin.go`.
 **Symptom:** PR #20 gated the whole `/rustdesk/*` group behind `AdminPrivilege`, but there is
 still no audit trail of who ran which server command. Needs a new audit table + middleware.
 
-### [ ] AU-M-014 · Usage component — fragile raw-text parsing
-**Symptom:** usage stats parsed from raw text; brittle if the upstream format changes. Low impact.
+### [x] AU-M-014 · Usage component — fragile raw-text parsing
+**Fixed on branch `fix/usage-parsing`:** `usage.vue` now parses through a guarded `parseUsage`
+helper — bails out (empty list) if the payload isn't a string, splits lines on `/\r?\n/` and
+columns on `/\s+/`, and trims/filters blank lines. Previously `res.data.split('\n')...
+split(" ")` threw on a non-string payload and mis-split on CRLF or repeated spaces.
 
-### [ ] AU-M-021 · My Profile — account info not editable
-**Symptom:** profile fields are read-only; needs a new endpoint + frontend form.
+### [x] AU-M-021 · My Profile — account info not editable
+**Fixed on branch `fix/profile-edit`:** users can now edit their own `nickname` and `email`.
+- Backend: `POST /admin/user/updateCurrent` (`User.UpdateCurrent`) with `UpdateCurrentForm`
+  (validated, email format + uniqueness check excluding self) and
+  `UserService.UpdateProfile(id, nickname, email)` using an explicit field `Select` so clearing
+  nickname persists. `username` stays read-only; role/status/group remain admin-only.
+- Frontend: `my/info.vue` turns nickname/email into inputs with a Save button
+  (`api/user.js#updateCurrent`); on success it refreshes the user store.
 
 ### [ ] AU-M-022 · Unauthenticated writes on the client-facing API
 **Where:** `api/http/router/api.go` — routes registered before `frg.Use(RustAuth())` (line 76).
@@ -307,10 +418,22 @@ can create/alter peers and inject audit entries. `/api/shared-peer` also does an
 `(*j)["share_token"].(string)` assertion (`webClient.go:57`) → 500 on missing token.
 **Fix:** needs RustDesk protocol design confirmation (the PC client hits these before auth).
 
-### [ ] AU-L-007 · OAuth provider delete — no check for in-flight sessions
+### [x] AU-L-007 · OAuth provider delete — no check for in-flight sessions
+**Fixed on branch `fix/oauth-delete-guard`:** `Oauth.Delete` now calls
+`OauthService.CountBoundUsers(op)` (counts `user_thirds` rows for the provider's `op`) and
+refuses deletion with a clear message when any accounts are still linked, so deleting a
+provider can't silently orphan users' only login method. Unlink the accounts first.
 ### [ ] AU-L-010 · Hardcoded version list in Custom Client UI
-### [ ] AU-L-011 · Hardcoded artifact name in the build downloader
-### [ ] AU-L-015 · Auto-registered users always get `GroupId=1`
+### [x] AU-L-011 · Hardcoded artifact name in the build downloader
+**Fixed on branch `fix/artifact-name-fallback`:** the inline `"rustdesk-min-test-windows"` is
+now a named const `defaultWindowsArtifactName`, and `DownloadArtifact` falls back to the run's
+single artifact when the name is empty or doesn't match (with a helpful error listing the
+available artifact names) — so changing the workflow's artifact name no longer breaks downloads.
+### [x] AU-L-015 · Auto-registered users always get `GroupId=1`
+**Fixed on branch `fix/default-group-id`:** new `GroupService.DefaultGroupId()` looks up the
+group with `Type = GroupTypeDefault` (lowest id) and is used by both registration paths
+(OAuth auto-register and `UserService.Register`) instead of the hard-coded `1`. Falls back to
+`1` if the default group can't be found, preserving legacy behaviour.
 
 ---
 
@@ -319,27 +442,61 @@ can create/alter peers and inject audit entries. `/api/shared-peer` also does an
 The custom-agent build workflow audit (Django `rdgen/` + Go `api/`) landed all its ✅ fixes.
 The flagged-but-unfixed items are preserved here:
 
-### [ ] RD-A4 · Hard-coded `X-GitHub-Api-Version: '2026-03-10'`
-**Where:** `rdgen/rdgenerator/views.py:340,498`. Placeholder version; GitHub silently falls back
+### [x] RD-A4 · Hard-coded `X-GitHub-Api-Version: '2026-03-10'`
+**Fixed (PR #25, `f17c439` "fix(rdgen): use real GitHub API version header"):** both call
+sites in `rdgen/rdgenerator/views.py` now send `X-GitHub-Api-Version: '2022-11-28'`. Verified
+present on `main`, `chore/doc-consolidation`, and `fix/build-custom-agent`; the placeholder
+`'2026-03-10'` no longer appears anywhere in the codebase.
+
+
+**Where:** `rdgen/rdgenerator/views.py:380,599`. Placeholder version; GitHub silently falls back
 to default so it works, but the header is misleading. Should be `2022-11-28`.
 
-### [ ] RD-B1 · Four POST endpoints have no authentication (verify landed)
+### [x] RD-B1 · Four POST endpoints have no authentication
+**Fixed (PR #26 `fix/workflow-bearer-auth`, `b22cd9a` "require Bearer token on
+runner-callable endpoints"):** `update_github_run`, `startgh`, `save_custom_client`, and
+`cleanup_secrets` are each decorated with `@_require_workflow_token`, which validates the
+`Authorization: Bearer <SH_SECRET>` header (constant-time compare) and fails closed when
+`SH_SECRET` is missing or still the placeholder. Confirmed merged into `main`.
+
+
 **Where:** `update_github_run`, `save_custom_client`, `cleanup_secrets`, `startgh`.
 Reachable by any anonymous client; the workflows send `Authorization: Bearer ${{ env.token }}`
 but Django never validates it. Enables DoS on `startgh`, anonymous artifact overwrite, status
 spoofing, and secrets-zip deletion. Was split into its own PR (workflow Bearer auth) — confirm
 it actually merged.
 
-### [ ] RD-B5 · `ALLOWED_HOSTS = ['*']`
+### [x] RD-B5 · `ALLOWED_HOSTS = ['*']`
+**Fixed on branch `fix/rdgen-allowed-hosts`:** `ALLOWED_HOSTS` is read from the `ALLOWED_HOSTS`
+env var (comma/space separated). Under `DEBUG` it falls back to `['*']` for dev convenience;
+with `DEBUG=False` it must be set or Django refuses to boot (same fail-loud style as the
+SECRET_KEY/ZIP_PASSWORD/SH_SECRET checks). Documented as a placeholder in
+`rdgen/docker-compose.yml`.
+
+
 **Where:** `rdgen/rdgen/settings.py:41`. Wildcard host trust → host-header injection. Needs the
 operator to supply real hostnames via env.
 
-### [ ] RD-B6 · `download` / `get_png` / `get_zip` are unauthenticated
-Serve any file under `exe/<uuid>/`, `png/<uuid>/`, `temp_zips/` to anyone who knows the UUID;
-UUIDs leak into HTML templates and Actions logs. Relies entirely on UUID secrecy.
+### [~] RD-B6 · `download` / `get_png` / `get_zip` are unauthenticated
+**Hardened on branch `fix/rdgen-file-ttl`:** these endpoints are consumed by unauthenticated
+callers by protocol (build runners fetch `get_png`/`get_zip`; users fetch the built exe), so a
+token gate would break the flow. Instead each now refuses to serve files older than a TTL, so a
+leaked UUID/filename is no longer a permanent capability: `download` 7 days (`RDGEN_EXE_TTL`),
+`get_png` 6h (`RDGEN_PNG_TTL`), `get_zip` (encrypted secrets) 1h (`RDGEN_ZIP_TTL`); all env-tunable,
+`<=0` disables. Path-traversal + UUID validation were already in place from an earlier audit.
 
-### [ ] RD-C4 · Bare `except:` clauses in `generator_view`
-**Where:** `rdgen/rdgenerator/views.py:136,146,156`. Hides `KeyboardInterrupt`/`SystemExit`;
+Still open (needs design): true per-request auth via signed/expiring URLs generated server-side
+and threaded through the workflows — a larger coordinated change across all URL-generation sites.
+
+### [x] RD-C4 · Bare `except:` clauses in `generator_view`
+**Fixed on branch `fix/rdgen-bare-except`:** the three bare `except:` arms in
+`generator_view` (icon/logo/privacy `save_png` calls) are now `except Exception as e:` and
+log the actual error (`f"...: {e}"`), so `KeyboardInterrupt`/`SystemExit` propagate and real
+failures are no longer hidden behind the `"false"` placeholders. The mislabelled
+"failed to get logo" message on the privacy block was corrected to "failed to get privacy screen".
+
+
+**Where:** `rdgen/rdgenerator/views.py:168,178,188`. Hides `KeyboardInterrupt`/`SystemExit`;
 masks real errors behind "false" placeholders.
 
 ---
