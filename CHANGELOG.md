@@ -4,6 +4,103 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased] - 2026-06-22
+
+Audit-cycle batch: 18 fix branches merged in a single train via PR #30 on top of the
+security/doc-consolidation chain (PRs #24 → #29). `DatabaseVersion` bumped from 269 → **272**
+across three migration steps; `AutoMigrate` is idempotent so all schema additions co-exist.
+
+### Database
+- **DatabaseVersion 270** — `custom_builds.download_key_expires_at` (capability-URL TTL, default
+  7 days, configurable via `App.DownloadKeyTTL`). (B-006)
+- **DatabaseVersion 271** — new `server_cmd_audits` table records every admin server command
+  (`relay`/`aur`/`ml`/`blocklist`) for tamper-evident review. (AU-S-001)
+- **DatabaseVersion 272** — new `server_cmd_states` table persists last-applied server-command
+  state so values are reapplied after restart instead of silently reverting to env/file
+  defaults. (AU-C-001)
+
+### Security
+- **CodeQL alerts triaged** — 47 reportable findings closed: 10 Go/Python remediations
+  (zip-slip in custom-build extraction, SSRF allowlist for Alibaba OSS public-key URL, MD5
+  → `crypto/rand` 32-byte token in `service/user.go`, path-injection validators in
+  `rdgen/views.py`, CSRF middleware re-enabled with template token, hard-coded
+  `X-GitHub-Api-Version: 2022-11-28`, four POST endpoints behind shared-secret Bearer auth);
+  37 Rust test-code alerts dismissed as test-only. (PRs #24, #25, #26, #28, #29)
+- **api + admin-ui: encrypted secrets at rest** — `CustomBuild`, `CustomPreset`,
+  `GithubBuildConfig` now store sensitive fields wrapped with AES-GCM via
+  `api/utils/secretcrypt`. Key from `SECRET_CRYPT_KEY` env var; absence fails closed at boot.
+- **api: OAuth delete guard** — last-enabled OAuth provider cannot be deleted while
+  `oauth-only` registration is on (would lock the system out).
+- **rdgen: production startup guard** — refuses to boot with default `SECRET_KEY` /
+  `ZIP_PASSWORD` / `SH_SECRET` when `DEBUG=False`; `DATA_UPLOAD_MAX_MEMORY_SIZE` capped at
+  200 MiB.
+- **rdgen: `ALLOWED_HOSTS` from env** — replaces wildcard `['*']` in production deployments.
+
+### Custom Client Builder
+- **api: capability-URL TTL** — public download links (`/build/k/{key}` and
+  `/build/dl/{key}`) now return 410 Gone after expiry; check centralized in
+  `findBuildByDownloadKey`. (B-006)
+- **api: GitHub artifact name fallback** — `DownloadArtifact` falls back to the sole
+  artifact of the run if the expected name doesn't match, so renaming the workflow no
+  longer breaks `tryGithubDownload`. (AU-L-011)
+- **api: Linux + Android via GitHub Actions** — `submitBuild` routes `platform=linux` and
+  `platform=android` to `rustqs-linux.yml` / `rustqs-android.yml` workflow_dispatch when
+  GitHub config is present, matching the Windows path (B-012). Artifact name is now
+  dynamic (`rustdesk-min-test-{windows,linux,android}`).
+- **admin-ui: build history auto-refresh** — the custom-client list polls every 5 s while
+  any row is in `pending`/`running`, stops when all are terminal — no manual reload.
+- **admin-ui: dispatch test payload** — `Test dispatch` button on `github-build.vue` now
+  sends a valid minimal payload (was sending an empty body, failing 422).
+- **rdgen: file TTL cleanup** — `rdgen-data/output/{id}/` and `jobs/{id}.json` auto-purged
+  after configurable TTL (default 30 days); avoids unbounded disk growth on long-lived
+  installs.
+- **rdgen: bare except → typed exceptions** — `_safe_open_path` now raises explicit
+  `PermissionError` / `ValueError`; views map them to 400/404 instead of generic 500.
+
+### Admin
+- **api: admin server commands persisted across restarts** — `ReplayServerCmds()` reapplies
+  saved state on boot so toggles to relay/aur/ml/blocklist survive container restarts.
+  (AU-C-001)
+- **api: admin server commands audited** — every send writes to `server_cmd_audits` with
+  command type, payload, actor, timestamp. (AU-S-001)
+- **api + admin-ui: profile self-edit** — non-admin users can now edit their own
+  nickname/email/remark via `/admin/my/profile` (PUT). Previously only admins could
+  modify user fields.
+- **api: default group auto-assignment** — new registrations join the seeded default group
+  if `group_id=0` is sent or the requested group does not exist; closes the
+  `group_id=NULL` foreign-key crash. (M-021)
+- **api: GitHub Actions polling resume** — `ResumePendingPolls()` rehydrates in-flight
+  workflow_dispatch builds on boot using `github_run_id` so a container restart no longer
+  orphans them in `pending`. (B-003, DatabaseVersion 269)
+
+### Fixed
+- **admin-ui: ElSwitch null model-value warnings** — `useGetDetail` initializes
+  `is_admin`/`status` from defaults instead of leaving them undefined while the detail
+  request is in flight. (M-014 follow-up)
+- **admin-ui: Server Health overhaul** — relay/id ports come from backend, no hardcoded
+  21115/21117; bandwidth shown as labeled key/value list instead of misleading progress
+  bars; single tick drives countdown + refresh; explicit empty/error states.
+- **admin-ui: sidebar expand transition** — removed locale-based sidebar widths; single
+  240px; menu inherits parent width during the 0.5 s transition (was clipping items).
+- **admin-ui: usage parsing** — the usage page now parses the `byte_count` field as a
+  number when the backend returns it as a string.
+- **admin-ui: `onMounted` config race** — `loadRustdeskConfig` no longer overwrites
+  localStorage with empty strings when the backend returns blanks before the user has
+  configured the server.
+
+### Process
+- **Rule:** one bug = one PR. Follow-ups commit into the same PR. Established
+  2026-06-21 after the round-3 audit feedback.
+- **Workflow audit:** open findings consolidated from `AUDIT.md` + `audit-report.md` into
+  `BUGS.md` (RD-A4, RD-B1, RD-B5, RD-B6 retired; AU-C-001, AU-S-001, AU-M-014, AU-M-021,
+  AU-M-022, AU-L-007/010/011/015 carried forward).
+
+### Reference
+- See `BUGS.md` for the current tracker (25 fixed, 4 partial, 2 open).
+- See PR #30 for the batch-merge detail and the DatabaseVersion conflict resolution.
+
+---
+
 ## [Unreleased] - 2026-06-17
 
 ### Security

@@ -22,12 +22,13 @@ The admin panel has been fully reworked (2026-06).
 - Unified table component (`DataTable`) across all views
 - Unified dialog/drawer components (`AppDialog`, `AppDrawer`)
 - Shared filter bar (`FilterBar`) on monitoring pages
-- Dashboard with Quick Connect panel
+- Dashboard with Quick Connect panel + live ServerHealth metrics (parallelized hbbs/hbbr probes)
 - Connection pulse status indicator
 - Redesigned login/register screens
-- Danger zone for server commands
+- Danger zone for server commands — audited and persisted across restarts
 - **Locales:** English, Russian, Chinese (Simplified)
-- Custom client builder, OAuth/SSO, API tokens
+- Custom client builder, OAuth/SSO, API tokens, profile self-edit
+- Custom-build history auto-refresh (no manual reload while a build is running)
 
 ### Screenshots
 
@@ -38,11 +39,15 @@ The admin panel has been fully reworked (2026-06).
 ## Feature matrix
 
 **Implemented:** username/password (bcrypt), JWT, per-device access tokens, captcha +
-brute-force protection, OAuth/OIDC (GitHub, Google, generic), LDAP/LDAPS/AD; user CRUD with
-admin/regular roles, groups, registration; peer CRUD, device groups, online status,
-peer-UUID binding; personal + shared address books with collections, rules, tags, token-based
-web-client sharing, batch ops; connection / file-transfer / login audit; server commands to
-hbbs/hbbr; admin panel, web client, Swagger; SQLite / MySQL / PostgreSQL.
+brute-force protection, OAuth/OIDC (GitHub, Google, generic) with delete guard, LDAP/LDAPS/AD;
+user CRUD with admin/regular roles, groups (auto-assigned default group), registration,
+profile self-edit; peer CRUD, device groups, online status, peer-UUID binding; personal +
+shared address books with collections, rules, tags, token-based web-client sharing, batch ops;
+connection / file-transfer / login audit; admin server commands to hbbs/hbbr with audit log
+and persistence across restarts; encrypted-at-rest secrets (AES-GCM) for custom builds /
+presets / GitHub configs; custom client builder with capability-URL TTL and GitHub Actions
+workflow dispatch (Windows / Linux / Android); admin panel, web client, Swagger;
+SQLite / MySQL / PostgreSQL.
 
 **Not implemented (vs RustDesk Pro):** 2FA/MFA, fine-grained RBAC, session recording, device
 policy/assignment, remote script execution, unattended-access management, webhook/SIEM
