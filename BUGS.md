@@ -310,7 +310,11 @@ can create/alter peers and inject audit entries. `/api/shared-peer` also does an
 ### [ ] AU-L-007 · OAuth provider delete — no check for in-flight sessions
 ### [ ] AU-L-010 · Hardcoded version list in Custom Client UI
 ### [ ] AU-L-011 · Hardcoded artifact name in the build downloader
-### [ ] AU-L-015 · Auto-registered users always get `GroupId=1`
+### [x] AU-L-015 · Auto-registered users always get `GroupId=1`
+**Fixed on branch `fix/default-group-id`:** new `GroupService.DefaultGroupId()` looks up the
+group with `Type = GroupTypeDefault` (lowest id) and is used by both registration paths
+(OAuth auto-register and `UserService.Register`) instead of the hard-coded `1`. Falls back to
+`1` if the default group can't be found, preserving legacy behaviour.
 
 ---
 

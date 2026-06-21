@@ -411,7 +411,7 @@ func (us *UserService) RegisterByOauth(oauthUser *model.OauthUser, op string) (e
 	usernameUnique := us.GenerateUsernameByOauth(username)
 	user := &model.User{
 		Username: usernameUnique,
-		GroupId:  1,
+		GroupId:  AllService.GroupService.DefaultGroupId(),
 	}
 	oauthUser.ToUser(user, false)
 	tx.Create(user)
@@ -481,7 +481,7 @@ func (us *UserService) Register(username string, email string, password string, 
 		Username: username,
 		Email:    email,
 		Password: password,
-		GroupId:  1,
+		GroupId:  AllService.GroupService.DefaultGroupId(),
 		Status:   status,
 	}
 	err := us.Create(u)
