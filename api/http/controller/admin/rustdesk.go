@@ -34,6 +34,34 @@ func (r *Rustdesk) CmdList(c *gin.Context) {
 	response.Success(c, res)
 }
 
+// CmdAuditList — журнал выполненных server-команд (BUGS.md AU-S-001), новейшие
+// сверху, постранично. Только для просмотра; пишется middleware.ServerCmdAudit.
+func (r *Rustdesk) CmdAuditList(c *gin.Context) {
+	q := &admin.PageQuery{}
+	if err := c.ShouldBindQuery(q); err != nil {
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+err.Error())
+		return
+	}
+	page := q.Page
+	if page == 0 {
+		page = 1
+	}
+	pageSize := q.PageSize
+	if pageSize == 0 {
+		pageSize = 20
+	}
+	res := &model.ServerCmdAuditList{}
+	res.Page = int64(page)
+	res.PageSize = int64(pageSize)
+	global.DB.Model(&model.ServerCmdAudit{}).Count(&res.Total)
+	global.DB.Model(&model.ServerCmdAudit{}).
+		Order("id desc").
+		Offset(int((page - 1) * pageSize)).
+		Limit(int(pageSize)).
+		Find(&res.ServerCmdAudits)
+	response.Success(c, res)
+}
+
 func (r *Rustdesk) CmdDelete(c *gin.Context) {
 	f := &model.ServerCmd{}
 	if err := c.ShouldBindJSON(f); err != nil {

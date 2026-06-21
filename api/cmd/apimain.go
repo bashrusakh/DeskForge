@@ -23,10 +23,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// DatabaseVersion bumped to 270 in 2026-06-21 to add `download_key_expires_at`
-// column on `custom_builds` for capability-URL expiry (BUGS.md B-006). 269 added
-// `github_run_id` for restart-safe GitHub Actions polling (BUGS.md B-003).
-const DatabaseVersion = 270
+// DatabaseVersion bumped to 271 in 2026-06-21 to add the `server_cmd_audits`
+// table for admin server-command auditing (BUGS.md AU-S-001). 270 added
+// `download_key_expires_at` on `custom_builds` for capability-URL expiry
+// (BUGS.md B-006); 269 added `github_run_id` for restart-safe GitHub Actions
+// polling (BUGS.md B-003). AutoMigrate is idempotent.
+const DatabaseVersion = 271
 
 // @title API
 // @version 1.0
@@ -314,6 +316,7 @@ func Migrate(version uint) {
 		&model.CustomBuild{},
 		&model.CustomPreset{},
 		&model.GithubBuildConfig{},
+		&model.ServerCmdAudit{},
 	)
 	if err != nil {
 		global.Logger.Error("migrate err :=>", err)

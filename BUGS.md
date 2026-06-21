@@ -369,7 +369,21 @@ the UI revert to env vars / files on container restart. PR #20 only added a vola
 in the UI; real persistence is still missing.
 **Fix:** persist server-command state (DB or config file) and reapply on startup.
 
-### [~] AU-S-001 · No audit logging for server commands
+### [x] AU-S-001 · No audit logging for server commands
+**Fixed on branch `fix/server-cmd-audit`:** added an audit trail for admin server-commands.
+- New `server_cmd_audits` table (`api/model/server_cmd_audit.go`); `DatabaseVersion` → 271 and
+  the model is in the AutoMigrate list.
+- New `middleware.ServerCmdAudit()` (`api/http/middleware/audit.go`) records userId/username,
+  method, path, truncated request body, client IP and response status for each mutating call.
+  Wired on `POST /rustdesk/{sendCmd,cmdCreate,cmdUpdate,cmdDelete}` (after `AdminPrivilege`,
+  so `curUser` is set); `cmdList` (read) is left unaudited.
+- `GET /rustdesk/cmdAuditList` (paginated, newest first) exposes the log via API. A UI view is
+  a follow-up.
+
+Note: the `DatabaseVersion` bump collides with B-006's 270 — on merge keep the highest number;
+AutoMigrate is idempotent so the table/column are created as long as `Migrate()` runs.
+
+
 **Where:** `api/http/controller/admin/rustdesk.go`, `api/http/router/admin.go`.
 **Symptom:** PR #20 gated the whole `/rustdesk/*` group behind `AdminPrivilege`, but there is
 still no audit trail of who ran which server command. Needs a new audit table + middleware.
