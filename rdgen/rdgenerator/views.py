@@ -165,8 +165,8 @@ def generator_view(request):
                 if not iconfile:
                     iconfile = form.cleaned_data.get('iconbase64')
                 iconlink_url, iconlink_uuid, iconlink_file = save_png(iconfile,myuuid,full_url,"icon.png")
-            except:
-                print("failed to get icon, using default")
+            except Exception as e:
+                print(f"failed to get icon, using default: {e}")
                 iconlink_url = "false"
                 iconlink_uuid = "false"
                 iconlink_file = "false"
@@ -175,8 +175,8 @@ def generator_view(request):
                 if not logofile:
                     logofile = form.cleaned_data.get('logobase64')
                 logolink_url, logolink_uuid, logolink_file = save_png(logofile,myuuid,full_url,"logo.png")
-            except:
-                print("failed to get logo")
+            except Exception as e:
+                print(f"failed to get logo: {e}")
                 logolink_url = "false"
                 logolink_uuid = "false"
                 logolink_file = "false"
@@ -185,8 +185,8 @@ def generator_view(request):
                 if not privacyfile:
                     privacyfile = form.cleaned_data.get('privacybase64')
                 privacylink_url, privacylink_uuid, privacylink_file = save_png(privacyfile,myuuid,full_url,"privacy.png")
-            except:
-                print("failed to get logo")
+            except Exception as e:
+                print(f"failed to get privacy screen: {e}")
                 privacylink_url = "false"
                 privacylink_uuid = "false"
                 privacylink_file = "false"
