@@ -264,9 +264,16 @@ stop polling when everything is terminal.
   **NOT yet validated by a real Actions run** — the build steps (vcpkg/flutter/build.py/
   packaging/artifact paths) need CI iteration like windows-min-test did.
 
-Still open: validate `linux.yml` on Actions; Android workflow; re-expose Linux in the UI
-(B-013) behind a feature flag once the run is green; optionally move the Linux workflow name
-into `GithubBuildConfig` (it's a const for now).
+**Android (branch `fix/build-android-routing`, stacked on the Linux branch):** backend extended
+the same way (`submitBuild`/`tryGithubDispatch` const `defaultAndroidWorkflowFilename`
+= `rustqs-android.yml`; `pollAndDownload` artifact `rustdesk-min-test-android`, shared
+linux/android extract-all path). **Draft `github-build/android.yml`** (single ABI arm64-v8a)
+ported from `generator-android.yml` with the fork contract — also **NOT CI-validated**;
+note the Android `custom_.txt` embedding is best-effort and needs verification.
+
+Still open: validate `linux.yml` and `android.yml` on Actions; re-expose Linux/Android in the
+UI (B-013) behind a feature flag once runs are green; optionally move the workflow names into
+`GithubBuildConfig` (consts for now).
 
 
 **Where (new):** `github-build/linux.yml`, `github-build/android.yml`. Reference templates:

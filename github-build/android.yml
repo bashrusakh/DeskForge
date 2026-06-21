@@ -1,0 +1,235 @@
+name: rustqs android min test
+# ============================================================================
+# DRAFT (B-012) — НЕ ВАЛИДИРОВАН РЕАЛЬНЫМ ПРОГОНОМ GITHUB ACTIONS.
+# Перенос generator-android.yml в контракт форка (enc_payload + L1/L2/L3), по
+# образцу windows-min-test.yml / linux.yml. Сборка одной ABI (arm64-v8a) для
+# min-test. Build-шаги (NDK/cargo-ndk/flutter build apk/пути) требуют доводки на
+# реальных прогонах. Бэкенд диспетчит platform=android сюда и забирает артефакт
+# `rustdesk-min-test-android`.
+#
+# Контракт параметров идентичен windows/linux:
+#   enc_payload = base64(openssl aes-256-cbc -pbkdf2 -pass pass:$WORKFLOW_PAYLOAD_KEY)
+#                 от JSON {server,key,app_name,custom_txt}; либо открытые inputs (debug).
+#
+# ОГРАНИЧЕНИЕ ЧЕРНОВИКА: способ вшивания custom_.txt в Android-клиент отличается от
+# desktop (assets/flutter), здесь сделано best-effort и требует проверки.
+# ============================================================================
+
+on:
+  workflow_dispatch:
+    inputs:
+      enc_payload:
+        description: 'Encrypted payload (base64 openssl aes-256-cbc -pbkdf2). Overrides open inputs below.'
+        required: false
+        type: string
+        default: ''
+      server:
+        description: '[Debug] RustDesk server (rendezvous host:port). Ignored if enc_payload set.'
+        required: false
+        type: string
+        default: ''
+      key:
+        description: '[Debug] RustDesk server public key (base64). Ignored if enc_payload set.'
+        required: false
+        type: string
+        default: ''
+      app_name:
+        description: '[Debug] Brand name. Ignored if enc_payload set.'
+        required: false
+        type: string
+        default: ''
+      custom_txt:
+        description: '[Debug] Base64 custom_.txt payload. Ignored if enc_payload set.'
+        required: false
+        type: string
+        default: ''
+
+env:
+  RUST_VERSION: "1.75"
+  FLUTTER_VERSION: "3.24.5"
+  CARGO_NDK_VERSION: "3.1.2"
+  NDK_VERSION: "r28c"
+  VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  VERSION: "1.4.7"
+
+jobs:
+  bridge:
+    uses: ./.github/workflows/bridge.yml
+
+  build:
+    needs: [bridge]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /opt/ghc /usr/share/dotnet /usr/local/lib/android/sdk/ndk
+          df -h
+
+      - name: Export GitHub Actions cache environment variables
+        uses: actions/github-script@v6
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # Разрешение параметров (идентично windows/linux): enc_payload (prod) или open inputs.
+      - name: 'Resolve build config (decrypt or pass-through)'
+        shell: bash
+        env:
+          ENC: ${{ inputs.enc_payload }}
+          PAYLOAD_KEY: ${{ secrets.WORKFLOW_PAYLOAD_KEY }}
+          IN_SERVER: ${{ inputs.server }}
+          IN_KEY: ${{ inputs.key }}
+          IN_APP: ${{ inputs.app_name }}
+          IN_CT: ${{ inputs.custom_txt }}
+        run: |
+          set -eu
+          if [ -n "${ENC:-}" ]; then
+            if [ -z "${PAYLOAD_KEY:-}" ]; then
+              echo "::error::enc_payload provided but secret WORKFLOW_PAYLOAD_KEY is not set in this repo"
+              exit 1
+            fi
+            decrypted=$(printf '%s' "$ENC" | base64 -d \
+              | openssl enc -d -aes-256-cbc -pbkdf2 -pass "pass:${PAYLOAD_KEY}")
+            RQS_SERVER=$(printf '%s' "$decrypted" | jq -r '.server // ""')
+            RQS_KEY=$(printf '%s' "$decrypted" | jq -r '.key // ""')
+            RQS_APP=$(printf '%s' "$decrypted" | jq -r '.app_name // ""')
+            RQS_CT=$(printf '%s' "$decrypted" | jq -r '.custom_txt // ""')
+          else
+            RQS_SERVER="${IN_SERVER:-}"; RQS_KEY="${IN_KEY:-}"; RQS_APP="${IN_APP:-}"; RQS_CT="${IN_CT:-}"
+          fi
+          for v in "$RQS_KEY" "$RQS_CT"; do [ -n "$v" ] && echo "::add-mask::$v" || true; done
+          {
+            echo "RQS_SERVER=$RQS_SERVER"
+            echo "RQS_KEY=$RQS_KEY"
+            echo "RQS_APP_NAME=$RQS_APP"
+            echo "RQS_CUSTOM_TXT=$RQS_CT"
+          } >> "$GITHUB_ENV"
+
+      # L1: server+key в config.rs (платформо-независимо).
+      - name: 'L1 inject: server + key into hbb_common/config.rs'
+        if: env.RQS_SERVER != '' || env.RQS_KEY != ''
+        shell: bash
+        run: |
+          set -eu
+          f=libs/hbb_common/src/config.rs
+          if [ -n "${RQS_SERVER:-}" ]; then
+            esc=$(printf '%s' "$RQS_SERVER" | sed -e 's/[\/&]/\\&/g')
+            sed -i "s/rs-ny\.rustdesk\.com/${esc}/" "$f"
+            grep -F -q -- "$RQS_SERVER" "$f" || { echo "L1: server marker not found"; exit 1; }
+          fi
+          if [ -n "${RQS_KEY:-}" ]; then
+            esc=$(printf '%s' "$RQS_KEY" | sed -e 's/[\/&]/\\&/g')
+            sed -i "s|OeVuKk5nlHiXp+APNn0Y3pC1Iwpwn44JGqrQCsWqmBw=|${esc}|" "$f"
+            grep -F -q -- "$RQS_KEY" "$f" || { echo "L1: key marker not found"; exit 1; }
+          fi
+
+      # L2: allowCustom (платформо-независимо).
+      - name: 'L2 patch: allowCustom'
+        if: env.RQS_CUSTOM_TXT != ''
+        shell: bash
+        run: |
+          set -eu
+          python3 .github/patches/rdgen-allowCustom.py
+          if grep -q '5Qbwsde3unUcJBtrx9ZkvUmwFNoExHzpryHuPUdqlWM=' src/common.rs; then
+            echo "L2: allowCustom FAILED"; exit 1
+          fi
+
+      # L3: брендинг (Cargo.toml + lang).
+      - name: 'L3 brand: rename RustDesk → app_name'
+        if: env.RQS_APP_NAME != ''
+        shell: bash
+        run: |
+          set -eu
+          esc=$(printf '%s' "$RQS_APP_NAME" | sed -e 's/[\/&]/\\&/g')
+          sed -i -e "s|description = \"RustDesk Remote Desktop\"|description = \"${esc}\"|" Cargo.toml
+          find ./src/lang -name "*.rs" -exec sed -i -e "s|RustDesk|${esc}|" {} \;
+
+      # L2 payload (best-effort для Android — требует проверки): кладём custom_.txt в
+      # flutter assets, чтобы клиент мог его прочитать после установки.
+      - name: 'L2 payload: place custom_.txt into flutter assets'
+        if: env.RQS_CUSTOM_TXT != ''
+        shell: bash
+        run: |
+          set -eu
+          mkdir -p flutter/assets
+          printf '%s' "$RQS_CUSTOM_TXT" > flutter/assets/custom_.txt
+          ls -la flutter/assets/custom_.txt
+
+      - name: Install flutter
+        uses: subosito/flutter-action@v2.12.0
+        with:
+          channel: "stable"
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+
+      - name: Setup Android NDK
+        id: setup-ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: ${{ env.NDK_VERSION }}
+          add-to-path: true
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: aarch64-linux-android
+          components: "rustfmt"
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: android-arm64
+
+      - name: Restore bridge files
+        uses: actions/download-artifact@v8
+        with:
+          name: bridge-artifact
+          path: ./
+
+      - name: Setup vcpkg with Github Actions binary cache
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: /opt/artifacts/vcpkg
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
+
+      - name: Build rustdesk native lib (cargo-ndk, arm64)
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          cargo install cargo-ndk --version ${{ env.CARGO_NDK_VERSION }} --locked
+          rustup target add aarch64-linux-android
+          python3 ./build.py --flutter --target=aarch64-linux-android || true
+          # Прямой путь сборки нативной либы (как в generator-android.yml):
+          cargo ndk --platform 21 --target aarch64-linux-android --output-dir ./flutter/android/app/src/main/jniLibs build --release || true
+          mkdir -p ./flutter/android/app/src/main/jniLibs/arm64-v8a
+          cp "${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" \
+             ./flutter/android/app/src/main/jniLibs/arm64-v8a/ || true
+
+      - name: Build APK (flutter, arm64)
+        shell: bash
+        run: |
+          set -eu
+          APP="${RQS_APP_NAME:-rustdesk}"
+          pushd flutter
+          flutter pub get
+          flutter build apk --release --target-platform android-arm64 --split-per-abi
+          popd
+          mkdir -p ./output
+          apk=$(find flutter/build/app/outputs/flutter-apk -name 'app-arm64-v8a-release.apk' | head -1)
+          [ -n "$apk" ] || { echo "FAIL: apk not found"; find flutter/build -name '*.apk'; exit 1; }
+          cp "$apk" "./output/${APP}.apk"
+          ls -lh ./output/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: rustdesk-min-test-android
+          path: output

@@ -30,6 +30,10 @@ type CustomBuild struct{}
 // при продуктизации Linux его стоит вынести в GithubBuildConfig рядом с windows.
 const defaultLinuxWorkflowFilename = "rustqs-linux.yml"
 
+// defaultAndroidWorkflowFilename — имя GitHub-workflow для Android-сборки (B-012),
+// аналогично Linux: пока константа, Android скрыт в UI до валидации CI.
+const defaultAndroidWorkflowFilename = "rustqs-android.yml"
+
 func (ct *CustomBuild) List(c *gin.Context) {
 	q := &admin.CustomBuildQuery{}
 	if err := c.ShouldBindQuery(q); err != nil {
@@ -187,7 +191,7 @@ func (ct *CustomBuild) DownloadByKey(c *gin.Context) {
 //   - иначе → файл-очередь rdgen-data/jobs (для linux/android агентов)
 func (ct *CustomBuild) submitBuild(b *model.CustomBuild) {
 	// windows и linux (B-012) маршрутизируются в GitHub Actions; остальное — файл-очередь.
-	if b.Platform == "windows" || b.Platform == "linux" {
+	if b.Platform == "windows" || b.Platform == "linux" || b.Platform == "android" {
 		if ct.tryGithubDispatch(b) {
 			return
 		}
@@ -227,8 +231,11 @@ func (ct *CustomBuild) tryGithubDispatch(b *model.CustomBuild) bool {
 	// B-012: выбираем workflow по платформе. windows — настраиваемый
 	// gcfg.WorkflowFilename; linux — пока константа (см. defaultLinuxWorkflowFilename).
 	workflow := gcfg.WorkflowFilename
-	if b.Platform == "linux" {
+	switch b.Platform {
+	case "linux":
 		workflow = defaultLinuxWorkflowFilename
+	case "android":
+		workflow = defaultAndroidWorkflowFilename
 	}
 	if workflow == "" {
 		return false
@@ -356,8 +363,11 @@ func (ct *CustomBuild) pollAndDownload(buildId uint, runId int64) {
 		// скачать артефакт. Имя зависит от платформы (B-012); DownloadArtifact
 		// дополнительно фолбэчит на единственный артефакт рана, если имя не совпало.
 		artifactName := "rustdesk-min-test-windows"
-		if b.Platform == "linux" {
+		switch b.Platform {
+		case "linux":
 			artifactName = "rustdesk-min-test-linux"
+		case "android":
+			artifactName = "rustdesk-min-test-android"
 		}
 		dlCtx, dlCancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		zipBytes, err := service.AllService.GithubBuildConfigService.DownloadArtifact(dlCtx, gcfg, runId, artifactName)
@@ -383,9 +393,9 @@ func (ct *CustomBuild) pollAndDownload(buildId uint, runId int64) {
 			return
 		}
 		var extracted bool
-		if b.Platform == "linux" {
-			// Linux-артефакт (B-012): плоский набор файлов (бинарь/.deb + custom_.txt).
-			// Извлекаем всё; FileSize — размер самого крупного файла (бинарь/пакет).
+		if b.Platform == "linux" || b.Platform == "android" {
+			// Linux/Android-артефакт (B-012): плоский набор файлов (бинарь/.deb/.apk
+			// + custom_.txt). Извлекаем всё; FileSize — размер самого крупного файла.
 			for _, zf := range zr.File {
 				if zf.FileInfo().IsDir() {
 					continue
