@@ -12,6 +12,10 @@ type CustomBuild struct {
 	BuildLog    string `json:"build_log" gorm:"type:text;"`
 	FileSize    int64  `json:"file_size" gorm:"default:0;not null;"`
 	DownloadKey string `json:"download_key" gorm:"size:64;default:'';not null;"`
+	// DownloadKeyExpiresAt — unix-секунды, после которых capability-ссылка
+	// (download_key) протухает (BUGS.md B-006). 0 = бессрочно: legacy-строки,
+	// созданные до появления TTL, остаются доступны.
+	DownloadKeyExpiresAt int64 `json:"download_key_expires_at" gorm:"default:0;not null;"`
 	// GithubRunId — id рана GitHub Actions, если билд диспетчился туда. Нужен для
 	// возобновления `pollAndDownload` после рестарта api (BUGS.md B-003). 0 = file-queue
 	// или ещё не диспетчен.
