@@ -10,16 +10,6 @@ A unified, self-hosted, RustDesk-compatible server with integrated API, Web Admi
 - **Web Client**: Browser-based remote desktop client
 - **s6-overlay**: Process supervision and automatic restarts
 
-## Project status
-
-Active. Database schema at **version 272**. CodeQL security scan: all 47 reportable
-alerts triaged and resolved (37 test-code Rust findings dismissed, 10 Go / Python issues
-fixed; see `BUGS.md` and `CHANGELOG.md`).
-
-**Last audit cycle (2026-06-22):** 18 fix branches merged in a single batch — see
-[CHANGELOG.md](CHANGELOG.md). Tracker status: 25 issues fixed, 4 partial, 2 open
-(B-011 deferred until Linux/Android workflows ship; B-012 in progress).
-
 ## Web Admin
 
 The admin panel has been fully reworked (2026-06).
