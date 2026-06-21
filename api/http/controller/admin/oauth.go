@@ -1,6 +1,7 @@
 ﻿package admin
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -284,6 +285,13 @@ func (o *Oauth) Delete(c *gin.Context) {
 	}
 	u := service.AllService.OauthService.InfoById(f.Id)
 	if u.Id > 0 {
+		// AU-L-007: не удаляем провайдер, если через него привязаны аккаунты —
+		// иначе у этих пользователей пропадёт способ входа. Сначала отвязать.
+		if bound := service.AllService.OauthService.CountBoundUsers(u.Op); bound > 0 {
+			response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+
+				fmt.Sprintf("%d account(s) are linked to this OAuth provider; unlink them before deleting", bound))
+			return
+		}
 		err := service.AllService.OauthService.Delete(u)
 		if err == nil {
 			response.Success(c, nil)

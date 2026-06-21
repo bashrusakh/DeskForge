@@ -394,6 +394,18 @@ func (os *OauthService) InfoByOp(op string) *model.Oauth {
 	return oauthInfo
 }
 
+// CountBoundUsers — сколько аккаунтов привязано к OAuth-провайдеру (по op).
+// Используется перед удалением провайдера (BUGS.md AU-L-007): нельзя сносить
+// провайдер, через который пользователи входят, не осиротив их способ логина.
+func (os *OauthService) CountBoundUsers(op string) int64 {
+	var n int64
+	if op == "" {
+		return 0
+	}
+	DB.Model(&model.UserThird{}).Where("op = ?", op).Count(&n)
+	return n
+}
+
 // Helper function to get scopes by operation
 func (os *OauthService) getScopesByOp(op string) []string {
 	scopes := os.InfoByOp(op).Scopes

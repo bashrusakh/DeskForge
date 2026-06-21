@@ -382,7 +382,11 @@ can create/alter peers and inject audit entries. `/api/shared-peer` also does an
 `(*j)["share_token"].(string)` assertion (`webClient.go:57`) → 500 on missing token.
 **Fix:** needs RustDesk protocol design confirmation (the PC client hits these before auth).
 
-### [ ] AU-L-007 · OAuth provider delete — no check for in-flight sessions
+### [x] AU-L-007 · OAuth provider delete — no check for in-flight sessions
+**Fixed on branch `fix/oauth-delete-guard`:** `Oauth.Delete` now calls
+`OauthService.CountBoundUsers(op)` (counts `user_thirds` rows for the provider's `op`) and
+refuses deletion with a clear message when any accounts are still linked, so deleting a
+provider can't silently orphan users' only login method. Unlink the accounts first.
 ### [ ] AU-L-010 · Hardcoded version list in Custom Client UI
 ### [ ] AU-L-011 · Hardcoded artifact name in the build downloader
 ### [x] AU-L-015 · Auto-registered users always get `GroupId=1`
