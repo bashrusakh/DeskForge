@@ -7,7 +7,7 @@
 >
 > Status legend: `[ ]` open · `[x]` fixed · `[~]` partial · `[skip]` won't fix (owner decision).
 >
-> Last audit: 2026-06-23 (fixed items removed; tracker lists only open work).
+> Last audit: 2026-06-23 (web client fixes B-018, B-019 recorded; previously fixed entries pruned).
 
 ---
 
@@ -144,6 +144,36 @@ leaked UUID/filename is no longer a permanent capability: `download` 7 days (`RD
 
 Still open (needs design): true per-request auth via signed/expiring URLs generated server-side
 and threaded through the workflows — a larger coordinated change across all URL-generation sites.
+
+## WEB CLIENT — found 2026-06-23
+
+### [x] B-018 · "Web client" button opened the empty `/webclient2/` path
+**Fixed on branches `fix/webclient-path` + `chore/drop-webclient2-route`:** the admin UI opened
+the web client at `<api_server>/webclient2/#/...`, but `/webclient2` was served from
+`resources/web2`, which the Docker build created **empty** (`mkdir -p web2`, "prevents crash").
+The real flutter_hbb client (base href `/webclient/`, ~3 MB `main.dart.js`, `share_token`
+support) lives in `resources/web` and is served at `/webclient/`.
+- `fix/webclient-path`: repointed the 3 UI usages to `/webclient/`
+  (`views/index/index.vue` button, `utils/webclient.js` `toWebClientLink` + `getV2ShareUrl`).
+- `chore/drop-webclient2-route`: removed the now-dead `/webclient2` StaticFS route
+  (`api/http/router/router.go`) and the empty-`web2` `mkdir` (`docker/Dockerfile`).
+**Where:** `admin-ui/src/views/index/index.vue`, `admin-ui/src/utils/webclient.js`,
+`api/http/router/router.go`, `docker/Dockerfile`.
+
+### [x] B-019 · Web client connected to `localhost:port` instead of the real host
+**Fixed on branch `fix/webclient-host`:** the open URL and the in-client `api-server` both came
+from the configured `Rustdesk.ApiServer`, whose default is `http://127.0.0.1:21114`, so the
+web client opened/called loopback.
+- Frontend: open the client at `window.location.origin` (it is served by the same Go API),
+  not the configured api-server — fixes the dashboard button, `toWebClientLink`, `getV2ShareUrl`.
+- Backend: `web.ConfigJs` now uses `resolveApiServer()` — derives `api-server` from the request
+  (`scheme://host`, honoring `X-Forwarded-Proto`/`X-Forwarded-Host`) when the configured value
+  is empty or loopback; an explicit non-loopback api-server is respected.
+**Where:** `api/http/controller/web/index.go`, `admin-ui/src/views/index/index.vue`,
+`admin-ui/src/utils/webclient.js`.
+**Note:** `ws-host` (relay WebSocket behind TLS/proxy) is still config-only — no auto-derive.
+
+---
 
 ## Tracking & ownership
 
