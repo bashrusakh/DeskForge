@@ -85,8 +85,6 @@ COPY api/resources /app/resources
 # Copy Web Admin files LAST so they always overwrite any stale admin files from api/resources
 COPY --from=admin-ui-builder /build/admin-ui/dist /app/resources/admin/
 
-# Create empty web2 dir (Gin serves it when web-client=1, prevents crash)
-RUN mkdir -p /app/resources/web2
 
 # Copy s6-overlay from official image
 COPY --from=s6-source /init /init
