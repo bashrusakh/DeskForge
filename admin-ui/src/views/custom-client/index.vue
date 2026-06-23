@@ -26,13 +26,15 @@
           <el-col :span="8">
             <el-form-item :label="T('Platform')">
               <!--
-                Only Windows x64 is wired end-to-end (GitHub Actions). Linux/Android need
-                their own GitHub workflows (PLAN.md §8.14); the file-queue path is a
-                manual fallback that doesn't mirror status back to the DB (BUGS.md B-001).
+                Windows x64 is validated end-to-end (GitHub Actions). Linux/Android route
+                to GitHub Actions too (B-012) but their workflows are still EXPERIMENTAL
+                drafts pending a green CI run — builds may fail until validated.
                 32-bit Windows and macOS are not supported (PLAN.md §8.15).
               -->
-              <el-select v-model="form.platform" style="width:100%" disabled>
+              <el-select v-model="form.platform" style="width:100%">
                 <el-option label="Windows 64Bit" value="windows" />
+                <el-option label="Linux x64 (experimental)" value="linux" />
+                <el-option label="Android arm64 (experimental)" value="android" />
               </el-select>
             </el-form-item>
           </el-col>
