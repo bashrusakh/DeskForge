@@ -342,9 +342,12 @@ extend `submitBuild` to dispatch them based on `b.Platform`; extend `pollAndDown
 recognize the artifact filenames (`rustqs`, `rustqs.apk`).
 
 ### [x] B-013 · UI must hide platforms that have no working backend
-**Fixed on branch `fix/build-custom-agent` (2026-06-20):** platform select is now locked
-to `Windows 64Bit` (see B-002 fix). Re-open this issue once B-012 lands so we can re-expose
-Linux/Android behind a feature flag.
+**Updated on branch `fix/custom-client-platforms`:** after B-012 wired Linux/Android routing,
+the platform select is unlocked and exposes `Linux x64 (experimental)` and
+`Android arm64 (experimental)` alongside `Windows 64Bit` (default). The "experimental" labels
++ hint make the draft, CI-unvalidated status explicit. macOS / 32-bit stay unsupported.
+**Originally fixed on branch `fix/build-custom-agent` (2026-06-20):** platform select was locked
+to `Windows 64Bit` (see B-002 fix) until Linux/Android backends existed.
 
 
 **Where:** `admin-ui/src/views/custom-client/index.vue:29-34`.
