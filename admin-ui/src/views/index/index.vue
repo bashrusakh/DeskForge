@@ -166,7 +166,7 @@ export default defineComponent({
       const id = quickId.value.trim()
       if (id && webClientEnabled.value) {
         const apiServer = appStore.setting.rustdeskConfig.api_server || window.location.origin
-        window.open(`${apiServer}/webclient2/#/${id}`)
+        window.open(`${apiServer}/webclient/#/${id}`)
       }
     }
 
