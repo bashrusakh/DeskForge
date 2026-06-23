@@ -165,8 +165,9 @@ export default defineComponent({
     const openWebClient = () => {
       const id = quickId.value.trim()
       if (id && webClientEnabled.value) {
-        const apiServer = appStore.setting.rustdeskConfig.api_server || window.location.origin
-        window.open(`${apiServer}/webclient/#/${id}`)
+        // web client is served by this same Go API → use the origin the user is on,
+        // not the configured api-server (which may be loopback). See ConfigJs.
+        window.open(`${window.location.origin}/webclient/#/${id}`)
       }
     }
 
