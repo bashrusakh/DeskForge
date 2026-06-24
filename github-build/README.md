@@ -45,12 +45,12 @@ into the rustdesk fork, or keep it in a separate build repo, though the fork is 
 ## §8.8.2 + §8.8.3 - Sovereign workflow repoint (URLs)
 
 Upload artifacts from the offline kit into **fork releases** (FORK-PROCEDURE §B2), then
-replace external URLs in `generator-windows.yml` with your own. Exact lines for 1.4.7:
+replace external URLs in `generator-windows.yml` with your own. Exact lines for 1.4.8:
 
 | Line | Current (external) | Replace with (fork) |
 |---|---|---|
 | 261, 264, 383, 395 | `raw.githubusercontent.com/bryangerlach/rdgen/.../patches/*` | vendored `rdgen/.github/patches/*` (already in the repo) or `raw` URLs from your fork |
-| 283 | `github.com/rustdesk/engine/releases/.../windows-x64-release.zip` | `github.com/YOUR_ORG/rustdesk/releases/download/offline-assets-1.4.7/windows-x64-release.zip` |
+| 283 | `github.com/rustdesk/engine/releases/.../windows-x64-release.zip` | `github.com/YOUR_ORG/rustdesk/releases/download/offline-assets-1.4.8/windows-x64-release.zip` |
 | 433 | `github.com/rustdesk-org/rdev/releases/.../usbmmidd_v2.zip` | fork release above |
 | 441-443 | `github.com/rustdesk/hbb_common/releases/driver/*` | fork release above |
 
