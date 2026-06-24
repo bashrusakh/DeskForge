@@ -43,6 +43,7 @@ venv/
 
 # --- IDE / OS / ТУЛИНГ ---
 .claude/
+.graymatter/
 .idea/
 .vscode/
 .DS_Store
