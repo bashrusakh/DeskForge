@@ -22,10 +22,12 @@ export function T (key, params, num = 0) {
   }
   //msg 是这样 {name} is name
   //params 是这样 {name: 'zhangsan'}
-  //替换. params may be undefined/null (callers like T('Confirm?')); guard with
-  //`|| {}`. Use `k in` (not `||`) so valid falsy values (0, false, "") aren't
-  //dropped back to the literal placeholder.
-  const safeParams = params || {}
+  //替换. params may be undefined/null/primitive (callers like T('Confirm?') or
+  //a typo'd T('X', 'foo')). `k in primitive` throws TypeError, so coerce to {}
+  //unless it's actually an object. Use `k in` (not `||`) once we have an object,
+  //so valid falsy values (0, false, "") aren't dropped back to the literal
+  //placeholder.
+  const safeParams = (params && typeof params === 'object') ? params : {}
   return msg.replace(/{(\w+)}/g, function (match, k) {
     return k in safeParams ? safeParams[k] : match
   })
