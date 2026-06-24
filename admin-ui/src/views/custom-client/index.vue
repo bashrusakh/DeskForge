@@ -503,10 +503,8 @@ export default defineComponent({
         ElMessage.success(T('OperationSuccess'))
         await loadPresets()
       } catch (e) {
-        if (e !== 'cancel') {
-          console.error(e)
-          ElMessage.error(T('OperationFailed'))
-        }
+        // Errors are toasted globally by the axios interceptor; just log here.
+        if (e !== 'cancel') console.error(e)
       }
     }
 
@@ -565,10 +563,9 @@ export default defineComponent({
         ElMessage.success(T('OperationSuccess'))
         loadBuilds()
       } catch (e) {
-        if (e !== 'cancel') {
-          console.error(e)
-          ElMessage.error(T('OperationFailed'))
-        }
+        // Backend/network errors are already toasted globally by the axios
+        // response interceptor (utils/request.js); only log unexpected JS errors.
+        if (e !== 'cancel') console.error(e)
       }
     }
 
