@@ -29,10 +29,10 @@ Put it into the fork so the build never talks to `rustdesk-org` again.
 
 ```bash
 # extract tagged sources from the bundle + unpack vendor
-git clone artifacts/rustdesk-1.4.7.bundle rustdesk-fork
+git clone artifacts/rustdesk-1.4.8.bundle rustdesk-fork
 cd rustdesk-fork && git remote set-url origin https://github.com/YOUR_ORG/rustdesk.git
-git checkout 1.4.7 && git submodule update --init --recursive
-tar -xf ../artifacts/vendor-1.4.7.tar.gz          # -> vendor/
+git checkout 1.4.8 && git submodule update --init --recursive
+tar -xf ../artifacts/vendor-1.4.8.tar.gz          # -> vendor/
 # point cargo at vendored sources:
 mkdir -p .cargo
 cat > .cargo/config.toml <<'EOF'
@@ -42,12 +42,12 @@ replace-with = "vendored-sources"
 directory = "vendor"
 EOF
 git add vendor .cargo/config.toml
-git commit -m "Freeze vendored deps (sovereign offline build, tag 1.4.7)"
-git push origin 1.4.7    # or a branch, e.g. sovereign/1.4.7
+git commit -m "Freeze vendored deps (sovereign offline build, tag 1.4.8)"
+git push origin 1.4.8    # or a branch, e.g. sovereign/1.4.8
 ```
 
 > ⚠️ `vendor/` is heavy. If you do not want to grow git history, upload
-> `vendor-1.4.7.tar.gz` as a release asset instead (see B2) and unpack it at build time.
+> `vendor-1.4.8.tar.gz` as a release asset instead (see B2) and unpack it at build time.
 
 ### A3. Point build agents at your fork
 
@@ -55,7 +55,7 @@ In `offline-kit/versions.env` and in the build-win image environment (`docker-co
 
 ```
 RUSTDESK_REPO="https://github.com/YOUR_ORG/rustdesk.git"
-RUSTDESK_REF="1.4.7"
+RUSTDESK_REF="1.4.8"
 ```
 
 Done: the build now uses your fork, not upstream.
@@ -75,18 +75,18 @@ Upload them into releases of your fork.
 | `usbmmidd_v2` | `usbmmidd_v2.zip` | virtual display |
 | printer driver | `rustdesk_printer_driver_v4-1.4.zip` | printing |
 | printer adapter | `printer_driver_adapter.zip` | printing |
-| vendor (optional) | `vendor-1.4.7.tar.gz` | if you do not commit it to git |
+| vendor (optional) | `vendor-1.4.8.tar.gz` | if you do not commit it to git |
 
 ### B2. Commands
 
 ```bash
-gh release create offline-assets-1.4.7 --repo YOUR_ORG/rustdesk \
-    --title "Offline build assets (1.4.7)" --notes "Frozen $(date +%F)" \
+gh release create offline-assets-1.4.8 --repo YOUR_ORG/rustdesk \
+    --title "Offline build assets (1.4.8)" --notes "Frozen $(date +%F)" \
     artifacts/windows-x64-release.zip \
     artifacts/usbmmidd_v2.zip \
     artifacts/rustdesk_printer_driver_v4-1.4.zip \
     artifacts/printer_driver_adapter.zip \
-    artifacts/vendor-1.4.7.tar.gz
+    artifacts/vendor-1.4.8.tar.gz
 ```
 
 The build agent should fetch them from this release (fixed tag), not from `rustdesk.com`.
@@ -125,7 +125,7 @@ The original `rustdesk/rustdesk` is no longer part of this chain. That is the en
 
 The fork is "permanent" if all of the following are true:
 
-- [ ] `YOUR_ORG/rustdesk` at 1.4.7 with `vendor/` (or vendor in a release) + `.cargo/config.toml`.
+- [ ] `YOUR_ORG/rustdesk` at 1.4.8 with `vendor/` (or vendor in a release) + `.cargo/config.toml`.
 - [ ] `YOUR_ORG/hbb_common` forked (submodule).
 - [ ] Binary artifacts are present in fork releases (engine, `usbmmidd`, printer).
 - [ ] `versions.env` points to your fork.

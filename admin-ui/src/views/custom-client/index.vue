@@ -334,7 +334,7 @@ import PageHeader from '@/components/ui/PageHeader.vue'
 import PageSection from '@/components/ui/PageSection.vue'
 import DataTable from '@/components/ui/DataTable.vue'
 
-const VERSIONS = ['1.4.7','1.4.6','1.4.5','1.4.4','1.4.3','1.4.2','1.4.1','1.4.0','1.3.9','1.3.8','1.3.7','1.3.6','1.3.5','1.3.4','1.3.3']
+const VERSIONS = ['1.4.8','1.4.7','1.4.6','1.4.5','1.4.4','1.4.3','1.4.2','1.4.1','1.4.0','1.3.9','1.3.8','1.3.7','1.3.6','1.3.5','1.3.4','1.3.3']
 
 export default defineComponent({
   name: 'CustomClientBuilds',
@@ -342,7 +342,7 @@ export default defineComponent({
   setup () {
     const form = reactive({
       platform: 'windows',
-      version: '1.4.7',
+      version: '1.4.8',
       app_name: '',
       server_ip: '',
       key: '',
@@ -568,7 +568,7 @@ export default defineComponent({
 
     const resetForm = () => {
       form.platform = 'windows'
-      form.version = '1.4.7'
+      form.version = '1.4.8'
       form.app_name = ''
       form.server_ip = ''
       form.key = ''

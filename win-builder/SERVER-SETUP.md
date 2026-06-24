@@ -178,7 +178,7 @@ The agent log appears in the task console; per-build logs are written to
 1. Drop a test job manually (simulating the API):
 ```powershell
 @'
-{ "platform":"windows", "src_ref":"1.4.7", "server":"your.server:21116",
+{ "platform":"windows", "src_ref":"1.4.8", "server":"your.server:21116",
   "key":"YOUR_PUBLIC_KEY", "app_name":"rustqs" }
 '@ | Set-Content Z:\rdgen-data\jobs\test-001.json
 ```

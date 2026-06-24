@@ -46,7 +46,7 @@ bash freeze.sh rust          # Rust toolchain offline installer
 For a **downstream fork**, override the source repository:
 
 ```bash
-RUSTDESK_REPO=https://github.com/YOUR_ORG/rustdesk.git RUSTDESK_REF=1.4.7 bash freeze.sh
+RUSTDESK_REPO=https://github.com/YOUR_ORG/rustdesk.git RUSTDESK_REF=1.4.8 bash freeze.sh
 ```
 
 ## What gets frozen (stages)
@@ -81,7 +81,7 @@ On the Windows builder (PLAN.md §8.3), without network:
 
 ```bash
 # use sources from the bundle instead of clone:
-git clone artifacts/rustdesk-1.4.7.bundle rustdesk
+git clone artifacts/rustdesk-1.4.8.bundle rustdesk
 # vendor in place -> cargo reads from it:
 cargo build --release --offline --locked
 # vcpkg in asset-cache mode (X_VCPKG_ASSET_SOURCES) + binary cache
