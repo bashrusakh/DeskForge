@@ -8,7 +8,7 @@ const trans = {
   'zh-CN': zhCN,
   'ru': ru,
 }
-export function T (key, params = {}, num = 0) {
+export function T (key, params, num = 0) {
   const appStore = useAppStore()
   const lang = appStore.setting.lang
   const tran = trans[lang]?.[key]
@@ -22,9 +22,13 @@ export function T (key, params = {}, num = 0) {
   }
   //msg 是这样 {name} is name
   //params 是这样 {name: 'zhangsan'}
-  //替换. params defaults to {} so callers that omit it (e.g. T('Confirm?'))
-  //don't throw on params[k]; the placeholder is left as-is when not provided.
+  //替换. params may be undefined/null/primitive (callers like T('Confirm?') or
+  //a typo'd T('X', 'foo')). `k in primitive` throws TypeError, so coerce to {}
+  //unless it's actually an object. Use `k in` (not `||`) once we have an object,
+  //so valid falsy values (0, false, "") aren't dropped back to the literal
+  //placeholder.
+  const safeParams = (params && typeof params === 'object') ? params : {}
   return msg.replace(/{(\w+)}/g, function (match, k) {
-    return params[k] || match
+    return k in safeParams ? safeParams[k] : match
   })
 }
