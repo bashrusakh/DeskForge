@@ -497,13 +497,16 @@ export default defineComponent({
 
     const deletePreset = async (preset) => {
       try {
-        await ElMessageBox.confirm(T('Confirm?'), { type: 'warning' })
+        await ElMessageBox.confirm(T('Confirm?', { param: T('Delete') }), { type: 'warning' })
         await removePreset({ id: preset.id })
         if (selectedPresetId.value === preset.id) selectedPresetId.value = null
         ElMessage.success(T('OperationSuccess'))
         await loadPresets()
       } catch (e) {
-        if (e !== 'cancel') console.error(e)
+        if (e !== 'cancel') {
+          console.error(e)
+          ElMessage.error(T('OperationFailed'))
+        }
       }
     }
 
@@ -557,12 +560,15 @@ export default defineComponent({
 
     const deleteBuild = async (row) => {
       try {
-        await ElMessageBox.confirm(T('Confirm?'), { type: 'warning' })
+        await ElMessageBox.confirm(T('Confirm?', { param: T('Delete') }), { type: 'warning' })
         await remove({ id: row.id })
         ElMessage.success(T('OperationSuccess'))
         loadBuilds()
       } catch (e) {
-        if (e !== 'cancel') console.error(e)
+        if (e !== 'cancel') {
+          console.error(e)
+          ElMessage.error(T('OperationFailed'))
+        }
       }
     }
 
