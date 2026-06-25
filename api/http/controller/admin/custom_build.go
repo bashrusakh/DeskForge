@@ -286,6 +286,9 @@ func (ct *CustomBuild) tryGithubDispatch(b *model.CustomBuild) bool {
 	dispatchCfg.Branch = "rustqs/min-test"
 
 	// Извлекаем параметры из CustomJson (произвольный JSON формы).
+	// ВАЖНО: b.Version НЕ передаётся в workflow — фактическая версия клиента
+	// определяется кодом на rustqs/min-test ветке форка. Версия в форме —
+	// только метка на записи билда (см. github-build/README.md).
 	params := map[string]any{
 		"app_name": b.AppName,
 	}

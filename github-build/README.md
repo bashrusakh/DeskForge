@@ -48,6 +48,30 @@ Credentials — encrypted payload, decrypted inside the runner via GitHub Secret
 
 ---
 
+## Current version state
+
+`rustqs/min-test` is currently based on **v1.4.7** (20 custom commits on top).
+The admin UI version selector (up to v1.4.8) is **metadata only** — the selected
+version is stored on the build record but is NOT passed to the `workflow_dispatch`
+payload (`tryGithubDispatch` sends only `{server, key, app_name, custom_txt}`).
+
+The build always checks out the `rustqs/min-test` branch via `actions/checkout@v4`
+(no `ref:` override), so the actual client version produced depends entirely on
+what source code is on that branch — currently v1.4.7.
+
+To build v1.4.8 (or newer), the branch needs to be rebased on the new tag:
+
+```bash
+cd /path/to/rustdesk-fork
+git checkout rustqs/min-test
+git rebase v1.4.8
+git push --force-with-lease origin rustqs/min-test
+```
+
+See [PLAN.md §7](../../PLAN.md#7-workflow-new-upstream-rustdesk-client-release) for the full upstream version bump procedure.
+
+---
+
 ## Initial deployment — pushing workflow files to the fork
 
 Before Linux or Android builds can be dispatched, their workflow files must exist in the
