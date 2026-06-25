@@ -1,149 +1,114 @@
 # DeskForge
 
-A unified, self-hosted, RustDesk-compatible server with integrated API, Web Admin, and Web Client.
+Unified self-hosted RustDesk-совместимый сервер.
+Всё в одном Docker образе (s6-overlay): Rust hbbs/hbbr + Go API + Vue 3 админка + кастомный клиент.
 
-## Features
+---
 
-- **Rust Server** (hbbs + hbbr): ID server and relay server
-- **Go API Server**: User management, authentication, address book
-- **Web Admin** (`admin-ui/`): Vue 3 management dashboard with redesigned UI
-- **Web Client**: Browser-based remote desktop client
-- **s6-overlay**: Process supervision and automatic restarts
-
-## Web Admin
-
-The admin panel has been fully reworked (2026-06).
-
-**Tech stack:** Vue 3.5, Vite 6, Element Plus 2.8, Pinia, Vue Router, Axios, Sass
-
-**Current state:**
-- Light / Dark / Auto theme modes with CSS variables design tokens
-- Redesigned sidebar navigation (Dashboard, Devices, Access, Monitoring, Security, Server)
-- Unified table component (`DataTable`) across all views
-- Unified dialog/drawer components (`AppDialog`, `AppDrawer`)
-- Shared filter bar (`FilterBar`) on monitoring pages
-- Dashboard with Quick Connect panel + live ServerHealth metrics (parallelized hbbs/hbbr probes)
-- Connection pulse status indicator
-- Redesigned login/register screens
-- Danger zone for server commands — audited and persisted across restarts
-- **Locales:** English, Russian, Chinese (Simplified)
-- Custom client builder, OAuth/SSO, API tokens, profile self-edit
-- Custom-build history auto-refresh (no manual reload while a build is running)
-
-### Screenshots
-
-| Dashboard | Custom Client Builder |
-| --- | --- |
-| ![Dashboard](docs/screenshots/dashboard.png) | ![Custom Client Builder](docs/screenshots/client-builder.png) |
-
-## Feature matrix
-
-**Implemented:** username/password (bcrypt), JWT, per-device access tokens, captcha +
-brute-force protection, OAuth/OIDC (GitHub, Google, generic) with delete guard, LDAP/LDAPS/AD;
-user CRUD with admin/regular roles, groups (auto-assigned default group), registration,
-profile self-edit; peer CRUD, device groups, online status, peer-UUID binding; personal +
-shared address books with collections, rules, tags, token-based web-client sharing, batch ops;
-connection / file-transfer / login audit; admin server commands to hbbs/hbbr with audit log
-and persistence across restarts; encrypted-at-rest secrets (AES-GCM) for custom builds /
-presets / GitHub configs; custom client builder with capability-URL TTL and GitHub Actions
-workflow dispatch (Windows / Linux / Android); admin panel, web client, Swagger;
-SQLite / MySQL / PostgreSQL.
-
-**Not implemented (vs RustDesk Pro):** 2FA/MFA, fine-grained RBAC, session recording, device
-policy/assignment, remote script execution, unattended-access management, webhook/SIEM
-integrations, HA/clustering, backup/restore, license-key management, custom branding,
-policy-based device groups.
-
-**Localization:** admin-ui ships English, Russian, Chinese (Simplified) — 3 locales under
-`admin-ui/src/utils/i18n/`. The Go API message catalog (`api/resources/i18n/`) additionally
-carries `zh_TW`, `ko`, `fr`, `es` — 7 locales total on the backend.
-
-## Quick Start
-
-### 1. Clone the repository
+## Быстрый старт
 
 ```bash
 git clone https://github.com/bashrusakh/DeskForge.git
-cd DeskForge
-```
-
-### 2. Configure environment
-
-Edit `docker/docker-compose.yml` and replace:
-
-- `your-server` with your server's IP or domain
-- `your-secret-jwt-key-change-this` with a secure random string
-
-### 3. Start the server
-
-```bash
-cd docker
+cd DeskForge/docker
+# docker-compose.yml: заменить your-server, your-secret-jwt-key-change-this
 docker compose up -d
-```
-
-### 4. Get the public key
-
-```bash
+# Получить public key:
 docker compose logs | grep "Public Key"
 ```
 
-Copy the key from `id_ed25519.pub`.
+**Admin:** `http://your-server:21114/admin/` — логин `admin`, пароль в логах.
 
-### 5. Access Web Admin
+**RustDesk client:** ID Server `your-server:21116`, Relay `:21117`, API `http://your-server:21114`, Key — из логов.
 
-Open `http://your-server:21114/admin/` in your browser.
+---
 
-Default credentials:
-- Username: `admin`
-- Password: Check Docker logs for the generated password
+## Порты
 
-### 6. Configure RustDesk Client
+| Port  | Protocol | Назначение        |
+| ----- | -------- | ----------------- |
+| 21114 | TCP      | API + Web Admin   |
+| 21115 | TCP      | NAT type test     |
+| 21116 | TCP/UDP  | ID Server (hbbs)  |
+| 21117 | TCP      | Relay Server(hbbr)|
+| 21118 | TCP      | WebSocket         |
 
-In your RustDesk client settings:
+---
 
-- **ID Server**: `your-server:21116`
-- **Relay Server**: `your-server:21117`
-- **API Server**: `http://your-server:21114`
-- **Key**: Paste the public key from step 4
+## Ключевые env vars
 
-## Environment Variables
+| Variable                           | Назначение                          |
+| ---------------------------------- | ----------------------------------- |
+| `RELAY`                              | Адрес relay сервера                 |
+| `ENCRYPTED_ONLY`                     | Только шифрованные соединения       |
+| `MUST_LOGIN`                         | Требовать логин перед коннектом     |
+| `RUSTDESK_API_RUSTDESK_ID_SERVER`    | ID сервер (hbbs)                    |
+| `RUSTDESK_API_JWT_KEY`              | JWT секрет                          |
+| `RUSTDESK_API_GORM_TYPE`            | sqlite / mysql / postgres           |
+| `RUSTDESK_API_LANG`                 | en / ru / zh-CN                     |
+| `SECRET_CRYPT_KEY`                  | Ключ шифрования secrets at rest     |
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `RELAY` | Relay server address | `relay.example.com` |
-| `ENCRYPTED_ONLY` | Only allow encrypted connections | `0` |
-| `MUST_LOGIN` | Require login to connect | `N` |
-| `TZ` | Timezone | `UTC` |
-| `RUSTDESK_API_RUSTDESK_ID_SERVER` | ID server address | - |
-| `RUSTDESK_API_RUSTDESK_RELAY_SERVER` | Relay server address | - |
-| `RUSTDESK_API_RUSTDESK_API_SERVER` | API server URL | - |
-| `RUSTDESK_API_KEY_FILE` | Path to public key file | `/data/id_ed25519.pub` |
-| `RUSTDESK_API_JWT_KEY` | JWT secret key | - |
+---
 
-## Ports
+## Что реализовано
 
-| Port | Protocol | Description |
-|------|----------|-------------|
-| 21114 | TCP | API Server / Web Admin |
-| 21115 | TCP | NAT type test |
-| 21116 | TCP/UDP | ID Server |
-| 21117 | TCP | Relay Server |
-| 21118 | TCP | WebSocket |
-| 21119 | TCP | Web Server |
+**Сервер (Rust + Go):** user CRUD, JWT, OAuth (GitHub/Google/OIDC), LDAP, группы, теги,
+адресная книга (личная + общая с коллекциями), peer-UUID binding, audit (login/connection/file-transfer),
+server команды с персистентностью и аудитом, encrypted-at-rest secrets, SQLite/MySQL/PostgreSQL,
+captcha + brute-force protection.
 
-## Building from Source
+**Админка (Vue 3):** Login, Dashboard, Devices, Users, Groups, Tags, OAuth, Server Config,
+Audit, Custom Client Builder, Profile, My Workspace, Guest Sharing.
+3 локали (en/ru/zh_CN). Light/Dark/Auto темы.
+Shared UI: DataTable, AppDialog, AppDrawer, FilterBar, ActionsToolbar.
+
+**Кастомный клиент:** GitHub Actions → форк rustdesk → `rustqs.exe` (Windows).
+Сборка с твоим сервером, ключом, permanent password. Single-binary через portable-packer (23 MB).
+Linux/Android — в разработке.
+
+**Не реализовано (vs RustDesk Pro):** 2FA, RBAC, session recording, device policy, remote script,
+HA, backup/restore.
+
+---
+
+## Структура репозитория
+
+```
+server/          — Rust hbbs/hbbr (signal + relay)
+api/             — Go REST API (Gin + GORM)
+admin-ui/        — Vue 3 + Element Plus админка
+libs/hbb_common/ — общая Rust библиотека (сабмодуль)
+docker/          — Dockerfile + compose + entrypoint
+github-build/    — активный workflow сборки клиента
+win-builder/     — ❄️ FROZEN: standalone Windows сборщик
+offline-kit/     — ❄️ FROZEN: инструмент заморозки зависимостей (страховка от смерти upstream)
+rdgen/           — vendored reference workflow (не сервис)
+```
+
+---
+
+## Building
 
 ```bash
 cd docker
-docker compose build
+docker compose build          # полная сборка
+docker compose up -d          # запуск
 ```
 
-## License
+---
 
-AGPL-3.0 — See [LICENSE](LICENSE) for details.
+## Форки (для сборки кастомного клиента)
 
-## Credits
+- [`bashrusakh/rustdesk`](https://github.com/bashrusakh/rustdesk) — форк rustdesk/rustdesk @ 1.4.7
+- [`bashrusakh/hbb_common`](https://github.com/bashrusakh/hbb_common) — форк rustdesk/hbb_common
 
-- [rustdesk/rustdesk-server](https://github.com/rustdesk/rustdesk-server) — Original RustDesk server
-- [lejianwen/rustdesk-api](https://github.com/lejianwen/rustdesk-api) — Go API server
-- [lejianwen/rustdesk-api-web](https://github.com/lejianwen/rustdesk-api-web) — Original web admin interface
+Подробнее: [PLAN.md §7 — workflow новой версии](PLAN.md#7-workflow-вышла-новая-версия-upstream-rustdesk-client)
+
+---
+
+## Лицензия
+
+AGPL-3.0 (сервер) + MIT (api/admin-ui). См. [LICENSE](LICENSE) и [NOTICE](NOTICE).
+
+Проект основан на:
+- [rustdesk/rustdesk-server](https://github.com/rustdesk/rustdesk-server) (AGPL-3.0)
+- [lejianwen/rustdesk-api](https://github.com/lejianwen/rustdesk-api) (MIT)
