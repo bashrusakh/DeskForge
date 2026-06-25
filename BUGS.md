@@ -84,9 +84,14 @@ Left in place because it's a documented capability URL and may have third-party 
 by workflow constant; `tryGithubDispatch` picks `rustqs-linux.yml`/`rustqs-android.yml`;
 `pollAndDownload` selects artifact by platform).
 
-**Workflow files:** pushed to `bashrusakh/rustdesk@rustqs/min-test` — all three
-(`rustqs-windows-min-test.yml`, `rustqs-linux.yml`, `rustqs-android.yml`) are deployed
-and return HTTP 200 via GitHub API. Filenames in Go constants match fork filenames exactly.
+**Workflow files:** deployed to `bashrusakh/rustdesk` on both `master` (API discovery)
+and `rustqs/min-test` (execution) — all three are indexed (HTTP 200):
+`rustqs-windows-min-test.yml`, `rustqs-linux.yml`, `rustqs-android.yml`.
+Filenames in Go constants match fork filenames exactly.
+
+**Critical dependency:** `bridge.yml` must also exist on both branches — all three
+`rustqs-*.yml` reference it as a reusable workflow. Without it, dispatch succeeds
+but the run fails with a parse error (422).
 
 Still open:
 - validate `rustqs-linux.yml` and `rustqs-android.yml` on real Actions runs (build steps:
@@ -96,8 +101,9 @@ Still open:
 
 **Where:** `github-build/rustqs-linux.yml`, `github-build/rustqs-android.yml`. Reference templates:
 `rdgen/.github/workflows/generator-linux.yml`, `rdgen/.github/workflows/generator-android.yml`.
-**Symptoms (historical):** before the push, dispatch returned HTTP 404; submit went to the deprecated
-file queue (B-001). Resolved by pushing the workflow files.
+**Symptoms (historical):** before the push, dispatch returned HTTP 404 because workflow files
+were not on `master` (default branch); submit went to the deprecated file queue (B-001).
+Resolved by pushing workflow files to both `master` and `rustqs/min-test`.
 
 ## ADMIN UI / API — open findings (consolidated from the removed `audit-report.md`)
 
