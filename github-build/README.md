@@ -1,8 +1,11 @@
 # github-build — active build path via GitHub Actions
 
 All platforms (Windows, Linux, Android) are built through GitHub Actions in the
-`bashrusakh/rustdesk` fork. Each local workflow file in this directory has the same
-filename as its target in the fork's `.github/workflows/` on the `rustqs/min-test` branch.
+`bashrusakh/rustdesk` fork. All DeskForge-specific workflow files live on the
+`rustqs/min-test` branch — `master` is kept clean for upstream tracking.
+
+Each local workflow file in this directory has the same filename as its target
+in the fork's `.github/workflows/` (identical names, no rename needed).
 
 | Platform | File                                    | Target in fork                                    | Status          |
 | -------- | --------------------------------------- | ------------------------------------------------- | --------------- |
@@ -14,9 +17,12 @@ filename as its target in the fork's `.github/workflows/` on the `rustqs/min-tes
 
 ## Architecture
 
+All dispatches go to the `rustqs/min-test` branch of the fork (the Go code
+forces this branch in `tryGithubDispatch` regardless of per-install config).
+
 ```
-admin-ui → Go API → workflow_dispatch (encrypted payload) →
-  GitHub Actions [rustdesk fork] →
+admin-ui → Go API → workflow_dispatch (encrypted payload, ref=rustqs/min-test) →
+  GitHub Actions [rustdesk fork, rustqs/min-test branch] →
     L1 config.rs (server+key) → L2 custom_.txt (permanent password) → L3 branding →
     artifact → POST /api/save_custom_client → your server → admin-ui Download
 ```
@@ -63,6 +69,9 @@ git push origin rustqs/min-test
 After push, the Go API can dispatch to these workflows. If the files are missing,
 the build immediately fails with HTTP 404.
 
+> `master` in the fork is kept clean for upstream `rustdesk/rustdesk` tracking.
+> All DeskForge-specific workflows go to `rustqs/min-test` only.
+
 ---
 
 ## Security (REQUIRED for a public fork)
@@ -77,11 +86,15 @@ the build immediately fails with HTTP 404.
 
 ## When a new upstream version ships
 
+Workflow files live on the `rustqs/min-test` branch. `master` is synced with
+upstream and stays clean — no DeskForge-specific files on it.
+
 1. **Fork sync** → `git fetch upstream --tags && git push origin v1.5.0`
 2. **Repoint submodule** → `.gitmodules` → `bashrusakh/hbb_common`
 3. **Vendor** → `cargo vendor && git add vendor`
-4. **Update workflows:** diff upstream with `rustqs-*.yml`
-5. **Test** → `gh workflow run rustqs-windows-min-test.yml --ref v1.5.0`
+4. **Update `rustqs/min-test` branch** → `git checkout rustqs/min-test && git rebase v1.5.0`
+5. **Update workflows:** diff upstream with `rustqs-*.yml`
+6. **Test** → `gh workflow run rustqs-windows-min-test.yml --ref rustqs/min-test`
 
 Detailed: [PLAN.md §7](../PLAN.md#7-workflow-new-upstream-rustdesk-client-release).
 
