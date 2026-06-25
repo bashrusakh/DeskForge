@@ -1,17 +1,30 @@
-# github-build — active `rustqs.exe` build path via GitHub Actions
+# github-build — active build path via GitHub Actions
 
-Primary way to build the Windows client — GitHub Actions in the `bashrusakh/rustdesk` fork.
-`win-builder/` is the frozen fallback.
+All platforms (Windows, Linux, Android) are built through GitHub Actions in the
+`bashrusakh/rustdesk` fork. All DeskForge-specific workflow files live on the
+`rustqs/min-test` branch — `master` is kept clean for upstream tracking.
+
+Each local workflow file in this directory has the same filename as its target
+in the fork's `.github/workflows/` (identical names, no rename needed).
+
+| Platform | File                                    | Target in fork                                    | Status          |
+| -------- | --------------------------------------- | ------------------------------------------------- | --------------- |
+| Windows  | `github-build/rustqs-windows-min-test.yml` | `.github/workflows/rustqs-windows-min-test.yml`   | ✅ active       |
+| Linux    | `github-build/rustqs-linux.yml`            | `.github/workflows/rustqs-linux.yml`              | ✅ active       |
+| Android  | `github-build/rustqs-android.yml`          | `.github/workflows/rustqs-android.yml`            | ✅ active       |
 
 ---
 
 ## Architecture
 
-```
-admin-ui → Go API → workflow_dispatch (encrypted payload) →
-  GitHub Actions [rustdesk fork, windows-2022] →
+All dispatches go to the `rustqs/min-test` branch of the fork (the Go code
+forces this branch in `tryGithubDispatch` regardless of per-install config).
+
+```text
+admin-ui → Go API → workflow_dispatch (encrypted payload, ref=rustqs/min-test) →
+  GitHub Actions [rustdesk fork, rustqs/min-test branch] →
     L1 config.rs (server+key) → L2 custom_.txt (permanent password) → L3 branding →
-    rustqs.exe → POST /api/save_custom_client → your server → admin-ui Download
+    artifact → POST /api/save_custom_client → your server → admin-ui Download
 ```
 
 Binary is NOT published to public releases — only to your server.
@@ -23,13 +36,36 @@ Credentials — encrypted payload, decrypted inside the runner via GitHub Secret
 
 | Layer | Path (in rustdesk fork)                                        | Role                                          |
 | ----- | --------------------------------------------------------------- | --------------------------------------------- |
-| 1     | `rustqs/min-test/.github/workflows/rustqs-windows-min-test.yml` | ✅ active smoke-test                          |
+| 1a    | `rustqs/min-test/.github/workflows/rustqs-windows-min-test.yml` | ✅ Windows x64 (active)                       |
+| 1b    | `rustqs/min-test/.github/workflows/rustqs-linux.yml`            | ✅ Linux x64 (active)                        |
+| 1c    | `rustqs/min-test/.github/workflows/rustqs-android.yml`          | ✅ Android arm64 (active)                      |
 | 2     | `rustqs/min-test/.github/workflows/bridge.yml`                  | reusable workflow (from upstream 1.4.7)       |
 | 3     | `rustqs/min-test/.github/workflows/third-party-RustDeskTempTopMostWindow.yml` | TopMost build   |
-| 4     | `DeskForge/github-build/windows-min-test.yml`                   | local copy for code review                    |
+| 4     | `DeskForge/github-build/`                                       | local copies for code review                  |
 | 5     | `DeskForge/rdgen/.github/workflows/*.yml`                       | vendored upstream rdgen reference             |
 
 **Rule:** change build logic → edit in fork (layer 1), then update local copy (layer 4).
+
+---
+
+## Workflow deployment — pushing to the fork
+
+All three workflow files are already deployed to `bashrusakh/rustdesk` on the
+`rustqs/min-test` branch. When a workflow file changes locally:
+
+```bash
+cd /path/to/rustdesk-fork
+git checkout rustqs/min-test
+cp /path/to/DeskForge/github-build/rustqs-*.yml .github/workflows/
+git add .github/workflows/
+git commit -m "feat: update rustqs-* workflows"
+git push origin rustqs/min-test
+```
+
+If a workflow file is missing from the fork, dispatch immediately fails with HTTP 404.
+
+> `master` in the fork is kept clean for upstream `rustdesk/rustdesk` tracking.
+> All DeskForge-specific workflows go to `rustqs/min-test` only.
 
 ---
 
@@ -45,11 +81,15 @@ Credentials — encrypted payload, decrypted inside the runner via GitHub Secret
 
 ## When a new upstream version ships
 
+Workflow files live on the `rustqs/min-test` branch. `master` is synced with
+upstream and stays clean — no DeskForge-specific files on it.
+
 1. **Fork sync** → `git fetch upstream --tags && git push origin v1.5.0`
 2. **Repoint submodule** → `.gitmodules` → `bashrusakh/hbb_common`
 3. **Vendor** → `cargo vendor && git add vendor`
-4. **Update workflow:** diff upstream `build-for-windows-flutter` with `rustqs-windows-min-test.yml`
-5. **Test** → `gh workflow run rustqs-windows-min-test.yml --ref v1.5.0`
+4. **Update `rustqs/min-test` branch** → `git checkout rustqs/min-test && git rebase v1.5.0`
+5. **Update workflows:** diff upstream with `rustqs-*.yml`
+6. **Test** → `gh workflow run rustqs-windows-min-test.yml --ref rustqs/min-test`
 
 Detailed: [PLAN.md §7](../PLAN.md#7-workflow-new-upstream-rustdesk-client-release).
 

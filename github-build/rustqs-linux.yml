@@ -2,14 +2,16 @@ name: rustqs linux min test
 # ============================================================================
 # DRAFT (B-012) — НЕ ВАЛИДИРОВАН РЕАЛЬНЫМ ПРОГОНОМ GITHUB ACTIONS.
 # Перенос generator-linux.yml в контракт форка (enc_payload + L1/L2/L3), по образцу
-# github-build/windows-min-test.yml. Build-шаги Flutter-Linux требуют доводки на
-# реальных прогонах (vcpkg, движок, build.py, упаковка, пути артефактов) — как это
+# github-build/rustqs-windows-min-test.yml. Build-шаги Flutter-Linux требуют доводки
+# на реальных прогонах (vcpkg, движок, build.py, упаковка, пути артефактов) — как это
 # делалось для windows-min-test. Бэкенд уже умеет диспетчить platform=linux сюда и
 # забирать артефакт `rustdesk-min-test-linux`.
 #
-# Контракт параметров идентичен windows-min-test:
+# Контракт параметров идентичен rustqs-windows-min-test:
 #   enc_payload = base64(openssl aes-256-cbc -pbkdf2 -pass pass:$WORKFLOW_PAYLOAD_KEY)
 #                 от JSON {server,key,app_name,custom_txt}; либо открытые inputs (debug).
+#
+# Путь в форке: .github/workflows/rustqs-linux.yml на ветке rustqs/min-test.
 # ============================================================================
 
 on:

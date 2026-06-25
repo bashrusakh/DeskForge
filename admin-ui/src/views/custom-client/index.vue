@@ -334,6 +334,11 @@ import PageHeader from '@/components/ui/PageHeader.vue'
 import PageSection from '@/components/ui/PageSection.vue'
 import DataTable from '@/components/ui/DataTable.vue'
 
+// NOTE: version is metadata-only (stored on the build record). It is NOT passed
+// to the GitHub workflow_dispatch payload — tryGithubDispatch sends only
+// {server, key, app_name, custom_txt}. The actual client version produced
+// depends on the code on the rustqs/min-test branch in the rustdesk fork.
+// See github-build/README.md for the current version state.
 const VERSIONS = ['1.4.8','1.4.7','1.4.6','1.4.5','1.4.4','1.4.3','1.4.2','1.4.1','1.4.0','1.3.9','1.3.8','1.3.7','1.3.6','1.3.5','1.3.4','1.3.3']
 
 export default defineComponent({

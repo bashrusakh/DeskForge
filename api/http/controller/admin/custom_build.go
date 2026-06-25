@@ -32,12 +32,13 @@ type CustomBuild struct{}
 const defaultWindowsArtifactName = "rustdesk-min-test-windows"
 
 // defaultLinuxWorkflowFilename — имя GitHub-workflow для Linux-сборки (B-012).
-// Linux пока за флагом/не выставлен в UI (B-013), поэтому имя задано константой;
-// при продуктизации Linux его стоит вынести в GithubBuildConfig рядом с windows.
+// Файл запушен в форк как .github/workflows/rustqs-linux.yml на rustqs/min-test.
+// Пока константа; вынести в GithubBuildConfig когда workflow будет green.
 const defaultLinuxWorkflowFilename = "rustqs-linux.yml"
 
-// defaultAndroidWorkflowFilename — имя GitHub-workflow для Android-сборки (B-012),
-// аналогично Linux: пока константа, Android скрыт в UI до валидации CI.
+// defaultAndroidWorkflowFilename — имя GitHub-workflow для Android-сборки (B-012).
+// Файл запушен в форк как .github/workflows/rustqs-android.yml на rustqs/min-test.
+// Пока константа; вынести в GithubBuildConfig когда workflow будет green.
 const defaultAndroidWorkflowFilename = "rustqs-android.yml"
 
 func (ct *CustomBuild) List(c *gin.Context) {
@@ -223,10 +224,10 @@ func (ct *CustomBuild) DownloadByKey(c *gin.Context) {
 }
 
 // submitBuild — направляет job в соответствующий backend:
-//   - windows + настроенный GithubBuildConfig → workflow_dispatch + async polling (PLAN §8.8.5)
-//   - иначе → файл-очередь rdgen-data/jobs (для linux/android агентов)
+//   - windows/linux/android + настроенный GithubBuildConfig → workflow_dispatch + async polling
+//   - иначе → файл-очередь rdgen-data/jobs (для агентов без GitHub)
 func (ct *CustomBuild) submitBuild(b *model.CustomBuild) {
-	// windows и linux (B-012) маршрутизируются в GitHub Actions; остальное — файл-очередь.
+	// windows/linux/android (B-012) маршрутизируются в GitHub Actions; остальное — файл-очередь.
 	if b.Platform == "windows" || b.Platform == "linux" || b.Platform == "android" {
 		if ct.tryGithubDispatch(b) {
 			return
@@ -276,11 +277,17 @@ func (ct *CustomBuild) tryGithubDispatch(b *model.CustomBuild) bool {
 	if workflow == "" {
 		return false
 	}
-	// Копия конфига с подменённым именем workflow — DispatchBuild читает c.WorkflowFilename.
+	// Копия конфига: подменяем workflow (зависит от платформы) и нормализуем branch.
+	// Branch в БД мог остаться "master" от старой установки — форсируем rustqs/min-test,
+	// потому что воркфлоу rustqs-* живут только на этой ветке.
 	dispatchCfg := *gcfg
 	dispatchCfg.WorkflowFilename = workflow
+	dispatchCfg.Branch = "rustqs/min-test"
 
 	// Извлекаем параметры из CustomJson (произвольный JSON формы).
+	// ВАЖНО: b.Version НЕ передаётся в workflow — фактическая версия клиента
+	// определяется кодом на rustqs/min-test ветке форка. Версия в форме —
+	// только метка на записи билда (см. github-build/README.md).
 	params := map[string]any{
 		"app_name": b.AppName,
 	}

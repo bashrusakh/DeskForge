@@ -27,7 +27,7 @@ bashrusakh/
 ├── DeskForge              ← this repo (server, api, admin, docker)
 ├── rustdesk               ← fork of rustdesk/rustdesk, tag 1.4.7 → 1.4.8
 │   ├── vendor/            ← cargo vendor (L1, ~20 rustdesk-org deps)
-│   ├── .github/workflows/ ← rustqs-windows-min-test.yml (active)
+│   ├── .github/workflows/ ← rustqs-windows-min-test.yml, rustqs-linux.yml, rustqs-android.yml
 │   └── releases/          ← offline-assets-1.4.7 (engine, usbmmidd, drivers)
 ├── hbb_common             ← fork of rustdesk/hbb_common (required submodule)
 └── rustdesk-deps/         ← archive of ~20 rustdesk-org repos (L1 backup)
