@@ -10,8 +10,8 @@ in the fork's `.github/workflows/` (identical names, no rename needed).
 | Platform | File                                    | Target in fork                                    | Status          |
 | -------- | --------------------------------------- | ------------------------------------------------- | --------------- |
 | Windows  | `github-build/rustqs-windows-min-test.yml` | `.github/workflows/rustqs-windows-min-test.yml`   | ✅ active       |
-| Linux    | `github-build/rustqs-linux.yml`            | `.github/workflows/rustqs-linux.yml`              | 🟡 draft (B-012) |
-| Android  | `github-build/rustqs-android.yml`          | `.github/workflows/rustqs-android.yml`            | 🟡 draft (B-012) |
+| Linux    | `github-build/rustqs-linux.yml`            | `.github/workflows/rustqs-linux.yml`              | ✅ active       |
+| Android  | `github-build/rustqs-android.yml`          | `.github/workflows/rustqs-android.yml`            | ✅ active       |
 
 ---
 
@@ -37,8 +37,8 @@ Credentials — encrypted payload, decrypted inside the runner via GitHub Secret
 | Layer | Path (in rustdesk fork)                                        | Role                                          |
 | ----- | --------------------------------------------------------------- | --------------------------------------------- |
 | 1a    | `rustqs/min-test/.github/workflows/rustqs-windows-min-test.yml` | ✅ Windows x64 (active)                       |
-| 1b    | `rustqs/min-test/.github/workflows/rustqs-linux.yml`            | 🟡 Linux x64 (draft, B-012)                   |
-| 1c    | `rustqs/min-test/.github/workflows/rustqs-android.yml`          | 🟡 Android arm64 (draft, B-012)                |
+| 1b    | `rustqs/min-test/.github/workflows/rustqs-linux.yml`            | ✅ Linux x64 (active)                        |
+| 1c    | `rustqs/min-test/.github/workflows/rustqs-android.yml`          | ✅ Android arm64 (active)                      |
 | 2     | `rustqs/min-test/.github/workflows/bridge.yml`                  | reusable workflow (from upstream 1.4.7)       |
 | 3     | `rustqs/min-test/.github/workflows/third-party-RustDeskTempTopMostWindow.yml` | TopMost build   |
 | 4     | `DeskForge/github-build/`                                       | local copies for code review                  |
@@ -48,26 +48,21 @@ Credentials — encrypted payload, decrypted inside the runner via GitHub Secret
 
 ---
 
-## Initial deployment — pushing workflow files to the fork
+## Workflow deployment — pushing to the fork
 
-Before Linux or Android builds can be dispatched, their workflow files must exist in the
-`bashrusakh/rustdesk` fork on the `rustqs/min-test` branch at `.github/workflows/`.
-Filenames are identical — no rename needed.
+All three workflow files are already deployed to `bashrusakh/rustdesk` on the
+`rustqs/min-test` branch. When a workflow file changes locally:
 
 ```bash
 cd /path/to/rustdesk-fork
 git checkout rustqs/min-test
-
-cp /path/to/DeskForge/github-build/rustqs-linux.yml   .github/workflows/
-cp /path/to/DeskForge/github-build/rustqs-android.yml .github/workflows/
-
-git add .github/workflows/rustqs-linux.yml .github/workflows/rustqs-android.yml
-git commit -m "feat: add Linux + Android build workflows (B-012)"
+cp /path/to/DeskForge/github-build/rustqs-*.yml .github/workflows/
+git add .github/workflows/
+git commit -m "feat: update rustqs-* workflows"
 git push origin rustqs/min-test
 ```
 
-After push, the Go API can dispatch to these workflows. If the files are missing,
-the build immediately fails with HTTP 404.
+If a workflow file is missing from the fork, dispatch immediately fails with HTTP 404.
 
 > `master` in the fork is kept clean for upstream `rustdesk/rustdesk` tracking.
 > All DeskForge-specific workflows go to `rustqs/min-test` only.

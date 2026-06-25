@@ -32,14 +32,13 @@ type CustomBuild struct{}
 const defaultWindowsArtifactName = "rustdesk-min-test-windows"
 
 // defaultLinuxWorkflowFilename — имя GitHub-workflow для Linux-сборки (B-012).
-// Workflow файл нужно запушить в форк как .github/workflows/rustqs-linux.yml
-// (см. github-build/README.md). Имя задано константой; при продуктизации стоит
-// вынести в GithubBuildConfig рядом с windows.
+// Файл запушен в форк как .github/workflows/rustqs-linux.yml на rustqs/min-test.
+// Пока константа; вынести в GithubBuildConfig когда workflow будет green.
 const defaultLinuxWorkflowFilename = "rustqs-linux.yml"
 
 // defaultAndroidWorkflowFilename — имя GitHub-workflow для Android-сборки (B-012).
-// Локальная копия: github-build/rustqs-android.yml — то же имя, что в форке.
-// Пока константа, вынести в GithubBuildConfig когда workflows будут green.
+// Файл запушен в форк как .github/workflows/rustqs-android.yml на rustqs/min-test.
+// Пока константа; вынести в GithubBuildConfig когда workflow будет green.
 const defaultAndroidWorkflowFilename = "rustqs-android.yml"
 
 func (ct *CustomBuild) List(c *gin.Context) {
