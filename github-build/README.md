@@ -50,22 +50,38 @@ Credentials — encrypted payload, decrypted inside the runner via GitHub Secret
 
 ## Workflow deployment — pushing to the fork
 
-All three workflow files are already deployed to `bashrusakh/rustdesk` on the
-`rustqs/min-test` branch. When a workflow file changes locally:
+All three workflow files are deployed to `bashrusakh/rustdesk` on both
+`master` (for GitHub API discovery) and `rustqs/min-test` (for execution).
+When a workflow file changes locally:
+
+> **NOTE:** `rustqs-linux.yml` and `rustqs-android.yml` will not be found by
+> the workflow_dispatch API unless they exist on the default branch (`master`).
 
 ```bash
 cd /path/to/rustdesk-fork
+# 1) Push to master first (API discovery)
+git checkout master
+cp /path/to/DeskForge/github-build/rustqs-*.yml .github/workflows/
+cp /path/to/DeskForge/rdgen/.github/workflows/bridge.yml .github/workflows/
+git add .github/workflows/
+git commit -m "feat: update rustqs-* workflows"
+git push origin master
+
+# 2) Then push to rustqs/min-test (execution)
 git checkout rustqs/min-test
 cp /path/to/DeskForge/github-build/rustqs-*.yml .github/workflows/
+cp /path/to/DeskForge/rdgen/.github/workflows/bridge.yml .github/workflows/
 git add .github/workflows/
 git commit -m "feat: update rustqs-* workflows"
 git push origin rustqs/min-test
 ```
 
 If a workflow file is missing from the fork, dispatch immediately fails with HTTP 404.
+`bridge.yml` is required by all three `rustqs-*.yml` files — without it the workflow
+run fails with a parse error (422).
 
 > `master` in the fork is kept clean for upstream `rustdesk/rustdesk` tracking.
-> All DeskForge-specific workflows go to `rustqs/min-test` only.
+> DeskForge workflow files live on both `master` and `rustqs/min-test`.
 
 ---
 
