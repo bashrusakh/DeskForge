@@ -581,8 +581,8 @@
   "RustDeskClientNotFound": {
     "One": "未找到 RustDesk 客户端。请安装 RustDesk 以连接。"
   },
-  "SaveConfiguration": {
-    "One": "保存配置"
+  "StartBuild": {
+    "One": "开始构建"
   },
   "CopyThisUrlToProvider": {
     "One": "请复制此 URL 并粘贴到您的 OAuth 服务商设置中作为回调/重定向 URL。"

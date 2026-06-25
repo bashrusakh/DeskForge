@@ -955,8 +955,8 @@
   "RustDeskClientNotFound": {
     "One": "RustDesk client not found. Please install RustDesk to connect."
   },
-  "SaveConfiguration": {
-    "One": "Save Configuration"
+  "StartBuild": {
+    "One": "Start Build"
   },
   "CopyThisUrlToProvider": {
     "One": "Copy this URL and paste it as the callback/redirect URL in your OAuth provider settings."

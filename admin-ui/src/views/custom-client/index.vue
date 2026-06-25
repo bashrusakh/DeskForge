@@ -276,7 +276,7 @@
         </el-row>
 
         <el-form-item>
-          <el-button type="primary" @click="submitBuild" :loading="submitting">{{ T('SaveConfiguration') }}</el-button>
+          <el-button type="primary" @click="submitBuild" :loading="submitting">{{ T('StartBuild') }}</el-button>
           <el-button @click="resetForm">{{ T('Reset') }}</el-button>
         </el-form-item>
       </el-form>
