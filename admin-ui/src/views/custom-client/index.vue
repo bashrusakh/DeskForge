@@ -575,6 +575,7 @@ export default defineComponent({
     }
 
     const resetForm = () => {
+      selectedPresetId.value = null
       form.platform = 'windows'
       form.version = '1.4.8'
       form.app_name = ''
