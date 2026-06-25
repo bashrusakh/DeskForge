@@ -71,6 +71,12 @@ Linux/Android — in development.
 **Not implemented (vs RustDesk Pro):** 2FA, RBAC, session recording, device policy, remote script,
 HA, backup/restore.
 
+### Screenshots
+
+| Dashboard | Custom Client Builder |
+|---|---|
+| ![Dashboard](docs/screenshots/dashboard.png) | ![Custom Client Builder](docs/screenshots/client-builder.png) |
+
 ---
 
 ## Repository structure
