@@ -4,7 +4,10 @@ How to turn the frozen [offline-kit](README.md) into a **permanent self-containe
 that can still build the client even if upstream disappears, and how downstream forkers
 repeat the same setup with their own repository.
 
-> All `gh`/`git push` commands are executed by the **owner** (their GitHub account is
+> ✅ **Status: applied** — bashrusakh/rustdesk @ 1.4.8, branch `sovereign/1.4.8`,
+>   release `offline-assets-1.4.8`, `versions.env` points to bashrusakh fork.
+>
+> All `gh`/`git push` commands below are executed by the **owner** (their GitHub account is
 > outward-facing). This file documents the exact sequence; it is not automated.
 > Assumes `gh` (GitHub CLI) is installed and authenticated, and `offline-kit` has already
 > been frozen (`rustdesk-cache:/rustdesk-cache/offline-kit/artifacts/`).
@@ -18,8 +21,9 @@ Enough to survive upstream shutdown and build from your own fork.
 ### A1. Fork the client and submodule into your organization
 
 ```bash
-gh repo fork rustdesk/rustdesk    --org YOUR_ORG --fork-name rustdesk    --clone=false
-gh repo fork rustdesk/hbb_common  --org YOUR_ORG --fork-name hbb_common  --clone=false
+# Already done:
+gh repo fork rustdesk/rustdesk    --org bashrusakh --fork-name rustdesk    --clone=false
+gh repo fork rustdesk/hbb_common  --org bashrusakh --fork-name hbb_common  --clone=false
 ```
 
 ### A2. Import the frozen vendor tree into the rustdesk fork
@@ -30,9 +34,11 @@ Put it into the fork so the build never talks to `rustdesk-org` again.
 ```bash
 # extract tagged sources from the bundle + unpack vendor
 git clone artifacts/rustdesk-1.4.8.bundle rustdesk-fork
-cd rustdesk-fork && git remote set-url origin https://github.com/YOUR_ORG/rustdesk.git
-git checkout 1.4.8 && git submodule update --init --recursive
-tar -xf ../artifacts/vendor-1.4.8.tar.gz          # -> vendor/
+cd rustdesk-fork && git remote set-url origin https://github.com/bashrusakh/rustdesk.git
+git checkout -b sovereign/1.4.8 1.4.8
+git submodule set-url libs/hbb_common https://github.com/bashrusakh/hbb_common
+git submodule update --init --recursive
+tar -xf ../artifacts/vendor-1.4.8.tar.gz          # -> vendor/ (2.6 GB)
 # point cargo at vendored sources:
 mkdir -p .cargo
 cat > .cargo/config.toml <<'EOF'
@@ -41,9 +47,11 @@ replace-with = "vendored-sources"
 [source.vendored-sources]
 directory = "vendor"
 EOF
-git add vendor .cargo/config.toml
+# NOTE: vendor/ is NOT committed to git (2.6 GB). Upload to release instead.
+git add .cargo/config.toml .gitmodules
 git commit -m "Freeze vendored deps (sovereign offline build, tag 1.4.8)"
-git push origin 1.4.8    # or a branch, e.g. sovereign/1.4.8
+git push origin sovereign/1.4.8
+git push origin 1.4.8    # push the tag
 ```
 
 > ⚠️ `vendor/` is heavy. If you do not want to grow git history, upload
@@ -54,7 +62,8 @@ git push origin 1.4.8    # or a branch, e.g. sovereign/1.4.8
 In `offline-kit/versions.env` and in the build-win image environment (`docker-compose.win.yml`):
 
 ```
-RUSTDESK_REPO="https://github.com/YOUR_ORG/rustdesk.git"
+# Already applied:
+RUSTDESK_REPO="https://github.com/bashrusakh/rustdesk.git"
 RUSTDESK_REF="1.4.8"
 ```
 
@@ -80,13 +89,14 @@ Upload them into releases of your fork.
 ### B2. Commands
 
 ```bash
-gh release create offline-assets-1.4.8 --repo YOUR_ORG/rustdesk \
+# Already created:
+gh release create offline-assets-1.4.8 --repo bashrusakh/rustdesk \
     --title "Offline build assets (1.4.8)" --notes "Frozen $(date +%F)" \
+    artifacts/vendor-1.4.8.tar.gz \
     artifacts/windows-x64-release.zip \
     artifacts/usbmmidd_v2.zip \
     artifacts/rustdesk_printer_driver_v4-1.4.zip \
-    artifacts/printer_driver_adapter.zip \
-    artifacts/vendor-1.4.8.tar.gz
+    artifacts/printer_driver_adapter.zip
 ```
 
 The build agent should fetch them from this release (fixed tag), not from `rustdesk.com`.
@@ -96,7 +106,7 @@ The build agent should fetch them from this release (fixed tag), not from `rustd
 For extra safety, fork the source repos too, in case you need to re-vendor for a newer version:
 
 ```bash
-for r in RustDeskTempTopMostWindow; do gh repo fork rustdesk-org/$r --org YOUR_ORG --clone=false; done
+for r in RustDeskTempTopMostWindow; do gh repo fork rustdesk-org/$r --org bashrusakh --clone=false; done
 # plus ~20 rustdesk-org/* repos from Cargo.toml (see PLAN.md §2) if desired
 ```
 
@@ -125,8 +135,8 @@ The original `rustdesk/rustdesk` is no longer part of this chain. That is the en
 
 The fork is "permanent" if all of the following are true:
 
-- [ ] `YOUR_ORG/rustdesk` at 1.4.8 with `vendor/` (or vendor in a release) + `.cargo/config.toml`.
-- [ ] `YOUR_ORG/hbb_common` forked (submodule).
-- [ ] Binary artifacts are present in fork releases (engine, `usbmmidd`, printer).
-- [ ] `versions.env` points to your fork.
+- [x] `bashrusakh/rustdesk` at 1.4.8 with branch `sovereign/1.4.8` (vendor in release).
+- [x] `bashrusakh/hbb_common` forked (submodule).
+- [x] Binary artifacts are present in fork release `offline-assets-1.4.8` (engine, `usbmmidd`, printer, vendor tarball).
+- [x] `versions.env` points to your fork.
 - [ ] A test build with `--offline` succeeds without touching `github.com/rustdesk*`.
