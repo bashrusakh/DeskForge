@@ -29,7 +29,7 @@ docker compose logs | grep "Public Key"
 | 21114 | TCP      | API + Web Admin  |
 | 21115 | TCP      | NAT type test    |
 | 21116 | TCP/UDP  | ID Server (hbbs) |
-| 21117 | TCP      | Relay Server(hbbr)|
+| 21117 | TCP      | Relay Server (hbbr) |
 | 21118 | TCP      | WebSocket        |
 
 ---
@@ -42,6 +42,9 @@ docker compose logs | grep "Public Key"
 | `ENCRYPTED_ONLY`                     | Encrypted connections only        |
 | `MUST_LOGIN`                         | Require login before connect      |
 | `RUSTDESK_API_RUSTDESK_ID_SERVER`    | ID server (hbbs)                  |
+| `RUSTDESK_API_RUSTDESK_RELAY_SERVER` | Relay server (hbbr)               |
+| `RUSTDESK_API_RUSTDESK_API_SERVER`   | API server URL                    |
+| `RUSTDESK_API_KEY_FILE`              | Path to public key file           |
 | `RUSTDESK_API_JWT_KEY`              | JWT secret                        |
 | `RUSTDESK_API_GORM_TYPE`            | sqlite / mysql / postgres         |
 | `RUSTDESK_API_LANG`                 | en / ru / zh-CN                   |

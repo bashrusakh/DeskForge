@@ -20,12 +20,12 @@ From offline-kit:
 ```bash
 git clone artifacts/rustdesk-1.4.8.bundle rustdesk-fork
 cd rustdesk-fork && git remote set-url origin https://github.com/YOUR_ORG/rustdesk.git
-git checkout 1.4.8 && git submodule update --init --recursive
+git checkout -b release/1.4.8 1.4.8 && git submodule update --init --recursive
 tar -xf ../artifacts/vendor-1.4.8.tar.gz
 # .cargo/config.toml → source replacement to vendor/
 git add vendor .cargo/config.toml
 git commit -m "chore: freeze vendored deps 1.4.8"
-git push origin 1.4.8
+git push origin release/1.4.8
 ```
 
 `vendor/` is heavy — alternatively upload `vendor-{tag}.tar.gz` as a release asset.

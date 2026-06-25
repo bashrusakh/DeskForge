@@ -107,13 +107,13 @@ cd admin-ui && npm install && npm run dev && npm run build
 ### Rust ↔ Go API
 
 - Go reads public key from `RUSTDESK_API_KEY_FILE` (`/data/id_ed25519.pub`)
-- Go connects to hbbs/hbbr via `RUSTDESK_API_RUSTDESK_ID_SERVER`/`RELAY_SERVER`
+- Go connects to hbbs/hbbr via `RUSTDESK_API_RUSTDESK_ID_SERVER`/`RUSTDESK_API_RUSTDESK_RELAY_SERVER`
 - JWT: Go generates, Rust validates (`jwt.rs`)
 - WebSocket bridge: port 21118
 
 ### Admin UI ↔ Go API
 
-- REST: `/api/` (PC client) + `/admin/api/` (admin-only)
+- REST: `/api/` (PC client) + `/api/admin/` (admin-only)
 - Auth: JWT in cookie, optional OAuth
 - Swagger: `/admin/swagger/index.html`
 - WebSocket: real-time peer status

@@ -16,7 +16,7 @@ SQLite / MySQL / PostgreSQL — `RUSTDESK_API_GORM_TYPE`.
 | Path                           | Description                                  |
 | ------------------------------ | -------------------------------------------- |
 | `/admin/`                        | Admin UI (SPA)                               |
-| `/admin/api/*`                   | Admin REST API (admin-only)                  |
+| `/api/admin/*`                   | Admin REST API (admin-only)                  |
 | `/api/*`                         | PC client API (login, address book, peer)    |
 | `/admin/swagger/*`               | Swagger docs                                 |
 | `/webclient/`                    | Web client                                   |

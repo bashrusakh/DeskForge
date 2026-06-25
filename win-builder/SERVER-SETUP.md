@@ -22,7 +22,7 @@
 ## Known TODOs on first test
 
 - Build `RustDeskTempTopMostWindow` (msbuild from bundle)
-- Full branding `sed` (currently shortened, see `rdgen/generator-windows.yml`)
+- Full branding `sed` (currently shortened, see `rdgen/.github/workflows/generator-windows.yml`)
 - Verify Rust install paths (MSI vs rustup) on a real host
 - `vcpkg` overlay ports
 
