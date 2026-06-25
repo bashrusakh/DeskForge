@@ -3,7 +3,7 @@
 > Tracker for issues found in the build-custom-agent end-to-end flow.
 > Backend: `api/http/controller/admin/custom_build.go`, `api/service/custom_build.go`,
 > `api/service/github_build_config.go`. Frontend: `admin-ui/src/views/custom-client/index.vue`,
-> `admin-ui/src/views/server/github-build.vue`. Workflow: `github-build/windows-min-test.yml`.
+> `admin-ui/src/views/server/github-build.vue`. Workflow: `github-build/rustqs-windows-min-test.yml`.
 >
 > Status legend: `[ ]` open · `[x]` fixed · `[~]` partial · `[skip]` won't fix (owner decision).
 >
@@ -87,7 +87,7 @@ Left in place because it's a documented capability URL and may have third-party 
   = `rustqs-linux.yml`) via a gcfg copy; `pollAndDownload` selects the artifact by platform
   (`rustdesk-min-test-linux`, with the single-artifact fallback from AU-L-011) and extracts the
   Linux bundle (all files, FileSize = largest) instead of looking for an `.exe`.
-- **Draft workflow `github-build/linux.yml`** mirrors the fork contract (enc_payload + L1
+- **Draft workflow `github-build/rustqs-linux.yml`** mirrors the fork contract (enc_payload + L1
   config.rs + L2 allowCustom, both platform-independent; L3 brand adapted for Linux) and a
   Flutter-Linux x86_64 build ported from `rdgen/.github/workflows/generator-linux.yml`.
   **NOT yet validated by a real Actions run** — the build steps (vcpkg/flutter/build.py/
@@ -96,22 +96,28 @@ Left in place because it's a documented capability URL and may have third-party 
 **Android (branch `fix/build-android-routing`, stacked on the Linux branch):** backend extended
 the same way (`submitBuild`/`tryGithubDispatch` const `defaultAndroidWorkflowFilename`
 = `rustqs-android.yml`; `pollAndDownload` artifact `rustdesk-min-test-android`, shared
-linux/android extract-all path). **Draft `github-build/android.yml`** (single ABI arm64-v8a)
+linux/android extract-all path). **Draft `github-build/rustqs-android.yml`** (single ABI arm64-v8a)
 ported from `generator-android.yml` with the fork contract — also **NOT CI-validated**;
 note the Android `custom_.txt` embedding is best-effort and needs verification.
 
-Still open: validate `linux.yml` and `android.yml` on Actions; re-expose Linux/Android in the
-UI (B-013) behind a feature flag once runs are green; optionally move the workflow names into
-`GithubBuildConfig` (consts for now).
+Still open:
+- **Push workflow files to fork** — `github-build/rustqs-linux.yml` and `github-build/rustqs-android.yml`
+  need to be copied to `.github/workflows/` on the `rustqs/min-test` branch in the
+  `bashrusakh/rustdesk` fork (same filenames — no rename needed, see `github-build/README.md`).
+  Without this, `DispatchBuild` gets HTTP 404 and the build immediately fails.
+- validate `rustqs-linux.yml` and `rustqs-android.yml` on Actions; re-expose Linux/Android in the
+  UI (B-013) behind a feature flag once runs are green; optionally move the workflow names into
+  `GithubBuildConfig` (consts for now).
 
-**Where (new):** `github-build/linux.yml`, `github-build/android.yml`. Reference templates:
+**Where (new):** `github-build/rustqs-linux.yml`, `github-build/rustqs-android.yml`. Reference templates:
 `rdgen/.github/workflows/generator-linux.yml`, `rdgen/.github/workflows/generator-android.yml`.
 **Symptom:** today there's no GitHub path for Linux/Android, so submit goes to the deprecated
 file queue (B-001). Owner direction (2026-06-20): mirror the windows-min-test approach for
 these platforms; keep `entrypoint-linux.sh` as a manual fallback only.
-**Fix:** port the rdgen workflows into the fork with the same `enc_payload` contract;
-extend `submitBuild` to dispatch them based on `b.Platform`; extend `pollAndDownload` to
-recognize the artifact filenames (`rustqs`, `rustqs.apk`).
+**Fix:** push `github-build/rustqs-linux.yml` and `github-build/rustqs-android.yml`
+to the fork's `.github/workflows/` (same filenames — no rename) on the `rustqs/min-test` branch;
+then validate on Actions. Backend code (`submitBuild` + `tryGithubDispatch` + `pollAndDownload`)
+is already merged — only the fork push is missing.
 
 ## ADMIN UI / API — open findings (consolidated from the removed `audit-report.md`)
 

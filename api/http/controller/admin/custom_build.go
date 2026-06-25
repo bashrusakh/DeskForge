@@ -32,12 +32,14 @@ type CustomBuild struct{}
 const defaultWindowsArtifactName = "rustdesk-min-test-windows"
 
 // defaultLinuxWorkflowFilename — имя GitHub-workflow для Linux-сборки (B-012).
-// Linux пока за флагом/не выставлен в UI (B-013), поэтому имя задано константой;
-// при продуктизации Linux его стоит вынести в GithubBuildConfig рядом с windows.
+// Workflow файл нужно запушить в форк как .github/workflows/rustqs-linux.yml
+// (см. github-build/README.md). Имя задано константой; при продуктизации стоит
+// вынести в GithubBuildConfig рядом с windows.
 const defaultLinuxWorkflowFilename = "rustqs-linux.yml"
 
-// defaultAndroidWorkflowFilename — имя GitHub-workflow для Android-сборки (B-012),
-// аналогично Linux: пока константа, Android скрыт в UI до валидации CI.
+// defaultAndroidWorkflowFilename — имя GitHub-workflow для Android-сборки (B-012).
+// Локальная копия: github-build/rustqs-android.yml — то же имя, что в форке.
+// Пока константа, вынести в GithubBuildConfig когда workflows будут green.
 const defaultAndroidWorkflowFilename = "rustqs-android.yml"
 
 func (ct *CustomBuild) List(c *gin.Context) {
@@ -223,10 +225,10 @@ func (ct *CustomBuild) DownloadByKey(c *gin.Context) {
 }
 
 // submitBuild — направляет job в соответствующий backend:
-//   - windows + настроенный GithubBuildConfig → workflow_dispatch + async polling (PLAN §8.8.5)
-//   - иначе → файл-очередь rdgen-data/jobs (для linux/android агентов)
+//   - windows/linux/android + настроенный GithubBuildConfig → workflow_dispatch + async polling
+//   - иначе → файл-очередь rdgen-data/jobs (для агентов без GitHub)
 func (ct *CustomBuild) submitBuild(b *model.CustomBuild) {
-	// windows и linux (B-012) маршрутизируются в GitHub Actions; остальное — файл-очередь.
+	// windows/linux/android (B-012) маршрутизируются в GitHub Actions; остальное — файл-очередь.
 	if b.Platform == "windows" || b.Platform == "linux" || b.Platform == "android" {
 		if ct.tryGithubDispatch(b) {
 			return

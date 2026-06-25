@@ -1,7 +1,14 @@
-# github-build — active `rustqs.exe` build path via GitHub Actions
+# github-build — active build path via GitHub Actions
 
-Primary way to build the Windows client — GitHub Actions in the `bashrusakh/rustdesk` fork.
-`win-builder/` is the frozen fallback.
+All platforms (Windows, Linux, Android) are built through GitHub Actions in the
+`bashrusakh/rustdesk` fork. Each local workflow file in this directory has the same
+filename as its target in the fork's `.github/workflows/` on the `rustqs/min-test` branch.
+
+| Platform | File                                    | Target in fork                                    | Status          |
+| -------- | --------------------------------------- | ------------------------------------------------- | --------------- |
+| Windows  | `github-build/rustqs-windows-min-test.yml` | `.github/workflows/rustqs-windows-min-test.yml`   | ✅ active       |
+| Linux    | `github-build/rustqs-linux.yml`            | `.github/workflows/rustqs-linux.yml`              | 🟡 draft (B-012) |
+| Android  | `github-build/rustqs-android.yml`          | `.github/workflows/rustqs-android.yml`            | 🟡 draft (B-012) |
 
 ---
 
@@ -9,9 +16,9 @@ Primary way to build the Windows client — GitHub Actions in the `bashrusakh/ru
 
 ```
 admin-ui → Go API → workflow_dispatch (encrypted payload) →
-  GitHub Actions [rustdesk fork, windows-2022] →
+  GitHub Actions [rustdesk fork] →
     L1 config.rs (server+key) → L2 custom_.txt (permanent password) → L3 branding →
-    rustqs.exe → POST /api/save_custom_client → your server → admin-ui Download
+    artifact → POST /api/save_custom_client → your server → admin-ui Download
 ```
 
 Binary is NOT published to public releases — only to your server.
@@ -23,13 +30,38 @@ Credentials — encrypted payload, decrypted inside the runner via GitHub Secret
 
 | Layer | Path (in rustdesk fork)                                        | Role                                          |
 | ----- | --------------------------------------------------------------- | --------------------------------------------- |
-| 1     | `rustqs/min-test/.github/workflows/rustqs-windows-min-test.yml` | ✅ active smoke-test                          |
+| 1a    | `rustqs/min-test/.github/workflows/rustqs-windows-min-test.yml` | ✅ Windows x64 (active)                       |
+| 1b    | `rustqs/min-test/.github/workflows/rustqs-linux.yml`            | 🟡 Linux x64 (draft, B-012)                   |
+| 1c    | `rustqs/min-test/.github/workflows/rustqs-android.yml`          | 🟡 Android arm64 (draft, B-012)                |
 | 2     | `rustqs/min-test/.github/workflows/bridge.yml`                  | reusable workflow (from upstream 1.4.7)       |
 | 3     | `rustqs/min-test/.github/workflows/third-party-RustDeskTempTopMostWindow.yml` | TopMost build   |
-| 4     | `DeskForge/github-build/windows-min-test.yml`                   | local copy for code review                    |
+| 4     | `DeskForge/github-build/`                                       | local copies for code review                  |
 | 5     | `DeskForge/rdgen/.github/workflows/*.yml`                       | vendored upstream rdgen reference             |
 
 **Rule:** change build logic → edit in fork (layer 1), then update local copy (layer 4).
+
+---
+
+## Initial deployment — pushing workflow files to the fork
+
+Before Linux or Android builds can be dispatched, their workflow files must exist in the
+`bashrusakh/rustdesk` fork on the `rustqs/min-test` branch at `.github/workflows/`.
+Filenames are identical — no rename needed.
+
+```bash
+cd /path/to/rustdesk-fork
+git checkout rustqs/min-test
+
+cp /path/to/DeskForge/github-build/rustqs-linux.yml   .github/workflows/
+cp /path/to/DeskForge/github-build/rustqs-android.yml .github/workflows/
+
+git add .github/workflows/rustqs-linux.yml .github/workflows/rustqs-android.yml
+git commit -m "feat: add Linux + Android build workflows (B-012)"
+git push origin rustqs/min-test
+```
+
+After push, the Go API can dispatch to these workflows. If the files are missing,
+the build immediately fails with HTTP 404.
 
 ---
 
@@ -48,7 +80,7 @@ Credentials — encrypted payload, decrypted inside the runner via GitHub Secret
 1. **Fork sync** → `git fetch upstream --tags && git push origin v1.5.0`
 2. **Repoint submodule** → `.gitmodules` → `bashrusakh/hbb_common`
 3. **Vendor** → `cargo vendor && git add vendor`
-4. **Update workflow:** diff upstream `build-for-windows-flutter` with `rustqs-windows-min-test.yml`
+4. **Update workflows:** diff upstream with `rustqs-*.yml`
 5. **Test** → `gh workflow run rustqs-windows-min-test.yml --ref v1.5.0`
 
 Detailed: [PLAN.md §7](../PLAN.md#7-workflow-new-upstream-rustdesk-client-release).
