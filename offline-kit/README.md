@@ -1,52 +1,53 @@
-# offline-kit — инструмент суверенной заморозки
+# offline-kit — sovereign freeze tool
 
-**Зачем:** если `rustdesk/rustdesk` закроется, `rustdesk-org/*` удалится, или `crates.io`/Google
-станут недоступны — собрать кастомный клиент станет невозможно. Этот набор замораживает всё
-необходимое **пока upstream ещё жив**.
+**Why:** if `rustdesk/rustdesk` gets deleted, `rustdesk-org/*` disappears, or
+`crates.io`/Google becomes unreachable, building a custom client becomes impossible.
+This kit freezes everything needed **while upstream is still alive**.
 
-## Что внутри
+## Contents
 
-| Файл                          | Для чего                                                     |
-| ----------------------------- | ------------------------------------------------------------ |
-| `freeze.sh`                     | Скачивает исходники, тулчейн, зависимости                    |
-| `versions.env`                  | Версии всех компонентов (Rust, Flutter, vcpkg, ...)          |
-| `FORK-PROCEDURE.md`             | Инструкция: как сделать форк суверенным                      |
-| `artifacts/`                    | Результат freeze.sh (5 GB, **не в git**)                        |
+| File                            | Purpose                                               |
+| ------------------------------- | ----------------------------------------------------- |
+| `freeze.sh`                       | Downloads sources, toolchain, dependencies            |
+| `versions.env`                    | Versions of all components (Rust, Flutter, vcpkg...)  |
+| `FORK-PROCEDURE.md`               | How to make a fork sovereign                          |
+| `artifacts/`                      | Output of freeze.sh (5 GB, **not in git**)            |
 
-## Как работает схема
+## How it works
 
 ```
-freeze.sh → offline-kit/artifacts/*  (локально, всё 5 GB)
-                ↓ upload (только бинарники: engine, драйверы)
-         offline-assets-{tag}        (GitHub Release в форке rustdesk, ~100 MB)
+freeze.sh → offline-kit/artifacts/*  (locally, all 5 GB)
+                ↓ upload (binaries only: engine, drivers)
+         offline-assets-{tag}        (GitHub Release in rustdesk fork, ~100 MB)
                 ↓ download
          GitHub Actions runner → build rustqs.exe
 ```
 
-- **`offline-kit/`** (эта директория) — **инструмент**: скрипты и конфиги для заморозки. Лёгкий, в git.
-- **`offline-assets-{tag}`** — **GitHub Release** в форке `bashrusakh/rustdesk`. Туда залиты тяжёлые
-  бинарники (Flutter engine, usbmmidd, драйверы), чтобы CI их скачивал не с `rustdesk.com`, а из нашего релиза.
-- Остальное (vendor 2.7 GB, Flutter SDK, Rust MSI, vcpkg) лежит только локально — для standalone fallback.
+- **`offline-kit/`** (this directory) — **tool**: scripts and configs for freezing. Lightweight, in git.
+- **`offline-assets-{tag}`** — **GitHub Release** in the `bashrusakh/rustdesk` fork.
+  Heavy binaries (Flutter engine, usbmmidd, drivers) are uploaded there so CI downloads
+  from our release, not from `rustdesk.com`.
+- The rest (vendor 2.7 GB, Flutter SDK, Rust MSI, vcpkg) stays local — for standalone fallback.
 
-## Заморозка новой версии
+## Freezing a new version
 
 ```bash
 cd offline-kit
-# Правим versions.env: RUSTDESK_REF, версии тулчейна под новый тег
+# Edit versions.env: RUSTDESK_REF, update toolchain versions for the new tag
 bash freeze.sh source        # git clone + bundle
 bash freeze.sh vendor        # cargo vendor
 bash freeze.sh engine        # Flutter engine
-# Остальные этапы по необходимости
+# Other stages as needed
 ```
 
-Для downstream форка:
+For downstream forks:
 ```bash
 RUSTDESK_REPO=https://github.com/YOUR_ORG/rustdesk.git RUSTDESK_REF=1.5.0 bash freeze.sh
 ```
 
 ## Storage
 
-`artifacts/` в `.gitignore` — тяжёлые файлы не коммитятся.
-- `vendor/` — commit прямо в форк rustdesk или release asset.
-- Бинарники (engine, usbmmidd, driver) — upload в GitHub Release форка (`offline-assets-{tag}`).
-- `bundles` — backup вне GitHub.
+`artifacts/` is in `.gitignore` — heavy files are not committed.
+- `vendor/` — commit directly to the rustdesk fork or release asset.
+- Binaries (engine, usbmmidd, driver) — upload to fork GitHub Release (`offline-assets-{tag}`).
+- `bundles` — backup outside GitHub.

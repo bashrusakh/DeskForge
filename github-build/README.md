@@ -1,66 +1,66 @@
 # github-build — active `rustqs.exe` build path via GitHub Actions
 
-Основной способ сборки Windows клиента — GitHub Actions в форке `bashrusakh/rustdesk`.
-`win-builder/` — frozen fallback.
+Primary way to build the Windows client — GitHub Actions in the `bashrusakh/rustdesk` fork.
+`win-builder/` is the frozen fallback.
 
 ---
 
-## Архитектура
+## Architecture
 
 ```
 admin-ui → Go API → workflow_dispatch (encrypted payload) →
   GitHub Actions [rustdesk fork, windows-2022] →
     L1 config.rs (server+key) → L2 custom_.txt (permanent password) → L3 branding →
-    rustqs.exe → POST /api/save_custom_client → твой сервер → admin-ui Download
+    rustqs.exe → POST /api/save_custom_client → your server → admin-ui Download
 ```
 
-Бинарник НЕ публикуется в public release — только на твой сервер.
-Пароль/секреты — encrypted payload, дешифруются внутри runner через GitHub Secret.
+Binary is NOT published to public releases — only to your server.
+Credentials — encrypted payload, decrypted inside the runner via GitHub Secret.
 
 ---
 
-## Где что лежит (workflow layers)
+## Workflow layers
 
-| Layer | Path (в форке rustdesk)                                   | Роль                                          |
-| ----- | --------------------------------------------------------- | --------------------------------------------- |
-| 1     | `rustqs/min-test/.github/workflows/rustqs-windows-min-test.yml` | ✅ активный, smoke-test                       |
-| 2     | `rustqs/min-test/.github/workflows/bridge.yml`            | reusable workflow (из upstream 1.4.7)         |
-| 3     | `rustqs/min-test/.github/workflows/third-party-RustDeskTempTopMostWindow.yml` | сборка TopMost |
-| 4     | `DeskForge/github-build/windows-min-test.yml`             | локальная копия для code review               |
-| 5     | `DeskForge/rdgen/.github/workflows/*.yml`                 | vendored upstream rdgen reference             |
+| Layer | Path (in rustdesk fork)                                        | Role                                          |
+| ----- | --------------------------------------------------------------- | --------------------------------------------- |
+| 1     | `rustqs/min-test/.github/workflows/rustqs-windows-min-test.yml` | ✅ active smoke-test                          |
+| 2     | `rustqs/min-test/.github/workflows/bridge.yml`                  | reusable workflow (from upstream 1.4.7)       |
+| 3     | `rustqs/min-test/.github/workflows/third-party-RustDeskTempTopMostWindow.yml` | TopMost build   |
+| 4     | `DeskForge/github-build/windows-min-test.yml`                   | local copy for code review                    |
+| 5     | `DeskForge/rdgen/.github/workflows/*.yml`                       | vendored upstream rdgen reference             |
 
-**Правило:** меняешь логику сборки → правишь в форке (layer 1), потом обновляешь локальную копию (layer 4).
-
----
-
-## Security (REQUIRED для public fork)
-
-- `enc_payload` — AES-256-CBC + PBKDF2, ключ `WORKFLOW_PAYLOAD_KEY` в GitHub Secrets форка.
-- `GENURL` — твой сервер (куда слать бинарник).
-- `ZIP_PASSWORD` — пароль для шифрования конфига внутри workflow.
-- `RS_PUB_KEY` — это публичный ключ, не секрет.
-- `SetWorkflowSecret` — кнопка в админке (`Push to GitHub Secrets`) через `nacl/box.SealAnonymous`.
+**Rule:** change build logic → edit in fork (layer 1), then update local copy (layer 4).
 
 ---
 
-## Если новая версия upstream
+## Security (REQUIRED for a public fork)
+
+- `enc_payload` — AES-256-CBC + PBKDF2, key `WORKFLOW_PAYLOAD_KEY` in GitHub Secrets.
+- `GENURL` — your server URL (where to send the binary).
+- `ZIP_PASSWORD` — password to encrypt config inside the workflow.
+- `RS_PUB_KEY` is a public key, not a secret.
+- `SetWorkflowSecret` — button in admin UI (`Push to GitHub Secrets`) via `nacl/box.SealAnonymous`.
+
+---
+
+## When a new upstream version ships
 
 1. **Fork sync** → `git fetch upstream --tags && git push origin v1.5.0`
 2. **Repoint submodule** → `.gitmodules` → `bashrusakh/hbb_common`
 3. **Vendor** → `cargo vendor && git add vendor`
-4. **Update workflow:** сверить upstream `build-for-windows-flutter` с `rustqs-windows-min-test.yml`
-5. **Тест** → `gh workflow run rustqs-windows-min-test.yml --ref v1.5.0`
+4. **Update workflow:** diff upstream `build-for-windows-flutter` with `rustqs-windows-min-test.yml`
+5. **Test** → `gh workflow run rustqs-windows-min-test.yml --ref v1.5.0`
 
-Подробно: [PLAN.md §7](../PLAN.md#7-workflow-вышла-новая-версия-upstream-rustdesk-client).
+Detailed: [PLAN.md §7](../PLAN.md#7-workflow-new-upstream-rustdesk-client-release).
 
 ---
 
-## Синхронизация workflow (важно!)
+## Sync rules
 
-1. **Логику сборки меняем в форке** (layer 1), потом копируем в `github-build/` (layer 4).
-2. `rdgen/.github/workflows/*` (layer 5) — vendored reference, **не редактировать руками**.
-3. Bumping action versions (`@v4 → @v7`) — независимо в каждом слое. В форке — SHA-pinned.
-4. Когда min-test стабилен → перейти на полный `generator-windows.yml` (msi, signing).
+1. **Build logic changes go to the fork first** (layer 1), then copy to `github-build/` (layer 4).
+2. `rdgen/.github/workflows/*` (layer 5) — vendored reference, **do not edit by hand**.
+3. Action version bumps (`@v4 → @v7`) — independently per layer. In fork — SHA-pinned.
+4. When min-test is stable → switch to full `generator-windows.yml` (msi, signing).
 
 ### Fork bump log
 

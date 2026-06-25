@@ -1,36 +1,36 @@
-# FORK-PROCEDURE — как сделать форк суверенным
+# FORK-PROCEDURE — how to make a fork sovereign
 
-> **FROZEN** — процедура выполнена для 1.4.7/1.4.8. Ниже — reference для новой версии или
-> для downstream форкера. Команды выполняет owner.
+> **FROZEN** — procedure was completed for 1.4.7/1.4.8. Below is reference for a new version
+> or for downstream forkers. Commands are executed by the repo owner.
 
 ---
 
-## Level A — fork + vendor (минимум для выживания upstream)
+## Level A — fork + vendor (minimum to survive upstream deletion)
 
-### A1. Форкнуть rustdesk + hbb_common
+### A1. Fork rustdesk + hbb_common
 
 ```bash
 gh repo fork rustdesk/rustdesk   --org YOUR_ORG --fork-name rustdesk   --clone=false
 gh repo fork rustdesk/hbb_common --org YOUR_ORG --fork-name hbb_common --clone=false
 ```
 
-### A2. Vendor в форк
+### A2. Vendor into the fork
 
-Из offline-kit:
+From offline-kit:
 ```bash
 git clone artifacts/rustdesk-1.4.8.bundle rustdesk-fork
 cd rustdesk-fork && git remote set-url origin https://github.com/YOUR_ORG/rustdesk.git
 git checkout 1.4.8 && git submodule update --init --recursive
 tar -xf ../artifacts/vendor-1.4.8.tar.gz
-# .cargo/config.toml → source replacement на vendor/
+# .cargo/config.toml → source replacement to vendor/
 git add vendor .cargo/config.toml
 git commit -m "chore: freeze vendored deps 1.4.8"
 git push origin 1.4.8
 ```
 
-`vendor/` тяжёлый — можно вместо коммита залить `vendor-{tag}.tar.gz` как release asset.
+`vendor/` is heavy — alternatively upload `vendor-{tag}.tar.gz` as a release asset.
 
-### A3. Указать форк в versions.env
+### A3. Point versions.env to your fork
 
 ```env
 RUSTDESK_REPO="https://github.com/YOUR_ORG/rustdesk.git"
@@ -39,21 +39,21 @@ RUSTDESK_REF="1.4.8"
 
 ---
 
-## Level B — полная суверенность (бинарники в release)
+## Level B — full sovereignty (binaries in releases)
 
-### B1. Что залить в release
+### B1. What to upload
 
-Из `offline-kit/artifacts/`:
+From `offline-kit/artifacts/`:
 
-| Артефакт                        | Зачем                          |
-| ------------------------------- | ------------------------------ |
-| `windows-x64-release.zip`         | Flutter engine (кастомный)     |
-| `usbmmidd_v2.zip`                 | Виртуальный дисплей            |
-| `rustdesk_printer_driver_v4-*.zip`| Принтер                        |
-| `printer_driver_adapter.zip`      | Адаптер принтера               |
-| `vendor-*.tar.gz`                 | (опционально, если не в git)   |
+| Artifact                         | Why                                |
+| -------------------------------- | ---------------------------------- |
+| `windows-x64-release.zip`        | Custom Flutter engine              |
+| `usbmmidd_v2.zip`                | Virtual display driver             |
+| `rustdesk_printer_driver_v4-*.zip`| Printer driver                    |
+| `printer_driver_adapter.zip`     | Printer adapter                    |
+| `vendor-*.tar.gz`                | (optional, if not in git)          |
 
-### B2. Команда
+### B2. Commands
 
 ```bash
 gh release create offline-assets-1.4.8 --repo YOUR_ORG/rustdesk \
@@ -62,7 +62,7 @@ gh release create offline-assets-1.4.8 --repo YOUR_ORG/rustdesk \
     artifacts/rustdesk_printer_driver_v4-1.4.zip artifacts/printer_driver_adapter.zip
 ```
 
-### B3. Архивация зависимостей (опционально, L1 backup)
+### B3. Archive dependency forks (optional, L1 backup)
 
 ```bash
 for r in RustDeskTempTopMostWindow; do
@@ -72,20 +72,20 @@ done
 
 ---
 
-## Level C — downstream форкер
+## Level C — downstream forker
 
-Кто-то форкнул **твой** DeskForge → меняет одну строку:
+Someone forks **your** DeskForge → changes one line:
 ```env
 RUSTDESK_REPO="https://github.com/THEIR_ORG/rustdesk.git"
 ```
-→ их GUI собирает клиент из их форка. Upstream не участвует.
+→ their GUI builds from their fork. Upstream is not involved.
 
 ---
 
-## Проверка суверенности
+## Sovereignty verification
 
-- [ ] `YOUR_ORG/rustdesk` с vendor + `.cargo/config.toml`
-- [ ] `YOUR_ORG/hbb_common` (сабмодуль)
-- [ ] Release `offline-assets-{tag}` с бинарниками
-- [ ] `versions.env` → твой форк
-- [ ] `cargo build --offline` проходит без `github.com/rustdesk*`
+- [ ] `YOUR_ORG/rustdesk` with vendor + `.cargo/config.toml`
+- [ ] `YOUR_ORG/hbb_common` (submodule)
+- [ ] Release `offline-assets-{tag}` with binaries
+- [ ] `versions.env` → your fork
+- [ ] `cargo build --offline` passes without `github.com/rustdesk*`

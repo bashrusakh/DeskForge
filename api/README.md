@@ -1,43 +1,43 @@
 # DeskForge API
 
-Go REST API сервер — часть [DeskForge](../README.md).
-Встраивает admin-ui dist (Vue 3) и web client. Gin + GORM, порт 21114.
+Go REST API server — part of [DeskForge](../README.md).
+Embeds admin-ui dist (Vue 3) and web client. Gin + GORM, port 21114.
 
-## Стек
+## Stack
 
 Go 1.23 · Gin 1.9 · GORM 1.25 · JWT · LDAP · OIDC · Swag
 
-## Базы данных
+## Databases
 
 SQLite / MySQL / PostgreSQL — `RUSTDESK_API_GORM_TYPE`.
 
-## Ключевые эндпоинты
+## Key endpoints
 
-| Path                           | Назначение                                    |
-| ------------------------------ | --------------------------------------------- |
-| `/admin/`                        | Admin UI (SPA)                                |
-| `/admin/api/*`                   | REST API для админки (admin-only)             |
-| `/api/*`                         | PC client API (login, address book, peer)     |
-| `/admin/swagger/*`               | Swagger документация                          |
-| `/webclient/`                    | Web client                                    |
+| Path                           | Description                                  |
+| ------------------------------ | -------------------------------------------- |
+| `/admin/`                        | Admin UI (SPA)                               |
+| `/admin/api/*`                   | Admin REST API (admin-only)                  |
+| `/api/*`                         | PC client API (login, address book, peer)    |
+| `/admin/swagger/*`               | Swagger docs                                 |
+| `/webclient/`                    | Web client                                   |
 
 ## CLI
 
 ```bash
-./apimain reset-admin-pwd <password>   # сброс пароля админа
-./apimain -h
+./apimain reset-admin-pwd <password>   # reset admin password
+./apimain -h                            # help
 ```
 
-## Архитектура
+## Architecture
 
-- **Controller** (`http/controller/`) — парсинг запроса → вызов service → ответ
-- **Service** (`service/`) — бизнес-логика, валидация
-- **Model** (`model/`) — GORM схемы
+- **Controller** (`http/controller/`) — parse request → call service → return response
+- **Service** (`service/`) — business logic, validation
+- **Model** (`model/`) — GORM schema
 - **Lib** (`lib/`) — cache, JWT, ORM, logger, lock, upload
 
-Подробнее: [AGENTS.md](../AGENTS.md).
+Details: [AGENTS.md](../AGENTS.md).
 
-## Быстрый старт
+## Quick start
 
 ```bash
 cd api

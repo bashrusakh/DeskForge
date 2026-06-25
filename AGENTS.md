@@ -2,25 +2,25 @@
 
 ## Core purpose
 
-DeskForge — unified self-hosted RustDesk сервер: Rust hbbs/hbbr, Go REST API, Vue 3 админка, rdgen reference.
-Всё в одном Docker образе через s6-overlay.
+DeskForge — unified self-hosted RustDesk server: Rust hbbs/hbbr, Go REST API, Vue 3 admin panel, rdgen reference.
+Everything in one Docker image via s6-overlay.
 
 ## Runtime architecture
 
 - **Rust servers** (`server/`): hbbs (ID/signaling, TCP/UDP 21116) + hbbr (relay, TCP 21117)
-- **Go API** (`api/`): Gin на порту 21114. GORM (SQLite/MySQL/PostgreSQL). JWT, LDAP, OIDC.
+- **Go API** (`api/`): Gin on port 21114. GORM (SQLite/MySQL/PostgreSQL). JWT, LDAP, OIDC.
 - **Admin UI** (`admin-ui/`): Vue 3 + Element Plus. Served at `/admin/`. REST + WebSocket.
-- **rdgen** (`rdgen/`): vendored reference workflow (не сервис).
-- **Shared lib** (`libs/hbb_common`): Rust crate между hbbs и hbbr.
+- **rdgen** (`rdgen/`): vendored reference workflow (not a service).
+- **Shared lib** (`libs/hbb_common`): Rust crate shared between hbbs and hbbr.
 
 ## Tech stack
 
-| Компонент     | Стек                                                              |
+| Component     | Stack                                                             |
 | ------------- | ----------------------------------------------------------------- |
 | Rust (server) | 2021 edition, axum 0.5, sqlx 0.6, tokio, sodiumoxide, openssl    |
 | Go (api)      | 1.23, gin 1.9, gorm 1.25, swag, cobra/viper, jwt, ldap, OIDC     |
 | Admin UI      | Vue 3.5, Element Plus 2.8, Vite 6, Pinia 2.2, vue-router 4, axios|
-| Python (rdgen)| Django (vendored reference, не сервис)                           |
+| Python (rdgen)| Django (vendored reference, not a service)                      |
 | Infra         | Docker + s6-overlay, docker compose                               |
 
 ## Monorepo layout
@@ -41,15 +41,15 @@ api/             — Go REST API
 ├── global/      — global state
 └── conf/config.yaml
 
-admin-ui/        — Vue 3 админка
-├── src/views/   — 16 страниц (login, index, user, peer, address_book, group, tag, oauth, audit, server, custom-client, my, ...)
+admin-ui/        — Vue 3 admin panel
+├── src/views/   — 16 pages (login, index, user, peer, address_book, group, tag, oauth, audit, server, custom-client, my, ...)
 ├── src/components/ui/ — DataTable, AppDialog, AppDrawer, FilterBar, PageHeader, PageSection, DangerZone, ConnectionPulse, ...
 ├── src/store/   — Pinia (user, app, tags, router)
 ├── src/api/     — axios wrappers
 ├── src/styles/  — SCSS (design tokens, light/dark)
 └── src/utils/   — auth, request, export, i18n (en/ru/zh_CN)
 
-rdgen/           — vendored reference workflow (патчи, generator-*.yml)
+rdgen/           — vendored reference workflow (patches, generator-*.yml)
 libs/hbb_common/ — shared Rust library (submodule)
 docker/          — Dockerfile + compose + entrypoint scripts
 github-build/    — active CI workflow for client builds
@@ -63,8 +63,8 @@ offline-kit/     — ❄️ frozen sovereign build kit
 
 ```bash
 cd docker
-docker compose build          # полная сборка
-docker compose up -d          # запуск
+docker compose build          # full build
+docker compose up -d          # start
 docker compose -f docker-compose-dev.yaml up -d   # dev
 ```
 
@@ -106,49 +106,49 @@ cd admin-ui && npm install && npm run dev && npm run build
 
 ### Rust ↔ Go API
 
-- Go читает public key из `RUSTDESK_API_KEY_FILE` (`/data/id_ed25519.pub`)
-- Go подключается к hbbs/hbbr по `RUSTDESK_API_RUSTDESK_ID_SERVER`/`RELAY_SERVER`
-- JWT: Go генерирует, Rust валидирует (`jwt.rs`)
-- WebSocket bridge: порт 21118
+- Go reads public key from `RUSTDESK_API_KEY_FILE` (`/data/id_ed25519.pub`)
+- Go connects to hbbs/hbbr via `RUSTDESK_API_RUSTDESK_ID_SERVER`/`RELAY_SERVER`
+- JWT: Go generates, Rust validates (`jwt.rs`)
+- WebSocket bridge: port 21118
 
 ### Admin UI ↔ Go API
 
 - REST: `/api/` (PC client) + `/admin/api/` (admin-only)
-- Auth: JWT в cookie, опционально OAuth
+- Auth: JWT in cookie, optional OAuth
 - Swagger: `/admin/swagger/index.html`
 - WebSocket: real-time peer status
 
 ## Agent constraints
 
-- Не модифицировать upstream напрямую (`rustdesk/rustdesk-server`, `lejianwen/rustdesk-api`) — только форки.
-- Docker entrypoint синхронизировать с сервисами.
-- Не логировать/коммитить secrets.
-- Документировать env vars в README + docker-compose.
+- Do not modify upstream directly (`rustdesk/rustdesk-server`, `lejianwen/rustdesk-api`) — only forks.
+- Keep Docker entrypoint scripts in sync with the services they supervise.
+- Never log or commit secrets.
+- Document env vars in README + docker-compose.
 
 ## Development rules
 
-- **Go:** избегать `interface{}`, typed errors, `go vet + errcheck`.
-- **Rust:** `clippy`-clean, без `unwrap()` в production, `?` для ошибок.
+- **Go:** avoid `interface{}`, use typed errors, `go vet + errcheck`.
+- **Rust:** `clippy`-clean, no `unwrap()` in production, `?` for errors.
 - **Vue:** Composition API (`<script setup>`), Pinia, Element Plus.
 - **Python (rdgen):** Django conventions, minimal.
 
 ## Architecture patterns
 
-- **Clean layered (Go):** Controller → Service → Model. Не смешивать.
-- **Embedded UI:** Go встраивает `admin-ui/dist/` и `web/`.
-- **Multi-DB:** GORM, без raw SQL.
-- **OAuth/LDAP:** через админку → DB. Fallback на локальных юзеров.
-- **Server commands:** allowlist в `serverCmd.go`.
+- **Clean layered (Go):** Controller → Service → Model. Do not mix layers.
+- **Embedded UI:** Go embeds `admin-ui/dist/` and `web/`.
+- **Multi-DB:** GORM, no raw SQL.
+- **OAuth/LDAP:** configured via admin panel → DB. Falls back to local users.
+- **Server commands:** allowlist in `serverCmd.go`.
 
 ## Regression-prevention
 
-- Меняешь Go routes → проверь admin-ui и PC client API.
-- Меняешь GORM models → проверь миграцию на всех 3 DB.
-- Меняешь JWT → проверь что Rust валидирует.
-- Меняешь admin-ui → `npm run build` проходит.
-- Меняешь Docker → s6-overlay стартует все сервисы.
-- Добавляешь env var → README + docker-compose.
+- Changing Go routes? Check admin-ui and PC client API.
+- Changing GORM models? Check migration on all 3 DB types.
+- Changing JWT? Verify Rust still validates tokens.
+- Changing admin-ui? `npm run build` must pass.
+- Changing Docker? s6-overlay must start all services.
+- Adding env var? Update README + docker-compose.
 
 ## New upstream version workflow
 
-См. [PLAN.md §7](PLAN.md#7-workflow-вышла-новая-версия-upstream-rustdesk-client).
+See [PLAN.md §7](PLAN.md#7-workflow-new-upstream-rustdesk-client-release).

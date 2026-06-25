@@ -1,15 +1,15 @@
-# rdgen — vendored reference (не сервис)
+# rdgen — vendored reference (not a service)
 
-> DeskForge **не запускает** rdgen как сервис. Код — vendored копия
-> [bryangerlach/rdgen](https://github.com/bryangerlach/rdgen). Работающий аналог —
+> DeskForge **does not run** rdgen as a service. This is a vendored copy of
+> [bryangerlach/rdgen](https://github.com/bryangerlach/rdgen). Working instance:
 > [rdgen.crayoneater.org](https://rdgen.crayoneater.org).
 
-## Для чего
+## Purpose
 
-Это reference implementation workflow генерации кастомного клиента:
-патчи, `generator-windows.yml`, рецепты 3 слоёв инъекции (config.rs / custom_.txt / branding).
+Reference implementation of the custom client generation workflow:
+patches, `generator-windows.yml`, recipes for all 3 injection layers (config.rs / custom_.txt / branding).
 
-## Патчи (rdgen/.github/patches/)
+## Patches (rdgen/.github/patches/)
 
 `allowCustom`, `hidecm`, `removeSetupServerTip`, `removeNewVersionNotif`,
 `cycle_monitor`, `xoffline`, `privacyScreen`.

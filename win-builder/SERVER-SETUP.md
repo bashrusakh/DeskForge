@@ -1,33 +1,33 @@
 # SERVER-SETUP — ❄️ FROZEN / FALLBACK
 
-> **Не актуально.** Активный путь — GitHub Actions.
-> Оставлено как reference если когда-нибудь понадобится standalone Windows сборщик.
+> **Not active.** Active path is GitHub Actions.
+> Kept as reference in case a standalone Windows builder is ever needed.
 
 ---
 
-## Если активировать: чеклист
+## Activation checklist
 
-- [ ] Windows Server 2022 или Win 11 Pro
+- [ ] Windows Server 2022 or Win 11 Pro
 - [ ] 8+ vCPU, 32 GB RAM, 250 GB NVMe
-- [ ] Hyper-V VM или отдельная машина
+- [ ] Hyper-V VM or physical machine
 - [ ] `LongPathsEnabled`, `git config core.longpaths true`
-- [ ] Исключения Defender: `C:\rustdesk-build`, `C:\vcpkg`, `%USERPROFILE%\.cargo`
+- [ ] Defender exclusions: `C:\rustdesk-build`, `C:\vcpkg`, `%USERPROFILE%\.cargo`
 - [ ] `setup.ps1 -KitPath D:\offline-kit\artifacts`
-- [ ] Samba на Linux: `/etc/samba/smb.conf` → `path = /var/lib/docker/volumes/rdgen-data/_data`
-- [ ] Монтирование SMB: `net use Z: \\PROD_HOST\rdgen-data`
-- [ ] Патчи `rdgen/.github/patches/*` → `Z:\rdgen-data\patches\`
+- [ ] Samba on Linux: `/etc/samba/smb.conf` → `path = /var/lib/docker/volumes/rdgen-data/_data`
+- [ ] Mount SMB: `net use Z: \\PROD_HOST\rdgen-data`
+- [ ] Patches `rdgen/.github/patches/*` → `Z:\rdgen-data\patches\`
 - [ ] Scheduled Task `rustqs-build-agent`
-- [ ] Тест: `Z:\rdgen-data\jobs\test-001.json` → `Z:\rdgen-data\output\test-001\rustqs.exe`
+- [ ] Test: `Z:\rdgen-data\jobs\test-001.json` → `Z:\rdgen-data\output\test-001\rustqs.exe`
 
-## Известные TODO при первом тесте
+## Known TODOs on first test
 
-- Сборка `RustDeskTempTopMostWindow` (msbuild из bundle)
-- Полный branding `sed` (сейчас сокращённый, см. `rdgen/generator-windows.yml`)
-- Пути Rust (MSI vs rustup) на реальном хосте
+- Build `RustDeskTempTopMostWindow` (msbuild from bundle)
+- Full branding `sed` (currently shortened, see `rdgen/generator-windows.yml`)
+- Verify Rust install paths (MSI vs rustup) on a real host
 - `vcpkg` overlay ports
 
-## Безопасность
+## Security
 
-- Только private network. Никакого публичного RDP/SMB.
-- После установки интернет можно отключить (`cargo build --offline`).
-- SMB пользователь `builder` — минимальные права на share.
+- Private network only. No public RDP/SMB.
+- Internet can be disabled after setup (`cargo build --offline`).
+- SMB user `builder` — minimum rights on the share.
