@@ -20,7 +20,7 @@ in the fork's `.github/workflows/` (identical names, no rename needed).
 All dispatches go to the `rustqs/min-test` branch of the fork (the Go code
 forces this branch in `tryGithubDispatch` regardless of per-install config).
 
-```
+```text
 admin-ui → Go API → workflow_dispatch (encrypted payload, ref=rustqs/min-test) →
   GitHub Actions [rustdesk fork, rustqs/min-test branch] →
     L1 config.rs (server+key) → L2 custom_.txt (permanent password) → L3 branding →
