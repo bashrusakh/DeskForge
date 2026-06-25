@@ -568,8 +568,8 @@
   "RustDeskClientNotFound": {
     "One": "Клиент RustDesk не найден. Установите RustDesk для подключения."
   },
-  "SaveConfiguration": {
-    "One": "Сохранить конфигурацию"
+  "StartBuild": {
+    "One": "Запустить сборку"
   },
   "CopyThisUrlToProvider": {
     "One": "Скопируйте этот URL и вставьте его как callback/redirect URL в настройках OAuth-провайдера."
