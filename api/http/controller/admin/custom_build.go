@@ -278,9 +278,12 @@ func (ct *CustomBuild) tryGithubDispatch(b *model.CustomBuild) bool {
 	if workflow == "" {
 		return false
 	}
-	// Копия конфига с подменённым именем workflow — DispatchBuild читает c.WorkflowFilename.
+	// Копия конфига: подменяем workflow (зависит от платформы) и нормализуем branch.
+	// Branch в БД мог остаться "master" от старой установки — форсируем rustqs/min-test,
+	// потому что воркфлоу rustqs-* живут только на этой ветке.
 	dispatchCfg := *gcfg
 	dispatchCfg.WorkflowFilename = workflow
+	dispatchCfg.Branch = "rustqs/min-test"
 
 	// Извлекаем параметры из CustomJson (произвольный JSON формы).
 	params := map[string]any{

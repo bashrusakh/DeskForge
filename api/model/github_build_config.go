@@ -21,7 +21,7 @@ type GithubBuildConfig struct {
 	IdModel
 	Repo             string `json:"repo"              gorm:"size:128;default:'';not null;"`      // owner/name, напр. "bashrusakh/rustdesk"
 	WorkflowFilename string `json:"workflow_filename" gorm:"size:128;default:'';not null;"`      // напр. "rustqs-windows-min-test.yml"
-	Branch           string `json:"branch"            gorm:"size:128;default:'master';not null;"` // ветка, на которой запускать
+	Branch           string `json:"branch"            gorm:"size:128;default:'rustqs/min-test';not null;"` // ветка форка, на которой лежат rustqs-*.yml воркфлоу
 	Token            string `json:"token,omitempty"   gorm:"type:text;"`                         // PAT (fine-grained); в API-ответах ОПУСКАЕМ
 	PayloadKey       string `json:"payload_key,omitempty" gorm:"type:text;"`                     // AES-passphrase; в API-ответах ОПУСКАЕМ
 	TimeModel

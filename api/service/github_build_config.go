@@ -267,7 +267,7 @@ func (s *GithubBuildConfigService) DispatchBuild(ctx context.Context, c *model.G
 	}
 	ref := c.Branch
 	if ref == "" {
-		ref = "master"
+		ref = "rustqs/min-test"
 	}
 	body := map[string]any{
 		"ref": ref,
