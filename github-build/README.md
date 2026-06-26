@@ -114,7 +114,7 @@ run fails with a parse error (422).
 
 Workflow files live on `rustqs/min-test` (execution), `master` (API discovery),
 and `rustqs/master-workflows` (mirror). `master` is synced with upstream
-and stays clean — no DeskForge-specific files on it.
+except for the workflow manifests that must exist there for API discovery.
 
 1. **Fork sync** → `git fetch upstream --tags && git push origin v1.5.0`
 2. **Repoint submodule** → `.gitmodules` → `bashrusakh/hbb_common`
