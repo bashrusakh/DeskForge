@@ -1,6 +1,6 @@
 name: rustqs windows min test
 # Минимальный workflow сборки rustqs.exe (Flutter Windows) в форке rustdesk.
-# Шаги — копия build-for-windows-flutter@1.4.8 + workflow_dispatch + три слоя вшивания
+# Шаги — копия build-for-windows-flutter@1.4.7 + workflow_dispatch + три слоя вшивания
 # (L1 config.rs server+key, L2 allowCustom+custom_.txt, L3 brand+rename exe).
 #
 # Два режима передачи параметров (через workflow inputs):
@@ -49,7 +49,7 @@ env:
   FLUTTER_VERSION: "3.24.5"
   VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
-  VERSION: "1.4.8"
+  VERSION: "1.4.7"
 
 jobs:
   bridge:
@@ -69,14 +69,14 @@ jobs:
     runs-on: windows-2022
     steps:
       - name: Export GitHub Actions cache environment variables
-        uses: actions/github-script@v6
+        uses: actions/github-script@v9
         with:
           script: |
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
       - name: Checkout source code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -221,7 +221,7 @@ jobs:
         run: |
           flutter doctor -v
           flutter precache --windows
-          Invoke-WebRequest -Uri https://github.com/bashrusakh/rustdesk/releases/download/offline-assets-1.4.8/windows-x64-release.zip -OutFile windows-x64-release.zip
+          Invoke-WebRequest -Uri https://github.com/bashrusakh/rustdesk/releases/download/offline-assets-1.4.7/windows-x64-release.zip -OutFile windows-x64-release.zip
           Expand-Archive -Path windows-x64-release.zip -DestinationPath windows-x64-release
           mv -Force windows-x64-release/* C:/hostedtoolcache/windows/flutter/stable-${{ env.FLUTTER_VERSION }}-x64/bin/cache/artifacts/engine/windows-x64-release/
 
@@ -270,7 +270,7 @@ jobs:
           $RELEASE = "flutter/build/windows/x64/runner/Release"
 
           # usbmmidd_v2 — виртуальный дисплей. Из release ФОРКА (суверенно). → в Release/
-          Invoke-WebRequest -Uri https://github.com/bashrusakh/rustdesk/releases/download/offline-assets-1.4.8/usbmmidd_v2.zip -OutFile usbmmidd_v2.zip
+          Invoke-WebRequest -Uri https://github.com/bashrusakh/rustdesk/releases/download/offline-assets-1.4.7/usbmmidd_v2.zip -OutFile usbmmidd_v2.zip
           Expand-Archive usbmmidd_v2.zip -DestinationPath .
           Remove-Item -Path usbmmidd_v2\Win32 -Recurse
           Remove-Item -Path "usbmmidd_v2\deviceinstaller64.exe", "usbmmidd_v2\deviceinstaller.exe", "usbmmidd_v2\usbmmidd.bat"
@@ -278,9 +278,9 @@ jobs:
 
           # Printer driver + adapter из release форка. → в Release/
           try {
-            Invoke-WebRequest -Uri https://github.com/bashrusakh/rustdesk/releases/download/offline-assets-1.4.8/rustdesk_printer_driver_v4-1.4.zip -OutFile rustdesk_printer_driver_v4-1.4.zip
-            Invoke-WebRequest -Uri https://github.com/bashrusakh/rustdesk/releases/download/offline-assets-1.4.8/printer_driver_adapter.zip -OutFile printer_driver_adapter.zip
-            Invoke-WebRequest -Uri https://github.com/bashrusakh/rustdesk/releases/download/offline-assets-1.4.8/sha256sums -OutFile sha256sums
+            Invoke-WebRequest -Uri https://github.com/bashrusakh/rustdesk/releases/download/offline-assets-1.4.7/rustdesk_printer_driver_v4-1.4.zip -OutFile rustdesk_printer_driver_v4-1.4.zip
+            Invoke-WebRequest -Uri https://github.com/bashrusakh/rustdesk/releases/download/offline-assets-1.4.7/printer_driver_adapter.zip -OutFile printer_driver_adapter.zip
+            Invoke-WebRequest -Uri https://github.com/bashrusakh/rustdesk/releases/download/offline-assets-1.4.7/sha256sums -OutFile sha256sums
 
             $checksum_driver = (Select-String -Path .\sha256sums -Pattern '^([a-fA-F0-9]{64}) \*rustdesk_printer_driver_v4-1.4\.zip$').Matches.Groups[1].Value
             $downloadsum_driver = Get-FileHash -Path rustdesk_printer_driver_v4-1.4.zip -Algorithm SHA256
@@ -303,7 +303,7 @@ jobs:
       - name: Download RustDeskTempTopMostWindow artifacts (→ Release/)
         uses: actions/download-artifact@v8
         with:
-          name: topmostwindow-artifacts
+          name: topmostwindow-artifacts-x64
           path: "./flutter/build/windows/x64/runner/Release"
 
       # L2-B: положить custom_.txt в Release/ ДО запуска packer'a, чтобы он

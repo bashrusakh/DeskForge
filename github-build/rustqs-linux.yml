@@ -57,7 +57,7 @@ jobs:
 
   build:
     needs: [bridge]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Maximize build space
         run: |
@@ -65,14 +65,14 @@ jobs:
           df -h
 
       - name: Export GitHub Actions cache environment variables
-        uses: actions/github-script@v6
+        uses: actions/github-script@v9
         with:
           script: |
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
       - name: Checkout source code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -153,7 +153,7 @@ jobs:
           find ./src/lang -name "*.rs" -exec sed -i -e "s|RustDesk|${esc}|" {} \;
 
       - name: Restore bridge files
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: bridge-artifact
           path: ./
@@ -161,27 +161,38 @@ jobs:
       - name: Build dependencies (apt)
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y nasm libva-dev imagemagick \
+          sudo apt-get install -y nasm libva-dev libvdpau-dev imagemagick \
             libgtk-3-dev libxcb-randr0-dev libxdo-dev libxfixes-dev \
             libxcb-shape0-dev libxcb-xfixes0-dev libasound2-dev libpulse-dev \
-            libpam0g-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+            libpam0g-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            libunwind-dev libclang-dev llvm-dev \
+            build-essential cmake ninja-build pkg-config \
+            libssl-dev libayatana-appindicator3-dev wget
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@v1
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
         with:
           toolchain: ${{ env.RUST_VERSION }}
           targets: x86_64-unknown-linux-gnu
           components: "rustfmt"
 
-      - uses: Swatinem/rust-cache@v2
+      # 12 GB swap: ffmpeg/vcpkg + flutter build eat > 7 GB RAM на ubuntu-24.04 runner.
+      - name: Set Swap Space
+        uses: pierotofy/set-swap-space@49819abfb41bd9b44fb781159c033dba90353a7c # v1.0
         with:
-          prefix-key: ubuntu-22.04
+          swap-size-gb: 12
 
-      - name: Disable rust bridge build (cdylib only)
-        run: sed -i 's/\["cdylib", "staticlib", "rlib"\]/\["cdylib"\]/g' Cargo.toml
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          prefix-key: ubuntu-24.04
+
+      # Сборка только cdylib: экономит ~30% времени cargo (staticlib/rlib не нужны Flutter-у).
+      - name: Disable rust bridge build
+        run: |
+          sed -i 's/\["cdylib", "staticlib", "rlib"\]/\["cdylib"\]/g' Cargo.toml
 
       - name: Setup vcpkg with Github Actions binary cache
-        uses: lukka/run-vcpkg@v11
+        uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
         with:
           vcpkgDirectory: /opt/artifacts/vcpkg
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
@@ -189,21 +200,45 @@ jobs:
 
       - name: Install vcpkg dependencies
         run: |
+          # libva-dev ставим заранее, иначе vcpkg-ffmpeg спотыкается на свежем ubuntu.
+          sudo apt-get install -y libva-dev
           if ! $VCPKG_ROOT/vcpkg install --triplet x64-linux --x-install-root="$VCPKG_ROOT/installed"; then
-            find "${VCPKG_ROOT}/" -name "*.log" | while read -r f; do echo "=== $f ==="; cat "$f"; done
+            find "${VCPKG_ROOT}/" -name "*.log" | while read -r _1; do
+              echo "$_1:"
+              echo "======"
+              cat "$_1"
+              echo "======"
+              echo ""
+            done
             exit 1
           fi
+          head -n 100 "${VCPKG_ROOT}/buildtrees/ffmpeg/build-x64-linux-rel-out.log" || true
+        shell: bash
 
       - name: Install flutter
-        uses: subosito/flutter-action@v2.12.0
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: "stable"
           flutter-version: ${{ env.FLUTTER_VERSION }}
 
+      # Flutter 3.24.5 без этого патча не фильтрует dropdown — падает в UI на первом клике.
+      - name: Patch flutter
+        if: env.FLUTTER_VERSION == '3.24.5'
+        shell: bash
+        run: |
+          cp .github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff $(dirname $(dirname $(which flutter)))
+          cd $(dirname $(dirname $(which flutter)))
+          git apply flutter_3.24.4_dropdown_menu_enableFilter.diff
+
+      # Двухстадийная сборка (как в upstream flutter-build.yml): сначала cargo lib
+      # со всеми нужными фичами, затем build.py только для Flutter-UI + .deb.
       - name: Build rustdesk (Flutter Linux)
         run: |
           export VCPKG_ROOT=/opt/artifacts/vcpkg
-          python3 ./build.py --flutter --hwcodec
+          export CARGO_INCREMENTAL=0
+          export DEB_ARCH=amd64
+          cargo build --locked --lib --features hwcodec,flutter,unix-file-copy-paste --release
+          python3 ./build.py --flutter --skip-cargo
 
       # L2 payload: положить custom_.txt рядом с бинарём в bundle (читается клиентом).
       - name: 'L2 payload: place custom_.txt into bundle'
@@ -215,24 +250,46 @@ jobs:
           printf '%s' "$RQS_CUSTOM_TXT" > "$dst"
           ls -la "$dst"
 
-      - name: Package artifact
+      - name: Install rpm
+        run: |
+          # Долгий vcpkg-build (ffmpeg, 5-10 мин) мог состарить apt-кэш — обновим.
+          sudo apt-get update -y
+          sudo apt-get install -y rpm
+
+      - name: Package artifact (.deb + .rpm)
         shell: bash
+        env:
+          HBB: ${{ github.workspace }}
         run: |
           set -eu
           APP="${RQS_APP_NAME:-rustdesk}"
+          VERSION=$(grep '^version =' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
           mkdir -p ./output
-          bundle=flutter/build/linux/x64/release/bundle
-          # Переименуем основной бинарь в ${APP} и упакуем bundle в tar.gz.
-          if [ -f "$bundle/rustdesk" ]; then
-            cp "$bundle/rustdesk" "$bundle/${APP}" || true
+
+          # 1) .deb — создан build.py → build_flutter_deb()
+          for pkg in rustdesk-*.deb; do
+            [ -f "$pkg" ] || continue
+            new_name="$(echo "$pkg" | sed "s/^rustdesk/${APP}/")"
+            cp "$pkg" "./output/${new_name}"
+            echo "::notice::DEB: $pkg → output/${new_name}"
+          done
+
+          # 2) .rpm — rpmbuild из того же flutter bundle
+          if [ -d flutter/build/linux/x64/release/bundle ]; then
+            sed -i "s/^Version:.*/Version:    ${VERSION}/" res/rpm-flutter.spec
+            rpmbuild -ba res/rpm-flutter.spec
+            rpm_file=$(find "$HOME/rpmbuild/RPMS" -name 'rustdesk-*.rpm' | head -1)
+            if [ -n "$rpm_file" ]; then
+              new_name="${APP}-${VERSION}-0.x86_64.rpm"
+              cp "$rpm_file" "./output/${new_name}"
+              echo "::notice::RPM: ${new_name}"
+            fi
           fi
-          tar -C "$bundle" -czf "./output/${APP}-linux-x86_64.tar.gz" .
-          # Плюс «голый» бинарь для прямого запуска/быстрой проверки.
-          [ -f "$bundle/${APP}" ] && cp "$bundle/${APP}" "./output/${APP}" || true
+
           ls -lh ./output/
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: rustdesk-min-test-linux
           path: output
