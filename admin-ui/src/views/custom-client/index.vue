@@ -80,7 +80,13 @@
         <el-row :gutter="20">
           <el-col :span="8">
             <el-form-item :label="T('RelayServer')">
-              <el-input v-model="form.relay_server" placeholder="your-server:21117" />
+              <el-input v-model="form.relay_server" placeholder="e.g. your-server.com" @blur="stripRelayPort">
+                <template #append>
+                  <el-tooltip :content="T('HostnameOnlyHint')" placement="top">
+                    <el-icon><InfoFilled /></el-icon>
+                  </el-tooltip>
+                </template>
+              </el-input>
             </el-form-item>
           </el-col>
           <el-col :span="8">
@@ -388,6 +394,7 @@ export default defineComponent({
 
     const stripPort = (host) => host ? host.replace(/:\d+$/, '').trim() : ''
     const stripServerPort = () => { form.server_ip = stripPort(form.server_ip) }
+    const stripRelayPort = () => { form.relay_server = stripPort(form.relay_server) }
 
     const builds = ref([])
     const loading = ref(false)
@@ -462,6 +469,7 @@ export default defineComponent({
         for (const f of PRESET_FIELDS) {
           if (f in cfg && cfg[f] !== undefined) form[f] = cfg[f]
         }
+        form.relay_server = stripPort(form.relay_server)
         // platform/version/app_name live on the preset record, not in custom_json
         if (preset.platform) form.platform = preset.platform
         if (preset.version) form.version = preset.version
@@ -483,6 +491,7 @@ export default defineComponent({
         const name = await ElMessageBox.prompt(T('PresetName'), T('SaveAsPreset'), { inputPlaceholder: 'My Preset' })
         if (!name || !name.value) return
         // Derived from PRESET_FIELDS so submit + save preset stay in sync.
+        form.relay_server = stripPort(form.relay_server)
         const customPayload = {}
         for (const f of PRESET_FIELDS) customPayload[f] = form[f]
         const customJson = JSON.stringify(customPayload)
@@ -538,6 +547,7 @@ export default defineComponent({
 
     const submitBuild = async () => {
       form.server_ip = stripPort(form.server_ip)
+      form.relay_server = stripPort(form.relay_server)
       submitting.value = true
       try {
         // Derived from PRESET_FIELDS so submit + save preset stay in sync.
@@ -653,7 +663,7 @@ export default defineComponent({
           if (!form.server_ip) form.server_ip = stripPort(res.data.id_server || '')
           if (!form.key) form.key = res.data.key || ''
           if (!form.api_server) form.api_server = res.data.api_server || ''
-          if (!form.relay_server) form.relay_server = res.data.relay_server || ''
+          if (!form.relay_server) form.relay_server = stripPort(res.data.relay_server || '')
         }
       } catch (e) {
         // user can fill manually
@@ -662,7 +672,7 @@ export default defineComponent({
 
     return {
       form, builds, loading, submitting, page, pageSize, total, versions,
-      submitBuild, deleteBuild, resetForm, downloadBuild, stripServerPort,
+      submitBuild, deleteBuild, resetForm, downloadBuild, stripServerPort, stripRelayPort,
       statusType, statusLabel, T,
       presets, selectedPresetId, onPresetSelect, saveCurrentAsPreset, deletePreset, uploadImage,
     }
