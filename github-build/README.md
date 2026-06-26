@@ -1,8 +1,14 @@
 # github-build — active build path via GitHub Actions
 
 All platforms (Windows, Linux, Android) are built through GitHub Actions in the
-`bashrusakh/rustdesk` fork. All DeskForge-specific workflow files live on the
-`rustqs/min-test` branch — `master` is kept clean for upstream tracking.
+`bashrusakh/rustdesk` fork. DeskForge workflow files are deployed to three
+branches:
+
+| Branch                | Purpose                                                          |
+| --------------------- | ---------------------------------------------------------------- |
+| `master`                | Default branch — API discovery (workflow must exist here)        |
+| `rustqs/min-test`       | Execution — all dispatches go here                               |
+| `rustqs/master-workflows` | Mirror — backup copy of workflow files, kept in sync with `master` |
 
 Each local workflow file in this directory has the same filename as its target
 in the fork's `.github/workflows/` (identical names, no rename needed).
@@ -50,9 +56,11 @@ Credentials — encrypted payload, decrypted inside the runner via GitHub Secret
 
 ## Workflow deployment — pushing to the fork
 
-All three workflow files are deployed to `bashrusakh/rustdesk` on both
-`master` (for GitHub API discovery) and `rustqs/min-test` (for execution).
-When a workflow file changes locally:
+Workflow files are deployed to all three branches of `bashrusakh/rustdesk`:
+
+- `master` — API discovery (must exist on default branch)
+- `rustqs/min-test` — execution (all dispatches go here)
+- `rustqs/master-workflows` — mirror of `master`
 
 > **NOTE:** `rustqs-linux.yml` and `rustqs-android.yml` will not be found by
 > the workflow_dispatch API unless they exist on the default branch (`master`).
@@ -67,7 +75,15 @@ git add .github/workflows/
 git commit -m "feat: update rustqs-* workflows"
 git push origin master
 
-# 2) Then push to rustqs/min-test (execution)
+# 2) Then push to rustqs/master-workflows (mirror)
+git checkout rustqs/master-workflows
+cp /path/to/DeskForge/github-build/rustqs-*.yml .github/workflows/
+cp /path/to/DeskForge/rdgen/.github/workflows/bridge.yml .github/workflows/
+git add .github/workflows/
+git commit -m "feat: update rustqs-* workflows"
+git push origin rustqs/master-workflows
+
+# 3) Then push to rustqs/min-test (execution)
 git checkout rustqs/min-test
 cp /path/to/DeskForge/github-build/rustqs-*.yml .github/workflows/
 cp /path/to/DeskForge/rdgen/.github/workflows/bridge.yml .github/workflows/
@@ -80,8 +96,7 @@ If a workflow file is missing from the fork, dispatch immediately fails with HTT
 `bridge.yml` is required by all three `rustqs-*.yml` files — without it the workflow
 run fails with a parse error (422).
 
-> `master` in the fork is kept clean for upstream `rustdesk/rustdesk` tracking.
-> DeskForge workflow files live on both `master` and `rustqs/min-test`.
+> DeskForge workflow files live on all three branches: `master`, `rustqs/master-workflows`, and `rustqs/min-test`.
 
 ---
 
@@ -97,8 +112,9 @@ run fails with a parse error (422).
 
 ## When a new upstream version ships
 
-Workflow files live on the `rustqs/min-test` branch. `master` is synced with
-upstream and stays clean — no DeskForge-specific files on it.
+Workflow files live on `rustqs/min-test` (execution), `master` (API discovery),
+and `rustqs/master-workflows` (mirror). `master` is synced with upstream
+except for the workflow manifests that must exist there for API discovery.
 
 1. **Fork sync** → `git fetch upstream --tags && git push origin v1.5.0`
 2. **Repoint submodule** → `.gitmodules` → `bashrusakh/hbb_common`
