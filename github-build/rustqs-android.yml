@@ -259,19 +259,19 @@ jobs:
           set -euo pipefail
           cargo install cargo-ndk --version ${{ env.CARGO_NDK_VERSION }} --locked
           ./flutter/ndk_arm64.sh
+          # Verify native lib was built before copying
+          if [ ! -f ./target/aarch64-linux-android/release/liblibrustdesk.so ]; then
+            echo "::error::librustdesk.so not found after cargo ndk build"
+            find ./target/aarch64-linux-android/release -name '*.so' 2>/dev/null || true
+            exit 1
+          fi
           # Copy native lib from target to jniLibs
           mkdir -p ./flutter/android/app/src/main/jniLibs/arm64-v8a
           cp ./target/aarch64-linux-android/release/liblibrustdesk.so \
              ./flutter/android/app/src/main/jniLibs/arm64-v8a/librustdesk.so
           # Copy libc++_shared.so from NDK sysroot
-          cp ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so \
+          cp "${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" \
              ./flutter/android/app/src/main/jniLibs/arm64-v8a/
-          # Verify native lib was built
-          if [ ! -f ./flutter/android/app/src/main/jniLibs/arm64-v8a/librustdesk.so ]; then
-            echo "::error::librustdesk.so not found after cargo ndk build"
-            find ./flutter/android/app/src/main/jniLibs -type f
-            exit 1
-          fi
           ls -lh ./flutter/android/app/src/main/jniLibs/arm64-v8a/
 
       - name: Build APK (flutter, arm64)
@@ -292,7 +292,7 @@ jobs:
           mkdir -p ./flutter/android/app/src/main/jniLibs/arm64-v8a
           cp ./target/aarch64-linux-android/release/liblibrustdesk.so \
              ./flutter/android/app/src/main/jniLibs/arm64-v8a/librustdesk.so 2>/dev/null || true
-          cp ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so \
+          cp "${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" \
              ./flutter/android/app/src/main/jniLibs/arm64-v8a/ 2>/dev/null || true
           pushd flutter
           flutter pub get

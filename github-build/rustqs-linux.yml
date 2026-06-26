@@ -202,7 +202,7 @@ jobs:
         run: |
           # libva-dev ставим заранее, иначе vcpkg-ffmpeg спотыкается на свежем ubuntu.
           sudo apt-get install -y libva-dev
-          if ! $VCPKG_ROOT/vcpkg install --triplet x64-linux --x-install-root="$VCPKG_ROOT/installed"; then
+          if ! "${VCPKG_ROOT}/vcpkg" install --triplet x64-linux --x-install-root="$VCPKG_ROOT/installed"; then
             find "${VCPKG_ROOT}/" -name "*.log" | while read -r _1; do
               echo "$_1:"
               echo "======"
@@ -262,7 +262,9 @@ jobs:
           HBB: ${{ github.workspace }}
         run: |
           set -eu
-          APP="${RQS_APP_NAME:-rustdesk}"
+          APP_RAW="${RQS_APP_NAME:-rustdesk}"
+          APP="$(printf '%s' "$APP_RAW" | tr -c 'A-Za-z0-9._+-' '-' | sed -e 's/^-*//' -e 's/-*$//')"
+          [ -n "$APP" ] || APP=rustdesk
           VERSION=$(grep '^version =' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
           mkdir -p ./output
 
@@ -293,3 +295,4 @@ jobs:
         with:
           name: rustdesk-min-test-linux
           path: output
+          if-no-files-found: error
