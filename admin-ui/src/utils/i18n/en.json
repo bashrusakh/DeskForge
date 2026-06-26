@@ -737,7 +737,7 @@
     "One": "Host"
   },
   "HostnameOnlyHint": {
-    "One": "Hostname only, no port. Client appends ports automatically."
+    "One": "Hostname only, no port. Client appends the default port automatically."
   },
   "ApiServer": {
     "One": "API Server"

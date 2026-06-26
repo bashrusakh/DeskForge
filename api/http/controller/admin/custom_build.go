@@ -301,9 +301,12 @@ func (ct *CustomBuild) tryGithubDispatch(b *model.CustomBuild) bool {
 				params["server"] = v
 			}
 			// Strip port — client appends ports automatically.
+			// Стрипаем только числовой порт (:\d+$), а не любой суффикс после :.
 			if s, ok := params["server"].(string); ok {
 				if i := strings.LastIndex(s, ":"); i > 0 {
-					params["server"] = s[:i]
+					if _, err := strconv.Atoi(s[i+1:]); err == nil {
+						params["server"] = s[:i]
+					}
 				}
 			}
 			if v, ok := raw["key"]; ok {
@@ -504,6 +507,16 @@ func buildCustomTxtFromForm(raw map[string]any) string {
 	cfg := map[string]any{}
 
 	// --- скаляры (string) ---
+	// relay_server: перед маппингом стрипаем порт — клиент знает дефолтный порт 21117
+	// и сам его подставляет (консистентно с host/server_ip).
+	// Стрипаем только числовой порт (:\d+$), а не любой суффикс после :.
+	if v, ok := raw["relay_server"].(string); ok && v != "" {
+		if i := strings.LastIndex(v, ":"); i > 0 {
+			if _, err := strconv.Atoi(v[i+1:]); err == nil {
+				raw["relay_server"] = v[:i]
+			}
+		}
+	}
 	stringFields := []struct{ from, to string }{
 		{"permanent_password", "password"},
 		{"pass_approve_mode", "approve-mode"},
@@ -513,8 +526,9 @@ func buildCustomTxtFromForm(raw map[string]any) string {
 		{"company_name", "company-name"},
 		{"download_url", "download-url"},
 		// сетевые координаты — сервер/ключ ушли в L1 (config.rs), а api/relay
-		// остаются обычной runtime-настройкой клиента
-		{"api_server", "custom-rendezvous-api-server"},
+		// остаются обычной runtime-настройкой клиента.
+		// ВАЖНО: api_server → "api-server" (нативный ключ hbb_common, НЕ custom-rendezvous-api-server).
+		{"api_server", "api-server"},
 		{"relay_server", "relay-server"},
 		// branding URLs — клиент допускает абсолютные или относительные пути
 		{"app_icon_url", "app-icon-url"},
