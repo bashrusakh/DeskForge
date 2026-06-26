@@ -61,22 +61,63 @@ jobs:
 
   build:
     needs: [bridge]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
-      - name: Free disk space
-        run: |
-          sudo rm -rf /opt/ghc /usr/share/dotnet /usr/local/lib/android/sdk/ndk
-          df -h
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: false
+          android: false
+          dotnet: true
+          haskell: true
+          large-packages: false
+          docker-images: true
+          swap-storage: false
 
       - name: Export GitHub Actions cache environment variables
-        uses: actions/github-script@v6
+        uses: actions/github-script@v9
         with:
           script: |
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+               clang \
+               cmake \
+               curl \
+               gcc-multilib \
+               git \
+               g++ \
+               g++-multilib \
+               libayatana-appindicator3-dev \
+               libasound2-dev \
+               libc6-dev \
+               libclang-dev \
+               libunwind-dev \
+               libgstreamer1.0-dev \
+               libgstreamer-plugins-base1.0-dev \
+               libgtk-3-dev \
+               libpam0g-dev \
+               libpulse-dev \
+               libva-dev \
+               libxcb-randr0-dev \
+               libxcb-shape0-dev \
+               libxcb-xfixes0-dev \
+               libxdo-dev \
+               libxfixes-dev \
+               llvm-dev \
+               nasm \
+               ninja-build \
+               openjdk-17-jdk-headless \
+               pkg-config \
+               tree \
+               wget
+
       - name: Checkout source code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -201,25 +242,58 @@ jobs:
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
           doNotCache: false
 
-      - name: Build rustdesk native lib (cargo-ndk, arm64)
+      - name: Install vcpkg dependencies (opus, vpx, ffmpeg, etc.) for Android arm64
         env:
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
           ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+          VCPKG_ROOT: /opt/artifacts/vcpkg
         run: |
+          ./flutter/build_android_deps.sh arm64-v8a
+
+      - name: Build rustdesk native lib (via ndk_arm64.sh)
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+          VCPKG_ROOT: /opt/artifacts/vcpkg
+        run: |
+          set -euo pipefail
           cargo install cargo-ndk --version ${{ env.CARGO_NDK_VERSION }} --locked
-          rustup target add aarch64-linux-android
-          python3 ./build.py --flutter --target=aarch64-linux-android || true
-          # Прямой путь сборки нативной либы (как в generator-android.yml):
-          cargo ndk --platform 21 --target aarch64-linux-android --output-dir ./flutter/android/app/src/main/jniLibs build --release || true
+          ./flutter/ndk_arm64.sh
+          # Verify native lib was built before copying
+          if [ ! -f ./target/aarch64-linux-android/release/liblibrustdesk.so ]; then
+            echo "::error::librustdesk.so not found after cargo ndk build"
+            find ./target/aarch64-linux-android/release -name '*.so' 2>/dev/null || true
+            exit 1
+          fi
+          # Copy native lib from target to jniLibs
           mkdir -p ./flutter/android/app/src/main/jniLibs/arm64-v8a
+          cp ./target/aarch64-linux-android/release/liblibrustdesk.so \
+             ./flutter/android/app/src/main/jniLibs/arm64-v8a/librustdesk.so
+          # Copy libc++_shared.so from NDK sysroot
           cp "${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" \
-             ./flutter/android/app/src/main/jniLibs/arm64-v8a/ || true
+             ./flutter/android/app/src/main/jniLibs/arm64-v8a/
+          ls -lh ./flutter/android/app/src/main/jniLibs/arm64-v8a/
 
       - name: Build APK (flutter, arm64)
         shell: bash
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+          JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
         run: |
           set -eu
           APP="${RQS_APP_NAME:-rustdesk}"
+          export PATH=/usr/lib/jvm/java-17-openjdk-amd64/bin:$PATH
+          # Increase Gradle JVM memory for CI builds
+          sed -i "s/org.gradle.jvmargs=-Xmx1024M/org.gradle.jvmargs=-Xmx2g/g" ./flutter/android/gradle.properties
+          # Use debug signing config (no release key in CI)
+          sed -i "s/signingConfigs.release/signingConfigs.debug/g" ./flutter/android/app/build.gradle
+          # Ensure jniLibs are in place
+          mkdir -p ./flutter/android/app/src/main/jniLibs/arm64-v8a
+          cp ./target/aarch64-linux-android/release/liblibrustdesk.so \
+             ./flutter/android/app/src/main/jniLibs/arm64-v8a/librustdesk.so 2>/dev/null || true
+          cp "${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" \
+             ./flutter/android/app/src/main/jniLibs/arm64-v8a/ 2>/dev/null || true
           pushd flutter
           flutter pub get
           flutter build apk --release --target-platform android-arm64 --split-per-abi
