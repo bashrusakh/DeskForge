@@ -4,6 +4,18 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+### Fixed (custom-client: relay_server port stripping + api-server key)
+- **custom-client: relay_server port stripped on blur, submit, and prefill** — now consistent
+  with `host`: hostname only, no port. The client appends default relay port (21117) automatically.
+  (H-011)
+- **custom-client: api_server key in custom_.txt changed to native `api-server`** —
+  `buildCustomTxtFromForm` was using `custom-rendezvous-api-server` which does not exist in the
+  native RustDesk client. The native key `api-server` (`OPTION_API_SERVER` in `hbb_common`) is the
+  correct key that the client reads for WebSocket protocol selection and API URL.
+  (H-011)
+
 ## [Unreleased] - 2026-06-22
 
 Audit-cycle batch: 18 fix branches merged in a single train via PR #30 on top of the
