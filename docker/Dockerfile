@@ -29,9 +29,9 @@ RUN rm -f /tmp/dummy.db && \
 # Copy actual source
 COPY server/src ./src
 
-# Build the server binaries with musl target
+# Build the server binaries with musl target (including rustdesk-utils for key generation)
 ENV DATABASE_URL=sqlite:///tmp/dummy.db
-RUN rm -f Cargo.lock && cargo build --release --target x86_64-unknown-linux-musl --bin hbbs --bin hbbr
+RUN rm -f Cargo.lock && cargo build --release --target x86_64-unknown-linux-musl --bin hbbs --bin hbbr --bin rustdesk-utils
 
 # Stage 2: Build Go API
 FROM golang:1.23-alpine AS go-builder
@@ -58,8 +58,18 @@ RUN npm ci
 COPY admin-ui/ ./
 RUN npm run build
 
-# Stage 4: Get s6-overlay from official image
-FROM rustdesk/rustdesk-server-s6:latest AS s6-source
+# Stage 4: Install s6-overlay from official GitHub release (no upstream dependency)
+FROM alpine:latest AS s6-stage
+
+ARG S6_OVERLAY_VERSION=3.2.3.0
+ARG S6_OVERLAY_ARCH=x86_64
+
+# Download and extract s6-overlay from just-containers/s6-overlay
+ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz /tmp/
+ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-${S6_OVERLAY_ARCH}.tar.xz /tmp/
+RUN tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz && \
+    tar -C / -Jxpf /tmp/s6-overlay-${S6_OVERLAY_ARCH}.tar.xz && \
+    rm -f /tmp/s6-overlay-*.tar.xz
 
 # Stage 5: Final image
 FROM alpine
@@ -75,6 +85,7 @@ RUN apk add --no-cache tzdata curl
 # Copy Rust server binaries (musl target)
 COPY --from=rust-builder /build/server/target/x86_64-unknown-linux-musl/release/hbbs /usr/bin/hbbs
 COPY --from=rust-builder /build/server/target/x86_64-unknown-linux-musl/release/hbbr /usr/bin/hbbr
+COPY --from=rust-builder /build/server/target/x86_64-unknown-linux-musl/release/rustdesk-utils /usr/bin/rustdesk-utils
 
 # Copy Go API binary
 COPY --from=go-builder /build/api/apimain /app/apimain
@@ -86,13 +97,19 @@ COPY api/resources /app/resources
 COPY --from=admin-ui-builder /build/admin-ui/dist /app/resources/admin/
 
 
-# Copy s6-overlay from official image
-COPY --from=s6-source /init /init
-COPY --from=s6-source /etc/s6-overlay /etc/s6-overlay
-COPY --from=s6-source /package /package
-COPY --from=s6-source /command /command
-COPY --from=s6-source /usr/bin/healthcheck.sh /usr/bin/healthcheck.sh
-COPY --from=s6-source /usr/bin/rustdesk-utils /usr/bin/rustdesk-utils
+# Copy s6-overlay from GitHub release (no upstream docker.io/rustdesk)
+COPY --from=s6-stage /init /init
+COPY --from=s6-stage /etc/s6-overlay /etc/s6-overlay
+COPY --from=s6-stage /package /package
+COPY --from=s6-stage /command /command
+
+# Create our own healthcheck.sh (replaces upstream version)
+RUN cat > /usr/bin/healthcheck.sh <<'EOF' && chmod +x /usr/bin/healthcheck.sh
+#!/bin/sh
+/package/admin/s6/command/s6-svstat /run/s6-rc/servicedirs/hbbr || exit 1
+/package/admin/s6/command/s6-svstat /run/s6-rc/servicedirs/hbbs || exit 1
+/package/admin/s6/command/s6-svstat /run/s6-rc/servicedirs/api || exit 1
+EOF
 
 # Copy API configuration
 COPY api/conf /app/conf
@@ -105,7 +122,6 @@ RUN mkdir -p /etc/s6-overlay/s6-rc.d/api && \
     echo "cd /app" >> /etc/s6-overlay/s6-rc.d/api/run && \
     echo "./apimain" >> /etc/s6-overlay/s6-rc.d/api/run && \
     touch /etc/s6-overlay/s6-rc.d/user/contents.d/api && \
-    echo "/package/admin/s6/command/s6-svstat /run/s6-rc/servicedirs/api || exit 1" >> /usr/bin/healthcheck.sh && \
     ln -s /run /var/run
 
 # Create data directories
