@@ -62,14 +62,36 @@ RUN npm run build
 FROM alpine:latest AS s6-stage
 
 ARG S6_OVERLAY_VERSION=3.2.3.0
-ARG S6_OVERLAY_ARCH=x86_64
+# s6-overlay arch differs from Docker TARGETARCH naming (x86_64 vs amd64)
+# Map TARGETARCH to s6-overlay arch: amd64->x86_64, arm64->aarch64
+ARG TARGETARCH
+RUN case "${TARGETARCH}" in \
+    amd64) S6_OVERLAY_ARCH=x86_64 ;; \
+    arm64) S6_OVERLAY_ARCH=aarch64 ;; \
+    *) echo "Unsupported TARGETARCH: ${TARGETARCH}" && exit 1 ;; \
+  esac && \
+  echo "S6_OVERLAY_ARCH=${S6_OVERLAY_ARCH}" > /tmp/s6_arch.env
 
-# Download and extract s6-overlay from just-containers/s6-overlay
-ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz /tmp/
-ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-${S6_OVERLAY_ARCH}.tar.xz /tmp/
-RUN tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz && \
+# SHA256 checksums for s6-overlay v3.2.3.0 (from just-containers/s6-overlay releases)
+# noarch is platform-independent
+ARG S6_NOARCH_SHA256=b720f9d9340efc8bb07528b9743813c836e4b02f8693d90241f047998b4c53cf
+# x86_64 checksum
+ARG S6_X86_64_SHA256=a93f02882c6ed46b21e7adb5c0add86154f01236c93cd82c7d682722e8840563
+# aarch64 checksum (for arm64 builds)
+ARG S6_AARCH64_SHA256=<fill-in-aarch64-sha256>
+
+# Download and extract s6-overlay from just-containers/s6-overlay with checksum verification
+ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz /tmp/s6-overlay-noarch.tar.xz
+ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-${S6_OVERLAY_ARCH}.tar.xz /tmp/s6-overlay-${S6_OVERLAY_ARCH}.tar.xz
+RUN . /tmp/s6_arch.env && \
+    echo "${S6_NOARCH_SHA256}  /tmp/s6-overlay-noarch.tar.xz" | sha256sum -c - && \
+    case "${S6_OVERLAY_ARCH}" in \
+    x86_64) echo "${S6_X86_64_SHA256}  /tmp/s6-overlay-${S6_OVERLAY_ARCH}.tar.xz" | sha256sum -c - ;; \
+    aarch64) echo "${S6_AARCH64_SHA256}  /tmp/s6-overlay-${S6_OVERLAY_ARCH}.tar.xz" | sha256sum -c - ;; \
+    esac && \
+    tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz && \
     tar -C / -Jxpf /tmp/s6-overlay-${S6_OVERLAY_ARCH}.tar.xz && \
-    rm -f /tmp/s6-overlay-*.tar.xz
+    rm -f /tmp/s6-overlay-*.tar.xz /tmp/s6_arch.env
 
 # Stage 5: Final image
 FROM alpine
@@ -104,6 +126,7 @@ COPY --from=s6-stage /package /package
 COPY --from=s6-stage /command /command
 
 # Create our own healthcheck.sh (replaces upstream version)
+# NOTE: must list ALL s6 longrun services (hbbr, hbbs, api) - update if services change
 RUN cat > /usr/bin/healthcheck.sh <<'EOF' && chmod +x /usr/bin/healthcheck.sh
 #!/bin/sh
 /package/admin/s6/command/s6-svstat /run/s6-rc/servicedirs/hbbr || exit 1
