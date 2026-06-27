@@ -64,13 +64,7 @@ FROM alpine:latest AS s6-stage
 ARG S6_OVERLAY_VERSION=3.2.3.0
 # s6-overlay arch differs from Docker TARGETARCH naming (x86_64 vs amd64)
 # Map TARGETARCH to s6-overlay arch: amd64->x86_64, arm64->aarch64
-ARG TARGETARCH
-RUN case "${TARGETARCH}" in \
-    amd64) S6_OVERLAY_ARCH=x86_64 ;; \
-    arm64) S6_OVERLAY_ARCH=aarch64 ;; \
-    *) echo "Unsupported TARGETARCH: ${TARGETARCH}" && exit 1 ;; \
-  esac && \
-  echo "S6_OVERLAY_ARCH=${S6_OVERLAY_ARCH}" > /tmp/s6_arch.env
+ARG TARGETARCH=amd64
 
 # SHA256 checksums for s6-overlay v3.2.3.0 (from just-containers/s6-overlay releases)
 # noarch is platform-independent
@@ -78,20 +72,22 @@ ARG S6_NOARCH_SHA256=b720f9d9340efc8bb07528b9743813c836e4b02f8693d90241f047998b4
 # x86_64 checksum
 ARG S6_X86_64_SHA256=a93f02882c6ed46b21e7adb5c0add86154f01236c93cd82c7d682722e8840563
 # aarch64 checksum (for arm64 builds)
-ARG S6_AARCH64_SHA256=<fill-in-aarch64-sha256>
+ARG S6_AARCH64_SHA256=0952056ff913482163cc30e35b2e944b507ba1025d78f5becbb89367bf344581
 
 # Download and extract s6-overlay from just-containers/s6-overlay with checksum verification
-ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz /tmp/s6-overlay-noarch.tar.xz
-ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-${S6_OVERLAY_ARCH}.tar.xz /tmp/s6-overlay-${S6_OVERLAY_ARCH}.tar.xz
-RUN . /tmp/s6_arch.env && \
-    echo "${S6_NOARCH_SHA256}  /tmp/s6-overlay-noarch.tar.xz" | sha256sum -c - && \
-    case "${S6_OVERLAY_ARCH}" in \
-    x86_64) echo "${S6_X86_64_SHA256}  /tmp/s6-overlay-${S6_OVERLAY_ARCH}.tar.xz" | sha256sum -c - ;; \
-    aarch64) echo "${S6_AARCH64_SHA256}  /tmp/s6-overlay-${S6_OVERLAY_ARCH}.tar.xz" | sha256sum -c - ;; \
-    esac && \
-    tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz && \
-    tar -C / -Jxpf /tmp/s6-overlay-${S6_OVERLAY_ARCH}.tar.xz && \
-    rm -f /tmp/s6-overlay-*.tar.xz /tmp/s6_arch.env
+RUN case "${TARGETARCH}" in \
+    amd64) S6_OVERLAY_ARCH=x86_64 ; S6_ARCH_SHA256="${S6_X86_64_SHA256}" ;; \
+    arm64) S6_OVERLAY_ARCH=aarch64 ; S6_ARCH_SHA256="${S6_AARCH64_SHA256}" ;; \
+    *) echo "Unsupported TARGETARCH: ${TARGETARCH}" && exit 1 ;; \
+  esac && \
+  apk add --no-cache curl xz && \
+  curl -fsSL -o /tmp/s6-overlay-noarch.tar.xz https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz && \
+  echo "${S6_NOARCH_SHA256}  /tmp/s6-overlay-noarch.tar.xz" | sha256sum -c - && \
+  curl -fsSL -o /tmp/s6-overlay-${S6_OVERLAY_ARCH}.tar.xz https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-${S6_OVERLAY_ARCH}.tar.xz && \
+  echo "${S6_ARCH_SHA256}  /tmp/s6-overlay-${S6_OVERLAY_ARCH}.tar.xz" | sha256sum -c - && \
+  tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz && \
+  tar -C / -Jxpf /tmp/s6-overlay-${S6_OVERLAY_ARCH}.tar.xz && \
+  rm -f /tmp/s6-overlay-*.tar.xz
 
 # Stage 5: Final image
 FROM alpine
