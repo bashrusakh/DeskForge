@@ -11,6 +11,15 @@
 # (which it does not by default; with-contenv is the canonical loader).
 set -eu
 cd /data
+
+# s6-overlay v3 stores operator-provided -e / env_file vars under
+# /run/s6/container_environment/ as one file per variable. s6-svscan does
+# not propagate them to service children by default, so we read them directly.
+HBBS_PORT="21116"
+if [ -s /run/s6/container_environment/HBBS_PORT ]; then
+    HBBS_PORT="$(cat /run/s6/container_environment/HBBS_PORT)"
+fi
+
 RELAY_VALUE=""
 if [ -s /run/s6/container_environment/RELAY ]; then
     RELAY_VALUE="$(cat /run/s6/container_environment/RELAY)"
@@ -19,7 +28,7 @@ fi
 # Only pass -r when RELAY is non-empty; an unset/empty RELAY falls back
 # to direct connections only (no placeholder domain advertised).
 if [ -n "$RELAY_VALUE" ]; then
-    exec /command/s6-envdir /run/s6/container_environment /usr/bin/hbbs -r "$RELAY_VALUE" -k _
+    exec /command/s6-envdir /run/s6/container_environment /usr/bin/hbbs -p "$HBBS_PORT" -r "$RELAY_VALUE" -k _
 else
-    exec /command/s6-envdir /run/s6/container_environment /usr/bin/hbbs -k _
+    exec /command/s6-envdir /run/s6/container_environment /usr/bin/hbbs -p "$HBBS_PORT" -k _
 fi

@@ -18,11 +18,14 @@
 # a bash-only feature and does not work in BusyBox ash, which is /bin/sh
 # in this image.
 #
-# Caveat: hbbs also listens on UDP :21116 (NAT type test). The TCP probe on
-# :21116 is sufficient because hbbs binds TCP and UDP on the same socket
-# via SO_REUSEADDR; if TCP binds, UDP is bound too.
+# Caveat: hbbs also listens on UDP on the configured HBBS port (NAT type
+# test). The TCP probe on that port is sufficient because hbbs binds TCP and
+# UDP on the same socket via SO_REUSEADDR; if TCP binds, UDP is bound too.
 
 set -eu
+
+HBBS_PORT="${HBBS_PORT:-21116}"
+HBBR_PORT="${HBBR_PORT:-21117}"
 
 probe_port() {
     host="$1"; port="$2"; name="$3"
@@ -35,7 +38,7 @@ probe_port() {
 }
 
 probe_port 127.0.0.1 21114 api
-probe_port 127.0.0.1 21116 hbbs
-probe_port 127.0.0.1 21117 hbbr
+probe_port 127.0.0.1 "${HBBS_PORT}" hbbs
+probe_port 127.0.0.1 "${HBBR_PORT}" hbbr
 
 exit 0

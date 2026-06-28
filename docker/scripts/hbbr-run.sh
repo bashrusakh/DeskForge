@@ -5,4 +5,13 @@
 # the configured relay port (default 21117).
 set -eu
 cd /data
-exec /usr/bin/hbbr -k _
+
+# s6-overlay v3 stores operator-provided -e / env_file vars under
+# /run/s6/container_environment/ as one file per variable. s6-svscan does
+# not propagate them to service children by default, so we read them directly.
+HBBR_PORT="21117"
+if [ -s /run/s6/container_environment/HBBR_PORT ]; then
+    HBBR_PORT="$(cat /run/s6/container_environment/HBBR_PORT)"
+fi
+
+exec /command/s6-envdir /run/s6/container_environment /usr/bin/hbbr -p "$HBBR_PORT" -k _
