@@ -43,6 +43,8 @@ downloading offline build assets (flutter engine, usbmmidd, printer drivers).
 - This endpoint queries GitHub releases of `bashrusakh/rustdesk` for tags
   `offline-assets-*` and returns only versions that have assets published
 - If GitHub API is unavailable, falls back to `['1.4.8', '1.4.7']`
+- The version list is cached for ~5 minutes; a newly published release may
+  take a few minutes to appear in the dropdown
 - The workflow decrypts `version` from `enc_payload` and overrides `VERSION`
   env (takes precedence over the workflow-level default `'1.4.8'`)
 
