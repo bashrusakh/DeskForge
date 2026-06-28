@@ -41,7 +41,6 @@
           <el-col :span="8">
             <el-form-item :label="T('Version')">
               <el-select v-model="form.version" style="width:100%">
-                <el-option :label="T('Nightly')" value="master" />
                 <el-option v-for="v in versions" :key="v" :label="v" :value="v" />
               </el-select>
             </el-form-item>
@@ -649,13 +648,8 @@ export default defineComponent({
 
     watch([page, pageSize], () => loadBuilds())
     const FALLBACK_VERSIONS = ['1.4.8', '1.4.7']
-    // 'master' is a hardcoded UI option (nightly); it is never part of the
-    // API-returned release list, so keep it valid when choosing defaults.
-    const defaultVersion = (current = form.version) => {
-      if (current === 'master') return 'master'
-      if (versions.value.includes(current)) return current
-      return versions.value[0] || FALLBACK_VERSIONS[0]
-    }
+    const defaultVersion = (current = form.version) =>
+      versions.value.includes(current) ? current : versions.value[0] || FALLBACK_VERSIONS[0]
     onMounted(async () => {
       loadBuilds()
       loadPresets()
