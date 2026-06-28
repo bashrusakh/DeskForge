@@ -13,10 +13,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	"rustdesk-server/api/model"
 
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/nacl/box"
 	"golang.org/x/crypto/pbkdf2"
 	"gorm.io/gorm"
@@ -159,6 +164,206 @@ func (s *GithubBuildConfigService) ghReq(ctx context.Context, c *model.GithubBui
 
 var ghClient = &http.Client{}
 
+// --- Available versions cache (offline-assets releases) ---
+
+type ghVersionsCache struct {
+	versions []string
+	cachedAt time.Time
+	mu       sync.Mutex
+}
+
+var (
+	releasesCache    ghVersionsCache
+	releasesCacheTTL = 5 * time.Minute
+	// fallbackCacheTTL — короткий TTL для fallback-кэша: при недоступности API
+	// хотим быстро вернуться к реальным данным после восстановления.
+	fallbackCacheTTL = 30 * time.Second
+)
+
+// fallbackVersions возвращается, если GitHub API недоступен.
+func fallbackVersions() []string {
+	return []string{"1.4.8", "1.4.7"}
+}
+
+// GetAvailableVersions возвращает список версий RustDesk, доступных для сборки
+// custom-клиента. Версии извлекаются из GitHub-релизов форка bashrusakh/rustdesk
+// с тегами "offline-assets-*". Результат кешируется на 5 минут.
+//
+// Если GitHub API недоступен, возвращается fallback-список.
+func (s *GithubBuildConfigService) GetAvailableVersions(ctx context.Context) ([]string, error) {
+	// 1) Проверить кеш
+	releasesCache.mu.Lock()
+	if releasesCache.versions != nil && time.Since(releasesCache.cachedAt) < releasesCacheTTL {
+		versions := releasesCache.versions
+		releasesCache.mu.Unlock()
+		return versions, nil
+	}
+	releasesCache.mu.Unlock()
+
+	// 2) Запросить GitHub API
+	versions, err := s.fetchReleases(ctx)
+	if err != nil {
+		// fallback при недоступности API — кешируем с коротким TTL,
+		// чтобы после восстановления API быстро получить реальные данные.
+		fallback := fallbackVersions()
+		releasesCache.mu.Lock()
+		releasesCache.versions = fallback
+		// Сдвигаем cachedAt назад на (releasesCacheTTL - fallbackCacheTTL),
+		// чтобы time.Since(cachedAt) быстро превысил releasesCacheTTL.
+		releasesCache.cachedAt = time.Now().Add(-(releasesCacheTTL - fallbackCacheTTL))
+		releasesCache.mu.Unlock()
+		log.Warnf("fetchReleases failed, using fallback for %s: %v", fallbackCacheTTL, err)
+		return fallback, err
+	}
+
+	// 3) Закешировать и вернуть
+	releasesCache.mu.Lock()
+	releasesCache.versions = versions
+	releasesCache.cachedAt = time.Now()
+	releasesCache.mu.Unlock()
+	return versions, nil
+}
+
+// fetchReleases делает HTTP-запрос к GitHub API и возвращает отсортированные
+// по semver (по убыванию) версии из тегов "offline-assets-*".
+func (s *GithubBuildConfigService) fetchReleases(ctx context.Context) ([]string, error) {
+	gcfg, err := s.Get()
+	if err != nil {
+		// Только ErrRecordNotFound допустим (конфиг ещё не задан — используем public API).
+		// Любая другая ошибка — реальная проблема (DB unavailable и т.п.),
+		// её надо увидеть, а не тихо провалиться на public rate limit.
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("get config: %w", err)
+		}
+	}
+
+	// TODO: handle pagination via Link header if releases exceed 100. Реальных релизов <10,
+	// но при росте выше 100 будут silently omitted. Нужен fetcher с follow Link header.
+	path := "/repos/bashrusakh/rustdesk/releases?per_page=100"
+	var resp *http.Response
+
+	if gcfg != nil && gcfg.Token != "" {
+		resp, err = s.ghReq(ctx, gcfg, "GET", path, nil)
+	} else {
+		// Без PAT — публичный запрос (ниже rate limit, но работает)
+		var req *http.Request
+		req, err = http.NewRequestWithContext(ctx, "GET", githubAPI+path, nil)
+		if err == nil {
+			req.Header.Set("Accept", "application/vnd.github+json")
+			req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+			resp, err = ghClient.Do(req)
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("GitHub API returned HTTP %d", resp.StatusCode)
+	}
+
+	var releases []struct {
+		TagName string `json:"tag_name"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
+		return nil, err
+	}
+
+	// Фильтр: только offline-assets-*
+	prefix := "offline-assets-"
+	var versions []string
+	for _, r := range releases {
+		if strings.HasPrefix(r.TagName, prefix) {
+			v := strings.TrimPrefix(r.TagName, prefix)
+			if v != "" {
+				versions = append(versions, v)
+			}
+		}
+	}
+
+	// Сортировка semver по убыванию
+	sort.Slice(versions, func(i, j int) bool {
+		return compareSemver(versions[i], versions[j]) > 0
+	})
+
+	return versions, nil
+}
+
+// compareSemver сравнивает две semver-строки (например "1.4.8" и "1.4.7").
+// Возвращает >0 если a > b, <0 если a < b, 0 если равны.
+// Pre-release сегменты (например "1.4.8-beta") считаются МЕНЬШЕ release ("1.4.8").
+func compareSemver(a, b string) int {
+	pa := strings.Split(a, ".")
+	pb := strings.Split(b, ".")
+	n := len(pa)
+	if len(pb) < n {
+		n = len(pb)
+	}
+	for i := 0; i < n; i++ {
+		va, errA := strconv.Atoi(pa[i])
+		vb, errB := strconv.Atoi(pb[i])
+		if errA != nil || errB != nil {
+			// non-numeric сегмент — pre-release. numeric > non-numeric.
+			if errA == nil && errB != nil {
+				return 1
+			}
+			if errA != nil && errB == nil {
+				return -1
+			}
+			// оба non-numeric — лексикографически (стабильно, но редко встречается)
+			return strings.Compare(pa[i], pb[i])
+		}
+		if va != vb {
+			return va - vb
+		}
+	}
+// Все совпавшие сегменты равны. Больше сегментов = выше версия ТОЛЬКО если
+// дополнительные сегменты non-zero. По semver trailing zero сегменты эквивалентны
+// ("1.4.8.0" == "1.4.8"). Если количество равно — финальное сравнение
+// non-numeric хвостов: non-numeric < numeric ("1.4.8-beta" < "1.4.8").
+	switch {
+	case len(pa) > len(pb):
+		// Extra segments у a — greater только если хоть один non-zero
+		for i := n; i < len(pa); i++ {
+			if v, err := strconv.Atoi(pa[i]); err == nil && v != 0 {
+				return 1
+			}
+		}
+		return 0
+	case len(pa) < len(pb):
+		// Extra segments у b — greater только если хоть один non-zero
+		for i := n; i < len(pb); i++ {
+			if v, err := strconv.Atoi(pb[i]); err == nil && v != 0 {
+				return -1
+			}
+		}
+		return 0
+	default:
+		// одинаковая длина — сравнить последние сегменты на non-numeric
+		hasPreA := hasNonNumeric(pa[len(pa)-1])
+		hasPreB := hasNonNumeric(pb[len(pb)-1])
+		if hasPreA == hasPreB {
+			return 0
+		}
+		if hasPreA {
+			return -1
+		}
+		return 1
+	}
+}
+
+// hasNonNumeric — true если сегмент содержит не только цифры
+// (например "8-beta", "rc1").
+func hasNonNumeric(s string) bool {
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return true
+		}
+	}
+	return false
+}
+
 // TestConnection — read-only вызов GET /repos/{repo}: проверяет PAT, scope, доступ к репо.
 // Возвращает (ok, message).
 func (s *GithubBuildConfigService) TestConnection(c *model.GithubBuildConfig) (bool, string) {
@@ -186,10 +391,6 @@ func (s *GithubBuildConfigService) TestConnection(c *model.GithubBuildConfig) (b
 // WORKFLOW_PAYLOAD_KEY. Использует libsodium sealed box (NaCl crypto_box_seal):
 // GitHub отдаёт публичный X25519 ключ репо, мы шифруем значение, оно никогда не
 // уходит в открытом виде. Требует у PAT scope `Secrets: read & write` на репо.
-//
-// Шаги:
-//   GET  /repos/{repo}/actions/secrets/public-key  → {key_id, key (base64 32B)}
-//   PUT  /repos/{repo}/actions/secrets/WORKFLOW_PAYLOAD_KEY  body {encrypted_value, key_id}
 func (s *GithubBuildConfigService) SetWorkflowSecret(c *model.GithubBuildConfig) error {
 	if c.Token == "" || c.Repo == "" {
 		return errors.New("token/repo required")
@@ -197,17 +398,34 @@ func (s *GithubBuildConfigService) SetWorkflowSecret(c *model.GithubBuildConfig)
 	if c.PayloadKey == "" {
 		return errors.New("payload_key is empty (Generate or paste one first)")
 	}
+	return s.putGithubSecret(c, "/repos/"+c.Repo, "WORKFLOW_PAYLOAD_KEY", c.PayloadKey)
+}
 
+// SetSyncPatSecret кладёт/обновляет PAT в GitHub Secrets репозитория DeskForge
+// как GH_PAT. Используется sync-workflows.yml для доступа к форку.
+// Тот же sealed box механизм, что и SetWorkflowSecret, но таргет — свой репозиторий.
+func (s *GithubBuildConfigService) SetSyncPatSecret(c *model.GithubBuildConfig) error {
+	if c.Token == "" {
+		return errors.New("token is empty — save a PAT first")
+	}
+	return s.putGithubSecret(c, "/repos/bashrusakh/DeskForge", "GH_PAT", c.Token)
+}
+
+// putGithubSecret — общая логика encrypt-and-PUT секрета в GitHub Actions Secrets.
+// Шаги:
+//   GET  {repoPath}/actions/secrets/public-key  → {key_id, key (base64 32B)}
+//   PUT  {repoPath}/actions/secrets/{secretName}  body {encrypted_value, key_id}
+func (s *GithubBuildConfigService) putGithubSecret(c *model.GithubBuildConfig, repoPath, secretName, plaintext string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
 	// 1) забрать публичный ключ репо
-	resp, err := s.ghReq(ctx, c, "GET", "/repos/"+c.Repo+"/actions/secrets/public-key", nil)
+	resp, err := s.ghReq(ctx, c, "GET", repoPath+"/actions/secrets/public-key", nil)
 	if err != nil {
 		return fmt.Errorf("get public-key: %w", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("get public-key HTTP %d: %s", resp.StatusCode, string(b))
 	}
@@ -229,7 +447,7 @@ func (s *GithubBuildConfigService) SetWorkflowSecret(c *model.GithubBuildConfig)
 	copy(peerPub[:], keyBytes)
 
 	// 2) sealed box: эфемерная пара + шифрование значения
-	sealed, err := box.SealAnonymous(nil, []byte(c.PayloadKey), &peerPub, rand.Reader)
+	sealed, err := box.SealAnonymous(nil, []byte(plaintext), &peerPub, rand.Reader)
 	if err != nil {
 		return fmt.Errorf("sealed box: %w", err)
 	}
@@ -241,12 +459,12 @@ func (s *GithubBuildConfigService) SetWorkflowSecret(c *model.GithubBuildConfig)
 		"key_id":          pk.KeyId,
 	}
 	putResp, err := s.ghReq(ctx, c, "PUT",
-		"/repos/"+c.Repo+"/actions/secrets/WORKFLOW_PAYLOAD_KEY", body)
+		repoPath+"/actions/secrets/"+secretName, body)
 	if err != nil {
 		return fmt.Errorf("put secret: %w", err)
 	}
 	defer putResp.Body.Close()
-	if putResp.StatusCode != 201 && putResp.StatusCode != 204 {
+	if putResp.StatusCode != http.StatusCreated && putResp.StatusCode != http.StatusNoContent {
 		b, _ := io.ReadAll(putResp.Body)
 		return fmt.Errorf("put secret HTTP %d: %s", putResp.StatusCode, string(b))
 	}

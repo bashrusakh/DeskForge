@@ -379,6 +379,7 @@ func CustomBuildBind(rg *gin.RouterGroup) {
 	// /detail/:id intentionally not exposed: never had a UI consumer (BUGS.md B-014).
 	aR.POST("/create", cont.Create)
 	aR.POST("/delete", cont.Delete)
+	aR.GET("/versions", cont.Versions)
 }
 
 func CustomPresetBind(rg *gin.RouterGroup) {
@@ -399,5 +400,6 @@ func GithubBuildConfigBind(rg *gin.RouterGroup) {
 	aR.POST("/generate_key", cont.GenerateKey)
 	aR.POST("/test", cont.Test)
 	aR.POST("/sync_secret", cont.SyncSecret)
+	aR.POST("/sync_pat", cont.SyncPat)
 	aR.POST("/dispatch_test", cont.DispatchTest)
 }

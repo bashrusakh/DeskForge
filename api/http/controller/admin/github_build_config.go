@@ -103,6 +103,23 @@ func (h *GithubBuildConfig) SyncSecret(c *gin.Context) {
 	response.Success(c, gin.H{"ok": true, "message": "WORKFLOW_PAYLOAD_KEY synced to GitHub Secrets"})
 }
 
+// POST /admin/github_build_config/sync_pat
+// One-click sealed-box sync: кладёт текущий PAT в GitHub Secrets DeskForge как GH_PAT.
+// Нужен для sync-workflows.yml (доступ к форку из CI DeskForge).
+func (h *GithubBuildConfig) SyncPat(c *gin.Context) {
+	svc := service.AllService.GithubBuildConfigService
+	cur, err := svc.Get()
+	if err != nil {
+		response.Fail(c, 101, err.Error())
+		return
+	}
+	if err := svc.SetSyncPatSecret(cur); err != nil {
+		response.Fail(c, 101, err.Error())
+		return
+	}
+	response.Success(c, gin.H{"ok": true, "message": "GH_PAT synced to DeskForge GitHub Secrets"})
+}
+
 // POST /admin/github_build_config/dispatch_test
 // Диспетчит workflow_dispatch и возвращает run_id. Статус — в GitHub Actions
 // (длинный poll здесь не держим, чтобы не ловить обрыв прокси).
