@@ -2,8 +2,11 @@
 # ============================================================================
 # DRAFT (B-XXX) — НЕ ВАЛИДИРОВАН РЕАЛЬНЫМ ПРОГОНОМ GITHUB ACTIONS.
 # Синкает workflow-файлы из DeskForge в форк bashrusakh/rustdesk на все 3 ветки.
-# Запускается автоматически при push в main по путям github-build/*.yml
-# и rdgen/.github/workflows/bridge.yml, либо вручную через workflow_dispatch.
+# Пока запускается ТОЛЬКО вручную через workflow_dispatch.
+# После первого успешного прогона вернуть push-триггер:
+#   paths:
+#     - 'github-build/rustqs-*.yml'
+#     - 'rdgen/.github/workflows/bridge.yml'
 #
 # Требует GitHub Secret GH_PAT в репозитории DeskForge — Personal Access Token
 # с scope repo на bashrusakh/rustdesk. Тот же токен, что используется в
@@ -15,11 +18,6 @@
 name: Sync workflows to fork
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'github-build/rustqs-*.yml'
-      - 'rdgen/.github/workflows/bridge.yml'
   workflow_dispatch:
 
 env:
@@ -47,6 +45,21 @@ jobs:
             exit 1
           fi
 
+          # Validate source files before doing any git work
+          bridge_src="${{ github.workspace }}/rdgen/.github/workflows/bridge.yml"
+          if [ ! -f "$bridge_src" ]; then
+            echo "::error::bridge.yml source is missing: $bridge_src"
+            exit 1
+          fi
+
+          shopt -s nullglob
+          rustqs_files=("${{ github.workspace }}/github-build/"rustqs-*.yml)
+          if [ ${#rustqs_files[@]} -eq 0 ]; then
+            echo "::error::No github-build/rustqs-*.yml source files found."
+            exit 1
+          fi
+          src_files=("${rustqs_files[@]}" "$bridge_src")
+
           # Build a git tree from our workflow files (no clone needed)
           rm -rf /tmp/sync
           git init /tmp/sync
@@ -55,16 +68,6 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${FORK_REPO}.git"
 
-          shopt -s nullglob
-          src_files=(
-            "${{ github.workspace }}/github-build/"rustqs-*.yml
-            "${{ github.workspace }}/rdgen/.github/workflows/bridge.yml"
-          )
-          if [ ${#src_files[@]} -eq 0 ]; then
-            echo "::error::No source workflow files found."
-            exit 1
-          fi
-
           FAILED=0
           SYNCED=0
           SKIPPED=0
@@ -72,6 +75,11 @@ jobs:
 
           for branch in $FORK_BRANCHES; do
             echo "=== Syncing to $FORK_REPO:$branch ==="
+
+            # Wipe the working tree (except .git) at the start of each
+            # iteration so stale files from the previous branch cannot be
+            # re-staged into the current branch.
+            find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
 
             # Reset index to empty, then load parent's tree (if branch exists)
             # so the new commit preserves all existing fork content.
