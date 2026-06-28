@@ -33,19 +33,13 @@ func TestCompareSemver(t *testing.T) {
 	}
 }
 
-// TestGetAvailableVersionsCtxCancel подтверждает, что отменённый/протухший
-// caller-контекст возвращается сразу через select на ctx.Done(), не дожидаясь
-// detached shared refresh. Используем уже отменённый контекст, чтобы select
-// немедленно выбрал ветку ctx.Done().
-//
-// Тест НЕ мокает GitHub API: первый запуск инициирует реальный fetchReleases
-// в shared goroutine, но caller возвращается мгновенно через ctx.Err().
-// Чтобы не оставлять в кеше результат, блокирующий последующие тесты —
-// сбрасываем releasesCache после.
+// TestGetAvailableVersionsCtxCancel подтверждает, что отменённый контекст
+// возвращается моментально через select перед DoChan, не заводя singleflight
+// shared goroutine (герметично — без реального запроса к GitHub API).
 func TestGetAvailableVersionsCtxCancel(t *testing.T) {
 	s := &GithubBuildConfigService{}
 
-	// Сбросить кеш, чтобы попасть в singleflight-ветку.
+	// Сбросить кеш, чтобы не было cache-hit.
 	releasesCache.mu.Lock()
 	releasesCache.versions = nil
 	releasesCache.cachedAt = time.Time{}
@@ -64,11 +58,6 @@ func TestGetAvailableVersionsCtxCancel(t *testing.T) {
 	if elapsed > 200*time.Millisecond {
 		t.Errorf("GetAvailableVersions did not honor ctx cancellation: took %v", elapsed)
 	}
-
-	// Сбрасываем кеш, чтобы фоновый fetch не оставил в нём результат
-	// (тест не делает assertion на сеть).
-	releasesCache.mu.Lock()
-	releasesCache.versions = nil
-	releasesCache.cachedAt = time.Time{}
-	releasesCache.mu.Unlock()
+	// Не сбрасываем releasesCache: при cancelled ctx singleflight goroutine
+	// не заводится — кеш не мутируется, тест герметичен.
 }

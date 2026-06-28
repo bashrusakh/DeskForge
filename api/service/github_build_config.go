@@ -206,7 +206,16 @@ func (s *GithubBuildConfigService) GetAvailableVersions(ctx context.Context) ([]
 	}
 	releasesCache.mu.Unlock()
 
-	// 2) Один запрос к GitHub API на concurrent batch.
+	// 2) Если caller уже отвалился — вернуть ошибку моментально, не заводя
+	// singleflight shared goroutine (иначе теряем герметичность тестов и
+	// тратим ресурсы на запрос, результат которого никто не ждёт).
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
+	// 3) Один запрос к GitHub API на concurrent batch.
 	// Используем detached bounded context, чтобы таймаут/отмена одного caller
 	// не убила shared refresh для всех остальных waiter'ов.
 	fetchCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
