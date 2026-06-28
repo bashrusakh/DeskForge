@@ -401,14 +401,17 @@ func (s *GithubBuildConfigService) SetWorkflowSecret(c *model.GithubBuildConfig)
 	return s.putGithubSecret(c, "/repos/"+c.Repo, "WORKFLOW_PAYLOAD_KEY", c.PayloadKey)
 }
 
-// SetSyncPatSecret кладёт/обновляет PAT в GitHub Secrets репозитория DeskForge
-// как GH_PAT. Используется sync-workflows.yml для доступа к форку.
-// Тот же sealed box механизм, что и SetWorkflowSecret, но таргет — свой репозиторий.
+// SetSyncPatSecret кладёт/обновляет PAT в GitHub Secrets текущего настроенного
+// репозитория как GH_PAT. Используется sync-workflows.yml для доступа к форку
+// из CI. Тот же sealed box механизм, что и SetWorkflowSecret.
 func (s *GithubBuildConfigService) SetSyncPatSecret(c *model.GithubBuildConfig) error {
 	if c.Token == "" {
 		return errors.New("token is empty — save a PAT first")
 	}
-	return s.putGithubSecret(c, "/repos/bashrusakh/DeskForge", "GH_PAT", c.Token)
+	if c.Repo == "" {
+		return errors.New("repo is not set")
+	}
+	return s.putGithubSecret(c, "/repos/"+c.Repo, "GH_PAT", c.Token)
 }
 
 // putGithubSecret — общая логика encrypt-and-PUT секрета в GitHub Actions Secrets.

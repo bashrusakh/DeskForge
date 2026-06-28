@@ -104,8 +104,9 @@ func (h *GithubBuildConfig) SyncSecret(c *gin.Context) {
 }
 
 // POST /admin/github_build_config/sync_pat
-// One-click sealed-box sync: кладёт текущий PAT в GitHub Secrets DeskForge как GH_PAT.
-// Нужен для sync-workflows.yml (доступ к форку из CI DeskForge).
+// One-click sealed-box sync: кладёт PAT в GitHub Secrets настроенного репозитория как
+// GH_PAT. Нужен для sync-workflows.yml (доступ к форку из CI DeskForge).
+// body: { token? } — если token не передан, берётся сохранённый из конфига.
 func (h *GithubBuildConfig) SyncPat(c *gin.Context) {
 	svc := service.AllService.GithubBuildConfigService
 	cur, err := svc.Get()
@@ -113,11 +114,24 @@ func (h *GithubBuildConfig) SyncPat(c *gin.Context) {
 		response.Fail(c, 101, err.Error())
 		return
 	}
-	if err := svc.SetSyncPatSecret(cur); err != nil {
+
+	var req struct {
+		Token string `json:"token"`
+	}
+	_ = c.ShouldBindJSON(&req) // тело опционально
+
+	// Use the token from the request if present; otherwise fall back to the
+	// saved config so "Sync PAT to CI" works after saving without retyping.
+	cfg := *cur
+	if req.Token != "" {
+		cfg.Token = req.Token
+	}
+
+	if err := svc.SetSyncPatSecret(&cfg); err != nil {
 		response.Fail(c, 101, err.Error())
 		return
 	}
-	response.Success(c, gin.H{"ok": true, "message": "GH_PAT synced to DeskForge GitHub Secrets"})
+	response.Success(c, gin.H{"ok": true, "message": "GH_PAT synced to " + cfg.Repo + " GitHub Secrets"})
 }
 
 // POST /admin/github_build_config/dispatch_test
