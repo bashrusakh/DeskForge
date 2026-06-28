@@ -4,6 +4,10 @@
 # Stage 1: Build Rust server (hbbs, hbbr) with musl for Alpine compatibility
 FROM rust:bookworm AS rust-builder
 
+# Map Docker TARGETARCH to the musl Rust target so arm64 builds produce aarch64 binaries
+# (s6-overlay stage already uses this mapping for its own arch selection).
+ARG TARGETARCH=amd64
+
 RUN apt-get update && apt-get install -y musl-tools sqlite3 perl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build/server
@@ -18,9 +22,14 @@ RUN mkdir -p src && \
     echo 'fn main() {}' > src/main.rs && \
     echo 'fn main() {}' > src/hbbr.rs
 
-# Build dependencies only (musl target)
-RUN rustup target add x86_64-unknown-linux-musl && \
-    cargo build --release --target x86_64-unknown-linux-musl 2>/dev/null || true
+# Build dependencies only (musl target matching TARGETARCH)
+RUN case "${TARGETARCH}" in \
+      amd64) RUST_TARGET=x86_64-unknown-linux-musl ;; \
+      arm64) RUST_TARGET=aarch64-unknown-linux-musl ;; \
+      *) echo "Unsupported TARGETARCH: ${TARGETARCH}" && exit 1 ;; \
+    esac && \
+    rustup target add ${RUST_TARGET} && \
+    cargo build --release --target ${RUST_TARGET} 2>/dev/null || true
 
 # Create dummy SQLite DB for sqlx compile-time query checks
 RUN rm -f /tmp/dummy.db && \
@@ -29,9 +38,20 @@ RUN rm -f /tmp/dummy.db && \
 # Copy actual source
 COPY server/src ./src
 
-# Build the server binaries with musl target (including rustdesk-utils for key generation)
+# Build the server binaries for the selected musl target (including rustdesk-utils for key generation)
 ENV DATABASE_URL=sqlite:///tmp/dummy.db
-RUN rm -f Cargo.lock && cargo build --release --target x86_64-unknown-linux-musl --bin hbbs --bin hbbr --bin rustdesk-utils
+RUN case "${TARGETARCH}" in \
+      amd64) RUST_TARGET=x86_64-unknown-linux-musl ;; \
+      arm64) RUST_TARGET=aarch64-unknown-linux-musl ;; \
+      *) echo "Unsupported TARGETARCH: ${TARGETARCH}" && exit 1 ;; \
+    esac && \
+    rm -f Cargo.lock && cargo build --release --target ${RUST_TARGET} --bin hbbs --bin hbbr --bin rustdesk-utils && \
+    # Stage the binaries at arch-independent paths so the final stage can COPY them
+    # without re-deriving the musl target. Mirrors what `cargo install` does.
+    mkdir -p /build/server/release && \
+    cp /build/server/target/${RUST_TARGET}/release/hbbs          /build/server/release/hbbs && \
+    cp /build/server/target/${RUST_TARGET}/release/hbbr          /build/server/release/hbbr && \
+    cp /build/server/target/${RUST_TARGET}/release/rustdesk-utils /build/server/release/rustdesk-utils
 
 # Stage 2: Build Go API
 FROM golang:1.23-alpine AS go-builder
@@ -100,10 +120,11 @@ WORKDIR /app
 # Install dependencies
 RUN apk add --no-cache tzdata curl
 
-# Copy Rust server binaries (musl target)
-COPY --from=rust-builder /build/server/target/x86_64-unknown-linux-musl/release/hbbs /usr/bin/hbbs
-COPY --from=rust-builder /build/server/target/x86_64-unknown-linux-musl/release/hbbr /usr/bin/hbbr
-COPY --from=rust-builder /build/server/target/x86_64-unknown-linux-musl/release/rustdesk-utils /usr/bin/rustdesk-utils
+# Copy Rust server binaries (rust-builder stages them at arch-independent paths
+# after building for the musl target matching TARGETARCH).
+COPY --from=rust-builder /build/server/release/hbbs /usr/bin/hbbs
+COPY --from=rust-builder /build/server/release/hbbr /usr/bin/hbbr
+COPY --from=rust-builder /build/server/release/rustdesk-utils /usr/bin/rustdesk-utils
 
 # Copy Go API binary
 COPY --from=go-builder /build/api/apimain /app/apimain
@@ -122,7 +143,8 @@ COPY --from=s6-stage /package /package
 COPY --from=s6-stage /command /command
 
 # Create our own healthcheck.sh (replaces upstream version)
-# NOTE: must list ALL s6 longrun services (hbbr, hbbs, api) - update if services change
+# NOTE: must list ALL s6 longrun services (hbbr, hbbs, api) - update if services change.
+# `key-secret` is oneshot, so it's intentionally NOT polled via s6-svstat (no servicedir).
 RUN cat > /usr/bin/healthcheck.sh <<'EOF' && chmod +x /usr/bin/healthcheck.sh
 #!/bin/sh
 /package/admin/s6/command/s6-svstat /run/s6-rc/servicedirs/hbbr || exit 1
@@ -133,13 +155,73 @@ EOF
 # Copy API configuration
 COPY api/conf /app/conf
 
-# Create s6 service for API
+# Create s6 services (key-secret + hbbs + hbbr + api).
+# Previously inherited from the upstream rustdesk/rustdesk-server-s6 image;
+# now defined locally so multi-arch builds don't depend on that image.
+#
+# Dependency graph:
+#   key-secret (oneshot)  →  generates /data/id_ed25519[.pub] if missing
+#      ├── hbbs (longrun) → RustDesk ID/Rendezvous server
+#      └── hbbr (longrun) → RustDesk Relay server
+#            └── api (longrun) → Go REST API
+
+# --- key-secret: oneshot, generates Ed25519 keypair on first boot ---
+# In s6-overlay v3 the `up` file of a oneshot is parsed by execlineb as a SINGLE
+# COMMAND LINE (no shebang, no multi-line shell). To run a multi-step shell
+# script we follow the upstream pattern: put the script at a stable path and
+# call it from `up` (mirrors upstream `fix-attrs` → /etc/s6-rc/scripts/fix-attrs).
+RUN mkdir -p /etc/s6-overlay/s6-rc.d/key-secret /etc/s6-overlay/scripts && \
+    printf 'oneshot\n' > /etc/s6-overlay/s6-rc.d/key-secret/type && \
+    cat > /etc/s6-overlay/scripts/key-secret <<'EOF'
+#!/bin/sh
+# Generate Ed25519 keypair on first boot. Idempotent: skipped if /data
+# already has the key files (typical for restarted containers with volumes).
+if [ ! -f /data/id_ed25519 ] || [ ! -f /data/id_ed25519.pub ]; then
+    /usr/bin/rustdesk-utils genkeypair > /tmp/keygen.out 2>&1
+    awk '/Public Key:/  {print $3}' /tmp/keygen.out > /data/id_ed25519.pub
+    awk '/Secret Key:/  {print $3}' /tmp/keygen.out > /data/id_ed25519
+    rm -f /tmp/keygen.out
+fi
+EOF
+RUN printf '%s\n' '/etc/s6-overlay/scripts/key-secret' \
+        > /etc/s6-overlay/s6-rc.d/key-secret/up && \
+    chmod +x /etc/s6-overlay/scripts/key-secret && \
+    touch /etc/s6-overlay/s6-rc.d/user/contents.d/key-secret
+
+# --- hbbs: longrun, ID / rendezvous server ---
+RUN mkdir -p /etc/s6-overlay/s6-rc.d/hbbs && \
+    printf 'key-secret\n' > /etc/s6-overlay/s6-rc.d/hbbs/dependencies && \
+    printf 'longrun\n' > /etc/s6-overlay/s6-rc.d/hbbs/type && \
+    cat > /etc/s6-overlay/s6-rc.d/hbbs/run <<'EOF'
+#!/bin/sh
+cd /data
+exec /usr/bin/hbbs -k _
+EOF
+RUN chmod +x /etc/s6-overlay/s6-rc.d/hbbs/run && \
+    touch /etc/s6-overlay/s6-rc.d/user/contents.d/hbbs
+
+# --- hbbr: longrun, relay server ---
+RUN mkdir -p /etc/s6-overlay/s6-rc.d/hbbr && \
+    printf 'key-secret\n' > /etc/s6-overlay/s6-rc.d/hbbr/dependencies && \
+    printf 'longrun\n' > /etc/s6-overlay/s6-rc.d/hbbr/type && \
+    cat > /etc/s6-overlay/s6-rc.d/hbbr/run <<'EOF'
+#!/bin/sh
+cd /data
+exec /usr/bin/hbbr -k _
+EOF
+RUN chmod +x /etc/s6-overlay/s6-rc.d/hbbr/run && \
+    touch /etc/s6-overlay/s6-rc.d/user/contents.d/hbbr
+
+# --- api: longrun, Go REST API ---
 RUN mkdir -p /etc/s6-overlay/s6-rc.d/api && \
-    echo -e "key-secret\nhbbs" > /etc/s6-overlay/s6-rc.d/api/dependencies && \
-    echo "longrun" > /etc/s6-overlay/s6-rc.d/api/type && \
-    echo "#!/command/with-contenv sh" > /etc/s6-overlay/s6-rc.d/api/run && \
-    echo "cd /app" >> /etc/s6-overlay/s6-rc.d/api/run && \
-    echo "./apimain" >> /etc/s6-overlay/s6-rc.d/api/run && \
+    printf 'key-secret\nhbbs\n' > /etc/s6-overlay/s6-rc.d/api/dependencies && \
+    printf 'longrun\n' > /etc/s6-overlay/s6-rc.d/api/type && \
+    cat > /etc/s6-overlay/s6-rc.d/api/run <<'EOF'
+#!/bin/sh
+cd /app
+exec ./apimain
+EOF
+RUN chmod +x /etc/s6-overlay/s6-rc.d/api/run && \
     touch /etc/s6-overlay/s6-rc.d/user/contents.d/api && \
     ln -s /run /var/run
 
