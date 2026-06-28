@@ -142,15 +142,10 @@ COPY --from=s6-stage /etc/s6-overlay /etc/s6-overlay
 COPY --from=s6-stage /package /package
 COPY --from=s6-stage /command /command
 
-# Create our own healthcheck.sh (replaces upstream version)
-# NOTE: must list ALL s6 longrun services (hbbr, hbbs, api) - update if services change.
-# `key-secret` is oneshot, so it's intentionally NOT polled via s6-svstat (no servicedir).
-RUN cat > /usr/bin/healthcheck.sh <<'EOF' && chmod +x /usr/bin/healthcheck.sh
-#!/bin/sh
-/package/admin/s6/command/s6-svstat /run/s6-rc/servicedirs/hbbr || exit 1
-/package/admin/s6/command/s6-svstat /run/s6-rc/servicedirs/hbbs || exit 1
-/package/admin/s6/command/s6-svstat /run/s6-rc/servicedirs/api || exit 1
-EOF
+# Create our own healthcheck.sh (replaces upstream version).
+# Sourced from docker/scripts/healthcheck.sh so the logic is lintable and
+# version-controlled separately from the Dockerfile.
+COPY docker/scripts/healthcheck.sh /usr/bin/healthcheck.sh
 
 # Copy API configuration
 COPY api/conf /app/conf
@@ -170,58 +165,38 @@ COPY api/conf /app/conf
 # COMMAND LINE (no shebang, no multi-line shell). To run a multi-step shell
 # script we follow the upstream pattern: put the script at a stable path and
 # call it from `up` (mirrors upstream `fix-attrs` → /etc/s6-rc/scripts/fix-attrs).
-RUN mkdir -p /etc/s6-overlay/s6-rc.d/key-secret /etc/s6-overlay/scripts && \
+# The script itself is sourced from docker/scripts/key-secret.sh so it stays
+# lintable and outside the Dockerfile heredoc.
+COPY docker/scripts/key-secret.sh /etc/s6-overlay/scripts/key-secret
+RUN mkdir -p /etc/s6-overlay/s6-rc.d/key-secret && \
     printf 'oneshot\n' > /etc/s6-overlay/s6-rc.d/key-secret/type && \
-    cat > /etc/s6-overlay/scripts/key-secret <<'EOF'
-#!/bin/sh
-# Generate Ed25519 keypair on first boot. Idempotent: skipped if /data
-# already has the key files (typical for restarted containers with volumes).
-if [ ! -f /data/id_ed25519 ] || [ ! -f /data/id_ed25519.pub ]; then
-    /usr/bin/rustdesk-utils genkeypair > /tmp/keygen.out 2>&1
-    awk '/Public Key:/  {print $3}' /tmp/keygen.out > /data/id_ed25519.pub
-    awk '/Secret Key:/  {print $3}' /tmp/keygen.out > /data/id_ed25519
-    rm -f /tmp/keygen.out
-fi
-EOF
-RUN printf '%s\n' '/etc/s6-overlay/scripts/key-secret' \
+    printf '%s\n' '/etc/s6-overlay/scripts/key-secret' \
         > /etc/s6-overlay/s6-rc.d/key-secret/up && \
     chmod +x /etc/s6-overlay/scripts/key-secret && \
     touch /etc/s6-overlay/s6-rc.d/user/contents.d/key-secret
 
 # --- hbbs: longrun, ID / rendezvous server ---
+COPY docker/scripts/hbbs-run.sh /etc/s6-overlay/s6-rc.d/hbbs/run
 RUN mkdir -p /etc/s6-overlay/s6-rc.d/hbbs && \
     printf 'key-secret\n' > /etc/s6-overlay/s6-rc.d/hbbs/dependencies && \
     printf 'longrun\n' > /etc/s6-overlay/s6-rc.d/hbbs/type && \
-    cat > /etc/s6-overlay/s6-rc.d/hbbs/run <<'EOF'
-#!/bin/sh
-cd /data
-exec /usr/bin/hbbs -k _
-EOF
-RUN chmod +x /etc/s6-overlay/s6-rc.d/hbbs/run && \
+    chmod +x /etc/s6-overlay/s6-rc.d/hbbs/run && \
     touch /etc/s6-overlay/s6-rc.d/user/contents.d/hbbs
 
 # --- hbbr: longrun, relay server ---
+COPY docker/scripts/hbbr-run.sh /etc/s6-overlay/s6-rc.d/hbbr/run
 RUN mkdir -p /etc/s6-overlay/s6-rc.d/hbbr && \
     printf 'key-secret\n' > /etc/s6-overlay/s6-rc.d/hbbr/dependencies && \
     printf 'longrun\n' > /etc/s6-overlay/s6-rc.d/hbbr/type && \
-    cat > /etc/s6-overlay/s6-rc.d/hbbr/run <<'EOF'
-#!/bin/sh
-cd /data
-exec /usr/bin/hbbr -k _
-EOF
-RUN chmod +x /etc/s6-overlay/s6-rc.d/hbbr/run && \
+    chmod +x /etc/s6-overlay/s6-rc.d/hbbr/run && \
     touch /etc/s6-overlay/s6-rc.d/user/contents.d/hbbr
 
 # --- api: longrun, Go REST API ---
+COPY docker/scripts/api-run.sh /etc/s6-overlay/s6-rc.d/api/run
 RUN mkdir -p /etc/s6-overlay/s6-rc.d/api && \
     printf 'key-secret\nhbbs\n' > /etc/s6-overlay/s6-rc.d/api/dependencies && \
     printf 'longrun\n' > /etc/s6-overlay/s6-rc.d/api/type && \
-    cat > /etc/s6-overlay/s6-rc.d/api/run <<'EOF'
-#!/bin/sh
-cd /app
-exec ./apimain
-EOF
-RUN chmod +x /etc/s6-overlay/s6-rc.d/api/run && \
+    chmod +x /etc/s6-overlay/s6-rc.d/api/run && \
     touch /etc/s6-overlay/s6-rc.d/user/contents.d/api && \
     ln -s /run /var/run
 
