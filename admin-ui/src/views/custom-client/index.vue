@@ -584,7 +584,7 @@ export default defineComponent({
     const resetForm = () => {
       selectedPresetId.value = null
       form.platform = 'windows'
-      form.version = '1.4.8'
+      form.version = defaultVersion()
       form.app_name = ''
       form.server_ip = ''
       form.key = ''
@@ -649,33 +649,52 @@ export default defineComponent({
 
     watch([page, pageSize], () => loadBuilds())
     const FALLBACK_VERSIONS = ['1.4.8', '1.4.7']
+    // 'master' is a hardcoded UI option (nightly); it is never part of the
+    // API-returned release list, so keep it valid when choosing defaults.
+    const defaultVersion = (current = form.version) => {
+      if (current === 'master') return 'master'
+      if (versions.value.includes(current)) return current
+      return versions.value[0] || FALLBACK_VERSIONS[0]
+    }
     onMounted(async () => {
       loadBuilds()
       loadPresets()
-      // Run getVersions and fetchConfig in parallel so a slow/unreachable
-      // GitHub API (15s backend timeout) does not block form pre-filling.
-      const [versionsRes, configRes] = await Promise.allSettled([
-        getVersions(),
-        fetchConfig(),
-      ])
-      if (versionsRes.status === 'fulfilled' && versionsRes.value?.data?.length) {
-        versions.value = versionsRes.value.data
-      } else {
-        if (versionsRes.status === 'rejected') {
-          console.warn('getVersions failed, using fallback:', versionsRes.reason)
+      // getVersions is intentionally not awaited before fetchConfig — server
+      // defaults must apply immediately, even if GitHub API is slow/unreachable.
+      const versionsPromise = getVersions().then(res => {
+        if (res?.data?.length) {
+          versions.value = res.data
+        } else {
+          versions.value = FALLBACK_VERSIONS
         }
+      }).catch(e => {
+        console.warn('getVersions failed, using fallback:', e)
         versions.value = FALLBACK_VERSIONS
+      }).finally(() => {
+        // Keep form.version aligned with the available options. Preserve
+        // 'master' (nightly) if the user already selected it.
+        form.version = defaultVersion(form.version)
+      })
+
+      try {
+        const res = await fetchConfig()
+        if (res?.data) {
+          // B-016: заполняем ТОЛЬКО пустые поля. Пресет (loadPresets/onPresetSelect)
+          // может примениться раньше, чем резолвится fetchConfig — нельзя затирать
+          // уже выставленные им значения серверными дефолтами.
+          const cfg = res.data
+          if (!form.server_ip) form.server_ip = stripPort(cfg.id_server || '')
+          if (!form.key) form.key = cfg.key || ''
+          if (!form.api_server) form.api_server = cfg.api_server || ''
+          if (!form.relay_server) form.relay_server = stripPort(cfg.relay_server || '')
+        }
+      } catch (e) {
+        console.warn('fetchConfig failed:', e)
       }
-      if (configRes.status === 'fulfilled' && configRes.value?.data) {
-        // B-016: заполняем ТОЛЬКО пустые поля. Пресет (loadPresets/onPresetSelect)
-        // может примениться раньше, чем резолвится fetchConfig — нельзя затирать
-        // уже выставленные им значения серверными дефолтами.
-        const res = configRes.value.data
-        if (!form.server_ip) form.server_ip = stripPort(res.id_server || '')
-        if (!form.key) form.key = res.key || ''
-        if (!form.api_server) form.api_server = res.api_server || ''
-        if (!form.relay_server) form.relay_server = stripPort(res.relay_server || '')
-      }
+
+      // Wait for versions to settle before any submit can happen; by then the
+      // form already has server defaults applied.
+      await versionsPromise
     })
 
     return {
