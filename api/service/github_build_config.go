@@ -13,11 +13,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/sync/singleflight"
 
 	"rustdesk-server/api/model"
 
@@ -178,6 +181,7 @@ var (
 	// fallbackCacheTTL — короткий TTL для fallback-кэша: при недоступности API
 	// хотим быстро вернуться к реальным данным после восстановления.
 	fallbackCacheTTL = 30 * time.Second
+	versionsFlight    singleflight.Group
 )
 
 // fallbackVersions возвращается, если GitHub API недоступен.
@@ -190,6 +194,9 @@ func fallbackVersions() []string {
 // с тегами "offline-assets-*". Результат кешируется на 5 минут.
 //
 // Если GitHub API недоступен, возвращается fallback-список.
+//
+// singleflight защищает от stampede при одновременных запросах: пока один
+// goroutine обновляет кеш, остальные ждут того же результата.
 func (s *GithubBuildConfigService) GetAvailableVersions(ctx context.Context) ([]string, error) {
 	// 1) Проверить кеш
 	releasesCache.mu.Lock()
@@ -200,28 +207,30 @@ func (s *GithubBuildConfigService) GetAvailableVersions(ctx context.Context) ([]
 	}
 	releasesCache.mu.Unlock()
 
-	// 2) Запросить GitHub API
-	versions, err := s.fetchReleases(ctx)
-	if err != nil {
-		// fallback при недоступности API — кешируем с коротким TTL,
-		// чтобы после восстановления API быстро получить реальные данные.
-		fallback := fallbackVersions()
+	// 2) Один запрос к GitHub API на concurrent batch
+	res, err, _ := versionsFlight.Do("versions", func() (interface{}, error) {
+		versions, fetchErr := s.fetchReleases(ctx)
+		if fetchErr != nil {
+			fallback := fallbackVersions()
+			releasesCache.mu.Lock()
+			releasesCache.versions = fallback
+			// Сдвигаем cachedAt назад на (releasesCacheTTL - fallbackCacheTTL),
+			// чтобы time.Since(cachedAt) быстро превысил releasesCacheTTL.
+			releasesCache.cachedAt = time.Now().Add(-(releasesCacheTTL - fallbackCacheTTL))
+			releasesCache.mu.Unlock()
+			log.Warnf("fetchReleases failed, using fallback for %s: %v", fallbackCacheTTL, fetchErr)
+			return fallback, fetchErr
+		}
 		releasesCache.mu.Lock()
-		releasesCache.versions = fallback
-		// Сдвигаем cachedAt назад на (releasesCacheTTL - fallbackCacheTTL),
-		// чтобы time.Since(cachedAt) быстро превысил releasesCacheTTL.
-		releasesCache.cachedAt = time.Now().Add(-(releasesCacheTTL - fallbackCacheTTL))
+		releasesCache.versions = versions
+		releasesCache.cachedAt = time.Now()
 		releasesCache.mu.Unlock()
-		log.Warnf("fetchReleases failed, using fallback for %s: %v", fallbackCacheTTL, err)
-		return fallback, err
+		return versions, nil
+	})
+	if err != nil {
+		return nil, err
 	}
-
-	// 3) Закешировать и вернуть
-	releasesCache.mu.Lock()
-	releasesCache.versions = versions
-	releasesCache.cachedAt = time.Now()
-	releasesCache.mu.Unlock()
-	return versions, nil
+	return res.([]string), nil
 }
 
 // fetchReleases делает HTTP-запрос к GitHub API и возвращает отсортированные
@@ -240,6 +249,9 @@ func (s *GithubBuildConfigService) fetchReleases(ctx context.Context) ([]string,
 	// TODO: handle pagination via Link header if releases exceed 100. Реальных релизов <10,
 	// но при росте выше 100 будут silently omitted. Нужен fetcher с follow Link header.
 	path := "/repos/bashrusakh/rustdesk/releases?per_page=100"
+	// releaseTagVersionRegex извлекает и валидирует semver-версию из тега offline-assets-*.
+	// Должен совпадать с api/http/controller/admin/custom_build.go versionRegex.
+	releaseTagVersionRegex := regexp.MustCompile(`^[0-9]+\.[0-9]+(\.[0-9]+)?(-[a-zA-Z0-9.]+)?$`)
 	var resp *http.Response
 
 	if gcfg != nil && gcfg.Token != "" {
@@ -260,7 +272,8 @@ func (s *GithubBuildConfigService) fetchReleases(ctx context.Context) ([]string,
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitHub API returned HTTP %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("GitHub API returned HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 
 	var releases []struct {
@@ -270,13 +283,13 @@ func (s *GithubBuildConfigService) fetchReleases(ctx context.Context) ([]string,
 		return nil, err
 	}
 
-	// Фильтр: только offline-assets-*
+	// Фильтр: только offline-assets-* и строгий semver
 	prefix := "offline-assets-"
 	var versions []string
 	for _, r := range releases {
 		if strings.HasPrefix(r.TagName, prefix) {
 			v := strings.TrimPrefix(r.TagName, prefix)
-			if v != "" {
+			if v != "" && releaseTagVersionRegex.MatchString(v) {
 				versions = append(versions, v)
 			}
 		}

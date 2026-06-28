@@ -571,6 +571,9 @@
   "StartBuild": {
     "One": "Запустить сборку"
   },
+  "VersionListLoading": {
+    "One": "Список версий загружается, подождите..."
+  },
   "CopyThisUrlToProvider": {
     "One": "Скопируйте этот URL и вставьте его как callback/redirect URL в настройках OAuth-провайдера."
   },

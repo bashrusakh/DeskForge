@@ -469,7 +469,7 @@ export default defineComponent({
         form.relay_server = stripPort(form.relay_server)
         // platform/version/app_name live on the preset record, not in custom_json
         if (preset.platform) form.platform = preset.platform
-        if (preset.version) form.version = preset.version
+        if (preset.version) form.version = versions.value.includes(preset.version) ? preset.version : defaultVersion(preset.version)
         if (preset.app_name !== undefined) form.app_name = preset.app_name
         ElMessage.success(T('OperationSuccess'))
       } catch (e) {
