@@ -160,6 +160,13 @@ jobs:
                   set -e
                   continue
                 fi
+                # Remove workflow files that no longer exist on origin/$branch so
+                # `git add .github/workflows/` does not resurrect deleted ones.
+                if ! git diff --name-only --diff-filter=D "origin/$branch" -- .github/workflows/ | xargs -r rm -f; then
+                  echo "::warning::Failed to prune deleted workflow files for $branch"
+                  set -e
+                  continue
+                fi
                 cp "${src_files[@]}" .github/workflows/
                 git add .github/workflows/
                 TREE=$(git write-tree)
@@ -178,6 +185,12 @@ jobs:
                   break
                 fi
                 COMMIT=$(git commit-tree "$TREE" -p "$PARENT" -m "$MSG")
+                if [ -z "$COMMIT" ]; then
+                  echo "::error::git commit-tree returned empty for $branch, aborting branch"
+                  set -e
+                  FAILED=$((FAILED + 1))
+                  break
+                fi
                 set -e
               fi
             done

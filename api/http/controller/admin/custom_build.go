@@ -67,10 +67,9 @@ func (ct *CustomBuild) Versions(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
 	defer cancel()
 	versions, err := service.AllService.GithubBuildConfigService.GetAvailableVersions(ctx)
-	// Service returns (fallback, err) when GitHub API is unavailable — let the
-	// fallback reach the client instead of failing hard.
-	if err != nil && len(versions) == 0 {
-		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
+	if err != nil {
+		global.Logger.Warnf("GetAvailableVersions failed: %v", err)
+		response.Success(c, []string{})
 		return
 	}
 	response.Success(c, versions)

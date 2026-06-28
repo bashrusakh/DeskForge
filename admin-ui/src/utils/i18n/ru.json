@@ -574,6 +574,12 @@
   "VersionListLoading": {
     "One": "Список версий загружается, подождите..."
   },
+  "VersionListEmpty": {
+    "One": "Нет доступных версий для сборки. Проверьте релизы на GitHub или повторите попытку позже."
+  },
+  "VersionListError": {
+    "One": "Не удалось загрузить список версий."
+  },
   "CopyThisUrlToProvider": {
     "One": "Скопируйте этот URL и вставьте его как callback/redirect URL в настройках OAuth-провайдера."
   },

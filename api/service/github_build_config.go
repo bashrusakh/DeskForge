@@ -178,25 +178,17 @@ type ghVersionsCache struct {
 var (
 	releasesCache    ghVersionsCache
 	releasesCacheTTL = 5 * time.Minute
-	// fallbackCacheTTL — короткий TTL для fallback-кэша: при недоступности API
-	// хотим быстро вернуться к реальным данным после восстановления.
-	fallbackCacheTTL = 30 * time.Second
 	versionsFlight    singleflight.Group
 )
-
-// fallbackVersions возвращается, если GitHub API недоступен.
-func fallbackVersions() []string {
-	return []string{"1.4.8", "1.4.7"}
-}
 
 // GetAvailableVersions возвращает список версий RustDesk, доступных для сборки
 // custom-клиента. Версии извлекаются из GitHub-релизов форка bashrusakh/rustdesk
 // с тегами "offline-assets-*". Результат кешируется на 5 минут.
 //
-// Если GitHub API недоступен, возвращается fallback-список.
-//
 // singleflight защищает от stampede при одновременных запросах: пока один
 // goroutine обновляет кеш, остальные ждут того же результата.
+// Если GitHub API недоступен или нет релизов, возвращается пустой слайс
+// и ошибка — нет смысла предлагать версии, ассеты для которых не существуют.
 func (s *GithubBuildConfigService) GetAvailableVersions(ctx context.Context) ([]string, error) {
 	// 1) Проверить кеш
 	releasesCache.mu.Lock()
@@ -207,19 +199,16 @@ func (s *GithubBuildConfigService) GetAvailableVersions(ctx context.Context) ([]
 	}
 	releasesCache.mu.Unlock()
 
-	// 2) Один запрос к GitHub API на concurrent batch
+	// 2) Один запрос к GitHub API на concurrent batch.
+	// Используем detached bounded context, чтобы таймаут/отмена одного caller
+	// не убила shared refresh для всех остальных waiter'ов.
+	fetchCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
 	res, err, _ := versionsFlight.Do("versions", func() (interface{}, error) {
-		versions, fetchErr := s.fetchReleases(ctx)
+		versions, fetchErr := s.fetchReleases(fetchCtx)
 		if fetchErr != nil {
-			fallback := fallbackVersions()
-			releasesCache.mu.Lock()
-			releasesCache.versions = fallback
-			// Сдвигаем cachedAt назад на (releasesCacheTTL - fallbackCacheTTL),
-			// чтобы time.Since(cachedAt) быстро превысил releasesCacheTTL.
-			releasesCache.cachedAt = time.Now().Add(-(releasesCacheTTL - fallbackCacheTTL))
-			releasesCache.mu.Unlock()
-			log.Warnf("fetchReleases failed, using fallback for %s: %v", fallbackCacheTTL, fetchErr)
-			return fallback, fetchErr
+			log.Warnf("fetchReleases failed: %v", fetchErr)
+			return []string{}, fetchErr
 		}
 		releasesCache.mu.Lock()
 		releasesCache.versions = versions
@@ -228,7 +217,7 @@ func (s *GithubBuildConfigService) GetAvailableVersions(ctx context.Context) ([]
 		return versions, nil
 	})
 	if err != nil {
-		return nil, err
+		return []string{}, err
 	}
 	return res.([]string), nil
 }

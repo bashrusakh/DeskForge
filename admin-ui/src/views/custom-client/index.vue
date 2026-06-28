@@ -469,7 +469,12 @@ export default defineComponent({
         form.relay_server = stripPort(form.relay_server)
         // platform/version/app_name live on the preset record, not in custom_json
         if (preset.platform) form.platform = preset.platform
-        if (preset.version) form.version = versions.value.includes(preset.version) ? preset.version : defaultVersion(preset.version)
+        if (preset.version) {
+          form.version =
+            versionsLoading.value || versions.value.length === 0
+              ? preset.version
+              : (versions.value.includes(preset.version) ? preset.version : defaultVersion(preset.version))
+        }
         if (preset.app_name !== undefined) form.app_name = preset.app_name
         ElMessage.success(T('OperationSuccess'))
       } catch (e) {
@@ -651,30 +656,25 @@ export default defineComponent({
       }
     }
 
-    watch([page, pageSize], () => loadBuilds())
-    const FALLBACK_VERSIONS = ['1.4.8', '1.4.7']
+    const FALLBACK_VERSIONS = []
     const defaultVersion = (current = form.version) =>
-      versions.value.includes(current) ? current : versions.value[0] || FALLBACK_VERSIONS[0]
+      versions.value.includes(current) ? current : versions.value[0] || ''
     onMounted(async () => {
       loadBuilds()
       loadPresets()
       versionsLoading.value = true
-      // getVersions is intentionally not awaited before fetchConfig — server
-      // defaults must apply immediately, even if GitHub API is slow/unreachable.
-      const versionsPromise = getVersions().then(res => {
-        if (res?.data?.length) {
-          versions.value = res.data
-        } else {
-          versions.value = FALLBACK_VERSIONS
-        }
-      }).catch(e => {
-        console.warn('getVersions failed, using fallback:', e)
-        versions.value = FALLBACK_VERSIONS
-      }).finally(() => {
+      try {
+        const res = await getVersions()
+        versions.value = res?.data || []
+      } catch (e) {
+        console.warn('getVersions failed:', e)
+        ElMessage.error(T('VersionListError'))
+        versions.value = []
+      } finally {
         // Keep form.version aligned with the available options.
         form.version = defaultVersion(form.version)
         versionsLoading.value = false
-      })
+      }
 
       try {
         const res = await fetchConfig()
@@ -691,10 +691,6 @@ export default defineComponent({
       } catch (e) {
         console.warn('fetchConfig failed:', e)
       }
-
-      // Wait for versions to settle before any submit can happen; by then the
-      // form already has server defaults applied.
-      await versionsPromise
     })
 
     return {
