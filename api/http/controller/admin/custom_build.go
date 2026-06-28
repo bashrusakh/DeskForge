@@ -23,11 +23,6 @@ import (
 	"rustdesk-server/api/utils"
 )
 
-// ValidateBuildVersion проверяет, что версия подходит для dispatch.
-func ValidateBuildVersion(v string) bool {
-	return utils.ValidateBuildVersion(v)
-}
-
 type CustomBuild struct{}
 
 // defaultWindowsArtifactName — имя GitHub-артефакта, который продюсит
@@ -91,7 +86,7 @@ func (ct *CustomBuild) Detail(c *gin.Context) {
 
 // Create — admin endpoint: создать custom-билд и поставить его в очередь.
 // Валидирует version формат ДО персиста (защита от command injection в
-// workflow shell — see ValidateBuildVersion).
+// workflow shell — see utils.ValidateBuildVersion).
 func (ct *CustomBuild) Create(c *gin.Context) {
 	f := &admin.CustomBuildForm{}
 	if err := c.ShouldBindJSON(f); err != nil {
@@ -118,7 +113,7 @@ func (ct *CustomBuild) Create(c *gin.Context) {
 	b.DownloadKeyExpiresAt = time.Now().Add(ttl).Unix()
 
 	// Reject unsafe version early; keeps DB clean and gives the caller a clear error.
-	if !ValidateBuildVersion(b.Version) {
+	if !utils.ValidateBuildVersion(b.Version) {
 		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+": invalid version format: "+b.Version)
 		return
 	}
@@ -305,7 +300,7 @@ func (ct *CustomBuild) tryGithubDispatch(b *model.CustomBuild) bool {
 	// Validate version format to prevent command injection in workflow shell commands.
 	// b.Version попадает в env VERSION, используется в echo "VERSION=$RQS_VERSION" >> $GITHUB_ENV
 	// и в download URL (`offline-assets-${VERSION}/...`) — shell metacharacters опасны.
-	if !ValidateBuildVersion(b.Version) {
+	if !utils.ValidateBuildVersion(b.Version) {
 		global.Logger.Warnf("tryGithubDispatch: invalid version format %q for build %d — failing build",
 			b.Version, b.Id)
 		b.Status = model.CustomBuildStatusFailed
