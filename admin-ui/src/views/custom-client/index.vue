@@ -281,8 +281,11 @@
         </el-row>
 
         <el-form-item>
-          <el-button type="primary" @click="submitBuild" :loading="submitting" :disabled="versionsLoading || submitting">{{ T('StartBuild') }}</el-button>
+          <el-button type="primary" @click="submitBuild" :loading="submitting" :disabled="!versionsReady || submitting">{{ T('StartBuild') }}</el-button>
           <el-button @click="resetForm">{{ T('Reset') }}</el-button>
+          <span v-if="versionsState === 'loading'" class="version-hint version-hint--loading">{{ T('VersionListLoading') }}</span>
+          <span v-else-if="versionsState === 'empty'" class="version-hint version-hint--empty">{{ T('VersionListEmpty') }}</span>
+          <span v-else-if="versionsState === 'error'" class="version-hint version-hint--error">{{ T('VersionListError') }}</span>
         </el-form-item>
       </el-form>
     </page-section>
@@ -327,7 +330,7 @@
 </template>
 
 <script>
-import { defineComponent, ref, reactive, onMounted, onUnmounted, watch } from 'vue'
+import { defineComponent, ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { list, create, remove, getVersions } from '@/api/custom_client'
 import { list as listPresets, create as createPreset, remove as removePreset } from '@/api/custom_preset'
 import { all as fetchConfig } from '@/api/config'
@@ -341,7 +344,9 @@ import DataTable from '@/components/ui/DataTable.vue'
 
 // Версии загружаются с API (GET /admin/custom_build/versions) при монтировании.
 // Список формируется из GitHub-релизов форка с тегами offline-assets-*.
-// Если API недоступен — fallback на ['1.4.8', '1.4.7'].
+// Состояние загрузки выражено через versionsState: 'loading' | 'ready' | 'empty' | 'error'.
+// Никаких фолбэков: при 'empty'/'error' старт билда блокируется, а преcет
+// не подменяет form.version, чтобы UI точно отражал состояние API.
 
 export default defineComponent({
   name: 'CustomClientBuilds',
@@ -395,7 +400,15 @@ export default defineComponent({
     const builds = ref([])
     const loading = ref(false)
     const submitting = ref(false)
-    const versionsLoading = ref(true)
+    // versionsState: 'loading' | 'ready' | 'empty' | 'error'.
+    // Заменяет versionsLoading (был boolean) — нужно различать
+    // "ещё грузится" и "загрузилось, но пусто/ошибка", чтобы:
+    //   - loadPresetIntoForm не подменял preset.version на дефолт
+    //     при 'empty'/'error' (иначе форма скрывает проблему);
+    //   - submitBuild и StartBuild были заблокированы для ВСЕХ не-ready состояний.
+    const versionsState = ref('loading')
+    const versionsReady = computed(() => versionsState.value === 'ready')
+    const versionsLoading = computed(() => versionsState.value === 'loading')
     const page = ref(1)
     const pageSize = ref(10)
     const total = ref(0)
@@ -470,10 +483,22 @@ export default defineComponent({
         // platform/version/app_name live on the preset record, not in custom_json
         if (preset.platform) form.platform = preset.platform
         if (preset.version) {
-          form.version =
-            versionsLoading.value || versions.value.length === 0
-              ? preset.version
-              : (versions.value.includes(preset.version) ? preset.version : defaultVersion(preset.version))
+          // Преcет применяется только когда версия действительно доступна:
+          //   - 'loading'       → оставляем preset.version как есть (пользователь увидит
+          //                       его в форме; как только список придёт, defaultVersion
+          //                       в onMounted сверит со списком).
+          //   - 'ready' + есть  → preset.version остаётся.
+          //   - 'ready' + нет   → defaultVersion() (берёт первую доступную).
+          //   - 'empty'/'error' → НЕ подменяем preset.version, чтобы форма не маскировала
+          //                       отсутствие версий; defaultVersion() вернёт '' и
+          //                       StartBuild останется заблокирован.
+          if (versionsLoading.value) {
+            form.version = preset.version
+          } else if (versionsState.value === 'ready') {
+            form.version = versions.value.includes(preset.version) ? preset.version : defaultVersion(preset.version)
+          } else {
+            form.version = defaultVersion(preset.version)
+          }
         }
         if (preset.app_name !== undefined) form.app_name = preset.app_name
         ElMessage.success(T('OperationSuccess'))
@@ -548,8 +573,14 @@ export default defineComponent({
     }
 
     const submitBuild = async () => {
-      if (versionsLoading.value || versions.value.length === 0) {
-        ElMessage.warning(T('VersionListLoading'))
+      if (versionsState.value !== 'ready') {
+        // Различаем loading / empty / error, чтобы пользователь понимал, чего ждать.
+        const key = versionsState.value === 'loading'
+          ? 'VersionListLoading'
+          : versionsState.value === 'empty'
+            ? 'VersionListEmpty'
+            : 'VersionListError'
+        ElMessage.warning(T(key))
         return
       }
       form.server_ip = stripPort(form.server_ip)
@@ -656,24 +687,25 @@ export default defineComponent({
       }
     }
 
-    const FALLBACK_VERSIONS = []
     const defaultVersion = (current = form.version) =>
-      versions.value.includes(current) ? current : versions.value[0] || ''
+      versions.value.includes(current) ? current : (versions.value[0] || '')
     onMounted(async () => {
       loadBuilds()
       loadPresets()
-      versionsLoading.value = true
+      versionsState.value = 'loading'
       try {
         const res = await getVersions()
-        versions.value = res?.data || []
+        const list = res?.data || []
+        versions.value = list
+        versionsState.value = list.length > 0 ? 'ready' : 'empty'
       } catch (e) {
         console.warn('getVersions failed:', e)
         ElMessage.error(T('VersionListError'))
         versions.value = []
+        versionsState.value = 'error'
       } finally {
         // Keep form.version aligned with the available options.
         form.version = defaultVersion(form.version)
-        versionsLoading.value = false
       }
 
       try {
@@ -694,7 +726,8 @@ export default defineComponent({
     })
 
     return {
-      form, builds, loading, submitting, versionsLoading, page, pageSize, total, versions,
+      form, builds, loading, submitting, versionsState, versionsReady, versionsLoading,
+      page, pageSize, total, versions,
       submitBuild, deleteBuild, resetForm, downloadBuild, stripServerPort, stripRelayPort,
       statusType, statusLabel, T,
       presets, selectedPresetId, onPresetSelect, saveCurrentAsPreset, deletePreset, uploadImage,
@@ -706,6 +739,17 @@ export default defineComponent({
 <style scoped lang="scss">
 .mb-20 {
   margin-bottom: 20px;
+}
+
+.version-hint {
+  margin-left: 12px;
+  font-size: 12px;
+  line-height: 1.4;
+  vertical-align: middle;
+
+  &--loading { color: var(--el-color-info); }
+  &--empty   { color: var(--el-color-warning); }
+  &--error   { color: var(--el-color-danger); }
 }
 
 .build-history {
