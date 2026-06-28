@@ -1,6 +1,6 @@
 # PLAN.md — DeskForge: Single Source of Truth
 
-> Last updated: 2026-06-25
+> Last updated: 2026-06-28
 > Related: [CHANGELOG.md](CHANGELOG.md) · [BUGS.md](BUGS.md) · [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ---
@@ -176,6 +176,10 @@ gh release create offline-assets-1.5.0 --repo bashrusakh/rustdesk \
     artifacts/rustdesk_printer_driver_v4-1.4.zip artifacts/printer_driver_adapter.zip
 ```
 
+> **Note:** After publishing the release, version `1.5.0` will automatically appear in the admin UI
+> (the `GET /api/admin/custom_build/versions` endpoint fetches fork releases tagged
+> `offline-assets-*`). No hardcoded values in UI or YAML need to be changed.
+
 ### 7.6. Adapt workflow
 
 Compare upstream `build-for-windows-flutter` with `rustqs-windows-min-test.yml`:
@@ -185,18 +189,43 @@ Compare upstream `build-for-windows-flutter` with `rustqs-windows-min-test.yml`:
 
 Port changes to the fork workflow.
 
-### 7.7. Create build branch + run
+> **Important:** `bridge.yml` must stay **without `inputs.version`** — same as upstream.
+> Bridge and build must work from the same code (the fork). Do not add `repository:` to checkout.
+
+### 7.7. Deploy workflows to fork (3 branches)
+
+Workflow files live on three fork branches. After changes, update all:
 
 ```bash
-git checkout -b rustqs/min-test v1.5.0
-# copy rustqs-windows-min-test.yml into .github/workflows/
+# 1) rustqs/min-test — execution (all dispatches go here)
+git checkout rustqs/min-test
+cp /path/to/DeskForge/github-build/rustqs-*.yml .github/workflows/
+cp /path/to/DeskForge/rdgen/.github/workflows/bridge.yml .github/workflows/
+git add .github/workflows/
+git commit -m "feat: update rustqs-* workflows for v1.5.0"
 git push origin rustqs/min-test
-# Trigger via DeskForge admin (Dispatch Test)
+
+# 2) master — API discovery (workflow must exist on default branch)
+git checkout master
+cp /path/to/DeskForge/github-build/rustqs-*.yml .github/workflows/
+cp /path/to/DeskForge/rdgen/.github/workflows/bridge.yml .github/workflows/
+git add .github/workflows/
+git commit -m "feat: update rustqs-* workflows for v1.5.0"
+git push origin master
+
+# 3) rustqs/master-workflows — mirror (backup for upstream sync)
+git checkout rustqs/master-workflows
+cp /path/to/DeskForge/github-build/rustqs-*.yml .github/workflows/
+cp /path/to/DeskForge/rdgen/.github/workflows/bridge.yml .github/workflows/
+git add .github/workflows/
+git commit -m "feat: update rustqs-* workflows for v1.5.0"
+git push origin rustqs/master-workflows
 ```
 
 ### 7.8. Verify
 
-- [ ] GitHub Actions run ✅
+- [ ] GitHub Actions run ✅ (no `startup_failure`)
+- [ ] `VERSION` in logs matches the version selected in admin UI
 - [ ] Binary arrived at the server
 - [ ] `rustqs.exe`, ~23 MB, `custom_.txt` packed inside
 - [ ] Smoke test on clean Windows
