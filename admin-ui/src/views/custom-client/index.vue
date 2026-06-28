@@ -281,7 +281,7 @@
         </el-row>
 
         <el-form-item>
-          <el-button type="primary" @click="submitBuild" :loading="submitting">{{ T('StartBuild') }}</el-button>
+          <el-button type="primary" @click="submitBuild" :loading="submitting" :disabled="versionsLoading || submitting">{{ T('StartBuild') }}</el-button>
           <el-button @click="resetForm">{{ T('Reset') }}</el-button>
         </el-form-item>
       </el-form>
@@ -395,6 +395,7 @@ export default defineComponent({
     const builds = ref([])
     const loading = ref(false)
     const submitting = ref(false)
+    const versionsLoading = ref(true)
     const page = ref(1)
     const pageSize = ref(10)
     const total = ref(0)
@@ -542,6 +543,10 @@ export default defineComponent({
     }
 
     const submitBuild = async () => {
+      if (versionsLoading.value || versions.value.length === 0) {
+        ElMessage.warning(T('VersionListLoading'))
+        return
+      }
       form.server_ip = stripPort(form.server_ip)
       form.relay_server = stripPort(form.relay_server)
       submitting.value = true
@@ -653,6 +658,7 @@ export default defineComponent({
     onMounted(async () => {
       loadBuilds()
       loadPresets()
+      versionsLoading.value = true
       // getVersions is intentionally not awaited before fetchConfig — server
       // defaults must apply immediately, even if GitHub API is slow/unreachable.
       const versionsPromise = getVersions().then(res => {
@@ -665,9 +671,9 @@ export default defineComponent({
         console.warn('getVersions failed, using fallback:', e)
         versions.value = FALLBACK_VERSIONS
       }).finally(() => {
-        // Keep form.version aligned with the available options. Preserve
-        // 'master' (nightly) if the user already selected it.
+        // Keep form.version aligned with the available options.
         form.version = defaultVersion(form.version)
+        versionsLoading.value = false
       })
 
       try {
@@ -692,7 +698,7 @@ export default defineComponent({
     })
 
     return {
-      form, builds, loading, submitting, page, pageSize, total, versions,
+      form, builds, loading, submitting, versionsLoading, page, pageSize, total, versions,
       submitBuild, deleteBuild, resetForm, downloadBuild, stripServerPort, stripRelayPort,
       statusType, statusLabel, T,
       presets, selectedPresetId, onPresetSelect, saveCurrentAsPreset, deletePreset, uploadImage,
