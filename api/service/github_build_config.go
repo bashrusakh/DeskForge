@@ -192,6 +192,10 @@ var (
 // goroutine обновляет кеш, остальные ждут того же результата.
 // Если GitHub API недоступен или нет релизов, возвращается пустой слайс
 // и ошибка — нет смысла предлагать версии, ассеты для которых не существуют.
+//
+// Ожидание результата cancellation-aware: используется DoChan + select на
+// ctx.Done() — caller с отменённым/протухшим контекстом выходит сразу,
+// не дожидаясь detached shared refresh, которая продолжается для остальных.
 func (s *GithubBuildConfigService) GetAvailableVersions(ctx context.Context) ([]string, error) {
 	// 1) Проверить кеш
 	releasesCache.mu.Lock()
@@ -207,7 +211,12 @@ func (s *GithubBuildConfigService) GetAvailableVersions(ctx context.Context) ([]
 	// не убила shared refresh для всех остальных waiter'ов.
 	fetchCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	res, err, _ := versionsFlight.Do("versions", func() (interface{}, error) {
+	// DoChan возвращает канал, по которому результат придёт даже если наш ctx
+	// уже отменён. Это и есть cancellation-aware ожидание:
+	//   - ctx живой → блокируемся на ch
+	//   - ctx отменён/протух → возвращаемся с ctx.Err(), не дожидаясь fetch
+	// shared goroutine при этом продолжает работу для других waiter'ов.
+	ch := versionsFlight.DoChan("versions", func() (interface{}, error) {
 		versions, fetchErr := s.fetchReleases(fetchCtx)
 		if fetchErr != nil {
 			log.Warnf("fetchReleases failed: %v", fetchErr)
@@ -219,10 +228,15 @@ func (s *GithubBuildConfigService) GetAvailableVersions(ctx context.Context) ([]
 		releasesCache.mu.Unlock()
 		return versions, nil
 	})
-	if err != nil {
-		return []string{}, err
+	select {
+	case r := <-ch:
+		if r.Err != nil {
+			return []string{}, r.Err
+		}
+		return r.Val.([]string), nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
-	return res.([]string), nil
 }
 
 // fetchReleases делает HTTP-запрос к GitHub API и возвращает отсортированные
