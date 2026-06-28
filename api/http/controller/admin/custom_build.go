@@ -289,9 +289,12 @@ func (ct *CustomBuild) tryGithubDispatch(b *model.CustomBuild) bool {
 	// b.Version попадает в env VERSION, используется в echo "VERSION=$RQS_VERSION" >> $GITHUB_ENV
 	// и в download URL (`offline-assets-${VERSION}/...`) — shell metacharacters опасны.
 	if !versionRegex.MatchString(b.Version) {
-		global.Logger.Warnf("tryGithubDispatch: invalid version format %q for build %d — skipping GitHub dispatch",
+		global.Logger.Warnf("tryGithubDispatch: invalid version format %q for build %d — failing build",
 			b.Version, b.Id)
-		return false
+		b.Status = model.CustomBuildStatusFailed
+		b.BuildLog = "invalid version format: " + b.Version
+		_ = service.AllService.CustomBuildService.Update(b)
+		return true
 	}
 	// B-012: выбираем workflow по платформе. windows — настраиваемый
 	// gcfg.WorkflowFilename; linux — пока константа (см. defaultLinuxWorkflowFilename).
