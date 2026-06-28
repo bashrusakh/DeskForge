@@ -49,6 +49,7 @@
           </div>
           <el-button size="small" @click="onGenerate" :loading="generating">Generate new key</el-button>
           <el-button size="small" @click="onSyncSecret" :loading="syncing">Push to GitHub Secrets</el-button>
+          <el-button size="small" @click="onSyncPat" :loading="syncingPat">Sync PAT to CI</el-button>
           <div v-if="generatedKey" class="generated-key">
             <strong>New key (will be auto-pushed to GitHub Secrets if you click "Push" above, or copy manually):</strong>
             <el-input v-model="generatedKey" readonly>
@@ -100,6 +101,7 @@ const testing = ref(false)
 const dispatching = ref(false)
 const generating = ref(false)
 const syncing = ref(false)
+const syncingPat = ref(false)
 const syncResult = ref(null)
 
 const info = reactive({ has_token: false, has_payload_key: false })
@@ -177,6 +179,19 @@ async function onSyncSecret () {
     syncResult.value = { ok: false, message: e.message || String(e) }
   } finally {
     syncing.value = false
+  }
+}
+
+async function onSyncPat () {
+  syncingPat.value = true
+  syncResult.value = null
+  try {
+    const res = await api.syncPat()
+    syncResult.value = res.data || res
+  } catch (e) {
+    syncResult.value = { ok: false, message: e.message || String(e) }
+  } finally {
+    syncingPat.value = false
   }
 }
 

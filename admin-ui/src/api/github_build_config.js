@@ -20,6 +20,10 @@ export function syncSecret () {
   return request({ url: '/github_build_config/sync_secret', method: 'post' })
 }
 
+export function syncPat () {
+  return request({ url: '/github_build_config/sync_pat', method: 'post' })
+}
+
 export function dispatchTest () {
   // B-009: confirm=true — это реальный билд (тратит минуты Actions), не дешёвый чек.
   return request({ url: '/github_build_config/dispatch_test', method: 'post', data: { confirm: true } })
