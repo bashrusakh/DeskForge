@@ -25,7 +25,7 @@ import (
 
 // ValidateBuildVersion проверяет, что версия подходит для dispatch.
 func ValidateBuildVersion(v string) bool {
-	return utils.VersionRegex.MatchString(v)
+	return utils.ValidateBuildVersion(v)
 }
 
 type CustomBuild struct{}

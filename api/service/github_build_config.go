@@ -218,14 +218,16 @@ func (s *GithubBuildConfigService) GetAvailableVersions(ctx context.Context) ([]
 	// 3) Один запрос к GitHub API на concurrent batch.
 	// Используем detached bounded context, чтобы таймаут/отмена одного caller
 	// не убила shared refresh для всех остальных waiter'ов.
-	fetchCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	// Создаём контекст внутри замыкания: singleflight выполняет closure только
+	// для первого caller'а, так что утечки для non-executing callers нет.
 	// DoChan возвращает канал, по которому результат придёт даже если наш ctx
 	// уже отменён. Это и есть cancellation-aware ожидание:
 	//   - ctx живой → блокируемся на ch
 	//   - ctx отменён/протух → возвращаемся с ctx.Err(), не дожидаясь fetch
-	// shared goroutine при этом продолжает работу для других waiter'ов.
+	// shared goroutine при этом продолжает работу для остальных waiter'ов.
 	ch := versionsFlight.DoChan("versions", func() (interface{}, error) {
-		defer cancel() // fetchCtx lives until the shared fetch completes, not tied to any single caller
+		fetchCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
 		versions, fetchErr := s.fetchReleases(fetchCtx)
 		if fetchErr != nil {
 			log.Warnf("fetchReleases failed: %v", fetchErr)
