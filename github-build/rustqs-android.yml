@@ -45,6 +45,11 @@ on:
         required: false
         type: string
         default: ''
+      version:
+        description: 'RustDesk version for offline assets (e.g. 1.4.8). Ignored if enc_payload set.'
+        required: false
+        type: string
+        default: '1.4.8'
 
 env:
   RUST_VERSION: "1.75"
@@ -53,7 +58,7 @@ env:
   NDK_VERSION: "r28c"
   VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
-  VERSION: "1.4.8"
+  VERSION: "${{ inputs.version || '1.4.8' }}"
 
 jobs:
   bridge:
@@ -131,6 +136,7 @@ jobs:
           IN_KEY: ${{ inputs.key }}
           IN_APP: ${{ inputs.app_name }}
           IN_CT: ${{ inputs.custom_txt }}
+          IN_VERSION: ${{ inputs.version }}
         run: |
           set -eu
           if [ -n "${ENC:-}" ]; then
@@ -144,8 +150,9 @@ jobs:
             RQS_KEY=$(printf '%s' "$decrypted" | jq -r '.key // ""')
             RQS_APP=$(printf '%s' "$decrypted" | jq -r '.app_name // ""')
             RQS_CT=$(printf '%s' "$decrypted" | jq -r '.custom_txt // ""')
+            RQS_VERSION=$(printf '%s' "$decrypted" | jq -r '.version // ""')
           else
-            RQS_SERVER="${IN_SERVER:-}"; RQS_KEY="${IN_KEY:-}"; RQS_APP="${IN_APP:-}"; RQS_CT="${IN_CT:-}"
+            RQS_SERVER="${IN_SERVER:-}"; RQS_KEY="${IN_KEY:-}"; RQS_APP="${IN_APP:-}"; RQS_CT="${IN_CT:-}"; RQS_VERSION="${IN_VERSION:-}"
           fi
           for v in "$RQS_KEY" "$RQS_CT"; do [ -n "$v" ] && echo "::add-mask::$v" || true; done
           {
@@ -153,7 +160,16 @@ jobs:
             echo "RQS_KEY=$RQS_KEY"
             echo "RQS_APP_NAME=$RQS_APP"
             echo "RQS_CUSTOM_TXT=$RQS_CT"
+            echo "RQS_VERSION=$RQS_VERSION"
           } >> "$GITHUB_ENV"
+
+      # Override VERSION from encrypted payload (takes precedence over workflow-level default).
+      - name: 'Override VERSION from dispatch payload'
+        if: env.RQS_VERSION != ''
+        shell: bash
+        run: |
+          echo "VERSION=$RQS_VERSION" >> "$GITHUB_ENV"
+          echo "VERSION overridden from dispatch: $RQS_VERSION"
 
       # L1: server+key в config.rs (платформо-независимо).
       - name: 'L1 inject: server + key into hbb_common/config.rs'

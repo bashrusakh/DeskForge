@@ -33,6 +33,26 @@ admin-ui → Go API → workflow_dispatch (encrypted payload, ref=rustqs/min-tes
     artifact → POST /api/save_custom_client → your server → admin-ui Download
 ```
 
+### Version flow
+
+The `version` field in the admin UI is **not just metadata** — it is passed
+in the encrypted payload to the workflow and used as `VERSION` env var for
+downloading offline build assets (flutter engine, usbmmidd, printer drivers).
+
+- Admin UI loads available versions from `GET /api/admin/custom_build/versions`
+- This endpoint queries GitHub releases of `bashrusakh/rustdesk` for tags
+  `offline-assets-*` and returns only versions that have assets published
+- If GitHub API is unavailable, falls back to `['1.4.8', '1.4.7']`
+- The workflow decrypts `version` from `enc_payload` and overrides `VERSION`
+  env (takes precedence over the workflow-level default `'1.4.8'`)
+
+### bridge.yml
+
+`bridge.yml` follows the upstream pattern:
+- **No `inputs.version`** — bridge and build work from the same fork code
+- Checkout is **without `repository:`** — uses the current repo (fork)
+- Matrix has 2 jobs: default (Flutter 3.22.3) and Windows arm64 (Flutter 3.44)
+
 Binary is NOT published to public releases — only to your server.
 Credentials — encrypted payload, decrypted inside the runner via GitHub Secret.
 
