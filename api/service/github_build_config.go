@@ -312,7 +312,10 @@ func compareSemver(a, b string) int {
 				return -1
 			}
 			// оба non-numeric — лексикографически (стабильно, но редко встречается)
-			return strings.Compare(pa[i], pb[i])
+			if cmp := strings.Compare(pa[i], pb[i]); cmp != 0 {
+				return cmp
+			}
+			continue
 		}
 		if va != vb {
 			return va - vb
