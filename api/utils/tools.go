@@ -6,9 +6,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"regexp"
 	"runtime/debug"
 	"strings"
 )
+
+// VersionRegex ограничивает версию безопасным форматом перед передачей
+// в GitHub Actions dispatch — защита от command injection в shell-командах
+// workflow (echo "VERSION=$RQS_VERSION", download URL и т.п.).
+// Допускает: digits.dots.digits + optional pre-release (например "1.4.8", "1.4.8-beta.1").
+var VersionRegex = regexp.MustCompile(`^[0-9]+\.[0-9]+(\.[0-9]+)?(-[a-zA-Z0-9.]+)?$`)
+
+// ValidateBuildVersion проверяет, что версия подходит для dispatch.
+func ValidateBuildVersion(v string) bool {
+	return VersionRegex.MatchString(v)
+}
 
 func Md5(str string) string {
 	t := md5.Sum(([]byte)(str))

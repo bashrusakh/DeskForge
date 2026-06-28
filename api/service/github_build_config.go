@@ -19,7 +19,10 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/singleflight"
+
 	"rustdesk-server/api/model"
+	"rustdesk-server/api/utils"
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/nacl/box"
@@ -138,6 +141,9 @@ func (s *GithubBuildConfigService) EncryptPayload(passphrase string, data map[st
 
 const githubAPI = "https://api.github.com"
 
+// ghReq — общий helper для запросов к GitHub REST API с авторизацией из
+// конфига. Если body == nil — GET; иначе — JSON-кодируется и Content-Type
+// выставляется автоматически. Таймаут контролируется через ctx вызывающего.
 func (s *GithubBuildConfigService) ghReq(ctx context.Context, c *model.GithubBuildConfig, method, path string, body any) (*http.Response, error) {
 	var br io.Reader
 	if body != nil {
@@ -175,21 +181,21 @@ type ghVersionsCache struct {
 var (
 	releasesCache    ghVersionsCache
 	releasesCacheTTL = 5 * time.Minute
-	// fallbackCacheTTL — короткий TTL для fallback-кэша: при недоступности API
-	// хотим быстро вернуться к реальным данным после восстановления.
-	fallbackCacheTTL = 30 * time.Second
+	versionsFlight   singleflight.Group
 )
-
-// fallbackVersions возвращается, если GitHub API недоступен.
-func fallbackVersions() []string {
-	return []string{"1.4.8", "1.4.7"}
-}
 
 // GetAvailableVersions возвращает список версий RustDesk, доступных для сборки
 // custom-клиента. Версии извлекаются из GitHub-релизов форка bashrusakh/rustdesk
 // с тегами "offline-assets-*". Результат кешируется на 5 минут.
 //
-// Если GitHub API недоступен, возвращается fallback-список.
+// singleflight защищает от stampede при одновременных запросах: пока один
+// goroutine обновляет кеш, остальные ждут того же результата.
+// Если GitHub API недоступен или нет релизов, возвращается пустой слайс
+// и ошибка — нет смысла предлагать версии, ассеты для которых не существуют.
+//
+// Ожидание результата cancellation-aware: используется DoChan + select на
+// ctx.Done() — caller с отменённым/протухшим контекстом выходит сразу,
+// не дожидаясь detached shared refresh, которая продолжается для остальных.
 func (s *GithubBuildConfigService) GetAvailableVersions(ctx context.Context) ([]string, error) {
 	// 1) Проверить кеш
 	releasesCache.mu.Lock()
@@ -200,28 +206,52 @@ func (s *GithubBuildConfigService) GetAvailableVersions(ctx context.Context) ([]
 	}
 	releasesCache.mu.Unlock()
 
-	// 2) Запросить GitHub API
-	versions, err := s.fetchReleases(ctx)
-	if err != nil {
-		// fallback при недоступности API — кешируем с коротким TTL,
-		// чтобы после восстановления API быстро получить реальные данные.
-		fallback := fallbackVersions()
-		releasesCache.mu.Lock()
-		releasesCache.versions = fallback
-		// Сдвигаем cachedAt назад на (releasesCacheTTL - fallbackCacheTTL),
-		// чтобы time.Since(cachedAt) быстро превысил releasesCacheTTL.
-		releasesCache.cachedAt = time.Now().Add(-(releasesCacheTTL - fallbackCacheTTL))
-		releasesCache.mu.Unlock()
-		log.Warnf("fetchReleases failed, using fallback for %s: %v", fallbackCacheTTL, err)
-		return fallback, err
+	// 2) Если caller уже отвалился — вернуть ошибку моментально, не заводя
+	// singleflight shared goroutine (иначе теряем герметичность тестов и
+	// тратим ресурсы на запрос, результат которого никто не ждёт).
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
 	}
 
-	// 3) Закешировать и вернуть
-	releasesCache.mu.Lock()
-	releasesCache.versions = versions
-	releasesCache.cachedAt = time.Now()
-	releasesCache.mu.Unlock()
-	return versions, nil
+	// 3) Один запрос к GitHub API на concurrent batch.
+	// Используем detached bounded context, чтобы таймаут/отмена одного caller
+	// не убила shared refresh для всех остальных waiter'ов.
+	// Создаём контекст внутри замыкания: singleflight выполняет closure только
+	// для первого caller'а, так что утечки для non-executing callers нет.
+	// DoChan возвращает канал, по которому результат придёт даже если наш ctx
+	// уже отменён. Это и есть cancellation-aware ожидание:
+	//   - ctx живой → блокируемся на ch
+	//   - ctx отменён/протух → возвращаемся с ctx.Err(), не дожидаясь fetch
+	// shared goroutine при этом продолжает работу для остальных waiter'ов.
+	ch := versionsFlight.DoChan("versions", func() (interface{}, error) {
+		fetchCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		versions, fetchErr := s.fetchReleases(fetchCtx)
+		if fetchErr != nil {
+			log.Warnf("fetchReleases failed: %v", fetchErr)
+			return []string{}, fetchErr
+		}
+		// Don't cache empty results — a transient API blip or zero-matching tags
+		// would poison the cache for the full TTL, hiding real releases from all users.
+		if len(versions) > 0 {
+			releasesCache.mu.Lock()
+			releasesCache.versions = versions
+			releasesCache.cachedAt = time.Now()
+			releasesCache.mu.Unlock()
+		}
+		return versions, nil
+	})
+	select {
+	case r := <-ch:
+		if r.Err != nil {
+			return []string{}, r.Err
+		}
+		return r.Val.([]string), nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 // fetchReleases делает HTTP-запрос к GitHub API и возвращает отсортированные
@@ -260,7 +290,8 @@ func (s *GithubBuildConfigService) fetchReleases(ctx context.Context) ([]string,
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GitHub API returned HTTP %d", resp.StatusCode)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return nil, fmt.Errorf("GitHub API returned HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 
 	var releases []struct {
@@ -270,13 +301,13 @@ func (s *GithubBuildConfigService) fetchReleases(ctx context.Context) ([]string,
 		return nil, err
 	}
 
-	// Фильтр: только offline-assets-*
+	// Фильтр: только offline-assets-* и строгий semver
 	prefix := "offline-assets-"
 	var versions []string
 	for _, r := range releases {
 		if strings.HasPrefix(r.TagName, prefix) {
 			v := strings.TrimPrefix(r.TagName, prefix)
-			if v != "" {
+			if v != "" && utils.VersionRegex.MatchString(v) {
 				versions = append(versions, v)
 			}
 		}
@@ -290,28 +321,36 @@ func (s *GithubBuildConfigService) fetchReleases(ctx context.Context) ([]string,
 	return versions, nil
 }
 
-// compareSemver сравнивает две semver-строки (например "1.4.8" и "1.4.7").
-// Возвращает >0 если a > b, <0 если a < b, 0 если равны.
-// Pre-release сегменты (например "1.4.8-beta") считаются МЕНЬШЕ release ("1.4.8").
+// compareSemver сравнивает две semver-подобные строки: сначала numeric core,
+// затем prerelease-сегменты. Release всегда старше prerelease, а
+// prerelease вроде "1.4.10-beta" корректно сравнивается с более низкой
+// numeric-версией "1.4.9".
 func compareSemver(a, b string) int {
-	pa := strings.Split(a, ".")
-	pb := strings.Split(b, ".")
+	coreA, preA := splitVersion(a)
+	coreB, preB := splitVersion(b)
+
+	pa := strings.Split(coreA, ".")
+	pb := strings.Split(coreB, ".")
 	n := len(pa)
-	if len(pb) < n {
+	if len(pb) > n {
 		n = len(pb)
 	}
 	for i := 0; i < n; i++ {
+		if i >= len(pa) {
+			if v, err := strconv.Atoi(pb[i]); err == nil && v != 0 {
+				return -1
+			}
+			continue
+		}
+		if i >= len(pb) {
+			if v, err := strconv.Atoi(pa[i]); err == nil && v != 0 {
+				return 1
+			}
+			continue
+		}
 		va, errA := strconv.Atoi(pa[i])
 		vb, errB := strconv.Atoi(pb[i])
 		if errA != nil || errB != nil {
-			// non-numeric сегмент — pre-release. numeric > non-numeric.
-			if errA == nil && errB != nil {
-				return 1
-			}
-			if errA != nil && errB == nil {
-				return -1
-			}
-			// оба non-numeric — лексикографически (стабильно, но редко встречается)
 			if cmp := strings.Compare(pa[i], pb[i]); cmp != 0 {
 				return cmp
 			}
@@ -321,50 +360,63 @@ func compareSemver(a, b string) int {
 			return va - vb
 		}
 	}
-// Все совпавшие сегменты равны. Больше сегментов = выше версия ТОЛЬКО если
-// дополнительные сегменты non-zero. По semver trailing zero сегменты эквивалентны
-// ("1.4.8.0" == "1.4.8"). Если количество равно — финальное сравнение
-// non-numeric хвостов: non-numeric < numeric ("1.4.8-beta" < "1.4.8").
+
 	switch {
-	case len(pa) > len(pb):
-		// Extra segments у a — greater только если хоть один non-zero
-		for i := n; i < len(pa); i++ {
-			if v, err := strconv.Atoi(pa[i]); err == nil && v != 0 {
-				return 1
-			}
-		}
+	case preA == preB:
 		return 0
-	case len(pa) < len(pb):
-		// Extra segments у b — greater только если хоть один non-zero
-		for i := n; i < len(pb); i++ {
-			if v, err := strconv.Atoi(pb[i]); err == nil && v != 0 {
-				return -1
-			}
-		}
-		return 0
-	default:
-		// одинаковая длина — сравнить последние сегменты на non-numeric
-		hasPreA := hasNonNumeric(pa[len(pa)-1])
-		hasPreB := hasNonNumeric(pb[len(pb)-1])
-		if hasPreA == hasPreB {
-			return 0
-		}
-		if hasPreA {
-			return -1
-		}
+	case preA == "":
 		return 1
+	case preB == "":
+		return -1
+	default:
+		return comparePrerelease(preA, preB)
 	}
 }
 
-// hasNonNumeric — true если сегмент содержит не только цифры
-// (например "8-beta", "rc1").
-func hasNonNumeric(s string) bool {
-	for _, r := range s {
-		if r < '0' || r > '9' {
-			return true
+func splitVersion(v string) (core, pre string) {
+	core, pre, ok := strings.Cut(v, "-")
+	if !ok {
+		return v, ""
+	}
+	return core, pre
+}
+
+func comparePrerelease(a, b string) int {
+	pa := strings.Split(a, ".")
+	pb := strings.Split(b, ".")
+	n := len(pa)
+	if len(pb) < n {
+		n = len(pb)
+	}
+	for i := 0; i < n; i++ {
+		ai, aNum := prereleaseIdentifier(pa[i])
+		bi, bNum := prereleaseIdentifier(pb[i])
+		switch {
+		case aNum && bNum:
+			if ai != bi {
+				return ai - bi
+			}
+		case aNum:
+			return -1
+		case bNum:
+			return 1
+		default:
+			if cmp := strings.Compare(pa[i], pb[i]); cmp != 0 {
+				return cmp
+			}
 		}
 	}
-	return false
+	if len(pa) != len(pb) {
+		return len(pa) - len(pb)
+	}
+	return 0
+}
+
+func prereleaseIdentifier(v string) (int, bool) {
+	if n, err := strconv.Atoi(v); err == nil {
+		return n, true
+	}
+	return 0, false
 }
 
 // TestConnection — read-only вызов GET /repos/{repo}: проверяет PAT, scope, доступ к репо.
@@ -419,8 +471,9 @@ func (s *GithubBuildConfigService) SetSyncPatSecret(c *model.GithubBuildConfig) 
 
 // putGithubSecret — общая логика encrypt-and-PUT секрета в GitHub Actions Secrets.
 // Шаги:
-//   GET  {repoPath}/actions/secrets/public-key  → {key_id, key (base64 32B)}
-//   PUT  {repoPath}/actions/secrets/{secretName}  body {encrypted_value, key_id}
+//
+//	GET  {repoPath}/actions/secrets/public-key  → {key_id, key (base64 32B)}
+//	PUT  {repoPath}/actions/secrets/{secretName}  body {encrypted_value, key_id}
 func (s *GithubBuildConfigService) putGithubSecret(c *model.GithubBuildConfig, repoPath, secretName, plaintext string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
@@ -612,4 +665,3 @@ func (s *GithubBuildConfigService) DownloadArtifact(ctx context.Context, c *mode
 	}
 	return io.ReadAll(rr.Body)
 }
-

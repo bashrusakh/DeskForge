@@ -958,6 +958,15 @@
   "StartBuild": {
     "One": "Start Build"
   },
+  "VersionListLoading": {
+    "One": "Version list is still loading, please wait..."
+  },
+  "VersionListEmpty": {
+    "One": "No buildable versions available. Check GitHub releases or try again later."
+  },
+  "VersionListError": {
+    "One": "Failed to load version list."
+  },
   "CopyThisUrlToProvider": {
     "One": "Copy this URL and paste it as the callback/redirect URL in your OAuth provider settings."
   }

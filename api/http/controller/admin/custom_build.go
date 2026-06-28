@@ -1,4 +1,4 @@
-﻿package admin
+package admin
 
 import (
 	"archive/zip"
@@ -10,7 +10,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -23,12 +22,6 @@ import (
 	"rustdesk-server/api/service"
 	"rustdesk-server/api/utils"
 )
-
-// versionRegex ограничивает b.Version безопасным форматом перед передачей
-// в GitHub Actions dispatch — защита от command injection в shell-командах
-// workflow (echo "VERSION=$RQS_VERSION", download URL и т.п.).
-// Допускает: digits.dots.digits + optional pre-release (например "1.4.8", "1.4.8-beta.1").
-var versionRegex = regexp.MustCompile(`^[0-9]+(\.[0-9]+){1,2}(-[a-zA-Z0-9.]+)?$`)
 
 type CustomBuild struct{}
 
@@ -48,6 +41,7 @@ const defaultLinuxWorkflowFilename = "rustqs-linux.yml"
 // Пока константа; вынести в GithubBuildConfig когда workflow будет green.
 const defaultAndroidWorkflowFilename = "rustqs-android.yml"
 
+// List — пагинированный список custom-билдов (admin).
 func (ct *CustomBuild) List(c *gin.Context) {
 	q := &admin.CustomBuildQuery{}
 	if err := c.ShouldBindQuery(q); err != nil {
@@ -58,19 +52,27 @@ func (ct *CustomBuild) List(c *gin.Context) {
 	response.Success(c, res)
 }
 
+// Versions — список версий RustDesk, доступных для custom-сборки. На ошибке
+// GitHub API возвращает 200 + пустой массив, чтобы UI мог показать empty/error
+// state, а не 5xx (BUGS.md AU-L-016).
+type versionsResponse struct {
+	Versions []string `json:"versions"`
+	Error    bool     `json:"error"`
+}
+
 func (ct *CustomBuild) Versions(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
 	defer cancel()
 	versions, err := service.AllService.GithubBuildConfigService.GetAvailableVersions(ctx)
-	// Service returns (fallback, err) when GitHub API is unavailable — let the
-	// fallback reach the client instead of failing hard.
-	if err != nil && len(versions) == 0 {
-		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
+	if err != nil {
+		global.Logger.Warnf("GetAvailableVersions failed: %v", err)
+		response.Success(c, versionsResponse{Versions: []string{}, Error: true})
 		return
 	}
-	response.Success(c, versions)
+	response.Success(c, versionsResponse{Versions: versions, Error: false})
 }
 
+// Detail — admin endpoint: полная запись custom-билда по id.
 func (ct *CustomBuild) Detail(c *gin.Context) {
 	id := c.Param("id")
 	iid, _ := strconv.Atoi(id)
@@ -82,6 +84,9 @@ func (ct *CustomBuild) Detail(c *gin.Context) {
 	response.Fail(c, 101, response.TranslateMsg(c, "ItemNotFound"))
 }
 
+// Create — admin endpoint: создать custom-билд и поставить его в очередь.
+// Валидирует version формат ДО персиста (защита от command injection в
+// workflow shell — see utils.ValidateBuildVersion).
 func (ct *CustomBuild) Create(c *gin.Context) {
 	f := &admin.CustomBuildForm{}
 	if err := c.ShouldBindJSON(f); err != nil {
@@ -107,6 +112,12 @@ func (ct *CustomBuild) Create(c *gin.Context) {
 	}
 	b.DownloadKeyExpiresAt = time.Now().Add(ttl).Unix()
 
+	// Reject unsafe version early; keeps DB clean and gives the caller a clear error.
+	if !utils.ValidateBuildVersion(b.Version) {
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+": invalid version format: "+b.Version)
+		return
+	}
+
 	err := service.AllService.CustomBuildService.Create(b)
 	if err != nil {
 		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
@@ -118,6 +129,7 @@ func (ct *CustomBuild) Create(c *gin.Context) {
 	response.Success(c, b)
 }
 
+// Delete — admin endpoint: удалить custom-билд (запись + артефакты).
 func (ct *CustomBuild) Delete(c *gin.Context) {
 	f := &admin.CustomBuildForm{}
 	if err := c.ShouldBindJSON(f); err != nil {
@@ -260,16 +272,16 @@ func (ct *CustomBuild) submitBuild(b *model.CustomBuild) {
 		return
 	}
 	job := map[string]interface{}{
-		"id":          b.Id,
-		"platform":    b.Platform,
-		"version":     b.Version,
-		"app_name":    b.AppName,
-		"custom_json": b.CustomJson,
-		"host":        global.Config.Rustdesk.ApiServer,
-		"key":         global.Config.Rustdesk.Key,
-		"api_server":  global.Config.Rustdesk.ApiServer,
+		"id":           b.Id,
+		"platform":     b.Platform,
+		"version":      b.Version,
+		"app_name":     b.AppName,
+		"custom_json":  b.CustomJson,
+		"host":         global.Config.Rustdesk.ApiServer,
+		"key":          global.Config.Rustdesk.Key,
+		"api_server":   global.Config.Rustdesk.ApiServer,
 		"relay_server": global.Config.Rustdesk.RelayServer,
-		"api_base":    global.Config.App.ApiBase,
+		"api_base":     global.Config.App.ApiBase,
 	}
 	data, _ := json.Marshal(job)
 	jobFile := filepath.Join(jobsDir, fmt.Sprintf("%d.json", b.Id))
@@ -288,7 +300,7 @@ func (ct *CustomBuild) tryGithubDispatch(b *model.CustomBuild) bool {
 	// Validate version format to prevent command injection in workflow shell commands.
 	// b.Version попадает в env VERSION, используется в echo "VERSION=$RQS_VERSION" >> $GITHUB_ENV
 	// и в download URL (`offline-assets-${VERSION}/...`) — shell metacharacters опасны.
-	if !versionRegex.MatchString(b.Version) {
+	if !utils.ValidateBuildVersion(b.Version) {
 		global.Logger.Warnf("tryGithubDispatch: invalid version format %q for build %d — failing build",
 			b.Version, b.Id)
 		b.Status = model.CustomBuildStatusFailed
