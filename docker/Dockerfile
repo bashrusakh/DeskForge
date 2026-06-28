@@ -8,7 +8,7 @@ FROM rust:bookworm AS rust-builder
 # (s6-overlay stage already uses this mapping for its own arch selection).
 ARG TARGETARCH=amd64
 
-RUN apt-get update && apt-get install -y musl-tools sqlite3 perl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends musl-tools sqlite3 perl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build/server
 
@@ -95,6 +95,10 @@ ARG S6_X86_64_SHA256=a93f02882c6ed46b21e7adb5c0add86154f01236c93cd82c7d682722e88
 ARG S6_AARCH64_SHA256=0952056ff913482163cc30e35b2e944b507ba1025d78f5becbb89367bf344581
 
 # Download and extract s6-overlay from just-containers/s6-overlay with checksum verification
+# Switch shell to /bin/ash with pipefail so a curl failure in the middle of a
+# pipe (e.g. `curl ... | sha256sum -c -`) correctly aborts the RUN instead
+# of being masked by sha256sum's exit code.
+SHELL ["/bin/ash", "-o", "pipefail", "-c"]
 RUN case "${TARGETARCH}" in \
     amd64) S6_OVERLAY_ARCH=x86_64 ; S6_ARCH_SHA256="${S6_X86_64_SHA256}" ;; \
     arm64) S6_OVERLAY_ARCH=aarch64 ; S6_ARCH_SHA256="${S6_AARCH64_SHA256}" ;; \
@@ -108,6 +112,9 @@ RUN case "${TARGETARCH}" in \
   tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz && \
   tar -C / -Jxpf /tmp/s6-overlay-${S6_OVERLAY_ARCH}.tar.xz && \
   rm -f /tmp/s6-overlay-*.tar.xz
+# Reset shell to default after the pipelined RUN; subsequent stages inherit
+# the previous SHELL unless re-declared.
+SHELL ["/bin/sh", "-c"]
 
 # Stage 5: Final image
 FROM alpine
