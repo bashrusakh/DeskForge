@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -22,6 +23,12 @@ import (
 	"rustdesk-server/api/service"
 	"rustdesk-server/api/utils"
 )
+
+// versionRegex ограничивает b.Version безопасным форматом перед передачей
+// в GitHub Actions dispatch — защита от command injection в shell-командах
+// workflow (echo "VERSION=$RQS_VERSION", download URL и т.п.).
+// Допускает: digits.dots.digits + optional pre-release (например "1.4.8", "1.4.8-beta.1").
+var versionRegex = regexp.MustCompile(`^[0-9]+(\.[0-9]+){1,2}(-[a-zA-Z0-9.]+)?$`)
 
 type CustomBuild struct{}
 
@@ -49,6 +56,19 @@ func (ct *CustomBuild) List(c *gin.Context) {
 	}
 	res := service.AllService.CustomBuildService.List(uint(q.Page), uint(q.PageSize))
 	response.Success(c, res)
+}
+
+func (ct *CustomBuild) Versions(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
+	defer cancel()
+	versions, err := service.AllService.GithubBuildConfigService.GetAvailableVersions(ctx)
+	// Service returns (fallback, err) when GitHub API is unavailable — let the
+	// fallback reach the client instead of failing hard.
+	if err != nil && len(versions) == 0 {
+		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
+		return
+	}
+	response.Success(c, versions)
 }
 
 func (ct *CustomBuild) Detail(c *gin.Context) {
@@ -265,6 +285,14 @@ func (ct *CustomBuild) tryGithubDispatch(b *model.CustomBuild) bool {
 	if err != nil || gcfg == nil || gcfg.Token == "" || gcfg.Repo == "" || gcfg.PayloadKey == "" {
 		return false
 	}
+	// Validate version format to prevent command injection in workflow shell commands.
+	// b.Version попадает в env VERSION, используется в echo "VERSION=$RQS_VERSION" >> $GITHUB_ENV
+	// и в download URL (`offline-assets-${VERSION}/...`) — shell metacharacters опасны.
+	if !versionRegex.MatchString(b.Version) {
+		global.Logger.Warnf("tryGithubDispatch: invalid version format %q for build %d — skipping GitHub dispatch",
+			b.Version, b.Id)
+		return false
+	}
 	// B-012: выбираем workflow по платформе. windows — настраиваемый
 	// gcfg.WorkflowFilename; linux — пока константа (см. defaultLinuxWorkflowFilename).
 	workflow := gcfg.WorkflowFilename
@@ -285,11 +313,11 @@ func (ct *CustomBuild) tryGithubDispatch(b *model.CustomBuild) bool {
 	dispatchCfg.Branch = "rustqs/min-test"
 
 	// Извлекаем параметры из CustomJson (произвольный JSON формы).
-	// ВАЖНО: b.Version НЕ передаётся в workflow — фактическая версия клиента
-	// определяется кодом на rustqs/min-test ветке форка. Версия в форме —
-	// только метка на записи билда (см. github-build/README.md).
+	// version передаётся в workflow для VERSION env (скачивание ассетов).
+	// Фактическая версия клиента определяется кодом на rustqs/min-test ветке форка.
 	params := map[string]any{
 		"app_name": b.AppName,
+		"version":  b.Version,
 	}
 	if b.CustomJson != "" {
 		var raw map[string]any

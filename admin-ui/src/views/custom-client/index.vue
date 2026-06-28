@@ -329,7 +329,7 @@
 
 <script>
 import { defineComponent, ref, reactive, onMounted, onUnmounted, watch } from 'vue'
-import { list, create, remove } from '@/api/custom_client'
+import { list, create, remove, getVersions } from '@/api/custom_client'
 import { list as listPresets, create as createPreset, remove as removePreset } from '@/api/custom_preset'
 import { all as fetchConfig } from '@/api/config'
 import { upload as uploadFile } from '@/api/file'
@@ -340,12 +340,9 @@ import PageHeader from '@/components/ui/PageHeader.vue'
 import PageSection from '@/components/ui/PageSection.vue'
 import DataTable from '@/components/ui/DataTable.vue'
 
-// NOTE: version is metadata-only (stored on the build record). It is NOT passed
-// to the GitHub workflow_dispatch payload — tryGithubDispatch sends only
-// {server, key, app_name, custom_txt}. The actual client version produced
-// depends on the code on the rustqs/min-test branch in the rustdesk fork.
-// See github-build/README.md for the current version state.
-const VERSIONS = ['1.4.8','1.4.7','1.4.6','1.4.5','1.4.4','1.4.3','1.4.2','1.4.1','1.4.0','1.3.9','1.3.8','1.3.7','1.3.6','1.3.5','1.3.4','1.3.3']
+// Версии загружаются с API (GET /admin/custom_build/versions) при монтировании.
+// Список формируется из GitHub-релизов форка с тегами offline-assets-*.
+// Если API недоступен — fallback на ['1.4.8', '1.4.7'].
 
 export default defineComponent({
   name: 'CustomClientBuilds',
@@ -402,7 +399,7 @@ export default defineComponent({
     const page = ref(1)
     const pageSize = ref(10)
     const total = ref(0)
-    const versions = VERSIONS
+    const versions = ref([])
 
     // B-017: при silent=true не дёргаем спиннер — для фонового поллинга.
     const loadBuilds = async (silent = false) => {
@@ -651,22 +648,33 @@ export default defineComponent({
     }
 
     watch([page, pageSize], () => loadBuilds())
+    const FALLBACK_VERSIONS = ['1.4.8', '1.4.7']
     onMounted(async () => {
       loadBuilds()
       loadPresets()
-      try {
-        const res = await fetchConfig()
-        if (res?.data) {
-          // B-016: заполняем ТОЛЬКО пустые поля. Пресет (loadPresets/onPresetSelect)
-          // может примениться раньше, чем резолвится fetchConfig — нельзя затирать
-          // уже выставленные им значения серверными дефолтами.
-          if (!form.server_ip) form.server_ip = stripPort(res.data.id_server || '')
-          if (!form.key) form.key = res.data.key || ''
-          if (!form.api_server) form.api_server = res.data.api_server || ''
-          if (!form.relay_server) form.relay_server = stripPort(res.data.relay_server || '')
+      // Run getVersions and fetchConfig in parallel so a slow/unreachable
+      // GitHub API (15s backend timeout) does not block form pre-filling.
+      const [versionsRes, configRes] = await Promise.allSettled([
+        getVersions(),
+        fetchConfig(),
+      ])
+      if (versionsRes.status === 'fulfilled' && versionsRes.value?.data?.length) {
+        versions.value = versionsRes.value.data
+      } else {
+        if (versionsRes.status === 'rejected') {
+          console.warn('getVersions failed, using fallback:', versionsRes.reason)
         }
-      } catch (e) {
-        // user can fill manually
+        versions.value = FALLBACK_VERSIONS
+      }
+      if (configRes.status === 'fulfilled' && configRes.value?.data) {
+        // B-016: заполняем ТОЛЬКО пустые поля. Пресет (loadPresets/onPresetSelect)
+        // может примениться раньше, чем резолвится fetchConfig — нельзя затирать
+        // уже выставленные им значения серверными дефолтами.
+        const res = configRes.value.data
+        if (!form.server_ip) form.server_ip = stripPort(res.id_server || '')
+        if (!form.key) form.key = res.key || ''
+        if (!form.api_server) form.api_server = res.api_server || ''
+        if (!form.relay_server) form.relay_server = stripPort(res.relay_server || '')
       }
     })
 

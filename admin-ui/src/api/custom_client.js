@@ -28,3 +28,9 @@ export function detailByKey (key) {
     url: '/custom_build/public/detailByKey/' + key,
   })
 }
+
+export function getVersions () {
+  return request({
+    url: '/custom_build/versions',
+  })
+}
