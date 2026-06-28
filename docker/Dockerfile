@@ -4,7 +4,11 @@
 # Stage 1: Build Rust server (hbbs, hbbr) with musl for Alpine compatibility
 FROM rust:bookworm AS rust-builder
 
-RUN apt-get update && apt-get install -y musl-tools sqlite3 perl && rm -rf /var/lib/apt/lists/*
+# Map Docker TARGETARCH to the musl Rust target so arm64 builds produce aarch64 binaries
+# (s6-overlay stage already uses this mapping for its own arch selection).
+ARG TARGETARCH=amd64
+
+RUN apt-get update && apt-get install -y --no-install-recommends musl-tools sqlite3 perl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build/server
 
@@ -18,9 +22,14 @@ RUN mkdir -p src && \
     echo 'fn main() {}' > src/main.rs && \
     echo 'fn main() {}' > src/hbbr.rs
 
-# Build dependencies only (musl target)
-RUN rustup target add x86_64-unknown-linux-musl && \
-    cargo build --release --target x86_64-unknown-linux-musl 2>/dev/null || true
+# Build dependencies only (musl target matching TARGETARCH)
+RUN case "${TARGETARCH}" in \
+      amd64) RUST_TARGET=x86_64-unknown-linux-musl ;; \
+      arm64) RUST_TARGET=aarch64-unknown-linux-musl ;; \
+      *) echo "Unsupported TARGETARCH: ${TARGETARCH}" && exit 1 ;; \
+    esac && \
+    rustup target add ${RUST_TARGET} && \
+    cargo build --release --target ${RUST_TARGET} 2>/dev/null || true
 
 # Create dummy SQLite DB for sqlx compile-time query checks
 RUN rm -f /tmp/dummy.db && \
@@ -29,9 +38,20 @@ RUN rm -f /tmp/dummy.db && \
 # Copy actual source
 COPY server/src ./src
 
-# Build the server binaries with musl target
+# Build the server binaries for the selected musl target (including rustdesk-utils for key generation)
 ENV DATABASE_URL=sqlite:///tmp/dummy.db
-RUN rm -f Cargo.lock && cargo build --release --target x86_64-unknown-linux-musl --bin hbbs --bin hbbr
+RUN case "${TARGETARCH}" in \
+      amd64) RUST_TARGET=x86_64-unknown-linux-musl ;; \
+      arm64) RUST_TARGET=aarch64-unknown-linux-musl ;; \
+      *) echo "Unsupported TARGETARCH: ${TARGETARCH}" && exit 1 ;; \
+    esac && \
+    rm -f Cargo.lock && cargo build --release --target ${RUST_TARGET} --bin hbbs --bin hbbr --bin rustdesk-utils && \
+    # Stage the binaries at arch-independent paths so the final stage can COPY them
+    # without re-deriving the musl target. Mirrors what `cargo install` does.
+    mkdir -p /build/server/release && \
+    cp /build/server/target/${RUST_TARGET}/release/hbbs          /build/server/release/hbbs && \
+    cp /build/server/target/${RUST_TARGET}/release/hbbr          /build/server/release/hbbr && \
+    cp /build/server/target/${RUST_TARGET}/release/rustdesk-utils /build/server/release/rustdesk-utils
 
 # Stage 2: Build Go API
 FROM golang:1.23-alpine AS go-builder
@@ -58,8 +78,43 @@ RUN npm ci
 COPY admin-ui/ ./
 RUN npm run build
 
-# Stage 4: Get s6-overlay from official image
-FROM rustdesk/rustdesk-server-s6:latest AS s6-source
+# Stage 4: Install s6-overlay from official GitHub release (no upstream dependency)
+FROM alpine:latest AS s6-stage
+
+ARG S6_OVERLAY_VERSION=3.2.3.0
+# s6-overlay arch differs from Docker TARGETARCH naming (x86_64 vs amd64)
+# Map TARGETARCH to s6-overlay arch: amd64->x86_64, arm64->aarch64
+ARG TARGETARCH=amd64
+
+# SHA256 checksums for s6-overlay v3.2.3.0 (from just-containers/s6-overlay releases)
+# noarch is platform-independent
+ARG S6_NOARCH_SHA256=b720f9d9340efc8bb07528b9743813c836e4b02f8693d90241f047998b4c53cf
+# x86_64 checksum
+ARG S6_X86_64_SHA256=a93f02882c6ed46b21e7adb5c0add86154f01236c93cd82c7d682722e8840563
+# aarch64 checksum (for arm64 builds)
+ARG S6_AARCH64_SHA256=0952056ff913482163cc30e35b2e944b507ba1025d78f5becbb89367bf344581
+
+# Download and extract s6-overlay from just-containers/s6-overlay with checksum verification
+# Switch shell to /bin/ash with pipefail so a curl failure in the middle of a
+# pipe (e.g. `curl ... | sha256sum -c -`) correctly aborts the RUN instead
+# of being masked by sha256sum's exit code.
+SHELL ["/bin/ash", "-o", "pipefail", "-c"]
+RUN case "${TARGETARCH}" in \
+    amd64) S6_OVERLAY_ARCH=x86_64 ; S6_ARCH_SHA256="${S6_X86_64_SHA256}" ;; \
+    arm64) S6_OVERLAY_ARCH=aarch64 ; S6_ARCH_SHA256="${S6_AARCH64_SHA256}" ;; \
+    *) echo "Unsupported TARGETARCH: ${TARGETARCH}" && exit 1 ;; \
+  esac && \
+  apk add --no-cache curl xz && \
+  curl -fsSL -o /tmp/s6-overlay-noarch.tar.xz https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz && \
+  echo "${S6_NOARCH_SHA256}  /tmp/s6-overlay-noarch.tar.xz" | sha256sum -c - && \
+  curl -fsSL -o /tmp/s6-overlay-${S6_OVERLAY_ARCH}.tar.xz https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-${S6_OVERLAY_ARCH}.tar.xz && \
+  echo "${S6_ARCH_SHA256}  /tmp/s6-overlay-${S6_OVERLAY_ARCH}.tar.xz" | sha256sum -c - && \
+  tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz && \
+  tar -C / -Jxpf /tmp/s6-overlay-${S6_OVERLAY_ARCH}.tar.xz && \
+  rm -f /tmp/s6-overlay-*.tar.xz
+# Reset shell to default after the pipelined RUN; subsequent stages inherit
+# the previous SHELL unless re-declared.
+SHELL ["/bin/sh", "-c"]
 
 # Stage 5: Final image
 FROM alpine
@@ -72,9 +127,11 @@ WORKDIR /app
 # Install dependencies
 RUN apk add --no-cache tzdata curl
 
-# Copy Rust server binaries (musl target)
-COPY --from=rust-builder /build/server/target/x86_64-unknown-linux-musl/release/hbbs /usr/bin/hbbs
-COPY --from=rust-builder /build/server/target/x86_64-unknown-linux-musl/release/hbbr /usr/bin/hbbr
+# Copy Rust server binaries (rust-builder stages them at arch-independent paths
+# after building for the musl target matching TARGETARCH).
+COPY --from=rust-builder /build/server/release/hbbs /usr/bin/hbbs
+COPY --from=rust-builder /build/server/release/hbbr /usr/bin/hbbr
+COPY --from=rust-builder /build/server/release/rustdesk-utils /usr/bin/rustdesk-utils
 
 # Copy Go API binary
 COPY --from=go-builder /build/api/apimain /app/apimain
@@ -86,26 +143,68 @@ COPY api/resources /app/resources
 COPY --from=admin-ui-builder /build/admin-ui/dist /app/resources/admin/
 
 
-# Copy s6-overlay from official image
-COPY --from=s6-source /init /init
-COPY --from=s6-source /etc/s6-overlay /etc/s6-overlay
-COPY --from=s6-source /package /package
-COPY --from=s6-source /command /command
-COPY --from=s6-source /usr/bin/healthcheck.sh /usr/bin/healthcheck.sh
-COPY --from=s6-source /usr/bin/rustdesk-utils /usr/bin/rustdesk-utils
+# Copy s6-overlay from GitHub release (no upstream docker.io/rustdesk)
+COPY --from=s6-stage /init /init
+COPY --from=s6-stage /etc/s6-overlay /etc/s6-overlay
+COPY --from=s6-stage /package /package
+COPY --from=s6-stage /command /command
+
+# Create our own healthcheck.sh (replaces upstream version).
+# Sourced from docker/scripts/healthcheck.sh so the logic is lintable and
+# version-controlled separately from the Dockerfile.
+COPY docker/scripts/healthcheck.sh /usr/bin/healthcheck.sh
 
 # Copy API configuration
 COPY api/conf /app/conf
 
-# Create s6 service for API
+# Create s6 services (key-secret + hbbs + hbbr + api).
+# Previously inherited from the upstream rustdesk/rustdesk-server-s6 image;
+# now defined locally so multi-arch builds don't depend on that image.
+#
+# Dependency graph:
+#   key-secret (oneshot)  →  generates /data/id_ed25519[.pub] if missing
+#      ├── hbbs (longrun) → RustDesk ID/Rendezvous server
+#      └── hbbr (longrun) → RustDesk Relay server
+#            └── api (longrun) → Go REST API
+
+# --- key-secret: oneshot, generates Ed25519 keypair on first boot ---
+# In s6-overlay v3 the `up` file of a oneshot is parsed by execlineb as a SINGLE
+# COMMAND LINE (no shebang, no multi-line shell). To run a multi-step shell
+# script we follow the upstream pattern: put the script at a stable path and
+# call it from `up` (mirrors upstream `fix-attrs` → /etc/s6-rc/scripts/fix-attrs).
+# The script itself is sourced from docker/scripts/key-secret.sh so it stays
+# lintable and outside the Dockerfile heredoc.
+COPY docker/scripts/key-secret.sh /etc/s6-overlay/scripts/key-secret
+RUN mkdir -p /etc/s6-overlay/s6-rc.d/key-secret && \
+    printf 'oneshot\n' > /etc/s6-overlay/s6-rc.d/key-secret/type && \
+    printf '%s\n' '/etc/s6-overlay/scripts/key-secret' \
+        > /etc/s6-overlay/s6-rc.d/key-secret/up && \
+    chmod +x /etc/s6-overlay/scripts/key-secret && \
+    touch /etc/s6-overlay/s6-rc.d/user/contents.d/key-secret
+
+# --- hbbs: longrun, ID / rendezvous server ---
+COPY docker/scripts/hbbs-run.sh /etc/s6-overlay/s6-rc.d/hbbs/run
+RUN mkdir -p /etc/s6-overlay/s6-rc.d/hbbs && \
+    printf 'key-secret\n' > /etc/s6-overlay/s6-rc.d/hbbs/dependencies && \
+    printf 'longrun\n' > /etc/s6-overlay/s6-rc.d/hbbs/type && \
+    chmod +x /etc/s6-overlay/s6-rc.d/hbbs/run && \
+    touch /etc/s6-overlay/s6-rc.d/user/contents.d/hbbs
+
+# --- hbbr: longrun, relay server ---
+COPY docker/scripts/hbbr-run.sh /etc/s6-overlay/s6-rc.d/hbbr/run
+RUN mkdir -p /etc/s6-overlay/s6-rc.d/hbbr && \
+    printf 'key-secret\n' > /etc/s6-overlay/s6-rc.d/hbbr/dependencies && \
+    printf 'longrun\n' > /etc/s6-overlay/s6-rc.d/hbbr/type && \
+    chmod +x /etc/s6-overlay/s6-rc.d/hbbr/run && \
+    touch /etc/s6-overlay/s6-rc.d/user/contents.d/hbbr
+
+# --- api: longrun, Go REST API ---
+COPY docker/scripts/api-run.sh /etc/s6-overlay/s6-rc.d/api/run
 RUN mkdir -p /etc/s6-overlay/s6-rc.d/api && \
-    echo -e "key-secret\nhbbs" > /etc/s6-overlay/s6-rc.d/api/dependencies && \
-    echo "longrun" > /etc/s6-overlay/s6-rc.d/api/type && \
-    echo "#!/command/with-contenv sh" > /etc/s6-overlay/s6-rc.d/api/run && \
-    echo "cd /app" >> /etc/s6-overlay/s6-rc.d/api/run && \
-    echo "./apimain" >> /etc/s6-overlay/s6-rc.d/api/run && \
+    printf 'key-secret\nhbbs\n' > /etc/s6-overlay/s6-rc.d/api/dependencies && \
+    printf 'longrun\n' > /etc/s6-overlay/s6-rc.d/api/type && \
+    chmod +x /etc/s6-overlay/s6-rc.d/api/run && \
     touch /etc/s6-overlay/s6-rc.d/user/contents.d/api && \
-    echo "/package/admin/s6/command/s6-svstat /run/s6-rc/servicedirs/api || exit 1" >> /usr/bin/healthcheck.sh && \
     ln -s /run /var/run
 
 # Create data directories
