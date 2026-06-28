@@ -584,6 +584,9 @@
   "StartBuild": {
     "One": "开始构建"
   },
+  "VersionListLoading": {
+    "One": "版本列表加载中，请稍候..."
+  },
   "CopyThisUrlToProvider": {
     "One": "请复制此 URL 并粘贴到您的 OAuth 服务商设置中作为回调/重定向 URL。"
   },

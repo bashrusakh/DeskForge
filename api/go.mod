@@ -1,8 +1,6 @@
 module rustdesk-server/api
 
-go 1.23
-
-toolchain go1.23.10
+go 1.25.0
 
 require (
 	github.com/BurntSushi/toml v1.3.2
@@ -27,6 +25,7 @@ require (
 	github.com/swaggo/swag v1.16.3
 	golang.org/x/crypto v0.33.0
 	golang.org/x/oauth2 v0.23.0
+	golang.org/x/sync v0.21.0
 	golang.org/x/text v0.22.0
 	gorm.io/driver/mysql v1.5.7
 	gorm.io/driver/postgres v1.6.0
@@ -87,7 +86,6 @@ require (
 	golang.org/x/arch v0.0.0-20210923205945-b76863e36670 // indirect
 	golang.org/x/image v0.13.0 // indirect
 	golang.org/x/net v0.34.0 // indirect
-	golang.org/x/sync v0.11.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/tools v0.26.0 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect

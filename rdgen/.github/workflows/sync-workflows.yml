@@ -66,7 +66,9 @@ jobs:
           cd /tmp/sync
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${FORK_REPO}.git"
+          git remote add origin "https://github.com/${FORK_REPO}.git"
+          # Avoid embedding PAT in the remote URL; use Authorization header instead.
+          git config "http.https://github.com/.extraheader" "Authorization: token ${GH_TOKEN}"
 
           FAILED=0
           SYNCED=0
@@ -137,18 +139,45 @@ jobs:
                 # (например read-tree на corrupted index) не убили весь job.
                 # Возвращаем -e сразу после блока.
                 set +e
-                git fetch origin --depth 1 "$branch"
+                if ! git fetch origin --depth 1 "$branch"; then
+                  echo "::warning::Recovery fetch failed for $branch, skipping attempt"
+                  set -e
+                  continue
+                fi
                 PARENT=$(git rev-parse "origin/$branch" 2>/dev/null || echo "")
-                git read-tree "origin/$branch"
-                git checkout-index --all --force
+                if [ -z "$PARENT" ]; then
+                  echo "::warning::Could not resolve origin/$branch after fetch, skipping attempt"
+                  set -e
+                  continue
+                fi
+                if ! git read-tree "origin/$branch"; then
+                  echo "::warning::Recovery read-tree failed for $branch, skipping attempt"
+                  set -e
+                  continue
+                fi
+                if ! git checkout-index --all --force; then
+                  echo "::warning::Recovery checkout-index failed for $branch, skipping attempt"
+                  set -e
+                  continue
+                fi
                 cp "${src_files[@]}" .github/workflows/
                 git add .github/workflows/
                 TREE=$(git write-tree)
-                if [ -n "$PARENT" ]; then
-                  COMMIT=$(git commit-tree "$TREE" -p "$PARENT" -m "$MSG")
-                else
-                  COMMIT=$(git commit-tree "$TREE" -m "$MSG")
+                if [ -z "$TREE" ]; then
+                  echo "::warning::Recovery write-tree returned empty for $branch, skipping attempt"
+                  set -e
+                  continue
                 fi
+                # Idempotency re-check: concurrent push may have already synced the same tree.
+                CURRENT_TREE=$(git rev-parse "origin/$branch^{tree}" 2>/dev/null || echo "")
+                if [ "$TREE" = "$CURRENT_TREE" ]; then
+                  echo "ℹ️  No changes for $branch — skipping (retry)"
+                  SKIPPED=$((SKIPPED + 1))
+                  PUSHED=1
+                  set -e
+                  break
+                fi
+                COMMIT=$(git commit-tree "$TREE" -p "$PARENT" -m "$MSG")
                 set -e
               fi
             done

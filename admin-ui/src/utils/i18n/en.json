@@ -958,6 +958,9 @@
   "StartBuild": {
     "One": "Start Build"
   },
+  "VersionListLoading": {
+    "One": "Version list is still loading, please wait..."
+  },
   "CopyThisUrlToProvider": {
     "One": "Copy this URL and paste it as the callback/redirect URL in your OAuth provider settings."
   }
