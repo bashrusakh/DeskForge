@@ -1,4 +1,4 @@
-﻿package admin
+package admin
 
 import (
 	"archive/zip"
@@ -272,16 +272,16 @@ func (ct *CustomBuild) submitBuild(b *model.CustomBuild) {
 		return
 	}
 	job := map[string]interface{}{
-		"id":          b.Id,
-		"platform":    b.Platform,
-		"version":     b.Version,
-		"app_name":    b.AppName,
-		"custom_json": b.CustomJson,
-		"host":        global.Config.Rustdesk.ApiServer,
-		"key":         global.Config.Rustdesk.Key,
-		"api_server":  global.Config.Rustdesk.ApiServer,
+		"id":           b.Id,
+		"platform":     b.Platform,
+		"version":      b.Version,
+		"app_name":     b.AppName,
+		"custom_json":  b.CustomJson,
+		"host":         global.Config.Rustdesk.ApiServer,
+		"key":          global.Config.Rustdesk.Key,
+		"api_server":   global.Config.Rustdesk.ApiServer,
 		"relay_server": global.Config.Rustdesk.RelayServer,
-		"api_base":    global.Config.App.ApiBase,
+		"api_base":     global.Config.App.ApiBase,
 	}
 	data, _ := json.Marshal(job)
 	jobFile := filepath.Join(jobsDir, fmt.Sprintf("%d.json", b.Id))

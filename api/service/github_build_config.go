@@ -181,7 +181,7 @@ type ghVersionsCache struct {
 var (
 	releasesCache    ghVersionsCache
 	releasesCacheTTL = 5 * time.Minute
-	versionsFlight    singleflight.Group
+	versionsFlight   singleflight.Group
 )
 
 // GetAvailableVersions возвращает список версий RustDesk, доступных для сборки
@@ -321,28 +321,36 @@ func (s *GithubBuildConfigService) fetchReleases(ctx context.Context) ([]string,
 	return versions, nil
 }
 
-// compareSemver сравнивает две semver-строки (например "1.4.8" и "1.4.7").
-// Возвращает >0 если a > b, <0 если a < b, 0 если равны.
-// Pre-release сегменты (например "1.4.8-beta") считаются МЕНЬШЕ release ("1.4.8").
+// compareSemver сравнивает две semver-подобные строки: сначала numeric core,
+// затем prerelease-сегменты. Release всегда старше prerelease, а
+// prerelease вроде "1.4.10-beta" корректно сравнивается с более низкой
+// numeric-версией "1.4.9".
 func compareSemver(a, b string) int {
-	pa := strings.Split(a, ".")
-	pb := strings.Split(b, ".")
+	coreA, preA := splitVersion(a)
+	coreB, preB := splitVersion(b)
+
+	pa := strings.Split(coreA, ".")
+	pb := strings.Split(coreB, ".")
 	n := len(pa)
-	if len(pb) < n {
+	if len(pb) > n {
 		n = len(pb)
 	}
 	for i := 0; i < n; i++ {
+		if i >= len(pa) {
+			if v, err := strconv.Atoi(pb[i]); err == nil && v != 0 {
+				return -1
+			}
+			continue
+		}
+		if i >= len(pb) {
+			if v, err := strconv.Atoi(pa[i]); err == nil && v != 0 {
+				return 1
+			}
+			continue
+		}
 		va, errA := strconv.Atoi(pa[i])
 		vb, errB := strconv.Atoi(pb[i])
 		if errA != nil || errB != nil {
-			// non-numeric сегмент — pre-release. numeric > non-numeric.
-			if errA == nil && errB != nil {
-				return 1
-			}
-			if errA != nil && errB == nil {
-				return -1
-			}
-			// оба non-numeric — лексикографически (стабильно, но редко встречается)
 			if cmp := strings.Compare(pa[i], pb[i]); cmp != 0 {
 				return cmp
 			}
@@ -352,50 +360,63 @@ func compareSemver(a, b string) int {
 			return va - vb
 		}
 	}
-// Все совпавшие сегменты равны. Больше сегментов = выше версия ТОЛЬКО если
-// дополнительные сегменты non-zero. По semver trailing zero сегменты эквивалентны
-// ("1.4.8.0" == "1.4.8"). Если количество равно — финальное сравнение
-// non-numeric хвостов: non-numeric < numeric ("1.4.8-beta" < "1.4.8").
+
 	switch {
-	case len(pa) > len(pb):
-		// Extra segments у a — greater только если хоть один non-zero
-		for i := n; i < len(pa); i++ {
-			if v, err := strconv.Atoi(pa[i]); err == nil && v != 0 {
-				return 1
-			}
-		}
+	case preA == preB:
 		return 0
-	case len(pa) < len(pb):
-		// Extra segments у b — greater только если хоть один non-zero
-		for i := n; i < len(pb); i++ {
-			if v, err := strconv.Atoi(pb[i]); err == nil && v != 0 {
-				return -1
-			}
-		}
-		return 0
-	default:
-		// одинаковая длина — сравнить последние сегменты на non-numeric
-		hasPreA := hasNonNumeric(pa[len(pa)-1])
-		hasPreB := hasNonNumeric(pb[len(pb)-1])
-		if hasPreA == hasPreB {
-			return 0
-		}
-		if hasPreA {
-			return -1
-		}
+	case preA == "":
 		return 1
+	case preB == "":
+		return -1
+	default:
+		return comparePrerelease(preA, preB)
 	}
 }
 
-// hasNonNumeric — true если сегмент содержит не только цифры
-// (например "8-beta", "rc1").
-func hasNonNumeric(s string) bool {
-	for _, r := range s {
-		if r < '0' || r > '9' {
-			return true
+func splitVersion(v string) (core, pre string) {
+	core, pre, ok := strings.Cut(v, "-")
+	if !ok {
+		return v, ""
+	}
+	return core, pre
+}
+
+func comparePrerelease(a, b string) int {
+	pa := strings.Split(a, ".")
+	pb := strings.Split(b, ".")
+	n := len(pa)
+	if len(pb) < n {
+		n = len(pb)
+	}
+	for i := 0; i < n; i++ {
+		ai, aNum := prereleaseIdentifier(pa[i])
+		bi, bNum := prereleaseIdentifier(pb[i])
+		switch {
+		case aNum && bNum:
+			if ai != bi {
+				return ai - bi
+			}
+		case aNum:
+			return -1
+		case bNum:
+			return 1
+		default:
+			if cmp := strings.Compare(pa[i], pb[i]); cmp != 0 {
+				return cmp
+			}
 		}
 	}
-	return false
+	if len(pa) != len(pb) {
+		return len(pa) - len(pb)
+	}
+	return 0
+}
+
+func prereleaseIdentifier(v string) (int, bool) {
+	if n, err := strconv.Atoi(v); err == nil {
+		return n, true
+	}
+	return 0, false
 }
 
 // TestConnection — read-only вызов GET /repos/{repo}: проверяет PAT, scope, доступ к репо.
@@ -450,8 +471,9 @@ func (s *GithubBuildConfigService) SetSyncPatSecret(c *model.GithubBuildConfig) 
 
 // putGithubSecret — общая логика encrypt-and-PUT секрета в GitHub Actions Secrets.
 // Шаги:
-//   GET  {repoPath}/actions/secrets/public-key  → {key_id, key (base64 32B)}
-//   PUT  {repoPath}/actions/secrets/{secretName}  body {encrypted_value, key_id}
+//
+//	GET  {repoPath}/actions/secrets/public-key  → {key_id, key (base64 32B)}
+//	PUT  {repoPath}/actions/secrets/{secretName}  body {encrypted_value, key_id}
 func (s *GithubBuildConfigService) putGithubSecret(c *model.GithubBuildConfig, repoPath, secretName, plaintext string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
@@ -643,4 +665,3 @@ func (s *GithubBuildConfigService) DownloadArtifact(ctx context.Context, c *mode
 	}
 	return io.ReadAll(rr.Body)
 }
-
