@@ -1,0 +1,173 @@
+# TEST — sync-workflows
+# ============================================================================
+# DRAFT (B-XXX) — НЕ ВАЛИДИРОВАН РЕАЛЬНЫМ ПРОГОНОМ GITHUB ACTIONS.
+# Синкает workflow-файлы из DeskForge в форк bashrusakh/rustdesk на все 3 ветки.
+# Пока запускается ТОЛЬКО вручную через workflow_dispatch.
+# После первого успешного прогона вернуть push-триггер:
+#   paths:
+#     - 'github-build/rustqs-*.yml'
+#     - 'rdgen/.github/workflows/bridge.yml'
+#
+# Требует GitHub Secret GH_PAT в репозитории DeskForge — Personal Access Token
+# с scope repo на bashrusakh/rustdesk. Тот же токен, что используется в
+# GithubBuildConfig (админка → Server → GitHub Build Settings).
+#
+# Путь в DeskForge: rdgen/.github/workflows/sync-workflows.yml
+# ============================================================================
+
+name: Sync workflows to fork
+
+on:
+  workflow_dispatch:
+
+env:
+  FORK_REPO: bashrusakh/rustdesk
+  FORK_BRANCHES: 'master rustqs/min-test rustqs/master-workflows'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    if: github.repository == 'bashrusakh/DeskForge'
+    steps:
+      - name: Checkout DeskForge
+        uses: actions/checkout@v4
+
+      - name: Push workflows to fork (3 branches)
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          FORK_REPO: ${{ env.FORK_REPO }}
+          FORK_BRANCHES: ${{ env.FORK_BRANCHES }}
+        run: |
+          set -eu
+
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::GH_PAT secret is not set."
+            exit 1
+          fi
+
+          # Validate source files before doing any git work
+          bridge_src="${{ github.workspace }}/rdgen/.github/workflows/bridge.yml"
+          if [ ! -f "$bridge_src" ]; then
+            echo "::error::bridge.yml source is missing: $bridge_src"
+            exit 1
+          fi
+
+          shopt -s nullglob
+          rustqs_files=("${{ github.workspace }}/github-build/"rustqs-*.yml)
+          if [ ${#rustqs_files[@]} -eq 0 ]; then
+            echo "::error::No github-build/rustqs-*.yml source files found."
+            exit 1
+          fi
+          src_files=("${rustqs_files[@]}" "$bridge_src")
+
+          # Build a git tree from our workflow files (no clone needed)
+          rm -rf /tmp/sync
+          git init /tmp/sync
+          cd /tmp/sync
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${FORK_REPO}.git"
+
+          FAILED=0
+          SYNCED=0
+          SKIPPED=0
+          MSG="sync workflows from DeskForge@${GITHUB_SHA:0:7}"
+
+          for branch in $FORK_BRANCHES; do
+            echo "=== Syncing to $FORK_REPO:$branch ==="
+
+            # Wipe the working tree (except .git) at the start of each
+            # iteration so stale files from the previous branch cannot be
+            # re-staged into the current branch.
+            find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+
+            # Reset index to empty, then load parent's tree (if branch exists)
+            # so the new commit preserves all existing fork content.
+            git read-tree --empty
+            mkdir -p .github/workflows
+
+            if git ls-remote --exit-code origin "$branch" >/dev/null 2>&1; then
+              # Branch exists — fetch HEAD and load its tree into index
+              if ! git fetch origin --depth 1 "$branch"; then
+                echo "::error::Failed to fetch $branch (exists but unreachable)"
+                FAILED=$((FAILED + 1))
+                continue
+              fi
+              git read-tree "origin/$branch"
+              # checkout-index populates the working directory from the index
+              # so that `git add` does not stage deletions for files that
+              # exist in the fork but are not in our source set.
+              git checkout-index --all --force
+              PARENT=$(git rev-parse "origin/$branch")
+            else
+              echo "Branch $branch does not exist on remote — creating"
+              PARENT=""
+            fi
+
+            # Overlay our workflow files on top of the parent's tree
+            cp "${src_files[@]}" .github/workflows/
+            git add .github/workflows/
+            TREE=$(git write-tree)
+
+            # Idempotency: skip if tree is already on tip
+            if [ -n "$PARENT" ]; then
+              CURRENT_TREE=$(git rev-parse "origin/$branch^{tree}" 2>/dev/null || echo "")
+              if [ "$TREE" = "$CURRENT_TREE" ]; then
+                echo "ℹ️  No changes for $branch — skipping"
+                SKIPPED=$((SKIPPED + 1))
+                continue
+              fi
+              COMMIT=$(git commit-tree "$TREE" -p "$PARENT" -m "$MSG")
+            else
+              COMMIT=$(git commit-tree "$TREE" -m "$MSG")
+            fi
+
+            # Retry on non-fast-forward (concurrent push to same branch).
+            MAX_RETRIES=3
+            PUSHED=0
+            for attempt in $(seq 1 $MAX_RETRIES); do
+              if git push origin "$COMMIT:$branch"; then
+                echo "✅ $branch synced"
+                SYNCED=$((SYNCED + 1))
+                PUSHED=1
+                break
+              elif [ $attempt -lt $MAX_RETRIES ]; then
+                echo "⚠️  Push failed (attempt $attempt/$MAX_RETRIES), re-fetching and rebasing..."
+                # Recovery block — временно отключаем -e, чтобы transient failures
+                # (например read-tree на corrupted index) не убили весь job.
+                # Возвращаем -e сразу после блока.
+                set +e
+                git fetch origin --depth 1 "$branch"
+                PARENT=$(git rev-parse "origin/$branch" 2>/dev/null || echo "")
+                git read-tree "origin/$branch"
+                git checkout-index --all --force
+                cp "${src_files[@]}" .github/workflows/
+                git add .github/workflows/
+                TREE=$(git write-tree)
+                if [ -n "$PARENT" ]; then
+                  COMMIT=$(git commit-tree "$TREE" -p "$PARENT" -m "$MSG")
+                else
+                  COMMIT=$(git commit-tree "$TREE" -m "$MSG")
+                fi
+                set -e
+              fi
+            done
+            if [ $PUSHED -eq 0 ]; then
+              echo "::error::Failed to push $branch after $MAX_RETRIES attempts"
+              FAILED=$((FAILED + 1))
+            fi
+          done
+
+          echo "## Sync result" >> $GITHUB_STEP_SUMMARY
+          echo "- Synced: $SYNCED" >> $GITHUB_STEP_SUMMARY
+          echo "- Skipped (no changes): $SKIPPED" >> $GITHUB_STEP_SUMMARY
+          echo "- Failed: $FAILED" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          for branch in $FORK_BRANCHES; do
+            echo "- \`$branch\`" >> $GITHUB_STEP_SUMMARY
+          done
+
+          if [ $FAILED -gt 0 ]; then
+            echo "::error::$FAILED branch(es) failed to sync"
+            exit 1
+          fi

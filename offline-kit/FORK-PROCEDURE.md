@@ -80,6 +80,33 @@ RUSTDESK_REPO="https://github.com/THEIR_ORG/rustdesk.git"
 ```
 → their GUI builds from their fork. Upstream is not involved.
 
+### C1. Versions in admin UI
+
+The version list in the admin UI (Custom Client → Version dropdown) is loaded
+dynamically via `GET /api/admin/custom_build/versions`. This endpoint queries
+GitHub releases of the fork tagged `offline-assets-*`.
+
+**For downstream forkers:**
+- After publishing your own `offline-assets-{tag}` release, the version will
+  automatically appear in the UI
+- If the GitHub API is unavailable, falls back to `['1.4.8', '1.4.7']`
+- No hardcoded values in code need to be changed
+
+### C2. Workflow deployment
+
+Workflow files (`rustqs-*.yml`, `bridge.yml`) must be deployed to **three branches**
+of the fork:
+
+| Branch | Purpose |
+|---|---|
+| `master` | API discovery (workflow must exist on default branch) |
+| `rustqs/min-test` | Execution — all dispatches go here |
+| `rustqs/master-workflows` | Mirror — backup for applying after upstream sync |
+
+**Important:** `bridge.yml` must be **without `inputs.version`** — same as upstream.
+Checkout — **without `repository:`** (checkout the current repo, not upstream).
+Otherwise the workflow will fail with `startup_failure`.
+
 ---
 
 ## Sovereignty verification

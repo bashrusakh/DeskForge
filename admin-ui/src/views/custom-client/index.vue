@@ -41,7 +41,6 @@
           <el-col :span="8">
             <el-form-item :label="T('Version')">
               <el-select v-model="form.version" style="width:100%">
-                <el-option :label="T('Nightly')" value="master" />
                 <el-option v-for="v in versions" :key="v" :label="v" :value="v" />
               </el-select>
             </el-form-item>
@@ -282,7 +281,7 @@
         </el-row>
 
         <el-form-item>
-          <el-button type="primary" @click="submitBuild" :loading="submitting">{{ T('StartBuild') }}</el-button>
+          <el-button type="primary" @click="submitBuild" :loading="submitting" :disabled="versionsLoading || submitting">{{ T('StartBuild') }}</el-button>
           <el-button @click="resetForm">{{ T('Reset') }}</el-button>
         </el-form-item>
       </el-form>
@@ -329,7 +328,7 @@
 
 <script>
 import { defineComponent, ref, reactive, onMounted, onUnmounted, watch } from 'vue'
-import { list, create, remove } from '@/api/custom_client'
+import { list, create, remove, getVersions } from '@/api/custom_client'
 import { list as listPresets, create as createPreset, remove as removePreset } from '@/api/custom_preset'
 import { all as fetchConfig } from '@/api/config'
 import { upload as uploadFile } from '@/api/file'
@@ -340,12 +339,9 @@ import PageHeader from '@/components/ui/PageHeader.vue'
 import PageSection from '@/components/ui/PageSection.vue'
 import DataTable from '@/components/ui/DataTable.vue'
 
-// NOTE: version is metadata-only (stored on the build record). It is NOT passed
-// to the GitHub workflow_dispatch payload — tryGithubDispatch sends only
-// {server, key, app_name, custom_txt}. The actual client version produced
-// depends on the code on the rustqs/min-test branch in the rustdesk fork.
-// See github-build/README.md for the current version state.
-const VERSIONS = ['1.4.8','1.4.7','1.4.6','1.4.5','1.4.4','1.4.3','1.4.2','1.4.1','1.4.0','1.3.9','1.3.8','1.3.7','1.3.6','1.3.5','1.3.4','1.3.3']
+// Версии загружаются с API (GET /admin/custom_build/versions) при монтировании.
+// Список формируется из GitHub-релизов форка с тегами offline-assets-*.
+// Если API недоступен — fallback на ['1.4.8', '1.4.7'].
 
 export default defineComponent({
   name: 'CustomClientBuilds',
@@ -399,10 +395,11 @@ export default defineComponent({
     const builds = ref([])
     const loading = ref(false)
     const submitting = ref(false)
+    const versionsLoading = ref(true)
     const page = ref(1)
     const pageSize = ref(10)
     const total = ref(0)
-    const versions = VERSIONS
+    const versions = ref([])
 
     // B-017: при silent=true не дёргаем спиннер — для фонового поллинга.
     const loadBuilds = async (silent = false) => {
@@ -546,6 +543,10 @@ export default defineComponent({
     }
 
     const submitBuild = async () => {
+      if (versionsLoading.value || versions.value.length === 0) {
+        ElMessage.warning(T('VersionListLoading'))
+        return
+      }
       form.server_ip = stripPort(form.server_ip)
       form.relay_server = stripPort(form.relay_server)
       submitting.value = true
@@ -587,7 +588,7 @@ export default defineComponent({
     const resetForm = () => {
       selectedPresetId.value = null
       form.platform = 'windows'
-      form.version = '1.4.8'
+      form.version = defaultVersion()
       form.app_name = ''
       form.server_ip = ''
       form.key = ''
@@ -651,27 +652,53 @@ export default defineComponent({
     }
 
     watch([page, pageSize], () => loadBuilds())
+    const FALLBACK_VERSIONS = ['1.4.8', '1.4.7']
+    const defaultVersion = (current = form.version) =>
+      versions.value.includes(current) ? current : versions.value[0] || FALLBACK_VERSIONS[0]
     onMounted(async () => {
       loadBuilds()
       loadPresets()
+      versionsLoading.value = true
+      // getVersions is intentionally not awaited before fetchConfig — server
+      // defaults must apply immediately, even if GitHub API is slow/unreachable.
+      const versionsPromise = getVersions().then(res => {
+        if (res?.data?.length) {
+          versions.value = res.data
+        } else {
+          versions.value = FALLBACK_VERSIONS
+        }
+      }).catch(e => {
+        console.warn('getVersions failed, using fallback:', e)
+        versions.value = FALLBACK_VERSIONS
+      }).finally(() => {
+        // Keep form.version aligned with the available options.
+        form.version = defaultVersion(form.version)
+        versionsLoading.value = false
+      })
+
       try {
         const res = await fetchConfig()
         if (res?.data) {
           // B-016: заполняем ТОЛЬКО пустые поля. Пресет (loadPresets/onPresetSelect)
           // может примениться раньше, чем резолвится fetchConfig — нельзя затирать
           // уже выставленные им значения серверными дефолтами.
-          if (!form.server_ip) form.server_ip = stripPort(res.data.id_server || '')
-          if (!form.key) form.key = res.data.key || ''
-          if (!form.api_server) form.api_server = res.data.api_server || ''
-          if (!form.relay_server) form.relay_server = stripPort(res.data.relay_server || '')
+          const cfg = res.data
+          if (!form.server_ip) form.server_ip = stripPort(cfg.id_server || '')
+          if (!form.key) form.key = cfg.key || ''
+          if (!form.api_server) form.api_server = cfg.api_server || ''
+          if (!form.relay_server) form.relay_server = stripPort(cfg.relay_server || '')
         }
       } catch (e) {
-        // user can fill manually
+        console.warn('fetchConfig failed:', e)
       }
+
+      // Wait for versions to settle before any submit can happen; by then the
+      // form already has server defaults applied.
+      await versionsPromise
     })
 
     return {
-      form, builds, loading, submitting, page, pageSize, total, versions,
+      form, builds, loading, submitting, versionsLoading, page, pageSize, total, versions,
       submitBuild, deleteBuild, resetForm, downloadBuild, stripServerPort, stripRelayPort,
       statusType, statusLabel, T,
       presets, selectedPresetId, onPresetSelect, saveCurrentAsPreset, deletePreset, uploadImage,
