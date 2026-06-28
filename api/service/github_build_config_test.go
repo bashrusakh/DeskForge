@@ -2,6 +2,10 @@ package service
 
 import "testing"
 
+// TestCompareSemver проверяет упорядочивание compareSemver для стабильных
+// и pre-release версий: numeric > numeric-equal-non-numeric ("1.4.8" > "1.4.8-beta"),
+// trailing-segments-равны только если non-zero, pre-release между равными numeric
+// сегментами ("1.4.8-beta" < "1.4.8-beta.1").
 func TestCompareSemver(t *testing.T) {
 	cases := []struct {
 		a, b string

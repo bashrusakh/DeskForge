@@ -1,7 +1,7 @@
 # Plan: Fix CI Workflows and Version Management
 
 **Date:** 2026-06-28
-**Status:** ✅ Completed
+**Status:** 🟡 Implemented — pending live workflow validation
 **Priority:** High (workflows were failing)
 
 ---
@@ -146,7 +146,9 @@ GET /repos/bashrusakh/rustdesk/releases?per_page=100
 - `admin-ui/src/api/custom_client.js` — `getVersions()`
 - `admin-ui/src/views/custom-client/index.vue` — load from API on mount, removed hardcoded `VERSIONS`
 
-**Fallback:** if GitHub API is unavailable — `['1.4.8', '1.4.7']`
+**Cache:** 5 min TTL on the API side. UI re-fetches on page load, so a freshly published release may take up to 5 minutes to appear until the cache expires.
+
+**Empty / API down:** if GitHub API is unavailable or no `offline-assets-*` releases exist, the API returns an empty list (no fake fallback). The UI shows `VersionListError` / `VersionListEmpty` and `StartBuild` stays disabled — the operator must wait for the API to recover or publish a release.
 
 ### 3.6. `rdgen/.github/workflows/third-party-RustDeskTempTopMostWindow.yml`
 
@@ -160,8 +162,14 @@ GET /repos/bashrusakh/rustdesk/releases?per_page=100
 |---|---|
 | `bridge.yml` — workflow_dispatch without `startup_failure` | ✅ Windows and Linux — `in_progress` (previously `startup_failure` in 1-2 sec) |
 | `VERSION` in logs matches dispatch | ✅ `VERSION overridden from dispatch: 1.4.8` (from `RQS_VERSION`) |
-| Version list in UI | ⏳ After deploy — should show `1.4.8` and `1.4.7` |
-| Fallback when GitHub API unavailable | ⏳ After deploy |
+| Version list in UI | 🟡 Pending live deploy — should show `1.4.8` and `1.4.7` |
+| Empty/error states (no GitHub releases / API down) | 🟡 Pending live deploy — UI shows `VersionListEmpty` / `VersionListError`, `StartBuild` disabled |
+| `sync-workflows.yml` manual `workflow_dispatch` (DRAFT) | 🟡 Pending first run (push trigger intentionally off until validated) |
+| `sync-workflows.yml` automated push after validation | ⬜ Out of scope for this PR — gated on successful manual run |
+| `go build -o /tmp/apimain cmd/apimain.go` | ✅ Clean |
+| `go test ./service/...` | ✅ Pass (incl. `TestCompareSemver`) |
+| `npm install && npm run build` | ✅ Pass |
+| `go vet ./...` | ✅ Only pre-existing `Fatalf` warnings in cache tests |
 
 ---
 
@@ -185,12 +193,25 @@ GET /repos/bashrusakh/rustdesk/releases?per_page=100
 | `github-build/rustqs-windows-min-test.yml` | `version` input, `VERSION` from inputs, decrypt/override |
 | `github-build/rustqs-linux.yml` | Same |
 | `github-build/rustqs-android.yml` | Same |
-| `api/service/github_build_config.go` | `GetAvailableVersions()`, `fetchReleases()`, `compareSemver()`, cache |
-| `api/http/controller/admin/custom_build.go` | `Versions()` handler, `version` in params |
-| `api/http/router/admin.go` | Route `GET /custom_build/versions` |
+| `api/service/github_build_config.go` | `GetAvailableVersions()` (singleflight + detached ctx), `fetchReleases()` (response body in error), `compareSemver()` (pre-release segments), 5 min cache |
+| `api/service/github_build_config_test.go` | `TestCompareSemver` unit test |
+| `api/http/controller/admin/custom_build.go` | `Versions()` handler (returns `[]string{}` on error), `version` in params, `ValidateBuildVersion()`, early validation in `Create` |
+| `api/http/router/admin.go` | Route `GET /custom_build/versions`, route `POST /sync_pat` |
 | `admin-ui/src/api/custom_client.js` | `getVersions()` |
-| `admin-ui/src/views/custom-client/index.vue` | Removed hardcoded VERSIONS, load from API |
+| `admin-ui/src/api/github_build_config.js` | `syncPat()` |
+| `admin-ui/src/views/custom-client/index.vue` | Removed hardcoded VERSIONS, load from API, `StartBuild` gated until load completes, preset version gated during load, i18n keys `VersionListLoading`/`Empty`/`Error` |
+| `admin-ui/src/views/server/github-build.vue` | "Sync PAT to CI" button |
+| `admin-ui/src/utils/i18n/{en,ru,zh_CN}.json` | `VersionListLoading`, `VersionListEmpty`, `VersionListError` keys |
+| `rdgen/.github/workflows/sync-workflows.yml` | DRAFT auto-sync: manual `workflow_dispatch` only, per-branch working-tree wipe, idempotency check, retry on non-fast-forward, per-command `set -e` recovery, prune deleted workflow files, empty `git commit-tree` guard, PAT via `http.extraheader` |
 | `github-build/README.md` | Updated Architecture + Version flow + bridge.yml section |
+| `go.mod`, `go.work`, `api/go.mod` | Added root `go.mod` / `go.work` for monorepo tooling, aligned `go 1.25.0`, added `golang.org/x/sync` direct dep |
+
+### In PR #57 (DeskForge: `ocr-fixes`)
+
+| Commit | Notes |
+|---|---|
+| `996cc00` | OCR fixes — singleflight cache, version validation at create, sync-workflow reliability, i18n keys, `compareSemver` unit test, `go.work` sync |
+| `e9414e7` | Drop fallback versions (API returns `[]string{}` on failure), detach singleflight context from caller, prune stale workflow files on retry, empty `commit-tree` guard |
 
 ---
 

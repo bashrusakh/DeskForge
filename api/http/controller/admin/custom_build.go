@@ -53,6 +53,7 @@ const defaultLinuxWorkflowFilename = "rustqs-linux.yml"
 // Пока константа; вынести в GithubBuildConfig когда workflow будет green.
 const defaultAndroidWorkflowFilename = "rustqs-android.yml"
 
+// List — пагинированный список custom-билдов (admin).
 func (ct *CustomBuild) List(c *gin.Context) {
 	q := &admin.CustomBuildQuery{}
 	if err := c.ShouldBindQuery(q); err != nil {
@@ -63,6 +64,9 @@ func (ct *CustomBuild) List(c *gin.Context) {
 	response.Success(c, res)
 }
 
+// Versions — список версий RustDesk, доступных для custom-сборки. На ошибке
+// GitHub API возвращает 200 + пустой массив, чтобы UI мог показать empty/error
+// state, а не 5xx (BUGS.md AU-L-016).
 func (ct *CustomBuild) Versions(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
 	defer cancel()
@@ -75,6 +79,7 @@ func (ct *CustomBuild) Versions(c *gin.Context) {
 	response.Success(c, versions)
 }
 
+// Detail — admin endpoint: полная запись custom-билда по id.
 func (ct *CustomBuild) Detail(c *gin.Context) {
 	id := c.Param("id")
 	iid, _ := strconv.Atoi(id)
@@ -86,6 +91,9 @@ func (ct *CustomBuild) Detail(c *gin.Context) {
 	response.Fail(c, 101, response.TranslateMsg(c, "ItemNotFound"))
 }
 
+// Create — admin endpoint: создать custom-билд и поставить его в очередь.
+// Валидирует version формат ДО персиста (защита от command injection в
+// workflow shell — see ValidateBuildVersion).
 func (ct *CustomBuild) Create(c *gin.Context) {
 	f := &admin.CustomBuildForm{}
 	if err := c.ShouldBindJSON(f); err != nil {
@@ -128,6 +136,7 @@ func (ct *CustomBuild) Create(c *gin.Context) {
 	response.Success(c, b)
 }
 
+// Delete — admin endpoint: удалить custom-билд (запись + артефакты).
 func (ct *CustomBuild) Delete(c *gin.Context) {
 	f := &admin.CustomBuildForm{}
 	if err := c.ShouldBindJSON(f); err != nil {

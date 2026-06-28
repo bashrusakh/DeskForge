@@ -141,6 +141,9 @@ func (s *GithubBuildConfigService) EncryptPayload(passphrase string, data map[st
 
 const githubAPI = "https://api.github.com"
 
+// ghReq — общий helper для запросов к GitHub REST API с авторизацией из
+// конфига. Если body == nil — GET; иначе — JSON-кодируется и Content-Type
+// выставляется автоматически. Таймаут контролируется через ctx вызывающего.
 func (s *GithubBuildConfigService) ghReq(ctx context.Context, c *model.GithubBuildConfig, method, path string, body any) (*http.Response, error) {
 	var br io.Reader
 	if body != nil {
