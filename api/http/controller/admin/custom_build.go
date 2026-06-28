@@ -10,7 +10,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -24,15 +23,9 @@ import (
 	"rustdesk-server/api/utils"
 )
 
-// versionRegex ограничивает b.Version безопасным форматом перед передачей
-// в GitHub Actions dispatch — защита от command injection в shell-командах
-// workflow (echo "VERSION=$RQS_VERSION", download URL и т.п.).
-// Допускает: digits.dots.digits + optional pre-release (например "1.4.8", "1.4.8-beta.1").
-var versionRegex = regexp.MustCompile(`^[0-9]+\.[0-9]+(\.[0-9]+)?(-[a-zA-Z0-9.]+)?$`)
-
 // ValidateBuildVersion проверяет, что версия подходит для dispatch.
 func ValidateBuildVersion(v string) bool {
-	return versionRegex.MatchString(v)
+	return utils.VersionRegex.MatchString(v)
 }
 
 type CustomBuild struct{}
@@ -67,16 +60,21 @@ func (ct *CustomBuild) List(c *gin.Context) {
 // Versions — список версий RustDesk, доступных для custom-сборки. На ошибке
 // GitHub API возвращает 200 + пустой массив, чтобы UI мог показать empty/error
 // state, а не 5xx (BUGS.md AU-L-016).
+type versionsResponse struct {
+	Versions []string `json:"versions"`
+	Error    bool     `json:"error"`
+}
+
 func (ct *CustomBuild) Versions(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
 	defer cancel()
 	versions, err := service.AllService.GithubBuildConfigService.GetAvailableVersions(ctx)
 	if err != nil {
 		global.Logger.Warnf("GetAvailableVersions failed: %v", err)
-		response.Success(c, []string{})
+		response.Success(c, versionsResponse{Versions: []string{}, Error: true})
 		return
 	}
-	response.Success(c, versions)
+	response.Success(c, versionsResponse{Versions: versions, Error: false})
 }
 
 // Detail — admin endpoint: полная запись custom-билда по id.
@@ -121,7 +119,7 @@ func (ct *CustomBuild) Create(c *gin.Context) {
 
 	// Reject unsafe version early; keeps DB clean and gives the caller a clear error.
 	if !ValidateBuildVersion(b.Version) {
-		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+"invalid version format: "+b.Version)
+		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+": invalid version format: "+b.Version)
 		return
 	}
 

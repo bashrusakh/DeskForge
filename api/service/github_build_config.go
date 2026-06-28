@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -23,6 +22,7 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	"rustdesk-server/api/model"
+	"rustdesk-server/api/utils"
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/nacl/box"
@@ -219,22 +219,26 @@ func (s *GithubBuildConfigService) GetAvailableVersions(ctx context.Context) ([]
 	// Используем detached bounded context, чтобы таймаут/отмена одного caller
 	// не убила shared refresh для всех остальных waiter'ов.
 	fetchCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
 	// DoChan возвращает канал, по которому результат придёт даже если наш ctx
 	// уже отменён. Это и есть cancellation-aware ожидание:
 	//   - ctx живой → блокируемся на ch
 	//   - ctx отменён/протух → возвращаемся с ctx.Err(), не дожидаясь fetch
 	// shared goroutine при этом продолжает работу для других waiter'ов.
 	ch := versionsFlight.DoChan("versions", func() (interface{}, error) {
+		defer cancel() // fetchCtx lives until the shared fetch completes, not tied to any single caller
 		versions, fetchErr := s.fetchReleases(fetchCtx)
 		if fetchErr != nil {
 			log.Warnf("fetchReleases failed: %v", fetchErr)
 			return []string{}, fetchErr
 		}
-		releasesCache.mu.Lock()
-		releasesCache.versions = versions
-		releasesCache.cachedAt = time.Now()
-		releasesCache.mu.Unlock()
+		// Don't cache empty results — a transient API blip or zero-matching tags
+		// would poison the cache for the full TTL, hiding real releases from all users.
+		if len(versions) > 0 {
+			releasesCache.mu.Lock()
+			releasesCache.versions = versions
+			releasesCache.cachedAt = time.Now()
+			releasesCache.mu.Unlock()
+		}
 		return versions, nil
 	})
 	select {
@@ -264,9 +268,6 @@ func (s *GithubBuildConfigService) fetchReleases(ctx context.Context) ([]string,
 	// TODO: handle pagination via Link header if releases exceed 100. Реальных релизов <10,
 	// но при росте выше 100 будут silently omitted. Нужен fetcher с follow Link header.
 	path := "/repos/bashrusakh/rustdesk/releases?per_page=100"
-	// releaseTagVersionRegex извлекает и валидирует semver-версию из тега offline-assets-*.
-	// Должен совпадать с api/http/controller/admin/custom_build.go versionRegex.
-	releaseTagVersionRegex := regexp.MustCompile(`^[0-9]+\.[0-9]+(\.[0-9]+)?(-[a-zA-Z0-9.]+)?$`)
 	var resp *http.Response
 
 	if gcfg != nil && gcfg.Token != "" {
@@ -287,7 +288,7 @@ func (s *GithubBuildConfigService) fetchReleases(ctx context.Context) ([]string,
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		return nil, fmt.Errorf("GitHub API returned HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 
@@ -304,7 +305,7 @@ func (s *GithubBuildConfigService) fetchReleases(ctx context.Context) ([]string,
 	for _, r := range releases {
 		if strings.HasPrefix(r.TagName, prefix) {
 			v := strings.TrimPrefix(r.TagName, prefix)
-			if v != "" && releaseTagVersionRegex.MatchString(v) {
+			if v != "" && utils.VersionRegex.MatchString(v) {
 				versions = append(versions, v)
 			}
 		}

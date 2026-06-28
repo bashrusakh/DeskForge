@@ -693,20 +693,31 @@ export default defineComponent({
       loadBuilds()
       loadPresets()
       versionsState.value = 'loading'
-      try {
-        const res = await getVersions()
-        const list = res?.data || []
-        versions.value = list
-        versionsState.value = list.length > 0 ? 'ready' : 'empty'
-      } catch (e) {
-        console.warn('getVersions failed:', e)
-        ElMessage.error(T('VersionListError'))
-        versions.value = []
-        versionsState.value = 'error'
-      } finally {
-        // Keep form.version aligned with the available options.
-        form.version = defaultVersion(form.version)
-      }
+      // Run getVersions and fetchConfig in parallel — server defaults must apply
+      // immediately even if GitHub API is slow/unreachable.
+      const versionsPromise = (async () => {
+        try {
+          const res = await getVersions()
+          const data = res?.data || {}
+          const list = data.versions || []
+          versions.value = list
+          if (data.error) {
+            versionsState.value = 'error'
+          } else {
+            versionsState.value = list.length > 0 ? 'ready' : 'empty'
+          }
+        } catch (e) {
+          console.warn('getVersions failed:', e)
+          ElMessage.error(T('VersionListError'))
+          versions.value = []
+          versionsState.value = 'error'
+        } finally {
+          // Keep form.version aligned with the available options only when versions are available.
+          if (versionsState.value === 'ready') {
+            form.version = defaultVersion(form.version)
+          }
+        }
+      })()
 
       try {
         const res = await fetchConfig()
@@ -723,6 +734,8 @@ export default defineComponent({
       } catch (e) {
         console.warn('fetchConfig failed:', e)
       }
+      // Wait for version list to settle (may already be done).
+      await versionsPromise
     })
 
     return {

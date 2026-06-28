@@ -162,7 +162,7 @@ jobs:
                 fi
                 # Remove workflow files that no longer exist on origin/$branch so
                 # `git add .github/workflows/` does not resurrect deleted ones.
-                if ! git diff --name-only --diff-filter=D "origin/$branch" -- .github/workflows/ | xargs -r rm -f; then
+                if ! git diff --name-only --diff-filter=A "origin/$branch" -- .github/workflows/ | xargs -r rm -f; then
                   echo "::warning::Failed to prune deleted workflow files for $branch"
                   set -e
                   continue
