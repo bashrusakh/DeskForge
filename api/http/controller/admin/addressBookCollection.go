@@ -1,27 +1,27 @@
-﻿package admin
+package admin
 
 import (
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 	"rustdesk-server/api/global"
 	"rustdesk-server/api/http/request/admin"
 	"rustdesk-server/api/http/response"
 	"rustdesk-server/api/model"
 	"rustdesk-server/api/service"
-	"gorm.io/gorm"
 	"strconv"
 )
 
 type AddressBookCollection struct {
 }
 
-// Detail 
-// @Tags 
-// @Summary 
-// @Description 
+// Detail
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
 // @Param id path int true "ID"
-// @Success 200 {object} response.Response{data=model.AddressBookCollection}
+// @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/address_book_collection/detail/{id} [get]
 // @Security token
@@ -37,14 +37,14 @@ func (abc *AddressBookCollection) Detail(c *gin.Context) {
 	return
 }
 
-// Create 
-// @Tags 
-// @Summary 
-// @Description 
+// Create
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param body body model.AddressBookCollection true ""
-// @Success 200 {object} response.Response{data=model.AddressBookCollection}
+// @Param body body model.AddressBookCollection true "Address book collection form payload"
+// @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/address_book_collection/create [post]
 // @Security token
@@ -72,15 +72,15 @@ func (abc *AddressBookCollection) Create(c *gin.Context) {
 	response.Success(c, nil)
 }
 
-// List 
-// @Tags 
-// @Summary 
-// @Description 
+// List
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param page query int false ""
-// @Param page_size query int false ""
-// @Param is_my query int false ""
+// @Param page query int false "Page number for the address book collection list"
+// @Param page_size query int false "Number of collections per page"
+// @Param is_my query int false "Filter for collections owned by the current user"
 // @Param user_id query int false "id"
 // @Success 200 {object} response.Response{data=model.AddressBookCollectionList}
 // @Failure 500 {object} response.Response
@@ -100,14 +100,14 @@ func (abc *AddressBookCollection) List(c *gin.Context) {
 	response.Success(c, res)
 }
 
-// Update 
-// @Tags 
-// @Summary 
-// @Description 
+// Update
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param body body model.AddressBookCollection true ""
-// @Success 200 {object} response.Response{data=model.AddressBookCollection}
+// @Param body body model.AddressBookCollection true "Address book collection update form payload"
+// @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/address_book_collection/update [post]
 // @Security token
@@ -135,13 +135,13 @@ func (abc *AddressBookCollection) Update(c *gin.Context) {
 	response.Success(c, nil)
 }
 
-// Delete 
-// @Tags 
-// @Summary 
-// @Description 
+// Delete
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param body body model.AddressBookCollection true ""
+// @Param body body model.AddressBookCollection true "Address book collection deletion form payload"
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/address_book_collection/delete [post]

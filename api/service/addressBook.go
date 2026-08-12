@@ -1,10 +1,10 @@
-﻿package service
+package service
 
 import (
 	"encoding/json"
 	"github.com/google/uuid"
-	"rustdesk-server/api/model"
 	"gorm.io/gorm"
+	"rustdesk-server/api/model"
 	"strings"
 )
 
@@ -56,7 +56,7 @@ func (s *AddressBookService) UpdateAddressBook(abs []*model.AddressBook, userId 
 	//peersпјЊpeersпјЊпјЊпјЊpeersпјЊ
 
 	tx := DB.Begin()
-	//1. 
+	//1.
 	var dbABs []*model.AddressBook
 	tx.Where("user_id = ?", userId).Find(&dbABs)
 	//2. peers
@@ -86,11 +86,21 @@ func (s *AddressBookService) UpdateAddressBook(abs []*model.AddressBook, userId 
 			}
 			tx.Create(ab)
 		} else {
+			// Normal response DTOs intentionally omit stored credentials. When a
+			// client sends back such a typed address-book snapshot, preserve the
+			// existing values rather than clearing them because they were not
+			// user-authored in this update.
+			if ab.Password == "" {
+				ab.Password = dbAB.Password
+			}
+			if ab.Hash == "" {
+				ab.Hash = dbAB.Hash
+			}
 
 			tx.Model(&model.AddressBook{}).Where("row_id = ?", dbAB.RowId).Updates(ab)
 		}
 	}
-	//2.4 
+	//2.4
 	for id, dbAB := range dbABIds {
 		_, ok := aBIds[id]
 		if !ok {
@@ -126,7 +136,7 @@ func (s *AddressBookService) FromPeer(peer *model.Peer) (a *model.AddressBook) {
 	return a
 }
 
-// Create 
+// Create
 func (s *AddressBookService) Create(u *model.AddressBook) error {
 	res := DB.Create(u).Error
 	return res
@@ -135,22 +145,38 @@ func (s *AddressBookService) Delete(u *model.AddressBook) error {
 	return DB.Delete(u).Error
 }
 
-// Update 
+// Update
 func (s *AddressBookService) Update(u *model.AddressBook) error {
 	return DB.Model(u).Updates(u).Error
 }
 
-// UpdateByMap 
+// UpdateByMap
 func (s *AddressBookService) UpdateByMap(u *model.AddressBook, data map[string]interface{}) error {
 	return DB.Model(u).Updates(data).Error
 }
 
-// UpdateAll 
+// UpdateAll
 func (s *AddressBookService) UpdateAll(u *model.AddressBook) error {
+	if u == nil {
+		return gorm.ErrInvalidData
+	}
+	var existing model.AddressBook
+	if err := DB.Where("row_id = ?", u.RowId).First(&existing).Error; err != nil {
+		return err
+	}
+	// Safe response DTOs omit credentials. Treat empty credential fields as
+	// "unchanged" at this typed write boundary so editing a redacted row does
+	// not destroy its stored password/hash.
+	if u.Password == "" {
+		u.Password = existing.Password
+	}
+	if u.Hash == "" {
+		u.Hash = existing.Hash
+	}
 	return DB.Model(u).Select("*").Omit("created_at").Updates(u).Error
 }
 
-// ShareByWebClient 
+// ShareByWebClient
 func (s *AddressBookService) ShareByWebClient(m *model.ShareRecord) error {
 	m.ShareToken = uuid.New().String()
 	return DB.Create(m).Error

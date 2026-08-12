@@ -1,9 +1,11 @@
 import { defineStore, acceptHMRUpdate } from 'pinia'
-import { current, login } from '@/api/user'
-import { setToken, removeToken, setCode, removeCode } from '@/utils/auth'
+import { current, login, logout as logoutRequest } from '@/api/user'
+import { getToken, setToken, removeToken, setCode, removeCode } from '@/utils/auth'
 import { useRouteStore } from '@/store/router'
 import { useAppStore } from '@/store/app'
 import { oidcAuth, oidcQuery } from '@/api/login'
+
+let pendingLogout = null
 
 export const useUserStore = defineStore({
   id: 'user',
@@ -18,10 +20,32 @@ export const useUserStore = defineStore({
   }),
 
   actions: {
-    logout () {
-      removeToken()
-      removeCode()
-      this.$reset()
+    async logout () {
+      if (pendingLogout) {
+        return pendingLogout
+      }
+
+      const token = this.token || getToken()
+      pendingLogout = (async () => {
+        let revoked = true
+        try {
+          if (token) {
+            await logoutRequest()
+          }
+        } catch (_) {
+          // Local cleanup is the fallback when the server cannot revoke the session.
+          revoked = false
+        } finally {
+          removeToken()
+          removeCode()
+          localStorage.removeItem('user_info')
+          this.$reset()
+          pendingLogout = null
+        }
+        return revoked
+      })()
+
+      return pendingLogout
     },
 
     saveUserData (userData) {

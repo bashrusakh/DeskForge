@@ -26,22 +26,24 @@
           <el-col :span="8">
             <el-form-item :label="T('Platform')">
               <!--
-                Windows x64 is validated end-to-end (GitHub Actions). Linux/Android route
-                to GitHub Actions too (B-012) but their workflows are still EXPERIMENTAL
-                drafts pending a green CI run — builds may fail until validated.
-                32-bit Windows and macOS are not supported (PLAN.md §8.15).
+                Windows x64 is validated end-to-end (GitHub Actions). Linux/Android remain
+                typed legacy values, but are unavailable for production builds pending PR11
+                evidence. 32-bit Windows and macOS are not supported (PLAN.md §8.15).
               -->
               <el-select v-model="form.platform" style="width:100%">
-                <el-option label="Windows 64Bit" value="windows" />
-                <el-option label="Linux x64 (experimental)" value="linux" />
-                <el-option label="Android arm64 (experimental)" value="android" />
+                <el-option :label="T('PlatformWindows')" value="windows" />
+                <el-option :label="T('PlatformLinuxUnavailable')" value="linux" disabled />
+                <el-option :label="T('PlatformAndroidUnavailable')" value="android" disabled />
               </el-select>
+              <div v-if="!productionPlatformReady" class="version-hint version-hint--error" role="alert">
+                {{ T('ProductionPlatformUnavailable') }}
+              </div>
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item :label="T('Version')">
               <el-select v-model="form.version" style="width:100%">
-                <el-option v-for="v in versions" :key="v" :label="v" :value="v" />
+                <el-option v-for="v in versions" :key="v.version" :label="v.version" :value="v.version" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -56,7 +58,7 @@
         <el-row :gutter="20">
           <el-col :span="8">
             <el-form-item :label="T('Host')">
-              <el-input v-model="form.server_ip" placeholder="e.g. your-server.com" @blur="stripServerPort">
+              <el-input v-model="form.server_ip" placeholder="e.g. your-server.com">
                 <template #append>
                   <el-tooltip :content="T('HostnameOnlyHint')" placement="top">
                     <el-icon><InfoFilled /></el-icon>
@@ -79,7 +81,7 @@
         <el-row :gutter="20">
           <el-col :span="8">
             <el-form-item :label="T('RelayServer')">
-              <el-input v-model="form.relay_server" placeholder="e.g. your-server.com" @blur="stripRelayPort">
+              <el-input v-model="form.relay_server" placeholder="e.g. your-server.com">
                 <template #append>
                   <el-tooltip :content="T('HostnameOnlyHint')" placement="top">
                     <el-icon><InfoFilled /></el-icon>
@@ -281,7 +283,7 @@
         </el-row>
 
         <el-form-item>
-          <el-button type="primary" @click="submitBuild" :loading="submitting" :disabled="!versionsReady || submitting">{{ T('StartBuild') }}</el-button>
+          <el-button type="primary" @click="submitBuild" :loading="submitting" :disabled="!versionsReady || !productionPlatformReady || submitting">{{ T('StartBuild') }}</el-button>
           <el-button @click="resetForm">{{ T('Reset') }}</el-button>
           <span v-if="versionsState === 'loading'" class="version-hint version-hint--loading">{{ T('VersionListLoading') }}</span>
           <span v-else-if="versionsState === 'empty'" class="version-hint version-hint--empty">{{ T('VersionListEmpty') }}</span>
@@ -315,7 +317,7 @@
           <el-tag v-else :type="statusType(row.status)" size="small">{{ T(statusLabel(row.status)) }}</el-tag>
         </template>
         <template #actions="{ row }">
-          <el-button v-if="row.status === 'done'" type="success" size="small" @click="downloadBuild(row)">{{ T('Download') }}</el-button>
+          <el-button v-if="row.status === 'done'" type="success" size="small" :loading="downloadingBuildId === row.id" @click="downloadBuild(row)">{{ T('Download') }}</el-button>
           <el-button type="danger" size="small" @click="deleteBuild(row)">{{ T('Delete') }}</el-button>
         </template>
       </data-table>
@@ -331,12 +333,13 @@
 
 <script>
 import { defineComponent, ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
-import { list, create, remove, getVersions } from '@/api/custom_client'
+import { list, create, remove, download, getVersions } from '@/api/custom_client'
 import { list as listPresets, create as createPreset, remove as removePreset } from '@/api/custom_preset'
 import { all as fetchConfig } from '@/api/config'
 import { upload as uploadFile } from '@/api/file'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { T } from '@/utils/i18n'
+import { downBlob } from '@/utils/file'
 import { InfoFilled } from '@element-plus/icons-vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import PageSection from '@/components/ui/PageSection.vue'
@@ -354,7 +357,7 @@ export default defineComponent({
   setup () {
     const form = reactive({
       platform: 'windows',
-      version: '1.4.8',
+      version: '',
       app_name: '',
       server_ip: '',
       key: '',
@@ -393,13 +396,10 @@ export default defineComponent({
       privacy_screen_url: '',
     })
 
-    const stripPort = (host) => host ? host.replace(/:\d+$/, '').trim() : ''
-    const stripServerPort = () => { form.server_ip = stripPort(form.server_ip) }
-    const stripRelayPort = () => { form.relay_server = stripPort(form.relay_server) }
-
     const builds = ref([])
     const loading = ref(false)
     const submitting = ref(false)
+    const downloadingBuildId = ref(null)
     // versionsState: 'loading' | 'ready' | 'empty' | 'error'.
     // Заменяет versionsLoading (был boolean) — нужно различать
     // "ещё грузится" и "загрузилось, но пусто/ошибка", чтобы:
@@ -409,24 +409,44 @@ export default defineComponent({
     const versionsState = ref('loading')
     const versionsReady = computed(() => versionsState.value === 'ready')
     const versionsLoading = computed(() => versionsState.value === 'loading')
+    // Linux/Android remain valid persisted enum values for legacy presets, but
+    // the backend production capability gate keeps them unavailable until PR11.
+    const productionPlatformReady = computed(() => form.platform === 'windows')
     const page = ref(1)
     const pageSize = ref(10)
     const total = ref(0)
     const versions = ref([])
+    // One component guard for all async state operations. Per-operation generations
+    // let the initial requests run in parallel while invalidating older refreshes.
+    const requestGenerations = Object.create(null)
+    const lifecycleGuard = {
+      mounted: false,
+      start (key) {
+        requestGenerations[key] = (requestGenerations[key] || 0) + 1
+        return requestGenerations[key]
+      },
+      isCurrent (key, generation) {
+        return lifecycleGuard.mounted && requestGenerations[key] === generation
+      },
+    }
 
     // B-017: при silent=true не дёргаем спиннер — для фонового поллинга.
     const loadBuilds = async (silent = false) => {
+      if (!lifecycleGuard.mounted) return null
+      const generation = lifecycleGuard.start('builds')
       if (!silent) loading.value = true
       try {
         const res = await list({ page: page.value, page_size: pageSize.value })
+        if (!lifecycleGuard.isCurrent('builds', generation)) return generation
         builds.value = res.data.list || []
         total.value = res.data.total || 0
       } catch (e) {
-        console.error(e)
+        if (lifecycleGuard.isCurrent('builds', generation)) console.error(e)
       } finally {
-        if (!silent) loading.value = false
+        if (lifecycleGuard.isCurrent('builds', generation) && !silent) loading.value = false
       }
-      ensurePolling()
+      if (lifecycleGuard.isCurrent('builds', generation)) ensurePolling()
+      return generation
     }
 
     // B-017: история билдов не обновлялась сама — строки висели в pending/building,
@@ -435,7 +455,7 @@ export default defineComponent({
     const POLL_MS = 12000
     let pollTimer = null
     const hasActiveBuilds = () =>
-      builds.value.some((b) => b.status === 'pending' || b.status === 'building')
+      builds.value.some((b) => ['pending', 'building', 'downloading', 'extracting'].includes(b.status))
     const stopPolling = () => {
       if (pollTimer) {
         clearInterval(pollTimer)
@@ -443,26 +463,37 @@ export default defineComponent({
       }
     }
     const ensurePolling = () => {
+      if (!lifecycleGuard.mounted) return
       if (!hasActiveBuilds()) {
         stopPolling()
         return
       }
       if (pollTimer) return
       pollTimer = setInterval(async () => {
-        await loadBuilds(true)
-        if (!hasActiveBuilds()) stopPolling()
+        if (!lifecycleGuard.mounted) {
+          stopPolling()
+          return
+        }
+        const generation = await loadBuilds(true)
+        if (generation !== null && lifecycleGuard.isCurrent('builds', generation) && !hasActiveBuilds()) stopPolling()
       }, POLL_MS)
     }
-    onUnmounted(stopPolling)
+    onUnmounted(() => {
+      lifecycleGuard.mounted = false
+      stopPolling()
+    })
 
     const presets = ref([])
     const selectedPresetId = ref(null)
     const loadPresets = async () => {
+      if (!lifecycleGuard.mounted) return
+      const generation = lifecycleGuard.start('presets')
       try {
         const res = await listPresets({ page: 1, page_size: 100 })
+        if (!lifecycleGuard.isCurrent('presets', generation)) return
         presets.value = res.data.list || []
       } catch (e) {
-        console.error(e)
+        if (lifecycleGuard.isCurrent('presets', generation)) console.error(e)
       }
     }
 
@@ -476,11 +507,17 @@ export default defineComponent({
       if (!preset) return
       try {
         const cfg = JSON.parse(preset.custom_json || '{}')
+        // Secret-bearing custom_json fields are intentionally omitted by the
+        // API safe view. Never retain a previously entered password when a
+        // preset is selected; the administrator must enter it explicitly for
+        // the next build.
+        form.permanent_password = ''
         for (const f of PRESET_FIELDS) {
           if (f in cfg && cfg[f] !== undefined) form[f] = cfg[f]
         }
-        form.relay_server = stripPort(form.relay_server)
         // platform/version/app_name live on the preset record, not in custom_json
+        // Keep legacy Linux/Android state visible for migration safety; the
+        // disabled option and productionPlatformReady guard keep it blocked.
         if (preset.platform) form.platform = preset.platform
         if (preset.version) {
           // Преcет применяется только когда версия действительно доступна:
@@ -495,7 +532,7 @@ export default defineComponent({
           if (versionsLoading.value) {
             form.version = preset.version
           } else if (versionsState.value === 'ready') {
-            form.version = versions.value.includes(preset.version) ? preset.version : defaultVersion(preset.version)
+            form.version = versions.value.some((entry) => entry.version === preset.version) ? preset.version : defaultVersion(preset.version)
           } else {
             form.version = defaultVersion(preset.version)
           }
@@ -518,7 +555,6 @@ export default defineComponent({
         const name = await ElMessageBox.prompt(T('PresetName'), T('SaveAsPreset'), { inputPlaceholder: 'My Preset' })
         if (!name || !name.value) return
         // Derived from PRESET_FIELDS so submit + save preset stay in sync.
-        form.relay_server = stripPort(form.relay_server)
         const customPayload = {}
         for (const f of PRESET_FIELDS) customPayload[f] = form[f]
         const customJson = JSON.stringify(customPayload)
@@ -573,6 +609,10 @@ export default defineComponent({
     }
 
     const submitBuild = async () => {
+      if (!productionPlatformReady.value) {
+        ElMessage.warning(T('ProductionPlatformUnavailable'))
+        return
+      }
       if (versionsState.value !== 'ready') {
         // Различаем loading / empty / error, чтобы пользователь понимал, чего ждать.
         const key = versionsState.value === 'loading'
@@ -583,8 +623,6 @@ export default defineComponent({
         ElMessage.warning(T(key))
         return
       }
-      form.server_ip = stripPort(form.server_ip)
-      form.relay_server = stripPort(form.relay_server)
       submitting.value = true
       try {
         // Derived from PRESET_FIELDS so submit + save preset stay in sync.
@@ -663,14 +701,27 @@ export default defineComponent({
       form.privacy_screen_url = ''
     }
 
-    const downloadBuild = (row) => {
-      window.open(`/api/admin/custom_build/public/download/${row.download_key}`, '_blank')
+    const downloadBuild = async (row) => {
+      if (downloadingBuildId.value === row.id) return
+      downloadingBuildId.value = row.id
+      try {
+        const res = await download(row.id)
+        const disposition = res.headers?.['content-disposition'] || ''
+        const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] || `custom-build-${row.id}.zip`
+        downBlob(res.data, filename)
+      } catch (e) {
+        console.error(e)
+      } finally {
+        downloadingBuildId.value = null
+      }
     }
 
     const statusType = (s) => {
       switch (s) {
         case 'pending': return 'info'
         case 'building': return 'warning'
+        case 'downloading': return 'warning'
+        case 'extracting': return 'warning'
         case 'done': return 'success'
         case 'failed': return 'danger'
         default: return 'info'
@@ -681,67 +732,85 @@ export default defineComponent({
       switch (s) {
         case 'pending': return 'Pending'
         case 'building': return 'Building'
+        case 'downloading': return 'Downloading'
+        case 'extracting': return 'Extracting'
         case 'done': return 'Done'
         case 'failed': return 'Failed'
         default: return s
       }
     }
 
-    const defaultVersion = (current = form.version) =>
-      versions.value.includes(current) ? current : (versions.value[0] || '')
-    onMounted(async () => {
-      loadBuilds()
-      loadPresets()
-      versionsState.value = 'loading'
-      // Run getVersions and fetchConfig in parallel — server defaults must apply
-      // immediately even if GitHub API is slow/unreachable.
-      const versionsPromise = (async () => {
-        try {
-          const res = await getVersions()
-          const data = res?.data || {}
-          const list = data.versions || []
-          versions.value = list
-          if (data.error) {
-            versionsState.value = 'error'
-          } else {
-            versionsState.value = list.length > 0 ? 'ready' : 'empty'
-          }
-        } catch (e) {
-          console.warn('getVersions failed:', e)
-          ElMessage.error(T('VersionListError'))
-          versions.value = []
-          versionsState.value = 'error'
-        } finally {
-          // Keep form.version aligned with the available options only when versions are available.
-          if (versionsState.value === 'ready') {
-            form.version = defaultVersion(form.version)
-          }
-        }
-      })()
+    const defaultVersion = (current = form.version) => {
+      const selected = versions.value.find((entry) => entry.version === current)
+      return selected ? selected.version : (versions.value[0]?.version || '')
+    }
 
+    const loadVersions = async () => {
+      if (!lifecycleGuard.mounted) return
+      const generation = lifecycleGuard.start('versions')
+      try {
+        const res = await getVersions()
+        if (!lifecycleGuard.isCurrent('versions', generation)) return
+        const data = res?.data || {}
+        const list = data.versions || []
+        versions.value = list
+        if (data.error) {
+          versionsState.value = 'error'
+        } else {
+          versionsState.value = list.length > 0 ? 'ready' : 'empty'
+        }
+      } catch (e) {
+        if (!lifecycleGuard.isCurrent('versions', generation)) return
+        console.warn('getVersions failed:', e)
+        ElMessage.error(T('VersionListError'))
+        versions.value = []
+        versionsState.value = 'error'
+      } finally {
+        // Keep form.version aligned with the available options only when versions are available.
+        if (lifecycleGuard.isCurrent('versions', generation) && versionsState.value === 'ready') {
+          form.version = defaultVersion(form.version)
+        }
+      }
+    }
+
+    const loadConfig = async () => {
+      if (!lifecycleGuard.mounted) return
+      const generation = lifecycleGuard.start('config')
       try {
         const res = await fetchConfig()
+        if (!lifecycleGuard.isCurrent('config', generation)) return
         if (res?.data) {
           // B-016: заполняем ТОЛЬКО пустые поля. Пресет (loadPresets/onPresetSelect)
           // может примениться раньше, чем резолвится fetchConfig — нельзя затирать
           // уже выставленные им значения серверными дефолтами.
           const cfg = res.data
-          if (!form.server_ip) form.server_ip = stripPort(cfg.id_server || '')
+          if (!form.server_ip) form.server_ip = cfg.id_server || ''
           if (!form.key) form.key = cfg.key || ''
           if (!form.api_server) form.api_server = cfg.api_server || ''
-          if (!form.relay_server) form.relay_server = stripPort(cfg.relay_server || '')
+          if (!form.relay_server) form.relay_server = cfg.relay_server || ''
         }
       } catch (e) {
-        console.warn('fetchConfig failed:', e)
+        if (lifecycleGuard.isCurrent('config', generation)) console.warn('fetchConfig failed:', e)
       }
+    }
+
+    onMounted(async () => {
+      lifecycleGuard.mounted = true
+      loadBuilds()
+      loadPresets()
+      versionsState.value = 'loading'
+      // Run getVersions and fetchConfig in parallel — server defaults must apply
+      // immediately even if GitHub API is slow/unreachable.
+      const versionsPromise = loadVersions()
+      await loadConfig()
       // Wait for version list to settle (may already be done).
       await versionsPromise
     })
 
     return {
-      form, builds, loading, submitting, versionsState, versionsReady, versionsLoading,
+      form, builds, loading, submitting, downloadingBuildId, versionsState, versionsReady, versionsLoading, productionPlatformReady,
       page, pageSize, total, versions,
-      submitBuild, deleteBuild, resetForm, downloadBuild, stripServerPort, stripRelayPort,
+      submitBuild, deleteBuild, resetForm, downloadBuild,
       statusType, statusLabel, T,
       presets, selectedPresetId, onPresetSelect, saveCurrentAsPreset, deletePreset, uploadImage,
     }

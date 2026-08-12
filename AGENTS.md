@@ -10,7 +10,7 @@ Everything in one Docker image via s6-overlay.
 - **Rust servers** (`server/`): hbbs (ID/signaling, TCP/UDP 21116) + hbbr (relay, TCP 21117)
 - **Go API** (`api/`): Gin on port 21114. GORM (SQLite/MySQL/PostgreSQL). JWT, LDAP, OIDC.
 - **Admin UI** (`admin-ui/`): Vue 3 + Element Plus. Served at `/admin/`. REST + WebSocket.
-- **rdgen** (`rdgen/`): vendored reference workflow (not a service).
+- **rdgen** (`rdgen/`): vendored historical/reference workflow material (not a service; frozen).
 - **Shared lib** (`libs/hbb_common`): Rust crate shared between hbbs and hbbr.
 
 ## Tech stack
@@ -18,7 +18,7 @@ Everything in one Docker image via s6-overlay.
 | Component     | Stack                                                             |
 | ------------- | ----------------------------------------------------------------- |
 | Rust (server) | 2021 edition, axum 0.5, sqlx 0.6, tokio, sodiumoxide, openssl    |
-| Go (api)      | 1.23, gin 1.9, gorm 1.25, swag, cobra/viper, jwt, ldap, OIDC     |
+| Go (api)      | 1.25, gin 1.9, gorm 1.25, swag, cobra/viper, jwt, ldap, OIDC     |
 | Admin UI      | Vue 3.5, Element Plus 2.8, Vite 6, Pinia 2.2, vue-router 4, axios|
 | Python (rdgen)| Django (vendored reference, not a service)                      |
 | Infra         | Docker + s6-overlay, docker compose                               |
@@ -49,13 +49,25 @@ admin-ui/        — Vue 3 admin panel
 ├── src/styles/  — SCSS (design tokens, light/dark)
 └── src/utils/   — auth, request, export, i18n (en/ru/zh_CN)
 
-rdgen/           — vendored reference workflow (patches, generator-*.yml)
-libs/hbb_common/ — shared Rust library (submodule)
+rdgen/           — ❄️ frozen vendored historical/reference workflow material (patches, generator-*.yml)
+libs/hbb_common/ — tracked shared Rust library in DeskForge (not a submodule here)
 docker/          — Dockerfile + compose + entrypoint scripts
-github-build/    — active CI workflow for client builds
-win-builder/     — ❄️ frozen standalone Windows builder
-offline-kit/     — ❄️ frozen sovereign build kit
+github-build/    — reference/documentation only; no executable workflow copies
+win-builder/     — ❄️ frozen manual/historical-only standalone builder
+offline-kit/     — ❄️ frozen dependency-freeze tool; verification is incomplete
 ```
+
+DeskForge tracks `libs/hbb_common/` directly. The configured RustDesk fork has its
+own `libs/hbb_common` git submodule, currently recorded against upstream
+`rustdesk/hbb_common`; its local state is dirty and unpublished, so clean fork
+provenance is an explicit reproducibility gate. The fork's `.github/workflows/` files
+are the sole executable source for active client-build workflows; `github-build/` and
+`rdgen/` are reference/frozen material only. No current repository `vendor/` tree,
+`rustdesk-deps/` archive, or client-release directory is tracked here.
+The published RustDesk client source/ref is 1.4.8 and the published DeskForge API
+schema is `DatabaseVersion` 272. The local uncommitted corrective worktree targets
+API schema 282; that local schema target is not published or live-provider evidence.
+MySQL/PostgreSQL migration and read/write coverage remain unverified.
 
 ## Build / dev commands
 
@@ -65,7 +77,7 @@ offline-kit/     — ❄️ frozen sovereign build kit
 cd docker
 docker compose build          # full build
 docker compose up -d          # start
-docker compose -f docker-compose-dev.yaml up -d   # dev
+cd ../api && docker compose -f docker-compose-dev.yaml up -d   # dev API stack
 ```
 
 ### Rust
@@ -77,7 +89,12 @@ cd server && cargo build --release && cargo clippy && cargo test
 ### Go
 
 ```bash
-cd api && go build -o release/apimain cmd/apimain.go && go vet ./... && go test ./...
+cd api && go build -o release/apimain cmd/apimain.go
+# Full local checks:
+GOWORK=off go vet ./...
+GOWORK=off go test ./...
+# Redis integration tests and benchmarks are opt-in. Configure
+# DESKFORGE_TEST_REDIS_ADDR to run them; no live Redis endpoint is assumed.
 ```
 
 ### Admin UI
@@ -91,6 +108,8 @@ cd admin-ui && npm install && npm run dev && npm run build
 | Variable | Purpose | Used by |
 |----------|---------|---------|
 | `RELAY` | Relay server address | Rust hbbr |
+| `HBBR_PORT` | Relay server port | Rust hbbr |
+| `HBBS_PORT` | ID/Rendezvous server port | Rust hbbs |
 | `ENCRYPTED_ONLY` | Only encrypted connections | Rust |
 | `MUST_LOGIN` | Require login before connect | Rust |
 | `RUSTDESK_API_RUSTDESK_ID_SERVER` | ID server address | Go API |
@@ -98,9 +117,13 @@ cd admin-ui && npm install && npm run dev && npm run build
 | `RUSTDESK_API_RUSTDESK_API_SERVER` | API server URL | Go API |
 | `RUSTDESK_API_KEY_FILE` | Path to public key file | Go API |
 | `RUSTDESK_API_JWT_KEY` | JWT secret key | Go + Rust |
-| `RUSTDESK_API_GORM_TYPE` | sqlite/mysql/postgres | Go API |
+| `RUSTDESK_API_GORM_TYPE` | sqlite/mysql/postgresql | Go API |
 | `RUSTDESK_API_LANG` | en/ru/zh-CN | Go + UI |
-| `SECRET_CRYPT_KEY` | AES-GCM key for secrets at rest | Go API |
+| `SECRET_ENCRYPTION_KEY` | AES-GCM key for secrets at rest | Go API |
+
+New non-empty secret writes and secret-bearing Custom Builder operations require this
+key and are rejected rather than stored as plaintext when it is missing. Legacy plaintext
+rows remain readable; saving them again encrypts them when the key exists.
 
 ## Key integration points
 
@@ -109,7 +132,7 @@ cd admin-ui && npm install && npm run dev && npm run build
 - Go reads public key from `RUSTDESK_API_KEY_FILE` (`/data/id_ed25519.pub`)
 - Go connects to hbbs/hbbr via `RUSTDESK_API_RUSTDESK_ID_SERVER`/`RUSTDESK_API_RUSTDESK_RELAY_SERVER`
 - JWT: Go generates, Rust validates (`jwt.rs`)
-- WebSocket bridge: port 21118
+- WebSocket bridge: port 21118; relay WebSocket: port 21119
 
 ### Admin UI ↔ Go API
 
@@ -121,6 +144,12 @@ cd admin-ui && npm install && npm run dev && npm run build
 ## Agent constraints
 
 - Do not modify upstream directly (`rustdesk/rustdesk-server`, `lejianwen/rustdesk-api`) — only forks.
+- Active third-party upstream dependencies remain in the Rust/Go manifests; a complete
+  upstream-independent or offline dependency bundle is not currently verified.
+- The combined DeskForge distribution is identified as AGPL-3.0 for the covered work;
+  separate API/UI/reference components retain their applicable upstream licenses and notices.
+  The license inventory is incomplete; no signatures or attestations are recorded, and no
+  full sovereignty claim is made.
 - Keep Docker entrypoint scripts in sync with the services they supervise.
 - Never log or commit secrets.
 - Document env vars in README + docker-compose.
@@ -136,7 +165,9 @@ cd admin-ui && npm install && npm run dev && npm run build
 
 - **Clean layered (Go):** Controller → Service → Model. Do not mix layers.
 - **Embedded UI:** Go embeds `admin-ui/dist/` and `web/`.
-- **Multi-DB:** GORM, no raw SQL.
+- **Configured multi-DB:** GORM with SQLite/MySQL/PostgreSQL drivers, no raw SQL;
+  SQLite is locally exercised, while MySQL/PostgreSQL migration and read/write
+  coverage remain unverified.
 - **OAuth/LDAP:** configured via admin panel → DB. Falls back to local users.
 - **Server commands:** allowlist in `serverCmd.go`.
 
@@ -151,4 +182,4 @@ cd admin-ui && npm install && npm run dev && npm run build
 
 ## New upstream version workflow
 
-See [PLAN.md §7](PLAN.md#7-workflow-new-upstream-rustdesk-client-release).
+See [PLAN.md §7](PLAN.md#7-historical-fork-maintenance-notes-for-a-new-upstream-rustdesk-client-release).

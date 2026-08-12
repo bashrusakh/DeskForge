@@ -22,7 +22,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "批量创建地址簿",
                 "consumes": [
                     "application/json"
                 ],
@@ -30,12 +29,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "地址簿"
+                    ""
                 ],
-                "summary": "批量创建地址簿",
                 "parameters": [
                     {
-                        "description": "地址簿信息",
+                        "description": "Address book batch-create form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -48,19 +46,51 @@ const docTemplateadmin = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/model.AddressBook"
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/address_book/batchCreateFromPeers": {
+            "post": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Admin-only batch creation of address-book entries from existing peers.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    ""
+                ],
+                "parameters": [
+                    {
+                        "description": "Peer IDs and address-book destination payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/admin.BatchCreateFromPeersForm"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
                         }
                     },
                     "500": {
@@ -79,7 +109,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "创建地址簿",
                 "consumes": [
                     "application/json"
                 ],
@@ -87,12 +116,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "地址簿"
+                    ""
                 ],
-                "summary": "创建地址簿",
                 "parameters": [
                     {
-                        "description": "地址簿信息",
+                        "description": "Address book entry form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -105,19 +133,7 @@ const docTemplateadmin = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/model.AddressBook"
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/response.Response"
                         }
                     },
                     "500": {
@@ -136,7 +152,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "地址簿删除",
                 "consumes": [
                     "application/json"
                 ],
@@ -144,12 +159,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "地址簿"
+                    ""
                 ],
-                "summary": "地址簿删除",
                 "parameters": [
                     {
-                        "description": "地址簿信息",
+                        "description": "Address book entry deletion form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -174,61 +188,6 @@ const docTemplateadmin = `{
                 }
             }
         },
-        "/admin/address_book/detail/{id}": {
-            "get": {
-                "security": [
-                    {
-                        "token": []
-                    }
-                ],
-                "description": "地址簿详情",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "地址簿"
-                ],
-                "summary": "地址簿详情",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/model.AddressBook"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/response.Response"
-                        }
-                    }
-                }
-            }
-        },
         "/admin/address_book/list": {
             "get": {
                 "security": [
@@ -236,7 +195,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "地址簿列表",
                 "consumes": [
                     "application/json"
                 ],
@@ -244,38 +202,37 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "地址簿"
+                    ""
                 ],
-                "summary": "地址簿列表",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "Page number for the address book list",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "页大小",
+                        "description": "Number of entries per address book page",
                         "name": "page_size",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "用户id",
+                        "description": "id",
                         "name": "user_id",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "是否是我的",
+                        "description": "Filter for address books owned by the current user",
                         "name": "is_my",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Redacted address-book list envelope",
                         "schema": {
                             "allOf": [
                                 {
@@ -285,7 +242,7 @@ const docTemplateadmin = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/model.AddressBookList"
+                                            "$ref": "#/definitions/model.AddressBookSafeList"
                                         }
                                     }
                                 }
@@ -301,14 +258,14 @@ const docTemplateadmin = `{
                 }
             }
         },
-        "/admin/address_book/share": {
+        "/admin/address_book/shareByWebClient": {
             "post": {
                 "security": [
                     {
                         "token": []
                     }
                 ],
-                "description": "地址簿分享",
+                "description": "Authenticated web-client share route; requires the admin API token but not AdminPrivilege.",
                 "consumes": [
                     "application/json"
                 ],
@@ -316,12 +273,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "地址簿"
+                    ""
                 ],
-                "summary": "地址簿分享",
                 "parameters": [
                     {
-                        "description": "地址簿信息",
+                        "description": "Web client address book sharing form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -353,7 +309,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "地址簿编辑",
                 "consumes": [
                     "application/json"
                 ],
@@ -361,12 +316,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "地址簿"
+                    ""
                 ],
-                "summary": "地址簿编辑",
                 "parameters": [
                     {
-                        "description": "地址簿信息",
+                        "description": "Address book entry update form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -379,19 +333,7 @@ const docTemplateadmin = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/model.AddressBook"
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/response.Response"
                         }
                     },
                     "500": {
@@ -410,7 +352,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "创建地址簿名称",
                 "consumes": [
                     "application/json"
                 ],
@@ -418,12 +359,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "地址簿名称"
+                    ""
                 ],
-                "summary": "创建地址簿名称",
                 "parameters": [
                     {
-                        "description": "地址簿名称信息",
+                        "description": "Address book collection form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -436,19 +376,7 @@ const docTemplateadmin = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/model.AddressBookCollection"
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/response.Response"
                         }
                     },
                     "500": {
@@ -467,7 +395,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "地址簿名称删除",
                 "consumes": [
                     "application/json"
                 ],
@@ -475,12 +402,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "地址簿名称"
+                    ""
                 ],
-                "summary": "地址簿名称删除",
                 "parameters": [
                     {
-                        "description": "地址簿名称信息",
+                        "description": "Address book collection deletion form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -512,7 +438,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "地址簿名称详情",
                 "consumes": [
                     "application/json"
                 ],
@@ -520,9 +445,8 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "地址簿名称"
+                    ""
                 ],
-                "summary": "地址簿名称详情",
                 "parameters": [
                     {
                         "type": "integer",
@@ -536,19 +460,7 @@ const docTemplateadmin = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/model.AddressBookCollection"
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/response.Response"
                         }
                     },
                     "500": {
@@ -567,7 +479,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "地址簿名称列表",
                 "consumes": [
                     "application/json"
                 ],
@@ -575,31 +486,30 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "地址簿名称"
+                    ""
                 ],
-                "summary": "地址簿名称列表",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "Page number for the address book collection list",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "页大小",
+                        "description": "Number of collections per page",
                         "name": "page_size",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "是否是我的",
+                        "description": "Filter for collections owned by the current user",
                         "name": "is_my",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "用户id",
+                        "description": "id",
                         "name": "user_id",
                         "in": "query"
                     }
@@ -639,7 +549,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "地址簿名称编辑",
                 "consumes": [
                     "application/json"
                 ],
@@ -647,12 +556,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "地址簿名称"
+                    ""
                 ],
-                "summary": "地址簿名称编辑",
                 "parameters": [
                     {
-                        "description": "地址簿名称信息",
+                        "description": "Address book collection update form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -665,19 +573,7 @@ const docTemplateadmin = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/model.AddressBookCollection"
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/response.Response"
                         }
                     },
                     "500": {
@@ -696,7 +592,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "创建地址簿规则",
                 "consumes": [
                     "application/json"
                 ],
@@ -704,12 +599,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "地址簿规则"
+                    ""
                 ],
-                "summary": "创建地址簿规则",
                 "parameters": [
                     {
-                        "description": "地址簿规则信息",
+                        "description": "Address book collection rule form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -722,19 +616,7 @@ const docTemplateadmin = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/model.AddressBookCollection"
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/response.Response"
                         }
                     },
                     "500": {
@@ -753,7 +635,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "地址簿规则删除",
                 "consumes": [
                     "application/json"
                 ],
@@ -761,12 +642,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "地址簿规则"
+                    ""
                 ],
-                "summary": "地址簿规则删除",
                 "parameters": [
                     {
-                        "description": "地址簿规则信息",
+                        "description": "Address book collection rule deletion form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -798,7 +678,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "地址簿规则详情",
                 "consumes": [
                     "application/json"
                 ],
@@ -806,9 +685,8 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "地址簿规则"
+                    ""
                 ],
-                "summary": "地址簿规则详情",
                 "parameters": [
                     {
                         "type": "integer",
@@ -853,7 +731,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "地址簿规则列表",
                 "consumes": [
                     "application/json"
                 ],
@@ -861,37 +738,36 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "地址簿规则"
+                    ""
                 ],
-                "summary": "地址簿规则列表",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "Page number for the collection-rule list",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "页大小",
+                        "description": "Number of collection rules per page",
                         "name": "page_size",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "是否是我的",
+                        "description": "Filter for rules owned by the current user",
                         "name": "is_my",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "用户id",
+                        "description": "id",
                         "name": "user_id",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "地址簿集合id",
+                        "description": "id",
                         "name": "collection_id",
                         "in": "query"
                     }
@@ -908,7 +784,7 @@ const docTemplateadmin = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/model.AddressBookCollectionList"
+                                            "$ref": "#/definitions/model.AddressBookCollectionRuleList"
                                         }
                                     }
                                 }
@@ -931,7 +807,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "地址簿规则编辑",
                 "consumes": [
                     "application/json"
                 ],
@@ -939,12 +814,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "地址簿规则"
+                    ""
                 ],
-                "summary": "地址簿规则编辑",
                 "parameters": [
                     {
-                        "description": "地址簿规则信息",
+                        "description": "Address book collection rule update form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -957,19 +831,7 @@ const docTemplateadmin = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/model.AddressBookCollection"
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/response.Response"
                         }
                     },
                     "500": {
@@ -988,7 +850,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "链接日志批量删除",
                 "consumes": [
                     "application/json"
                 ],
@@ -996,12 +857,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "链接日志"
+                    ""
                 ],
-                "summary": "链接日志批量删除",
                 "parameters": [
                     {
-                        "description": "链接日志",
+                        "description": "Audit connection log ID batch deletion payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -1033,7 +893,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "链接日志删除",
                 "consumes": [
                     "application/json"
                 ],
@@ -1041,12 +900,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "链接日志"
+                    ""
                 ],
-                "summary": "链接日志删除",
                 "parameters": [
                     {
-                        "description": "链接日志信息",
+                        "description": "Audit connection deletion form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -1078,7 +936,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "链接日志列表",
                 "consumes": [
                     "application/json"
                 ],
@@ -1086,31 +943,30 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "链接日志"
+                    ""
                 ],
-                "summary": "链接日志列表",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "Page number for audit connection records",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "页大小",
+                        "description": "Number of audit connection records per page",
                         "name": "page_size",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "目标设备",
+                        "description": "Peer ID filter for audit connections",
                         "name": "peer_id",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "来源设备",
+                        "description": "Source peer ID filter for audit connections",
                         "name": "from_peer",
                         "in": "query"
                     }
@@ -1150,7 +1006,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "文件日志批量删除",
                 "consumes": [
                     "application/json"
                 ],
@@ -1158,12 +1013,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "文件日志"
+                    ""
                 ],
-                "summary": "文件日志批量删除",
                 "parameters": [
                     {
-                        "description": "文件日志",
+                        "description": "Audit file log ID batch deletion payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -1195,7 +1049,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "文件日志删除",
                 "consumes": [
                     "application/json"
                 ],
@@ -1203,12 +1056,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "文件日志"
+                    ""
                 ],
-                "summary": "文件日志删除",
                 "parameters": [
                     {
-                        "description": "文件日志信息",
+                        "description": "Audit file deletion form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -1240,7 +1092,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "文件日志列表",
                 "consumes": [
                     "application/json"
                 ],
@@ -1248,31 +1099,30 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "文件日志"
+                    ""
                 ],
-                "summary": "文件日志列表",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "Page number for audit file records",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "页大小",
+                        "description": "Number of audit file records per page",
                         "name": "page_size",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "目标设备",
+                        "description": "Peer ID filter for audit file records",
                         "name": "peer_id",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "来源设备",
+                        "description": "Source peer ID filter for audit file records",
                         "name": "from_peer",
                         "in": "query"
                     }
@@ -1305,24 +1155,73 @@ const docTemplateadmin = `{
                 }
             }
         },
-        "/admin/config/admin": {
+        "/admin/captcha": {
             "get": {
-                "security": [
-                    {
-                        "token": []
-                    }
-                ],
-                "description": "ADMIN服务配置",
-                "consumes": [
+                "description": "Public pre-authentication route; a challenge is returned only when the client IP requires CAPTCHA verification.",
+                "produces": [
                     "application/json"
                 ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Get an admin login CAPTCHA",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/config/admin": {
+            "get": {
+                "description": "Public pre-authentication route returning the admin title and, when a valid api-token is supplied, the personalized greeting.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "ADMIN"
                 ],
-                "summary": "ADMIN服务配置",
+                "summary": "Get public admin configuration",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/config/all": {
+            "get": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Admin-only configuration used by the admin panel.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ADMIN"
+                ],
+                "summary": "Get all admin configuration",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -1346,7 +1245,7 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "APP服务配置",
+                "description": "APP",
                 "consumes": [
                     "application/json"
                 ],
@@ -1356,7 +1255,7 @@ const docTemplateadmin = `{
                 "tags": [
                     "ADMIN"
                 ],
-                "summary": "APP服务配置",
+                "summary": "APP",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -1380,7 +1279,7 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "服务配置,给webclient提供api-server",
+                "description": ",webclientapi-server",
                 "consumes": [
                     "application/json"
                 ],
@@ -1390,7 +1289,839 @@ const docTemplateadmin = `{
                 "tags": [
                     "ADMIN"
                 ],
-                "summary": "RUSTDESK服务配置",
+                "summary": "RUSTDESK",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/custom_build/create": {
+            "post": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Admin-only build request. The display version and platform are user-selected capabilities; provider workflow refs, release identity, and dispatch details are resolved server-side.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "CustomBuild"
+                ],
+                "summary": "Create a custom build",
+                "parameters": [
+                    {
+                        "description": "Custom-build request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/admin.CustomBuildForm"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Redacted queued custom-build envelope",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.CustomBuildSafe"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid custom-build request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "412": {
+                        "description": "Workflow reference approval is required",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Custom build could not be queued",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "503": {
+                        "description": "Build provider or encryption configuration is unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/custom_build/delete": {
+            "post": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Admin-only deletion of a custom-build record and its published artifacts.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "CustomBuild"
+                ],
+                "summary": "Delete a custom build",
+                "parameters": [
+                    {
+                        "description": "Custom-build identifier",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/admin.CustomBuildForm"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Custom build deleted",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Custom build could not be deleted",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/custom_build/download/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Admin-only download by build ID. BackendUserAuth and AdminPrivilege authorize the request; the build must have a complete immutable publication proof. The response is the exact redacted ZIP bytes served by this response, not the stored publication output digest and not a signature.",
+                "produces": [
+                    "application/zip"
+                ],
+                "tags": [
+                    "CustomBuild"
+                ],
+                "summary": "Download a completed custom build by ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Completed custom build ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Redacted custom-build ZIP archive",
+                        "schema": {
+                            "type": "file"
+                        },
+                        "headers": {
+                            "Content-Disposition": {
+                                "type": "string",
+                                "description": "Attachment filename"
+                            },
+                            "Content-Length": {
+                                "type": "string",
+                                "description": "Exact ZIP response length in bytes"
+                            },
+                            "X-DeskForge-Archive-SHA256": {
+                                "type": "string",
+                                "description": "SHA-256 of the exact ZIP bytes served by this response"
+                            },
+                            "X-DeskForge-Archive-SHA256-Scope": {
+                                "type": "string",
+                                "description": "Digest scope; distinct from the stored publication digest"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid build ID",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Administrator authentication or privilege is required",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "408": {
+                        "description": "Download request was cancelled or timed out",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Build completion or output provenance is unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "416": {
+                        "description": "Range requests are not supported",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "ZIP packaging or validation failed",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/custom_build/list": {
+            "get": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Admin-only paginated list. The response uses the redacted CustomBuildSafeList view; provider credentials and storage-only identity fields are not serialized.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "CustomBuild"
+                ],
+                "summary": "List custom builds",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of builds per page",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Redacted custom-build list envelope",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.CustomBuildSafeList"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Custom-build list is unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/custom_build/manifest/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Admin-only redacted handoff data. The BuildHandoffManifest contains no secrets, raw custom configuration, filesystem paths, or signature claim. The published digest covers stored canonical output and is distinct from the SHA-256 header over these response bytes.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "CustomBuild"
+                ],
+                "summary": "Export a completed custom-build handoff manifest",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Completed custom build ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Redacted build handoff envelope",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.BuildHandoffManifest"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "X-DeskForge-Manifest-SHA256": {
+                                "type": "string",
+                                "description": "SHA-256 of the exact response body bytes"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid build ID",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Completed handoff is unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Handoff is unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/custom_build/public/detailByKey/{key}": {
+            "get": {
+                "description": "Public capability route with no authentication. The key expires according to download-key-ttl; an expired key returns 410. The response uses the public CustomBuildPublic view and omits download_key, provider refs, and secrets.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "CustomBuild"
+                ],
+                "summary": "Read a completed custom build by capability key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Opaque build capability key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Public build detail envelope without download_key",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.CustomBuildPublic"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "409": {
+                        "description": "Build is not publicly ready",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "410": {
+                        "description": "Capability key has expired",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/custom_build/public/download/{key}": {
+            "get": {
+                "description": "Public capability route with no authentication. The key expires according to download-key-ttl; an expired key returns 410. The response is the exact redacted ZIP bytes served by this response, not the stored publication output digest and not a signature.",
+                "produces": [
+                    "application/zip"
+                ],
+                "tags": [
+                    "CustomBuild"
+                ],
+                "summary": "Download a completed custom build by capability key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Opaque build capability key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Redacted custom-build ZIP archive",
+                        "schema": {
+                            "type": "file"
+                        },
+                        "headers": {
+                            "Content-Disposition": {
+                                "type": "string",
+                                "description": "Attachment filename"
+                            },
+                            "Content-Length": {
+                                "type": "string",
+                                "description": "Exact ZIP response length in bytes"
+                            },
+                            "X-DeskForge-Archive-SHA256": {
+                                "type": "string",
+                                "description": "SHA-256 of the exact ZIP bytes served by this response"
+                            },
+                            "X-DeskForge-Archive-SHA256-Scope": {
+                                "type": "string",
+                                "description": "Digest scope; distinct from the stored publication digest"
+                            }
+                        }
+                    },
+                    "408": {
+                        "description": "Download request was cancelled or timed out",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Build completion or output provenance is unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "410": {
+                        "description": "Capability key has expired",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "416": {
+                        "description": "Range requests are not supported",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "ZIP packaging or validation failed",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/custom_build/versions": {
+            "get": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Admin-only provider capability list. Only display versions and release labels are returned; provider refs and commit SHAs remain server-side.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "CustomBuild"
+                ],
+                "summary": "List available custom-build versions",
+                "responses": {
+                    "200": {
+                        "description": "Available version options, with error state",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/admin.versionsResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/custom_preset/create": {
+            "post": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Administrators with AdminPrivilege may save a custom preset; provider-derived build references are resolved server-side.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "CustomPreset"
+                ],
+                "summary": "Create a custom preset",
+                "parameters": [
+                    {
+                        "description": "Custom-preset payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/admin.CustomPresetForm"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.CustomPresetSafe"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/custom_preset/delete": {
+            "post": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Administrators with AdminPrivilege may delete their own custom preset.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "CustomPreset"
+                ],
+                "summary": "Delete a custom preset",
+                "parameters": [
+                    {
+                        "description": "Custom-preset identifier",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/admin.CustomPresetForm"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/custom_preset/detail/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Administrators with AdminPrivilege may read their own redacted custom preset.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "CustomPreset"
+                ],
+                "summary": "Get a custom preset",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Custom preset ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.CustomPresetSafe"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/custom_preset/list": {
+            "get": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Administrators with AdminPrivilege receive a paginated redacted custom-preset list.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "CustomPreset"
+                ],
+                "summary": "List custom presets",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of presets per page",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.CustomPresetSafeList"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/custom_preset/update": {
+            "post": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Administrators with AdminPrivilege may update their own custom preset; provider-derived build references are resolved server-side.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "CustomPreset"
+                ],
+                "summary": "Update a custom preset",
+                "parameters": [
+                    {
+                        "description": "Custom-preset update payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/admin.CustomPresetForm"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.CustomPresetSafe"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/dashboard/health": {
+            "get": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Authenticated server health and bandwidth data for the admin dashboard.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard"
+                ],
+                "summary": "Get server health",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/dashboard/stats": {
+            "get": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Authenticated dashboard counters for users, peers, groups, and logins.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard"
+                ],
+                "summary": "Get dashboard statistics",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -1414,7 +2145,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "创建设备群组",
                 "consumes": [
                     "application/json"
                 ],
@@ -1422,12 +2152,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "设备群组"
+                    ""
                 ],
-                "summary": "创建设备群组",
                 "parameters": [
                     {
-                        "description": "设备群组信息",
+                        "description": "Device group form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -1471,7 +2200,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "设备群组删除",
                 "consumes": [
                     "application/json"
                 ],
@@ -1479,12 +2207,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "设备群组"
+                    ""
                 ],
-                "summary": "设备群组删除",
                 "parameters": [
                     {
-                        "description": "群组信息",
+                        "description": "Device group deletion form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -1516,7 +2243,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "设备群组详情",
                 "consumes": [
                     "application/json"
                 ],
@@ -1524,9 +2250,8 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "设备群组"
+                    ""
                 ],
-                "summary": "设备群组详情",
                 "parameters": [
                     {
                         "type": "integer",
@@ -1571,7 +2296,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "群组列表",
                 "consumes": [
                     "application/json"
                 ],
@@ -1579,19 +2303,18 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "群组"
+                    ""
                 ],
-                "summary": "群组列表",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "Page number for the device-group list",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "页大小",
+                        "description": "Number of device groups per page",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -1631,7 +2354,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "设备群组编辑",
                 "consumes": [
                     "application/json"
                 ],
@@ -1639,12 +2361,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "设备群组"
+                    ""
                 ],
-                "summary": "设备群组编辑",
                 "parameters": [
                     {
-                        "description": "群组信息",
+                        "description": "Device group update form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -1681,6 +2402,40 @@ const docTemplateadmin = `{
                 }
             }
         },
+        "/admin/file/notify": {
+            "post": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Authenticated upload callback used after the object-storage provider verifies the request.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "File"
+                ],
+                "summary": "Confirm an uploaded file",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/file/oss_token": {
             "get": {
                 "security": [
@@ -1688,7 +2443,7 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "获取ossToken",
+                "description": "ossToken",
                 "consumes": [
                     "application/json"
                 ],
@@ -1696,9 +2451,9 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "文件"
+                    ""
                 ],
-                "summary": "获取ossToken",
+                "summary": "ossToken",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -1722,7 +2477,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "上传文件到本地",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -1730,13 +2484,12 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "文件"
+                    ""
                 ],
-                "summary": "上传文件到本地",
                 "parameters": [
                     {
                         "type": "file",
-                        "description": "上传文件示例",
+                        "description": "Multipart file to upload",
                         "name": "file",
                         "in": "formData",
                         "required": true
@@ -1758,14 +2511,14 @@ const docTemplateadmin = `{
                 }
             }
         },
-        "/admin/group/create": {
+        "/admin/github_build_config/approve_workflow_ref": {
             "post": {
                 "security": [
                     {
                         "token": []
                     }
                 ],
-                "description": "创建群组",
+                "description": "Admin confirmation for a provider-derived, verified, protected workflow tag. The workflow_tag must be selected from workflow_tags; raw refs and SHAs are not accepted. The response is the secret-free GithubBuildConfigSafe view.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1773,12 +2526,428 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "群组"
+                    "GithubBuildConfig"
                 ],
-                "summary": "创建群组",
+                "summary": "Approve a provider-derived workflow tag",
                 "parameters": [
                     {
-                        "description": "群组信息",
+                        "description": "Confirm and provider-derived workflow tag label",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/admin.WorkflowRefApprovalForm"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Safe GitHub build configuration envelope",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.GithubBuildConfigSafe"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid selector or approval request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Workflow approval failed",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "502": {
+                        "description": "Provider rejected or could not verify the workflow tag",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "503": {
+                        "description": "GitHub provider configuration or transport is unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/github_build_config/dispatch_test": {
+            "post": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Admin-only provider mutation that dispatches the configured Windows workflow with server-derived parameters after explicit confirmation. The response contains provider run metadata, not credentials.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "GithubBuildConfig"
+                ],
+                "summary": "Dispatch a GitHub smoke-test build",
+                "parameters": [
+                    {
+                        "description": "Explicit build confirmation",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "boolean"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Provider workflow dispatch metadata",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "412": {
+                        "description": "Workflow reference approval is required",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "502": {
+                        "description": "Provider rejected the workflow dispatch",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "503": {
+                        "description": "GitHub provider configuration or transport is unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/github_build_config/generate_key": {
+            "post": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Admin-only operation that creates and stores a new workflow payload key. The generated key is returned once so it can be copied to the provider secret store; later configuration reads are secret-free.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "GithubBuildConfig"
+                ],
+                "summary": "Generate a workflow payload key",
+                "responses": {
+                    "200": {
+                        "description": "Generated workflow payload key",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Payload key could not be generated",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "503": {
+                        "description": "Secret encryption is unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/github_build_config/get": {
+            "get": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Admin-only secret-free GitHub build configuration view. Credentials are represented only by has_token and has_payload_key flags.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "GithubBuildConfig"
+                ],
+                "summary": "Get GitHub build configuration",
+                "responses": {
+                    "200": {
+                        "description": "Secret-free GitHub build configuration envelope",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.GithubBuildConfigSafe"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "GitHub build configuration is unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/github_build_config/save": {
+            "post": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Admin-only configuration update. Repository is user-authored; workflow selectors and resolved provider identities remain system/provider-derived. Empty secrets preserve stored values, and the response is secret-free.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "GithubBuildConfig"
+                ],
+                "summary": "Save GitHub build configuration",
+                "parameters": [
+                    {
+                        "description": "GitHub build configuration",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/admin.GithubBuildConfigForm"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Secret-free GitHub build configuration envelope",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.GithubBuildConfigSafe"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid configuration request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "GitHub build configuration could not be saved",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "503": {
+                        "description": "Secret encryption is unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/github_build_config/sync_secret": {
+            "post": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Admin-only provider mutation that synchronizes the stored workflow payload key to the configured GitHub Actions secret. The key is not returned.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "GithubBuildConfig"
+                ],
+                "summary": "Sync the workflow payload key",
+                "responses": {
+                    "200": {
+                        "description": "Workflow payload key synchronized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "502": {
+                        "description": "Provider rejected the secret update",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "503": {
+                        "description": "GitHub provider configuration or transport is unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/github_build_config/test": {
+            "post": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Admin-only read-only provider connectivity check. The stored PAT is used server-side and is never returned.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "GithubBuildConfig"
+                ],
+                "summary": "Test GitHub provider access",
+                "responses": {
+                    "200": {
+                        "description": "Provider access is available",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "502": {
+                        "description": "Provider rejected the configured credentials or repository",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "503": {
+                        "description": "GitHub provider configuration or transport is unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/github_build_config/workflow_tags": {
+            "get": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Admin-only capability catalog. Each WorkflowTagOption is a safe provider-derived label; credentials, raw refs, SHAs, and provider verification objects remain server-side. Approval must select one of these options.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "GithubBuildConfig"
+                ],
+                "summary": "List provider-derived workflow tag options",
+                "responses": {
+                    "200": {
+                        "description": "Safe workflow tag options under data.tags",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "array",
+                                                "items": {
+                                                    "$ref": "#/definitions/service.WorkflowTagOption"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Workflow tag options are unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "502": {
+                        "description": "Provider rejected or returned invalid workflow data",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "503": {
+                        "description": "GitHub provider configuration or transport is unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/group/create": {
+            "post": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    ""
+                ],
+                "parameters": [
+                    {
+                        "description": "Group form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -1822,7 +2991,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "群组删除",
                 "consumes": [
                     "application/json"
                 ],
@@ -1830,12 +2998,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "群组"
+                    ""
                 ],
-                "summary": "群组删除",
                 "parameters": [
                     {
-                        "description": "群组信息",
+                        "description": "Group deletion form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -1867,7 +3034,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "群组详情",
                 "consumes": [
                     "application/json"
                 ],
@@ -1875,9 +3041,8 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "群组"
+                    ""
                 ],
-                "summary": "群组详情",
                 "parameters": [
                     {
                         "type": "integer",
@@ -1922,7 +3087,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "群组列表",
                 "consumes": [
                     "application/json"
                 ],
@@ -1930,19 +3094,18 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "群组"
+                    ""
                 ],
-                "summary": "群组列表",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "Page number for the group list",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "页大小",
+                        "description": "Number of groups per page",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -1982,7 +3145,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "群组编辑",
                 "consumes": [
                     "application/json"
                 ],
@@ -1990,12 +3152,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "群组"
+                    ""
                 ],
-                "summary": "群组编辑",
                 "parameters": [
                     {
-                        "description": "群组信息",
+                        "description": "Group update form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -2034,12 +3195,7 @@ const docTemplateadmin = `{
         },
         "/admin/login": {
             "post": {
-                "security": [
-                    {
-                        "token": []
-                    }
-                ],
-                "description": "登录",
+                "description": "Public pre-authentication route for administrator credentials; it returns the admin access-token payload on success.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2047,17 +3203,17 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "登录"
+                    "Auth"
                 ],
-                "summary": "登录",
+                "summary": "Log in to the admin panel",
                 "parameters": [
                     {
-                        "description": "登录信息",
+                        "description": "Admin login credentials payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_lejianwen_rustdesk-api_v2_http_request_admin.Login"
+                            "$ref": "#/definitions/rustdesk-server_api_http_request_admin.Login"
                         }
                     }
                 ],
@@ -2090,32 +3246,26 @@ const docTemplateadmin = `{
             }
         },
         "/admin/login-options": {
-            "post": {
-                "description": "登录选项",
-                "consumes": [
-                    "application/json"
-                ],
+            "get": {
+                "description": "Public pre-authentication route returning registration, password-login, CAPTCHA, and OIDC-provider capabilities.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "登录"
+                    "Auth"
                 ],
-                "summary": "登录选项",
+                "summary": "Get admin login options",
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Public admin login capabilities",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/response.Response"
                         }
                     },
-                    "500": {
-                        "description": "Internal Server Error",
+                    "400": {
+                        "description": "Login options could not be read",
                         "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
+                            "$ref": "#/definitions/response.Response"
                         }
                     }
                 }
@@ -2128,7 +3278,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "登录日志批量删除",
                 "consumes": [
                     "application/json"
                 ],
@@ -2136,12 +3285,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "登录日志"
+                    ""
                 ],
-                "summary": "登录日志批量删除",
                 "parameters": [
                     {
-                        "description": "登录日志",
+                        "description": "Login log ID batch deletion payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -2173,7 +3321,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "登录日志删除",
                 "consumes": [
                     "application/json"
                 ],
@@ -2181,12 +3328,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "登录日志"
+                    ""
                 ],
-                "summary": "登录日志删除",
                 "parameters": [
                     {
-                        "description": "登录日志信息",
+                        "description": "Login log deletion form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -2211,61 +3357,6 @@ const docTemplateadmin = `{
                 }
             }
         },
-        "/admin/login_log/detail/{id}": {
-            "get": {
-                "security": [
-                    {
-                        "token": []
-                    }
-                ],
-                "description": "登录日志详情",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "登录日志"
-                ],
-                "summary": "登录日志详情",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/model.LoginLog"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/response.Response"
-                        }
-                    }
-                }
-            }
-        },
         "/admin/login_log/list": {
             "get": {
                 "security": [
@@ -2273,7 +3364,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "登录日志列表",
                 "consumes": [
                     "application/json"
                 ],
@@ -2281,25 +3371,24 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "登录日志"
+                    ""
                 ],
-                "summary": "登录日志列表",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "Page number for the login-log list",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "页大小",
+                        "description": "Number of login-log records per page",
                         "name": "page_size",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "用户ID",
+                        "description": "ID",
                         "name": "user_id",
                         "in": "query"
                     }
@@ -2334,7 +3423,12 @@ const docTemplateadmin = `{
         },
         "/admin/logout": {
             "post": {
-                "description": "登出",
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Clears the supplied admin access token when it identifies a current user; the route is registered before the admin authentication middleware.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2342,9 +3436,98 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "登录"
+                    "Auth"
                 ],
-                "summary": "登出",
+                "summary": "Log out of the admin panel",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/my/address_book/batchCreateFromPeers": {
+            "post": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Personal batch creation of address-book entries from the current user's peers.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    ""
+                ],
+                "parameters": [
+                    {
+                        "description": "Peer IDs and address-book destination payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/admin.BatchCreateFromPeersForm"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/my/address_book/batchUpdateTags": {
+            "post": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Authenticated users may update tags on their own address-book entries.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AddressBook"
+                ],
+                "summary": "Update personal address-book tags",
+                "parameters": [
+                    {
+                        "description": "Address-book tag update payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/admin.BatchUpdateTagsForm"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -2368,7 +3551,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "创建地址簿",
                 "consumes": [
                     "application/json"
                 ],
@@ -2376,12 +3558,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "我的地址簿"
+                    ""
                 ],
-                "summary": "创建地址簿",
                 "parameters": [
                     {
-                        "description": "地址簿信息",
+                        "description": "Personal address book entry form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -2394,19 +3575,7 @@ const docTemplateadmin = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/model.AddressBook"
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/response.Response"
                         }
                     },
                     "500": {
@@ -2425,7 +3594,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "地址簿删除",
                 "consumes": [
                     "application/json"
                 ],
@@ -2433,12 +3601,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "我的地址簿"
+                    ""
                 ],
-                "summary": "地址簿删除",
                 "parameters": [
                     {
-                        "description": "地址簿信息",
+                        "description": "Personal address book entry deletion form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -2470,7 +3637,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "地址簿列表",
                 "consumes": [
                     "application/json"
                 ],
@@ -2478,32 +3644,31 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "我的地址簿"
+                    ""
                 ],
-                "summary": "地址簿列表",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "Page number for the personal address book list",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "页大小",
+                        "description": "Number of personal address book entries per page",
                         "name": "page_size",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "用户id",
+                        "description": "id",
                         "name": "user_id",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Redacted personal address-book list envelope",
                         "schema": {
                             "allOf": [
                                 {
@@ -2513,7 +3678,7 @@ const docTemplateadmin = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/model.AddressBookList"
+                                            "$ref": "#/definitions/model.AddressBookSafeList"
                                         }
                                     }
                                 }
@@ -2536,7 +3701,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "地址簿编辑",
                 "consumes": [
                     "application/json"
                 ],
@@ -2544,12 +3708,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "我的地址簿"
+                    ""
                 ],
-                "summary": "地址簿编辑",
                 "parameters": [
                     {
-                        "description": "地址簿信息",
+                        "description": "Personal address book entry update form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -2562,19 +3725,7 @@ const docTemplateadmin = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/model.AddressBook"
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/response.Response"
                         }
                     },
                     "500": {
@@ -2593,7 +3744,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "创建地址簿名称",
                 "consumes": [
                     "application/json"
                 ],
@@ -2601,12 +3751,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "我的地址簿名称"
+                    ""
                 ],
-                "summary": "创建地址簿名称",
                 "parameters": [
                     {
-                        "description": "地址簿名称信息",
+                        "description": "Personal address book collection form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -2619,19 +3768,7 @@ const docTemplateadmin = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/model.AddressBookCollection"
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/response.Response"
                         }
                     },
                     "500": {
@@ -2650,7 +3787,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "地址簿名称删除",
                 "consumes": [
                     "application/json"
                 ],
@@ -2658,12 +3794,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "我的地址簿名称"
+                    ""
                 ],
-                "summary": "地址簿名称删除",
                 "parameters": [
                     {
-                        "description": "地址簿名称信息",
+                        "description": "Personal address book collection deletion form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -2695,7 +3830,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "地址簿名称列表",
                 "consumes": [
                     "application/json"
                 ],
@@ -2703,19 +3837,18 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "我的地址簿名称"
+                    ""
                 ],
-                "summary": "地址簿名称列表",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "Page number for the personal address book collection list",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "页大小",
+                        "description": "Number of personal address book collections per page",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -2755,7 +3888,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "地址簿名称编辑",
                 "consumes": [
                     "application/json"
                 ],
@@ -2763,12 +3895,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "我的地址簿名称"
+                    ""
                 ],
-                "summary": "地址簿名称编辑",
                 "parameters": [
                     {
-                        "description": "地址簿名称信息",
+                        "description": "Personal address book collection update form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -2781,19 +3912,7 @@ const docTemplateadmin = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/model.AddressBookCollection"
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/response.Response"
                         }
                     },
                     "500": {
@@ -2812,7 +3931,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "创建地址簿规则",
                 "consumes": [
                     "application/json"
                 ],
@@ -2820,12 +3938,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "我的地址簿规则"
+                    ""
                 ],
-                "summary": "创建地址簿规则",
                 "parameters": [
                     {
-                        "description": "地址簿规则信息",
+                        "description": "Personal address book collection rule form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -2838,19 +3955,7 @@ const docTemplateadmin = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/model.AddressBookCollection"
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/response.Response"
                         }
                     },
                     "500": {
@@ -2869,7 +3974,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "地址簿规则删除",
                 "consumes": [
                     "application/json"
                 ],
@@ -2877,12 +3981,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "我的地址簿规则"
+                    ""
                 ],
-                "summary": "地址簿规则删除",
                 "parameters": [
                     {
-                        "description": "地址簿规则信息",
+                        "description": "Personal address book collection rule deletion form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -2914,7 +4017,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "地址簿规则列表",
                 "consumes": [
                     "application/json"
                 ],
@@ -2922,37 +4024,36 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "我的地址簿规则"
+                    ""
                 ],
-                "summary": "地址簿规则列表",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "Page number for personal address book collection rules",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "页大小",
+                        "description": "Number of personal collection rules per page",
                         "name": "page_size",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "是否是我的",
+                        "description": "Filter for rules owned by the current user",
                         "name": "is_my",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "用户id",
+                        "description": "id",
                         "name": "user_id",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "地址簿集合id",
+                        "description": "id",
                         "name": "collection_id",
                         "in": "query"
                     }
@@ -2969,7 +4070,7 @@ const docTemplateadmin = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/model.AddressBookCollectionList"
+                                            "$ref": "#/definitions/model.AddressBookCollectionRuleList"
                                         }
                                     }
                                 }
@@ -2992,7 +4093,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "地址簿规则编辑",
                 "consumes": [
                     "application/json"
                 ],
@@ -3000,12 +4100,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "我的地址簿规则"
+                    ""
                 ],
-                "summary": "地址簿规则编辑",
                 "parameters": [
                     {
-                        "description": "地址簿规则信息",
+                        "description": "Personal address book collection rule update form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -3018,19 +4117,38 @@ const docTemplateadmin = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/response.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/model.AddressBookCollection"
-                                        }
-                                    }
-                                }
-                            ]
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/my/groupUsers": {
+            "post": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Authenticated users receive only the group and user entries allowed for personal sharing.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "User"
+                ],
+                "summary": "List shareable users and groups",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
                         }
                     },
                     "500": {
@@ -3049,7 +4167,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "登录日志批量删除",
                 "consumes": [
                     "application/json"
                 ],
@@ -3057,12 +4174,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "我的登录日志"
+                    ""
                 ],
-                "summary": "登录日志批量删除",
                 "parameters": [
                     {
-                        "description": "登录日志",
+                        "description": "Personal login-log ID batch deletion payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -3094,7 +4210,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "登录日志删除",
                 "consumes": [
                     "application/json"
                 ],
@@ -3102,12 +4217,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "我的登录日志"
+                    ""
                 ],
-                "summary": "登录日志删除",
                 "parameters": [
                     {
-                        "description": "登录日志信息",
+                        "description": "Personal login-log deletion form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -3139,7 +4253,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "登录日志列表",
                 "consumes": [
                     "application/json"
                 ],
@@ -3147,25 +4260,24 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "我的登录日志"
+                    ""
                 ],
-                "summary": "登录日志列表",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "Page number for the personal login-log list",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "页大小",
+                        "description": "Number of personal login-log records per page",
                         "name": "page_size",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "用户ID",
+                        "description": "ID",
                         "name": "user_id",
                         "in": "query"
                     }
@@ -3198,14 +4310,13 @@ const docTemplateadmin = `{
                 }
             }
         },
-        "/admin/my/peer/list": {
-            "get": {
+        "/admin/my/peer/batchDelete": {
+            "post": {
                 "security": [
                     {
                         "token": []
                     }
                 ],
-                "description": "设备列表",
                 "consumes": [
                     "application/json"
                 ],
@@ -3213,25 +4324,110 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "我的设备"
+                    ""
                 ],
-                "summary": "设备列表",
+                "parameters": [
+                    {
+                        "description": "Personal peer ID batch deletion payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/admin.PeerBatchDeleteForm"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/my/peer/delete": {
+            "post": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    ""
+                ],
+                "parameters": [
+                    {
+                        "description": "Personal peer deletion form payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/admin.PeerForm"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/my/peer/list": {
+            "get": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    ""
+                ],
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "Page number for the personal peer list",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "页大小",
+                        "description": "Number of personal peers per page",
                         "name": "page_size",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "时间",
+                        "description": "Last-online time offset filter",
                         "name": "time_ago",
                         "in": "query"
                     },
@@ -3243,13 +4439,13 @@ const docTemplateadmin = `{
                     },
                     {
                         "type": "string",
-                        "description": "主机名",
+                        "description": "Hostname filter",
                         "name": "hostname",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "uuids 用逗号分隔",
+                        "description": "uuids ",
                         "name": "uuids",
                         "in": "query"
                     }
@@ -3289,7 +4485,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "批量删除我的分享记录",
                 "consumes": [
                     "application/json"
                 ],
@@ -3297,9 +4492,8 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "我的"
+                    ""
                 ],
-                "summary": "批量删除我的分享记录",
                 "parameters": [
                     {
                         "description": "id",
@@ -3334,7 +4528,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "分享记录删除",
                 "consumes": [
                     "application/json"
                 ],
@@ -3342,12 +4535,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "我的分享记录"
+                    ""
                 ],
-                "summary": "分享记录删除",
                 "parameters": [
                     {
-                        "description": "分享记录信息",
+                        "description": "Personal share record deletion form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -3379,7 +4571,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "分享记录列表",
                 "consumes": [
                     "application/json"
                 ],
@@ -3387,28 +4578,39 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "我的分享记录"
+                    ""
                 ],
-                "summary": "分享记录列表",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "Page number for personal share records",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "页大小",
+                        "description": "Number of personal share records per page",
                         "name": "page_size",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Redacted personal share-record list envelope",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.ShareRecordSafeList"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "500": {
@@ -3427,7 +4629,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "创建标签",
                 "consumes": [
                     "application/json"
                 ],
@@ -3435,12 +4636,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "我的标签"
+                    ""
                 ],
-                "summary": "创建标签",
                 "parameters": [
                     {
-                        "description": "标签信息",
+                        "description": "Personal tag form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -3484,7 +4684,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "标签删除",
                 "consumes": [
                     "application/json"
                 ],
@@ -3492,12 +4691,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "标签"
+                    ""
                 ],
-                "summary": "标签删除",
                 "parameters": [
                     {
-                        "description": "标签信息",
+                        "description": "Personal tag deletion form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -3529,7 +4727,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "标签列表",
                 "consumes": [
                     "application/json"
                 ],
@@ -3537,31 +4734,30 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "我的标签"
+                    ""
                 ],
-                "summary": "标签列表",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "Page number for the personal tag list",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "页大小",
+                        "description": "Number of personal tags per page",
                         "name": "page_size",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "是否是我的",
+                        "description": "Filter for tags owned by the current user",
                         "name": "is_my",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "用户id",
+                        "description": "id",
                         "name": "user_id",
                         "in": "query"
                     }
@@ -3601,7 +4797,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "标签编辑",
                 "consumes": [
                     "application/json"
                 ],
@@ -3609,12 +4804,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "我的标签"
+                    ""
                 ],
-                "summary": "标签编辑",
                 "parameters": [
                     {
-                        "description": "标签信息",
+                        "description": "Personal tag update form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -3651,14 +4845,14 @@ const docTemplateadmin = `{
                 }
             }
         },
-        "/admin/oauth/create": {
+        "/admin/oauth/bind": {
             "post": {
                 "security": [
                     {
                         "token": []
                     }
                 ],
-                "description": "创建Oauth",
+                "description": "Authenticated users receive a short-lived binding code and provider URL.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3668,10 +4862,160 @@ const docTemplateadmin = `{
                 "tags": [
                     "Oauth"
                 ],
-                "summary": "创建Oauth",
+                "summary": "Start OAuth binding",
                 "parameters": [
                     {
-                        "description": "Oauth信息",
+                        "description": "OAuth provider binding payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/admin.BindOauthForm"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/oauth/bindConfirm": {
+            "post": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Authenticated users attach the confirmed OAuth identity to their account.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oauth"
+                ],
+                "summary": "Complete OAuth binding",
+                "parameters": [
+                    {
+                        "description": "OAuth confirmation payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/admin.OauthConfirmForm"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/oauth/confirm": {
+            "post": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Authenticated users confirm a short-lived OAuth handoff before binding.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oauth"
+                ],
+                "summary": "Confirm OAuth binding",
+                "parameters": [
+                    {
+                        "description": "OAuth confirmation payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/admin.OauthConfirmForm"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/oauth/create": {
+            "post": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Oauth",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oauth"
+                ],
+                "summary": "Oauth",
+                "parameters": [
+                    {
+                        "description": "Oauth",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -3715,7 +5059,7 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "Oauth删除",
+                "description": "Oauth",
                 "consumes": [
                     "application/json"
                 ],
@@ -3725,10 +5069,10 @@ const docTemplateadmin = `{
                 "tags": [
                     "Oauth"
                 ],
-                "summary": "Oauth删除",
+                "summary": "Oauth",
                 "parameters": [
                     {
-                        "description": "Oauth信息",
+                        "description": "Oauth",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -3760,7 +5104,7 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "Oauth详情",
+                "description": "Oauth",
                 "consumes": [
                     "application/json"
                 ],
@@ -3770,7 +5114,7 @@ const docTemplateadmin = `{
                 "tags": [
                     "Oauth"
                 ],
-                "summary": "Oauth详情",
+                "summary": "Oauth",
                 "parameters": [
                     {
                         "type": "integer",
@@ -3808,6 +5152,46 @@ const docTemplateadmin = `{
                 }
             }
         },
+        "/admin/oauth/info": {
+            "get": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Authenticated OAuth handoff lookup by short-lived code.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oauth"
+                ],
+                "summary": "Get cached OAuth handoff data",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "OAuth handoff code",
+                        "name": "code",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/oauth/list": {
             "get": {
                 "security": [
@@ -3815,7 +5199,7 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "Oauth列表",
+                "description": "Oauth",
                 "consumes": [
                     "application/json"
                 ],
@@ -3825,17 +5209,17 @@ const docTemplateadmin = `{
                 "tags": [
                     "Oauth"
                 ],
-                "summary": "Oauth列表",
+                "summary": "Oauth",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "Page number for the OAuth provider list",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "页大小",
+                        "description": "Number of OAuth providers per page",
                         "name": "page_size",
                         "in": "query"
                     }
@@ -3868,14 +5252,14 @@ const docTemplateadmin = `{
                 }
             }
         },
-        "/admin/oauth/update": {
+        "/admin/oauth/unbind": {
             "post": {
                 "security": [
                     {
                         "token": []
                     }
                 ],
-                "description": "Oauth编辑",
+                "description": "Authenticated users remove one OAuth provider binding from their account.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3885,10 +5269,55 @@ const docTemplateadmin = `{
                 "tags": [
                     "Oauth"
                 ],
-                "summary": "Oauth编辑",
+                "summary": "Unbind OAuth provider",
                 "parameters": [
                     {
-                        "description": "Oauth信息",
+                        "description": "OAuth provider unbinding payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/admin.UnBindOauthForm"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/oauth/update": {
+            "post": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Oauth",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Oauth"
+                ],
+                "summary": "Oauth",
+                "parameters": [
+                    {
+                        "description": "Oauth",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -3927,7 +5356,7 @@ const docTemplateadmin = `{
         },
         "/admin/oidc/auth": {
             "post": {
-                "description": "OidcAuth",
+                "description": "Public pre-authentication route returning the state code and provider URL for the admin OIDC flow.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3937,23 +5366,48 @@ const docTemplateadmin = `{
                 "tags": [
                     "Oauth"
                 ],
-                "summary": "OidcAuth",
-                "responses": {}
+                "summary": "Start admin OIDC authorization",
+                "responses": {
+                    "200": {
+                        "description": "Authorization state code and provider URL",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "OIDC authorization could not be started",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
             }
         },
         "/admin/oidc/auth-query": {
             "get": {
-                "description": "OidcAuthQuery",
-                "consumes": [
-                    "application/json"
-                ],
+                "description": "Public pre-authentication route exchanging the OIDC state code and provider callback values for an admin login payload.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Oauth"
                 ],
-                "summary": "OidcAuthQuery",
+                "summary": "Complete admin OIDC authorization",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -3973,10 +5427,10 @@ const docTemplateadmin = `{
                             ]
                         }
                     },
-                    "500": {
-                        "description": "Internal Server Error",
+                    "400": {
+                        "description": "OIDC authorization query failed",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "$ref": "#/definitions/response.ErrorResponse"
                         }
                     }
                 }
@@ -3989,7 +5443,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "批量设备删除",
                 "consumes": [
                     "application/json"
                 ],
@@ -3997,12 +5450,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "设备"
+                    ""
                 ],
-                "summary": "批量设备删除",
                 "parameters": [
                     {
-                        "description": "设备id",
+                        "description": "id",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -4034,7 +5486,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "创建设备",
                 "consumes": [
                     "application/json"
                 ],
@@ -4042,12 +5493,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "设备"
+                    ""
                 ],
-                "summary": "创建设备",
                 "parameters": [
                     {
-                        "description": "设备信息",
+                        "description": "Peer form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -4091,7 +5541,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "设备删除",
                 "consumes": [
                     "application/json"
                 ],
@@ -4099,12 +5548,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "设备"
+                    ""
                 ],
-                "summary": "设备删除",
                 "parameters": [
                     {
-                        "description": "设备信息",
+                        "description": "Peer deletion form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -4136,7 +5584,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "设备详情",
                 "consumes": [
                     "application/json"
                 ],
@@ -4144,9 +5591,8 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "设备"
+                    ""
                 ],
-                "summary": "设备详情",
                 "parameters": [
                     {
                         "type": "integer",
@@ -4191,7 +5637,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "设备列表",
                 "consumes": [
                     "application/json"
                 ],
@@ -4199,25 +5644,24 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "设备"
+                    ""
                 ],
-                "summary": "设备列表",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "Page number for the peer list",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "页大小",
+                        "description": "Number of peers per page",
                         "name": "page_size",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "时间",
+                        "description": "Last-online time offset filter",
                         "name": "time_ago",
                         "in": "query"
                     },
@@ -4229,15 +5673,72 @@ const docTemplateadmin = `{
                     },
                     {
                         "type": "string",
-                        "description": "主机名",
+                        "description": "Hostname filter",
                         "name": "hostname",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "uuids 用逗号分隔",
+                        "description": "uuids ",
                         "name": "uuids",
                         "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.PeerList"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/peer/simpleData": {
+            "post": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Authenticated peer version lookup used by the admin panel.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Peer"
+                ],
+                "summary": "Get peer version data",
+                "parameters": [
+                    {
+                        "description": "Peer ID lookup payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/admin.SimpleDataQuery"
+                        }
                     }
                 ],
                 "responses": {
@@ -4275,7 +5776,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "设备编辑",
                 "consumes": [
                     "application/json"
                 ],
@@ -4283,12 +5783,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "设备"
+                    ""
                 ],
-                "summary": "设备编辑",
                 "parameters": [
                     {
-                        "description": "设备信息",
+                        "description": "Peer update form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -4325,14 +5824,70 @@ const docTemplateadmin = `{
                 }
             }
         },
-        "/admin/share_record/batchDelete": {
+        "/admin/rustdesk/cmdAuditList": {
+            "get": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Admin-only paginated audit history for server-command executions.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Rustdesk"
+                ],
+                "summary": "List server-command audit records",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of audit records per page",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.ServerCmdAuditList"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/rustdesk/cmdCreate": {
             "post": {
                 "security": [
                     {
                         "token": []
                     }
                 ],
-                "description": "批量分享记录",
                 "consumes": [
                     "application/json"
                 ],
@@ -4340,9 +5895,242 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "分享记录"
+                    "Rustdesk"
                 ],
-                "summary": "批量分享记录",
+                "summary": "Create a server command",
+                "parameters": [
+                    {
+                        "description": "Server command payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.ServerCmd"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/rustdesk/cmdDelete": {
+            "post": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Rustdesk"
+                ],
+                "summary": "Delete a server command",
+                "parameters": [
+                    {
+                        "description": "Server command identifier",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.ServerCmd"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/rustdesk/cmdList": {
+            "get": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Admin-only paginated list of built-in and configured server commands.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Rustdesk"
+                ],
+                "summary": "List server commands",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of commands per page",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.ServerCmdList"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/rustdesk/cmdUpdate": {
+            "post": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Rustdesk"
+                ],
+                "summary": "Update a server command",
+                "parameters": [
+                    {
+                        "description": "Server command update payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.ServerCmd"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/rustdesk/sendCmd": {
+            "post": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Admin-only command execution against the selected ID or relay server.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Rustdesk"
+                ],
+                "summary": "Send a server command",
+                "parameters": [
+                    {
+                        "description": "Server command request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/admin.RustdeskCmd"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/share_record/batchDelete": {
+            "post": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    ""
+                ],
                 "parameters": [
                     {
                         "description": "id",
@@ -4377,7 +6165,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "分享记录删除",
                 "consumes": [
                     "application/json"
                 ],
@@ -4385,12 +6172,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "分享记录"
+                    ""
                 ],
-                "summary": "分享记录删除",
                 "parameters": [
                     {
-                        "description": "分享记录信息",
+                        "description": "Share record deletion form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -4422,7 +6208,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "分享记录列表",
                 "consumes": [
                     "application/json"
                 ],
@@ -4430,34 +6215,45 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "分享记录"
+                    ""
                 ],
-                "summary": "分享记录列表",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "用户ID",
+                        "description": "ID",
                         "name": "user_id",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "Page number for share records",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "页大小",
+                        "description": "Number of share records per page",
                         "name": "page_size",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Redacted share-record list envelope",
                         "schema": {
-                            "$ref": "#/definitions/response.Response"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.ShareRecordSafeList"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "500": {
@@ -4476,7 +6272,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "创建标签",
                 "consumes": [
                     "application/json"
                 ],
@@ -4484,12 +6279,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "标签"
+                    ""
                 ],
-                "summary": "创建标签",
                 "parameters": [
                     {
-                        "description": "标签信息",
+                        "description": "Tag form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -4533,7 +6327,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "标签删除",
                 "consumes": [
                     "application/json"
                 ],
@@ -4541,12 +6334,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "标签"
+                    ""
                 ],
-                "summary": "标签删除",
                 "parameters": [
                     {
-                        "description": "标签信息",
+                        "description": "Tag deletion form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -4578,7 +6370,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "标签详情",
                 "consumes": [
                     "application/json"
                 ],
@@ -4586,9 +6377,8 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "标签"
+                    ""
                 ],
-                "summary": "标签详情",
                 "parameters": [
                     {
                         "type": "integer",
@@ -4633,7 +6423,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "标签列表",
                 "consumes": [
                     "application/json"
                 ],
@@ -4641,31 +6430,30 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "标签"
+                    ""
                 ],
-                "summary": "标签列表",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "Page number for the tag list",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "页大小",
+                        "description": "Number of tags per page",
                         "name": "page_size",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "是否是我的",
+                        "description": "Filter for tags owned by the current user",
                         "name": "is_my",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "用户id",
+                        "description": "id",
                         "name": "user_id",
                         "in": "query"
                     }
@@ -4705,7 +6493,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "标签编辑",
                 "consumes": [
                     "application/json"
                 ],
@@ -4713,12 +6500,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "标签"
+                    ""
                 ],
-                "summary": "标签编辑",
                 "parameters": [
                     {
-                        "description": "标签信息",
+                        "description": "Tag update form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -4762,7 +6548,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "修改当前用户密码",
                 "consumes": [
                     "application/json"
                 ],
@@ -4770,17 +6555,59 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户"
+                    ""
                 ],
-                "summary": "修改当前用户密码",
                 "parameters": [
                     {
-                        "description": "用户信息",
+                        "description": "Current user password change form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
                             "$ref": "#/definitions/admin.ChangeCurPasswordForm"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/user/changePwd": {
+            "post": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    ""
+                ],
+                "parameters": [
+                    {
+                        "description": "User password update form payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/admin.UserPasswordForm"
                         }
                     }
                 ],
@@ -4807,7 +6634,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "创建管理员",
                 "consumes": [
                     "application/json"
                 ],
@@ -4815,12 +6641,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户"
+                    ""
                 ],
-                "summary": "创建管理员",
                 "parameters": [
                     {
-                        "description": "管理员信息",
+                        "description": "User form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -4864,7 +6689,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "当前用户",
                 "consumes": [
                     "application/json"
                 ],
@@ -4872,9 +6696,8 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户"
+                    ""
                 ],
-                "summary": "当前用户",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -4910,7 +6733,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "管理员编删除",
                 "consumes": [
                     "application/json"
                 ],
@@ -4918,12 +6740,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户"
+                    ""
                 ],
-                "summary": "管理员删除",
                 "parameters": [
                     {
-                        "description": "用户信息",
+                        "description": "User deletion form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -4955,7 +6776,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "管理员详情",
                 "consumes": [
                     "application/json"
                 ],
@@ -4963,9 +6783,8 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户"
+                    ""
                 ],
-                "summary": "管理员详情",
                 "parameters": [
                     {
                         "type": "integer",
@@ -5003,6 +6822,37 @@ const docTemplateadmin = `{
                 }
             }
         },
+        "/admin/user/groupUsers": {
+            "post": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Admin-only group and user picker data.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "User"
+                ],
+                "summary": "List users grouped by group",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/user/list": {
             "get": {
                 "security": [
@@ -5010,7 +6860,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "管理员列表",
                 "consumes": [
                     "application/json"
                 ],
@@ -5018,25 +6867,24 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户"
+                    ""
                 ],
-                "summary": "管理员列表",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "Page number for the user list",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "页大小",
+                        "description": "Number of users per page",
                         "name": "page_size",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "账户",
+                        "description": "Username filter",
                         "name": "username",
                         "in": "query"
                     }
@@ -5070,13 +6918,12 @@ const docTemplateadmin = `{
             }
         },
         "/admin/user/myOauth": {
-            "get": {
+            "post": {
                 "security": [
                     {
                         "token": []
                     }
                 ],
-                "description": "我的授权",
                 "consumes": [
                     "application/json"
                 ],
@@ -5084,9 +6931,8 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户"
+                    ""
                 ],
-                "summary": "我的授权",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -5118,14 +6964,9 @@ const docTemplateadmin = `{
                 }
             }
         },
-        "/admin/user/update": {
+        "/admin/user/register": {
             "post": {
-                "security": [
-                    {
-                        "token": []
-                    }
-                ],
-                "description": "管理员编辑",
+                "description": "Public registration route; the server decides whether the new account is enabled immediately.",
                 "consumes": [
                     "application/json"
                 ],
@@ -5133,12 +6974,55 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户"
+                    "User"
                 ],
-                "summary": "管理员编辑",
+                "summary": "Register a user",
                 "parameters": [
                     {
-                        "description": "用户信息",
+                        "description": "User registration payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/admin.RegisterForm"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/user/update": {
+            "post": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    ""
+                ],
+                "parameters": [
+                    {
+                        "description": "User update form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -5175,14 +7059,14 @@ const docTemplateadmin = `{
                 }
             }
         },
-        "/admin/user/updatePassword": {
+        "/admin/user/updateCurrent": {
             "post": {
                 "security": [
                     {
                         "token": []
                     }
                 ],
-                "description": "修改密码",
+                "description": "Authenticated users may update only their nickname and email.",
                 "consumes": [
                     "application/json"
                 ],
@@ -5190,17 +7074,17 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户"
+                    "User"
                 ],
-                "summary": "修改密码",
+                "summary": "Update the current user profile",
                 "parameters": [
                     {
-                        "description": "用户信息",
+                        "description": "Current user profile update payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/admin.UserPasswordForm"
+                            "$ref": "#/definitions/admin.UpdateCurrentForm"
                         }
                     }
                 ],
@@ -5227,7 +7111,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "登录凭证批量删除",
                 "consumes": [
                     "application/json"
                 ],
@@ -5235,12 +7118,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "登录凭证"
+                    ""
                 ],
-                "summary": "登录凭证批量删除",
                 "parameters": [
                     {
-                        "description": "登录凭证信息",
+                        "description": "User-token ID batch deletion payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -5272,7 +7154,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "登录凭证删除",
                 "consumes": [
                     "application/json"
                 ],
@@ -5280,12 +7161,11 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "登录凭证"
+                    ""
                 ],
-                "summary": "登录凭证删除",
                 "parameters": [
                     {
-                        "description": "登录凭证信息",
+                        "description": "User-token deletion form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -5317,7 +7197,6 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "登录凭证列表",
                 "consumes": [
                     "application/json"
                 ],
@@ -5325,32 +7204,31 @@ const docTemplateadmin = `{
                     "application/json"
                 ],
                 "tags": [
-                    "登录凭证"
+                    ""
                 ],
-                "summary": "登录凭证列表",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "Page number for the user-token list",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "页大小",
+                        "description": "Number of user tokens per page",
                         "name": "page_size",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "用户ID",
+                        "description": "ID",
                         "name": "user_id",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Redacted user-token list envelope",
                         "schema": {
                             "allOf": [
                                 {
@@ -5360,7 +7238,7 @@ const docTemplateadmin = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/model.UserTokenList"
+                                            "$ref": "#/definitions/model.UserTokenSafeList"
                                         }
                                     }
                                 }
@@ -5474,6 +7352,57 @@ const docTemplateadmin = `{
                 }
             }
         },
+        "admin.BatchCreateFromPeersForm": {
+            "type": "object",
+            "properties": {
+                "collection_id": {
+                    "type": "integer"
+                },
+                "peer_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "admin.BatchUpdateTagsForm": {
+            "type": "object",
+            "properties": {
+                "row_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "admin.BindOauthForm": {
+            "type": "object",
+            "required": [
+                "op"
+            ],
+            "properties": {
+                "op": {
+                    "type": "string"
+                }
+            }
+        },
         "admin.ChangeCurPasswordForm": {
             "type": "object",
             "required": [
@@ -5493,6 +7422,62 @@ const docTemplateadmin = `{
                 }
             }
         },
+        "admin.CustomBuildForm": {
+            "type": "object",
+            "required": [
+                "name",
+                "platform",
+                "version"
+            ],
+            "properties": {
+                "app_name": {
+                    "type": "string"
+                },
+                "custom_json": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "platform": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "admin.CustomPresetForm": {
+            "type": "object",
+            "required": [
+                "name",
+                "platform",
+                "version"
+            ],
+            "properties": {
+                "app_name": {
+                    "type": "string"
+                },
+                "custom_json": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "platform": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
         "admin.DeviceGroupForm": {
             "type": "object",
             "required": [
@@ -5503,6 +7488,20 @@ const docTemplateadmin = `{
                     "type": "integer"
                 },
                 "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "admin.GithubBuildConfigForm": {
+            "type": "object",
+            "properties": {
+                "payload_key": {
+                    "type": "string"
+                },
+                "repo": {
+                    "type": "string"
+                },
+                "token": {
                     "type": "string"
                 }
             }
@@ -5564,6 +7563,17 @@ const docTemplateadmin = `{
                 }
             }
         },
+        "admin.OauthConfirmForm": {
+            "type": "object",
+            "required": [
+                "code"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string"
+                }
+            }
+        },
         "admin.OauthForm": {
             "type": "object",
             "required": [
@@ -5597,7 +7607,12 @@ const docTemplateadmin = `{
                     "type": "boolean"
                 },
                 "pkce_method": {
-                    "type": "string"
+                    "description": "PkceMethod is constrained to S256/plain when set. When pkce_enable is\ntrue the field is required so the runtime layer can pick a hashing\nstrategy without falling back to a hidden default. When pkce_enable is\nfalse/nil it is ignored and may be empty.",
+                    "type": "string",
+                    "enum": [
+                        "S256",
+                        "plain"
+                    ]
                 },
                 "scopes": {
                     "type": "string"
@@ -5621,6 +7636,9 @@ const docTemplateadmin = `{
         "admin.PeerForm": {
             "type": "object",
             "properties": {
+                "alias": {
+                    "type": "string"
+                },
                 "cpu": {
                     "type": "string"
                 },
@@ -5667,6 +7685,49 @@ const docTemplateadmin = `{
                 }
             }
         },
+        "admin.RegisterForm": {
+            "type": "object",
+            "required": [
+                "confirm_password",
+                "password",
+                "username"
+            ],
+            "properties": {
+                "confirm_password": {
+                    "type": "string",
+                    "maxLength": 32,
+                    "minLength": 4
+                },
+                "email": {
+                    "description": "validate:\"required,email\"",
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string",
+                    "maxLength": 32,
+                    "minLength": 4
+                },
+                "username": {
+                    "type": "string",
+                    "maxLength": 32,
+                    "minLength": 2
+                }
+            }
+        },
+        "admin.RustdeskCmd": {
+            "type": "object",
+            "properties": {
+                "cmd": {
+                    "type": "string"
+                },
+                "option": {
+                    "type": "string"
+                },
+                "target": {
+                    "type": "string"
+                }
+            }
+        },
         "admin.ShareByWebClientForm": {
             "type": "object",
             "required": [
@@ -5685,7 +7746,7 @@ const docTemplateadmin = `{
                     "type": "string"
                 },
                 "password_type": {
-                    "description": "只能是once,fixed",
+                    "description": "once,fixed",
                     "type": "string",
                     "enum": [
                         "once",
@@ -5702,6 +7763,17 @@ const docTemplateadmin = `{
                 },
                 "user_id": {
                     "type": "integer"
+                }
+            }
+        },
+        "admin.SimpleDataQuery": {
+            "type": "object",
+            "properties": {
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -5729,6 +7801,30 @@ const docTemplateadmin = `{
                 }
             }
         },
+        "admin.UnBindOauthForm": {
+            "type": "object",
+            "required": [
+                "op"
+            ],
+            "properties": {
+                "op": {
+                    "type": "string"
+                }
+            }
+        },
+        "admin.UpdateCurrentForm": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "nickname": {
+                    "type": "string",
+                    "maxLength": 128
+                }
+            }
+        },
         "admin.UserForm": {
             "type": "object",
             "required": [
@@ -5741,7 +7837,7 @@ const docTemplateadmin = `{
                     "type": "string"
                 },
                 "email": {
-                    "description": "validate:\"required,email\" email不强制",
+                    "description": "validate:\"required,email\" email",
                     "type": "string"
                 },
                 "group_id": {
@@ -5755,6 +7851,9 @@ const docTemplateadmin = `{
                 },
                 "nickname": {
                     "description": "Password string           ` + "`" + `json:\"password\" validate:\"required,gte=4,lte=20\"` + "`" + `",
+                    "type": "string"
+                },
+                "remark": {
                     "type": "string"
                 },
                 "status": {
@@ -5814,95 +7913,39 @@ const docTemplateadmin = `{
                 }
             }
         },
-        "github_com_lejianwen_rustdesk-api_v2_http_request_admin.Login": {
+        "admin.WorkflowRefApprovalForm": {
             "type": "object",
-            "required": [
-                "password",
-                "username"
-            ],
             "properties": {
-                "captcha": {
-                    "type": "string"
+                "confirm": {
+                    "type": "boolean"
                 },
-                "captcha_id": {
-                    "type": "string"
-                },
-                "password": {
-                    "type": "string"
-                },
-                "platform": {
-                    "type": "string"
-                },
-                "username": {
+                "workflow_tag": {
                     "type": "string"
                 }
             }
         },
-        "model.AddressBook": {
+        "admin.versionOption": {
             "type": "object",
             "properties": {
-                "alias": {
+                "assets_release": {
                     "type": "string"
                 },
-                "collection": {
-                    "$ref": "#/definitions/model.AddressBookCollection"
-                },
-                "collection_id": {
-                    "type": "integer"
-                },
-                "created_at": {
+                "version": {
                     "type": "string"
-                },
-                "forceAlwaysRelay": {
+                }
+            }
+        },
+        "admin.versionsResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
                     "type": "boolean"
                 },
-                "hash": {
-                    "type": "string"
-                },
-                "hostname": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "loginName": {
-                    "type": "string"
-                },
-                "online": {
-                    "type": "boolean"
-                },
-                "password": {
-                    "type": "string"
-                },
-                "platform": {
-                    "type": "string"
-                },
-                "rdpPort": {
-                    "type": "string"
-                },
-                "rdpUsername": {
-                    "type": "string"
-                },
-                "row_id": {
-                    "type": "integer"
-                },
-                "sameServer": {
-                    "type": "boolean"
-                },
-                "tags": {
+                "versions": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/admin.versionOption"
                     }
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "user_id": {
-                    "type": "integer"
-                },
-                "username": {
-                    "type": "string"
                 }
             }
         },
@@ -5968,7 +8011,7 @@ const docTemplateadmin = `{
                     "type": "integer"
                 },
                 "rule": {
-                    "description": "0: 无 1: 读 2: 读写  3: 完全控制",
+                    "description": "0:  1:  2:   3:",
                     "type": "integer",
                     "maximum": 3,
                     "minimum": 1
@@ -5977,7 +8020,7 @@ const docTemplateadmin = `{
                     "type": "integer"
                 },
                 "type": {
-                    "description": "1: 个人 2: 群组",
+                    "description": "1:  2:",
                     "type": "integer",
                     "maximum": 2,
                     "minimum": 1
@@ -5990,13 +8033,95 @@ const docTemplateadmin = `{
                 }
             }
         },
-        "model.AddressBookList": {
+        "model.AddressBookCollectionRuleList": {
             "type": "object",
             "properties": {
                 "list": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/model.AddressBook"
+                        "$ref": "#/definitions/model.AddressBookCollectionRule"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.AddressBookSafe": {
+            "type": "object",
+            "properties": {
+                "alias": {
+                    "type": "string"
+                },
+                "collection": {
+                    "$ref": "#/definitions/model.AddressBookCollection"
+                },
+                "collection_id": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "forceAlwaysRelay": {
+                    "type": "boolean"
+                },
+                "hostname": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "loginName": {
+                    "type": "string"
+                },
+                "online": {
+                    "type": "boolean"
+                },
+                "platform": {
+                    "type": "string"
+                },
+                "rdpPort": {
+                    "type": "string"
+                },
+                "rdpUsername": {
+                    "type": "string"
+                },
+                "row_id": {
+                    "type": "integer"
+                },
+                "sameServer": {
+                    "type": "boolean"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.AddressBookSafeList": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.AddressBookSafe"
                     }
                 },
                 "page": {
@@ -6138,6 +8263,181 @@ const docTemplateadmin = `{
                 }
             }
         },
+        "model.CustomBuildPublic": {
+            "type": "object",
+            "properties": {
+                "app_name": {
+                    "type": "string"
+                },
+                "download_key_expires_at": {
+                    "type": "integer"
+                },
+                "file_size": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "platform": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.CustomBuildSafe": {
+            "type": "object",
+            "properties": {
+                "app_name": {
+                    "type": "string"
+                },
+                "build_log": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "custom_json": {
+                    "type": "string"
+                },
+                "download_key_expires_at": {
+                    "type": "integer"
+                },
+                "file_size": {
+                    "type": "integer"
+                },
+                "github_artifact_id": {
+                    "type": "integer"
+                },
+                "github_artifact_name": {
+                    "type": "string"
+                },
+                "github_html_url": {
+                    "type": "string"
+                },
+                "github_provider": {
+                    "type": "string"
+                },
+                "github_ref": {
+                    "type": "string"
+                },
+                "github_repo": {
+                    "type": "string"
+                },
+                "github_run_id": {
+                    "type": "integer"
+                },
+                "github_run_url": {
+                    "type": "string"
+                },
+                "github_source_sha": {
+                    "type": "string"
+                },
+                "github_workflow": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "platform": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.CustomBuildSafeList": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.CustomBuildSafe"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.CustomPresetSafe": {
+            "type": "object",
+            "properties": {
+                "app_name": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "custom_json": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "platform": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.CustomPresetSafeList": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.CustomPresetSafe"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "model.DeviceGroup": {
             "type": "object",
             "properties": {
@@ -6151,6 +8451,41 @@ const docTemplateadmin = `{
                     "type": "string"
                 },
                 "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.GithubBuildConfigSafe": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "has_payload_key": {
+                    "type": "boolean"
+                },
+                "has_token": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "repo": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "workflow_ref": {
+                    "type": "string"
+                },
+                "workflow_ref_approved": {
+                    "type": "boolean"
+                },
+                "workflow_ref_status": {
+                    "type": "string"
+                },
+                "workflow_ref_trust_status": {
                     "type": "string"
                 }
             }
@@ -6263,12 +8598,10 @@ const docTemplateadmin = `{
             "type": "object",
             "properties": {
                 "auto_register": {
+                    "description": "RedirectUrl  string ` + "`" + `json:\"redirect_url\"` + "`" + `",
                     "type": "boolean"
                 },
                 "client_id": {
-                    "type": "string"
-                },
-                "client_secret": {
                     "type": "string"
                 },
                 "created_at": {
@@ -6323,6 +8656,9 @@ const docTemplateadmin = `{
         "model.Peer": {
             "type": "object",
             "properties": {
+                "alias": {
+                    "type": "string"
+                },
                 "cpu": {
                     "type": "string"
                 },
@@ -6393,16 +8729,159 @@ const docTemplateadmin = `{
                 }
             }
         },
+        "model.ServerCmd": {
+            "type": "object",
+            "properties": {
+                "alias": {
+                    "type": "string"
+                },
+                "cmd": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "explain": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "option": {
+                    "type": "string"
+                },
+                "target": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.ServerCmdAudit": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "method": {
+                    "type": "string"
+                },
+                "params": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.ServerCmdAuditList": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.ServerCmdAudit"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.ServerCmdList": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.ServerCmd"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.ShareRecordSafe": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "expire": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "peer_id": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.ShareRecordSafeList": {
+            "type": "object",
+            "properties": {
+                "list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.ShareRecordSafe"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "model.StatusCode": {
             "type": "integer",
             "enum": [
                 1,
                 2
             ],
-            "x-enum-comments": {
-                "COMMON_STATUS_DISABLED": "通用状态 禁用",
-                "COMMON_STATUS_ENABLE": "通用状态 启用"
-            },
             "x-enum-varnames": [
                 "COMMON_STATUS_ENABLE",
                 "COMMON_STATUS_DISABLED"
@@ -6418,7 +8897,7 @@ const docTemplateadmin = `{
                     "type": "integer"
                 },
                 "color": {
-                    "description": "color 是flutter的颜色值,从0x00000000 到 0xFFFFFFFF; 前两位表示透明度，后面6位表示颜色, 可以转成rgba",
+                    "description": "color flutter,0x00000000  0xFFFFFFFF; ，6, rgba",
                     "type": "integer"
                 },
                 "created_at": {
@@ -6482,6 +8961,9 @@ const docTemplateadmin = `{
                 "nickname": {
                     "type": "string"
                 },
+                "remark": {
+                    "type": "string"
+                },
                 "status": {
                     "$ref": "#/definitions/model.StatusCode"
                 },
@@ -6531,6 +9013,32 @@ const docTemplateadmin = `{
                 "id": {
                     "type": "integer"
                 },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.UserTokenSafe": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "device_id": {
+                    "type": "string"
+                },
+                "device_uuid": {
+                    "type": "string"
+                },
+                "expired_at": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
                 "token": {
                     "type": "string"
                 },
@@ -6542,13 +9050,13 @@ const docTemplateadmin = `{
                 }
             }
         },
-        "model.UserTokenList": {
+        "model.UserTokenSafeList": {
             "type": "object",
             "properties": {
                 "list": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/model.UserToken"
+                        "$ref": "#/definitions/model.UserTokenSafe"
                     }
                 },
                 "page": {
@@ -6581,6 +9089,231 @@ const docTemplateadmin = `{
                     "type": "string"
                 }
             }
+        },
+        "rustdesk-server_api_http_request_admin.Login": {
+            "type": "object",
+            "required": [
+                "password",
+                "username"
+            ],
+            "properties": {
+                "captcha": {
+                    "type": "string"
+                },
+                "captcha_id": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                },
+                "platform": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.BuildHandoffAsset": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "provider_digest": {
+                    "type": "string"
+                },
+                "verification_scope": {
+                    "type": "string"
+                },
+                "verification_status": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.BuildHandoffManifest": {
+            "type": "object",
+            "properties": {
+                "artifact_id": {
+                    "type": "integer"
+                },
+                "artifact_name": {
+                    "type": "string"
+                },
+                "build_id": {
+                    "type": "integer"
+                },
+                "digest_scope": {
+                    "type": "string"
+                },
+                "export_route": {
+                    "type": "string"
+                },
+                "handoff_contract": {
+                    "type": "string"
+                },
+                "manifest_schema": {
+                    "type": "string"
+                },
+                "output_files": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.BuildHandoffOutputFile"
+                    }
+                },
+                "platform": {
+                    "type": "string"
+                },
+                "producer_report": {
+                    "$ref": "#/definitions/service.BuildHandoffProducerReport"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "publication_recorded_at": {
+                    "type": "integer"
+                },
+                "publication_timestamp": {
+                    "type": "integer"
+                },
+                "published_digest": {
+                    "type": "string"
+                },
+                "published_digest_scope": {
+                    "type": "string"
+                },
+                "release_assets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.BuildHandoffAsset"
+                    }
+                },
+                "release_id": {
+                    "type": "integer"
+                },
+                "release_repository": {
+                    "type": "string"
+                },
+                "release_tag": {
+                    "type": "string"
+                },
+                "repository": {
+                    "type": "string"
+                },
+                "run_head_sha": {
+                    "type": "string"
+                },
+                "run_html_url": {
+                    "type": "string"
+                },
+                "run_id": {
+                    "type": "integer"
+                },
+                "run_url": {
+                    "type": "string"
+                },
+                "schema": {
+                    "type": "string"
+                },
+                "schema_version": {
+                    "type": "integer"
+                },
+                "source_sha": {
+                    "type": "string"
+                },
+                "source_tag": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "verification_result": {
+                    "type": "string"
+                },
+                "verification_scope": {
+                    "type": "string"
+                },
+                "verification_status": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                },
+                "workflow_path": {
+                    "type": "string"
+                },
+                "workflow_repository": {
+                    "type": "string"
+                },
+                "workflow_selector": {
+                    "type": "string"
+                },
+                "workflow_sha": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.BuildHandoffOutputFile": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "sha256": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "integer"
+                }
+            }
+        },
+        "service.BuildHandoffProducerReport": {
+            "type": "object",
+            "properties": {
+                "source_tree_sha": {
+                    "type": "string"
+                },
+                "submodules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.BuildHandoffSubmodule"
+                    }
+                },
+                "verification_result": {
+                    "type": "string"
+                },
+                "verification_scope": {
+                    "type": "string"
+                },
+                "verification_status": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.BuildHandoffSubmodule": {
+            "type": "object",
+            "properties": {
+                "commit_sha": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.WorkflowTagOption": {
+            "type": "object",
+            "properties": {
+                "label": {
+                    "type": "string"
+                },
+                "tag": {
+                    "type": "string"
+                }
+            }
         }
     },
     "securityDefinitions": {
@@ -6603,8 +9336,8 @@ var SwaggerInfoadmin = &swag.Spec{
 	Host:             "",
 	BasePath:         "/api",
 	Schemes:          []string{},
-	Title:            "管理系统API",
-	Description:      "接口",
+	Title:            "API",
+	Description:      "",
 	InfoInstanceName: "admin",
 	SwaggerTemplate:  docTemplateadmin,
 	LeftDelim:        "{{",

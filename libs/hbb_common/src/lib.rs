@@ -227,8 +227,11 @@ pub fn get_version_from_url(url: &str) -> String {
 
 pub fn gen_version() {
     println!("cargo:rerun-if-changed=Cargo.toml");
+    println!("cargo:rerun-if-env-changed=SOURCE_DATE_EPOCH");
+    println!("cargo:rerun-if-env-changed=RUSTDESK_NON_REPRODUCIBLE_DEBUG");
     use std::io::prelude::*;
-    let mut file = File::create("./src/version.rs").unwrap();
+    let out_dir = std::env::var("OUT_DIR").expect("Cargo did not provide OUT_DIR");
+    let mut file = File::create(Path::new(&out_dir).join("version.rs")).unwrap();
     for line in read_lines("Cargo.toml").unwrap().flatten() {
         let ab: Vec<&str> = line.split('=').map(|x| x.trim()).collect();
         if ab.len() == 2 && ab[0] == "version" {
@@ -237,13 +240,69 @@ pub fn gen_version() {
             break;
         }
     }
-    // generate build date
-    let build_date = format!("{}", chrono::Local::now().format("%Y-%m-%d %H:%M"));
+    // Generate deterministic metadata for active/reproducible builds. The
+    // wall-clock fallback is opt-in only for explicitly non-reproducible local
+    // debug work; production builds without SOURCE_DATE_EPOCH use "unknown"
+    // rather than silently embedding the current time.
+    let build_date = build_date_from_environment();
     file.write_all(
         format!("#[allow(dead_code)]\npub const BUILD_DATE: &str = \"{build_date}\";\n").as_bytes(),
     )
     .ok();
     file.sync_all().ok();
+}
+
+fn build_date_from_environment() -> String {
+    match std::env::var("SOURCE_DATE_EPOCH") {
+        Ok(value) => deterministic_build_date(Some(&value), false),
+        Err(std::env::VarError::NotPresent) => deterministic_build_date(
+            None,
+            std::env::var("RUSTDESK_NON_REPRODUCIBLE_DEBUG").as_deref() == Ok("1"),
+        ),
+        Err(err) => panic!("failed to read SOURCE_DATE_EPOCH: {}", err),
+    }
+}
+
+fn deterministic_build_date(
+    source_date_epoch: Option<&str>,
+    allow_non_reproducible_debug: bool,
+) -> String {
+    if let Some(value) = source_date_epoch {
+        let epoch = value
+            .parse::<i64>()
+            .unwrap_or_else(|_| panic!("SOURCE_DATE_EPOCH must be a signed Unix timestamp"));
+        let timestamp = chrono::DateTime::<chrono::Utc>::from_timestamp(epoch, 0).unwrap_or_else(|| {
+            panic!("SOURCE_DATE_EPOCH is outside the supported timestamp range")
+        });
+        return timestamp.format("%Y-%m-%d %H:%M").to_string();
+    }
+    if allow_non_reproducible_debug {
+        return chrono::Local::now().format("%Y-%m-%d %H:%M").to_string();
+    }
+    "unknown".to_owned()
+}
+
+#[cfg(test)]
+mod build_date_tests {
+    use super::deterministic_build_date;
+
+    #[test]
+    fn source_date_epoch_is_stable() {
+        assert_eq!(deterministic_build_date(Some("0"), false), "1970-01-01 00:00");
+        assert_eq!(deterministic_build_date(Some("0"), false), "1970-01-01 00:00");
+    }
+
+    #[test]
+    fn missing_epoch_does_not_use_wall_clock_by_default() {
+        assert_eq!(deterministic_build_date(None, false), "unknown");
+    }
+
+    #[test]
+    fn debug_opt_in_allows_wall_clock_metadata() {
+        let build_date = deterministic_build_date(None, true);
+        assert_ne!(build_date, "unknown");
+        assert_eq!(build_date.len(), "1970-01-01 00:00".len());
+    }
 }
 
 fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>

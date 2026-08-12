@@ -12,7 +12,9 @@
 # vcpkg), иначе качает из сети. Для суверенной установки используйте -KitPath.
 #
 # ⚠️ DESIGN-АРТЕФАКТ, НЕ ПРОВЕРЕН на живом Windows-сервере. [VERIFY] = места риска.
-# Версии — пины из offline-kit/versions.env (тег rustdesk 1.4.7).
+# Historical/frozen note: this legacy builder was authored against the dated
+# RustDesk 1.4.7 kit. The published client is 1.4.8; this script is not the
+# current provider-backed API build path.
 # ============================================================================
 param(
     [string]$KitPath = ""

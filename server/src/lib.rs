@@ -3,5 +3,7 @@ pub use rendezvous_server::*;
 pub mod common;
 mod database;
 mod peer;
-mod version;
+mod version {
+    include!(concat!(env!("OUT_DIR"), "/version.rs"));
+}
 pub mod jwt;

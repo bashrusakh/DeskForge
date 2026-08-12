@@ -1,4 +1,4 @@
-﻿package admin
+package admin
 
 import "rustdesk-server/api/model"
 
@@ -9,6 +9,7 @@ type CustomBuildForm struct {
 	Version    string `json:"version" validate:"required"`
 	AppName    string `json:"app_name"`
 	CustomJson string `json:"custom_json"`
+	BuildRef   string `json:"build_ref" swaggerignore:"true"`
 }
 
 func (f *CustomBuildForm) ToCustomBuild() *model.CustomBuild {

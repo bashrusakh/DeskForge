@@ -5,6 +5,9 @@
   "Logout": {
     "One": "Logout"
   },
+  "LogoutFailed": {
+    "One": "Session revocation failed; you were signed out locally."
+  },
   "Register": {
     "One": "Register"
   },
@@ -55,6 +58,72 @@
   },
   "Platform": {
     "One": "Platform"
+  },
+  "PlatformWindows": {
+    "One": "Windows 64-bit"
+  },
+  "PlatformLinuxUnavailable": {
+    "One": "Linux x64 — experimental / unavailable (PR11)"
+  },
+  "PlatformAndroidUnavailable": {
+    "One": "Android arm64 — experimental / unavailable (PR11)"
+  },
+  "ProductionPlatformUnavailable": {
+    "One": "This platform is experimental and unavailable for production builds until PR11 evidence is complete."
+  },
+  "WorkflowApprovalTitle": {
+    "One": "Workflow approval"
+  },
+  "WorkflowApprovalDescription": {
+    "One": "Build workflows require a provider-derived, verified annotated tag and current live-provider evidence before approval."
+  },
+  "WorkflowApprovalProtectedExplanation": {
+    "One": "The provider must confirm an active protected-tag policy for this label: updates and deletions are explicitly blocked, no bypass actors are present, and no branch has the same label. The provider must also verify the annotated tag and exact workflow at its resolved commit. Only the tag label is selectable; refs, SHAs, credentials, and workflow internals are never entered here. Local checks alone do not prove approval."
+  },
+  "WorkflowApprovalState": {
+    "One": "Approval state"
+  },
+  "WorkflowApprovalStatusApprovalRequired": {
+    "One": "Approval required"
+  },
+  "WorkflowApprovalStatusProviderPolicyUnverified": {
+    "One": "Provider policy unverified"
+  },
+  "WorkflowApprovalStatusApproved": {
+    "One": "Approved"
+  },
+  "WorkflowApprovalTagLabel": {
+    "One": "Verified workflow tag"
+  },
+  "WorkflowApprovalTagPlaceholder": {
+    "One": "Choose a provider-verified tag"
+  },
+  "WorkflowApprovalCurrentTag": {
+    "One": "Current approved tag: {param}"
+  },
+  "WorkflowApprovalLoading": {
+    "One": "Loading provider-verified tags..."
+  },
+  "WorkflowApprovalLoadError": {
+    "One": "Provider-verified workflow tags could not be loaded."
+  },
+  "WorkflowApprovalConfigError": {
+    "One": "Workflow approval state could not be loaded."
+  },
+  "WorkflowApprovalEmpty": {
+    "One": "No provider-verified workflow tags are available."
+  },
+  "WorkflowApprovalRetry": {
+    "One": "Retry"
+  },
+  "WorkflowApprovalApprove": {
+    "One": "Approve selected tag"
+  },
+  "WorkflowApprovalApproving": {
+    "One": "Approving..."
+  },
+  "WorkflowApprovalRequestFailed": {
+    "One": "Approval was not recorded. Try again after reviewing the provider status."
   },
   "Status": {
     "One": "Status"
@@ -870,6 +939,12 @@
   },
   "Building": {
     "One": "Building"
+  },
+  "Downloading": {
+    "One": "Downloading"
+  },
+  "Extracting": {
+    "One": "Extracting"
   },
   "Done": {
     "One": "Done"

@@ -1,41 +1,26 @@
-﻿package api
+package api
 
 import (
 	"github.com/gin-gonic/gin"
+	"net/http"
 	apiResp "rustdesk-server/api/http/response/api"
 	"rustdesk-server/api/service"
-	"net/http"
 )
 
 type User struct {
 }
 
-// currentUser 
-// @Tags 
-// @Summary 
-// @Description 
+// Info returns the current Rust client user from the Authorization header.
+// @Tags User
+// @Summary Get the current Rust client user
+// @Description Returns the authenticated user for Rust client API requests.
 // @Accept  json
 // @Produce  json
 // @Success 200 {object} apiResp.UserPayload
 // @Failure 500 {object} response.Response
-// @Router /currentUser [get]
-// @Security token
-//func (u *User) currentUser(c *gin.Context) {
-//	user := service.AllService.UserService.CurUser(c)
-//	up := (&apiResp.UserPayload{}).FromName(user)
-//	c.JSON(http.StatusOK, up)
-//}
-
-// Info 
-// @Tags 
-// @Summary 
-// @Description 
-// @Accept  json
-// @Produce  json
-// @Success 200 {object} apiResp.UserPayload
-// @Failure 500 {object} response.Response
-// @Router /currentUser [get]
-// @Security token
+// @Router /user/info [get]
+// @Router /currentUser [post]
+// @Security BearerAuth
 func (u *User) Info(c *gin.Context) {
 	user := service.AllService.UserService.CurUser(c)
 	up := (&apiResp.UserPayload{}).FromUser(user)

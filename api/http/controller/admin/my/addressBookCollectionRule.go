@@ -1,30 +1,30 @@
-﻿package my
+package my
 
 import (
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 	"rustdesk-server/api/global"
 	"rustdesk-server/api/http/request/admin"
 	"rustdesk-server/api/http/response"
 	"rustdesk-server/api/model"
 	"rustdesk-server/api/service"
-	"gorm.io/gorm"
 )
 
 type AddressBookCollectionRule struct {
 }
 
-// List 
-// @Tags 
-// @Summary 
-// @Description 
+// List
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param page query int false ""
-// @Param page_size query int false ""
-// @Param is_my query int false ""
+// @Param page query int false "Page number for personal address book collection rules"
+// @Param page_size query int false "Number of personal collection rules per page"
+// @Param is_my query int false "Filter for rules owned by the current user"
 // @Param user_id query int false "id"
 // @Param collection_id query int false "id"
-// @Success 200 {object} response.Response{data=model.AddressBookCollectionList}
+// @Success 200 {object} response.Response{data=model.AddressBookCollectionRuleList}
 // @Failure 500 {object} response.Response
 // @Router /admin/my/address_book_collection_rule/list [get]
 // @Security token
@@ -46,14 +46,14 @@ func (abcr *AddressBookCollectionRule) List(c *gin.Context) {
 	response.Success(c, res)
 }
 
-// Create 
-// @Tags 
-// @Summary 
-// @Description 
+// Create
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param body body model.AddressBookCollectionRule true ""
-// @Success 200 {object} response.Response{data=model.AddressBookCollection}
+// @Param body body model.AddressBookCollectionRule true "Personal address book collection rule form payload"
+// @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/my/address_book_collection_rule/create [post]
 // @Security token
@@ -134,14 +134,14 @@ func (abcr *AddressBookCollectionRule) CheckForm(u *model.User, t *model.Address
 	return "", true
 }
 
-// Update 
-// @Tags 
-// @Summary 
-// @Description 
+// Update
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param body body model.AddressBookCollectionRule true ""
-// @Success 200 {object} response.Response{data=model.AddressBookCollection}
+// @Param body body model.AddressBookCollectionRule true "Personal address book collection rule update form payload"
+// @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/my/address_book_collection_rule/update [post]
 // @Security token
@@ -185,13 +185,13 @@ func (abcr *AddressBookCollectionRule) Update(c *gin.Context) {
 	response.Success(c, nil)
 }
 
-// Delete 
-// @Tags 
-// @Summary 
-// @Description 
+// Delete
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param body body model.AddressBookCollectionRule true ""
+// @Param body body model.AddressBookCollectionRule true "Personal address book collection rule deletion form payload"
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/my/address_book_collection_rule/delete [post]

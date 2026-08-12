@@ -1,3 +1,7 @@
+# LEGACY API-only compose example (not the current combined stack).
+# Current key contract: mount the hbbs-generated public key at
+# /data/id_ed25519.pub and use RUSTDESK_API_KEY_FILE; the obsolete raw-key
+# placeholder is intentionally not used here.
 services:
   rustdesk-api:
     build: 
@@ -11,14 +15,17 @@ services:
     container_name: rustdesk-api
     environment:
       - TZ=Asia/Shanghai
+      - SECRET_ENCRYPTION_KEY=${SECRET_ENCRYPTION_KEY:-}
       - RUSTDESK_API_RUSTDESK_ID_SERVER=192.168.1.66:21116
       - RUSTDESK_API_RUSTDESK_RELAY_SERVER=192.168.1.66:21117
       - RUSTDESK_API_RUSTDESK_API_SERVER=http://127.0.0.1:21114
-      - RUSTDESK_API_RUSTDESK_KEY=123456789
+      - RUSTDESK_API_KEY_FILE=/data/id_ed25519.pub
     ports:
       - 21114:21114
     volumes:
       - ./data/rustdesk/api:/app/data #
       - ./conf:/app/conf # config
+      # Mount the server data directory read-only when the builder needs the key:
+      # - ../data/server:/data:ro
       # - ./resources:/app/resources # 
     restart: unless-stopped

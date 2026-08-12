@@ -1,4 +1,4 @@
-﻿package api
+package api
 
 import (
 	"github.com/gin-gonic/gin"
@@ -12,16 +12,16 @@ import (
 type WebClient struct {
 }
 
-// ServerConfig 
+// ServerConfig returns the authenticated web-client server settings and peers.
 // @Tags WEBCLIENT
-// @Summary 
-// @Description ,webclientapi-server
+// @Summary Get web-client server configuration
+// @Description Returns the ID server, public key, and the current user's web-client peers.
 // @Accept  json
 // @Produce  json
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
-// @Router /server-config [get]
-// @Security token
+// @Router /server-config [post]
+// @Security BearerAuth
 func (i *WebClient) ServerConfig(c *gin.Context) {
 	u := service.AllService.UserService.CurUser(c)
 
@@ -89,16 +89,16 @@ func (i *WebClient) SharedPeer(c *gin.Context) {
 	})
 }
 
-// ServerConfigV2 
+// ServerConfigV2 returns the authenticated web-client server settings.
 // @Tags WEBCLIENT_V2
-// @Summary 
-// @Description ,webclientapi-server
+// @Summary Get web-client server configuration v2
+// @Description Returns the ID server and public key for the authenticated web-client request.
 // @Accept  json
 // @Produce  json
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
-// @Router /server-config-v2 [get]
-// @Security token
+// @Router /server-config-v2 [post]
+// @Security BearerAuth
 func (i *WebClient) ServerConfigV2(c *gin.Context) {
 	response.Success(
 		c,

@@ -1,4 +1,4 @@
-﻿package admin
+package admin
 
 import (
 	"time"
@@ -20,6 +20,17 @@ type RustdeskCmd struct {
 	Target string `json:"target"`
 }
 
+// CmdList lists the allowlisted RustDesk server commands.
+// @Tags Rustdesk
+// @Summary List server commands
+// @Description Admin-only paginated list of built-in and configured server commands.
+// @Produce json
+// @Param page query int false "Page number"
+// @Param page_size query int false "Number of commands per page"
+// @Success 200 {object} response.Response{data=model.ServerCmdList}
+// @Failure 500 {object} response.Response
+// @Router /admin/rustdesk/cmdList [get]
+// @Security token
 func (r *Rustdesk) CmdList(c *gin.Context) {
 	q := &admin.PageQuery{}
 	if err := c.ShouldBindQuery(q); err != nil {
@@ -38,6 +49,17 @@ func (r *Rustdesk) CmdList(c *gin.Context) {
 
 // CmdAuditList — журнал выполненных server-команд (BUGS.md AU-S-001), новейшие
 // сверху, постранично. Только для просмотра; пишется middleware.ServerCmdAudit.
+// CmdAuditList lists recorded server-command executions.
+// @Tags Rustdesk
+// @Summary List server-command audit records
+// @Description Admin-only paginated audit history for server-command executions.
+// @Produce json
+// @Param page query int false "Page number"
+// @Param page_size query int false "Number of audit records per page"
+// @Success 200 {object} response.Response{data=model.ServerCmdAuditList}
+// @Failure 500 {object} response.Response
+// @Router /admin/rustdesk/cmdAuditList [get]
+// @Security token
 func (r *Rustdesk) CmdAuditList(c *gin.Context) {
 	q := &admin.PageQuery{}
 	if err := c.ShouldBindQuery(q); err != nil {
@@ -64,6 +86,16 @@ func (r *Rustdesk) CmdAuditList(c *gin.Context) {
 	response.Success(c, res)
 }
 
+// CmdDelete deletes a configured server command.
+// @Tags Rustdesk
+// @Summary Delete a server command
+// @Accept json
+// @Produce json
+// @Param body body model.ServerCmd true "Server command identifier"
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/rustdesk/cmdDelete [post]
+// @Security token
 func (r *Rustdesk) CmdDelete(c *gin.Context) {
 	f := &model.ServerCmd{}
 	if err := c.ShouldBindJSON(f); err != nil {
@@ -88,6 +120,17 @@ func (r *Rustdesk) CmdDelete(c *gin.Context) {
 	}
 	response.Success(c, nil)
 }
+
+// CmdCreate creates a configured server command.
+// @Tags Rustdesk
+// @Summary Create a server command
+// @Accept json
+// @Produce json
+// @Param body body model.ServerCmd true "Server command payload"
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/rustdesk/cmdCreate [post]
+// @Security token
 func (r *Rustdesk) CmdCreate(c *gin.Context) {
 	f := &model.ServerCmd{}
 	if err := c.ShouldBindJSON(f); err != nil {
@@ -107,6 +150,16 @@ func (r *Rustdesk) CmdCreate(c *gin.Context) {
 	response.Success(c, nil)
 }
 
+// CmdUpdate changes a configured server command.
+// @Tags Rustdesk
+// @Summary Update a server command
+// @Accept json
+// @Produce json
+// @Param body body model.ServerCmd true "Server command update payload"
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/rustdesk/cmdUpdate [post]
+// @Security token
 func (r *Rustdesk) CmdUpdate(c *gin.Context) {
 	f := &model.ServerCmd{}
 	if err := c.ShouldBindJSON(f); err != nil {
@@ -131,6 +184,17 @@ func (r *Rustdesk) CmdUpdate(c *gin.Context) {
 	response.Success(c, nil)
 }
 
+// SendCmd sends an allowlisted command to the selected RustDesk server.
+// @Tags Rustdesk
+// @Summary Send a server command
+// @Description Admin-only command execution against the selected ID or relay server.
+// @Accept json
+// @Produce json
+// @Param body body admin.RustdeskCmd true "Server command request"
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/rustdesk/sendCmd [post]
+// @Security token
 func (r *Rustdesk) SendCmd(c *gin.Context) {
 	rc := &RustdeskCmd{}
 	if err := c.ShouldBindJSON(rc); err != nil {

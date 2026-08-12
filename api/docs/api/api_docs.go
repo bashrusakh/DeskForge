@@ -17,7 +17,6 @@ const docTemplateapi = `{
     "paths": {
         "/": {
             "get": {
-                "description": "首页",
                 "consumes": [
                     "application/json"
                 ],
@@ -25,9 +24,8 @@ const docTemplateapi = `{
                     "application/json"
                 ],
                 "tags": [
-                    "首页"
+                    ""
                 ],
-                "summary": "首页",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -51,7 +49,6 @@ const docTemplateapi = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "地址列表",
                 "consumes": [
                     "application/json"
                 ],
@@ -59,9 +56,8 @@ const docTemplateapi = `{
                     "application/json"
                 ],
                 "tags": [
-                    "地址"
+                    ""
                 ],
-                "summary": "地址列表",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -83,7 +79,6 @@ const docTemplateapi = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "地址更新",
                 "consumes": [
                     "application/json"
                 ],
@@ -91,12 +86,11 @@ const docTemplateapi = `{
                     "application/json"
                 ],
                 "tags": [
-                    "地址"
+                    ""
                 ],
-                "summary": "地址更新",
                 "parameters": [
                     {
-                        "description": "地址表单",
+                        "description": "Address book request form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -128,7 +122,6 @@ const docTemplateapi = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "添加地址",
                 "consumes": [
                     "application/json"
                 ],
@@ -136,50 +129,8 @@ const docTemplateapi = `{
                     "application/json"
                 ],
                 "tags": [
-                    "地址[Personal]"
+                    "[Personal]"
                 ],
-                "summary": "添加地址",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "guid",
-                        "name": "guid",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "删除地址",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "地址[Personal]"
-                ],
-                "summary": "删除地址",
                 "parameters": [
                     {
                         "type": "string",
@@ -212,7 +163,6 @@ const docTemplateapi = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "更新地址",
                 "consumes": [
                     "application/json"
                 ],
@@ -220,9 +170,49 @@ const docTemplateapi = `{
                     "application/json"
                 ],
                 "tags": [
-                    "地址[Personal]"
+                    "[Personal]"
                 ],
-                "summary": "更新地址",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "guid",
+                        "name": "guid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/ab/peer/{guid}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "[Personal]"
+                ],
                 "parameters": [
                     {
                         "type": "string",
@@ -255,7 +245,6 @@ const docTemplateapi = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "地址",
                 "consumes": [
                     "application/json"
                 ],
@@ -263,19 +252,18 @@ const docTemplateapi = `{
                     "application/json"
                 ],
                 "tags": [
-                    "地址[Personal]"
+                    "[Personal]"
                 ],
-                "summary": "地址列表",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "Current page number for address book peers",
                         "name": "current",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "Page size for address book peers",
                         "name": "pageSize",
                         "in": "query"
                     },
@@ -309,7 +297,6 @@ const docTemplateapi = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "个人地址",
                 "consumes": [
                     "application/json"
                 ],
@@ -317,9 +304,8 @@ const docTemplateapi = `{
                     "application/json"
                 ],
                 "tags": [
-                    "地址[Personal]"
+                    "[Personal]"
                 ],
-                "summary": "个人地址",
                 "parameters": [
                     {
                         "description": "string valid",
@@ -353,7 +339,6 @@ const docTemplateapi = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "设置",
                 "consumes": [
                     "application/json"
                 ],
@@ -361,9 +346,8 @@ const docTemplateapi = `{
                     "application/json"
                 ],
                 "tags": [
-                    "地址[Personal]"
+                    "[Personal]"
                 ],
-                "summary": "设置",
                 "parameters": [
                     {
                         "description": "string valid",
@@ -397,7 +381,6 @@ const docTemplateapi = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "共享",
                 "consumes": [
                     "application/json"
                 ],
@@ -405,19 +388,18 @@ const docTemplateapi = `{
                     "application/json"
                 ],
                 "tags": [
-                    "地址[Personal]"
+                    "[Personal]"
                 ],
-                "summary": "共享地址簿",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "Current page number for shared profiles",
                         "name": "current",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "Page size for shared profiles",
                         "name": "pageSize",
                         "in": "query"
                     }
@@ -445,7 +427,6 @@ const docTemplateapi = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "标签",
                 "consumes": [
                     "application/json"
                 ],
@@ -453,9 +434,8 @@ const docTemplateapi = `{
                     "application/json"
                 ],
                 "tags": [
-                    "地址[Personal]"
+                    "[Personal]"
                 ],
-                "summary": "标签添加",
                 "parameters": [
                     {
                         "type": "string",
@@ -488,7 +468,6 @@ const docTemplateapi = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "标签",
                 "consumes": [
                     "application/json"
                 ],
@@ -496,9 +475,8 @@ const docTemplateapi = `{
                     "application/json"
                 ],
                 "tags": [
-                    "地址[Personal]"
+                    "[Personal]"
                 ],
-                "summary": "标签重命名",
                 "parameters": [
                     {
                         "type": "string",
@@ -531,7 +509,6 @@ const docTemplateapi = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "标签",
                 "consumes": [
                     "application/json"
                 ],
@@ -539,9 +516,8 @@ const docTemplateapi = `{
                     "application/json"
                 ],
                 "tags": [
-                    "地址[Personal]"
+                    "[Personal]"
                 ],
-                "summary": "标签修改颜色",
                 "parameters": [
                     {
                         "type": "string",
@@ -574,7 +550,6 @@ const docTemplateapi = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "标签",
                 "consumes": [
                     "application/json"
                 ],
@@ -582,9 +557,8 @@ const docTemplateapi = `{
                     "application/json"
                 ],
                 "tags": [
-                    "地址[Personal]"
+                    "[Personal]"
                 ],
-                "summary": "标签删除",
                 "parameters": [
                     {
                         "type": "string",
@@ -617,7 +591,6 @@ const docTemplateapi = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "标签",
                 "consumes": [
                     "application/json"
                 ],
@@ -625,9 +598,8 @@ const docTemplateapi = `{
                     "application/json"
                 ],
                 "tags": [
-                    "地址[Personal]"
+                    "[Personal]"
                 ],
-                "summary": "标签",
                 "parameters": [
                     {
                         "type": "string",
@@ -655,7 +627,6 @@ const docTemplateapi = `{
         },
         "/audit/conn": {
             "post": {
-                "description": "审计连接",
                 "consumes": [
                     "application/json"
                 ],
@@ -663,12 +634,11 @@ const docTemplateapi = `{
                     "application/json"
                 ],
                 "tags": [
-                    "审计"
+                    ""
                 ],
-                "summary": "审计连接",
                 "parameters": [
                     {
-                        "description": "审计连接",
+                        "description": "Audit connection form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -695,7 +665,6 @@ const docTemplateapi = `{
         },
         "/audit/file": {
             "post": {
-                "description": "审计文件",
                 "consumes": [
                     "application/json"
                 ],
@@ -703,12 +672,11 @@ const docTemplateapi = `{
                     "application/json"
                 ],
                 "tags": [
-                    "审计"
+                    ""
                 ],
-                "summary": "审计文件",
                 "parameters": [
                     {
-                        "description": "审计文件",
+                        "description": "Audit file form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -734,13 +702,13 @@ const docTemplateapi = `{
             }
         },
         "/currentUser": {
-            "get": {
+            "post": {
                 "security": [
                     {
-                        "token": []
+                        "BearerAuth": []
                     }
                 ],
-                "description": "用户信息",
+                "description": "Returns the authenticated user for Rust client API requests.",
                 "consumes": [
                     "application/json"
                 ],
@@ -748,9 +716,9 @@ const docTemplateapi = `{
                     "application/json"
                 ],
                 "tags": [
-                    "用户"
+                    "User"
                 ],
-                "summary": "用户信息",
+                "summary": "Get the current Rust client user",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -774,7 +742,6 @@ const docTemplateapi = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "机器",
                 "consumes": [
                     "application/json"
                 ],
@@ -782,25 +749,24 @@ const docTemplateapi = `{
                     "application/json"
                 ],
                 "tags": [
-                    "群组"
+                    ""
                 ],
-                "summary": "设备",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "Page number for the group list",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "Number of groups per page",
                         "name": "pageSize",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "状态",
+                        "description": "Group status filter",
                         "name": "status",
                         "in": "query"
                     },
@@ -829,7 +795,6 @@ const docTemplateapi = `{
         },
         "/heartbeat": {
             "post": {
-                "description": "心跳",
                 "consumes": [
                     "application/json"
                 ],
@@ -837,9 +802,8 @@ const docTemplateapi = `{
                     "application/json"
                 ],
                 "tags": [
-                    "首页"
+                    ""
                 ],
-                "summary": "心跳",
                 "responses": {
                     "200": {
                         "description": "OK"
@@ -855,7 +819,6 @@ const docTemplateapi = `{
         },
         "/login": {
             "post": {
-                "description": "登录",
                 "consumes": [
                     "application/json"
                 ],
@@ -863,12 +826,11 @@ const docTemplateapi = `{
                     "application/json"
                 ],
                 "tags": [
-                    "登录"
+                    ""
                 ],
-                "summary": "登录",
                 "parameters": [
                     {
-                        "description": "登录表单",
+                        "description": "Login credentials payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -895,7 +857,6 @@ const docTemplateapi = `{
         },
         "/login-options": {
             "get": {
-                "description": "登录选项",
                 "consumes": [
                     "application/json"
                 ],
@@ -903,9 +864,8 @@ const docTemplateapi = `{
                     "application/json"
                 ],
                 "tags": [
-                    "登录"
+                    ""
                 ],
-                "summary": "登录选项",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -927,7 +887,11 @@ const docTemplateapi = `{
         },
         "/logout": {
             "post": {
-                "description": "登出",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "consumes": [
                     "application/json"
                 ],
@@ -935,9 +899,8 @@ const docTemplateapi = `{
                     "application/json"
                 ],
                 "tags": [
-                    "登录"
+                    ""
                 ],
-                "summary": "登出",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -954,9 +917,113 @@ const docTemplateapi = `{
                 }
             }
         },
+        "/oauth/callback": {
+            "get": {
+                "description": "Renders the success/failure HTML result pages or redirects to the admin OAuth binding/app route. The same handler is registered for all four callback aliases below.",
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "Oauth"
+                ],
+                "summary": "Handle the OIDC provider callback",
+                "responses": {
+                    "200": {
+                        "description": "Rendered OAuth success or failure HTML page",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "302": {
+                        "description": "Redirect to the admin OAuth binding or app route",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "headers": {
+                            "Location": {
+                                "type": "string",
+                                "description": "Admin OAuth binding or app redirect target"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/oauth/login": {
+            "get": {
+                "description": "Renders the success/failure HTML result pages or redirects to the admin OAuth binding/app route. The same handler is registered for all four callback aliases below.",
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "Oauth"
+                ],
+                "summary": "Handle the OIDC provider callback",
+                "responses": {
+                    "200": {
+                        "description": "Rendered OAuth success or failure HTML page",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "302": {
+                        "description": "Redirect to the admin OAuth binding or app route",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "headers": {
+                            "Location": {
+                                "type": "string",
+                                "description": "Admin OAuth binding or app redirect target"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/oauth/msg": {
+            "get": {
+                "description": "Returns JavaScript with localized title and message assignments when the corresponding query parameters are supplied.",
+                "produces": [
+                    "application/javascript"
+                ],
+                "tags": [
+                    "Oauth"
+                ],
+                "summary": "Get localized OAuth message script",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Localization language",
+                        "name": "lang",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Localized title message ID",
+                        "name": "title",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Localized body message ID",
+                        "name": "msg",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "JavaScript response",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/oidc/auth": {
             "post": {
-                "description": "OidcAuth",
+                "description": "Starts OIDC authorization and returns the provider URL with the state code used by the follow-up query.",
                 "consumes": [
                     "application/json"
                 ],
@@ -966,16 +1033,19 @@ const docTemplateapi = `{
                 "tags": [
                     "Oauth"
                 ],
-                "summary": "OidcAuth",
+                "summary": "Start OIDC authorization",
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Authorization state code and provider URL",
                         "schema": {
-                            "$ref": "#/definitions/api.LoginRes"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
-                    "500": {
-                        "description": "Internal Server Error",
+                    "400": {
+                        "description": "OIDC authorization could not be started",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -985,17 +1055,14 @@ const docTemplateapi = `{
         },
         "/oidc/auth-query": {
             "get": {
-                "description": "OidcAuthQuery",
-                "consumes": [
-                    "application/json"
-                ],
+                "description": "Exchanges the OIDC state code and provider callback values for the Rust client login response.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Oauth"
                 ],
-                "summary": "OidcAuthQuery",
+                "summary": "Complete OIDC authorization",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -1003,8 +1070,8 @@ const docTemplateapi = `{
                             "$ref": "#/definitions/api.LoginRes"
                         }
                     },
-                    "500": {
-                        "description": "Internal Server Error",
+                    "400": {
+                        "description": "OIDC authorization query failed",
                         "schema": {
                             "$ref": "#/definitions/response.ErrorResponse"
                         }
@@ -1014,28 +1081,103 @@ const docTemplateapi = `{
         },
         "/oidc/callback": {
             "get": {
-                "description": "OauthCallback",
-                "consumes": [
-                    "application/json"
-                ],
+                "description": "Renders the success/failure HTML result pages or redirects to the admin OAuth binding/app route. The same handler is registered for all four callback aliases below.",
                 "produces": [
-                    "application/json"
+                    "text/html"
                 ],
                 "tags": [
                     "Oauth"
                 ],
-                "summary": "OauthCallback",
+                "summary": "Handle the OIDC provider callback",
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Rendered OAuth success or failure HTML page",
                         "schema": {
-                            "$ref": "#/definitions/api.LoginRes"
+                            "type": "string"
                         }
                     },
-                    "500": {
-                        "description": "Internal Server Error",
+                    "302": {
+                        "description": "Redirect to the admin OAuth binding or app route",
                         "schema": {
-                            "$ref": "#/definitions/response.ErrorResponse"
+                            "type": "string"
+                        },
+                        "headers": {
+                            "Location": {
+                                "type": "string",
+                                "description": "Admin OAuth binding or app redirect target"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/oidc/login": {
+            "get": {
+                "description": "Renders the success/failure HTML result pages or redirects to the admin OAuth binding/app route. The same handler is registered for all four callback aliases below.",
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "Oauth"
+                ],
+                "summary": "Handle the OIDC provider callback",
+                "responses": {
+                    "200": {
+                        "description": "Rendered OAuth success or failure HTML page",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "302": {
+                        "description": "Redirect to the admin OAuth binding or app route",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "headers": {
+                            "Location": {
+                                "type": "string",
+                                "description": "Admin OAuth binding or app redirect target"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/oidc/msg": {
+            "get": {
+                "description": "Returns JavaScript with localized title and message assignments when the corresponding query parameters are supplied.",
+                "produces": [
+                    "application/javascript"
+                ],
+                "tags": [
+                    "Oauth"
+                ],
+                "summary": "Get localized OAuth message script",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Localization language",
+                        "name": "lang",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Localized title message ID",
+                        "name": "title",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Localized body message ID",
+                        "name": "msg",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "JavaScript response",
+                        "schema": {
+                            "type": "string"
                         }
                     }
                 }
@@ -1048,7 +1190,6 @@ const docTemplateapi = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "机器",
                 "consumes": [
                     "application/json"
                 ],
@@ -1056,25 +1197,24 @@ const docTemplateapi = `{
                     "application/json"
                 ],
                 "tags": [
-                    "群组"
+                    ""
                 ],
-                "summary": "机器",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "Page number for the peer list",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "Number of peers per page",
                         "name": "pageSize",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "状态",
+                        "description": "Peer status filter",
                         "name": "status",
                         "in": "query"
                     },
@@ -1102,13 +1242,13 @@ const docTemplateapi = `{
             }
         },
         "/server-config": {
-            "get": {
+            "post": {
                 "security": [
                     {
-                        "token": []
+                        "BearerAuth": []
                     }
                 ],
-                "description": "服务配置,给webclient提供api-server",
+                "description": "Returns the ID server, public key, and the current user's web-client peers.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1118,7 +1258,7 @@ const docTemplateapi = `{
                 "tags": [
                     "WEBCLIENT"
                 ],
-                "summary": "服务配置",
+                "summary": "Get web-client server configuration",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -1136,13 +1276,13 @@ const docTemplateapi = `{
             }
         },
         "/server-config-v2": {
-            "get": {
+            "post": {
                 "security": [
                     {
-                        "token": []
+                        "BearerAuth": []
                     }
                 ],
-                "description": "服务配置,给webclient提供api-server",
+                "description": "Returns the ID server and public key for the authenticated web-client request.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1152,7 +1292,7 @@ const docTemplateapi = `{
                 "tags": [
                     "WEBCLIENT_V2"
                 ],
-                "summary": "服务配置",
+                "summary": "Get web-client server configuration v2",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -1171,7 +1311,7 @@ const docTemplateapi = `{
         },
         "/shared-peer": {
             "post": {
-                "description": "分享的peer",
+                "description": "peer",
                 "consumes": [
                     "application/json"
                 ],
@@ -1181,7 +1321,7 @@ const docTemplateapi = `{
                 "tags": [
                     "WEBCLIENT"
                 ],
-                "summary": "分享的peer",
+                "summary": "peer",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -1200,7 +1340,6 @@ const docTemplateapi = `{
         },
         "/sysinfo": {
             "post": {
-                "description": "提交系统信息",
                 "consumes": [
                     "application/json"
                 ],
@@ -1210,10 +1349,9 @@ const docTemplateapi = `{
                 "tags": [
                     "System"
                 ],
-                "summary": "提交系统信息",
                 "parameters": [
                     {
-                        "description": "系统信息表单",
+                        "description": "Peer request form payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -1240,7 +1378,6 @@ const docTemplateapi = `{
         },
         "/sysinfo_ver": {
             "post": {
-                "description": "获取系统版本信息",
                 "consumes": [
                     "application/json"
                 ],
@@ -1250,7 +1387,6 @@ const docTemplateapi = `{
                 "tags": [
                     "System"
                 ],
-                "summary": "获取系统版本信息",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -1267,14 +1403,14 @@ const docTemplateapi = `{
                 }
             }
         },
-        "/users": {
+        "/user/info": {
             "get": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "用户列表",
+                "description": "Returns the authenticated user for Rust client API requests.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1282,25 +1418,57 @@ const docTemplateapi = `{
                     "application/json"
                 ],
                 "tags": [
-                    "群组"
+                    "User"
                 ],
-                "summary": "用户列表",
+                "summary": "Get the current Rust client user",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.UserPayload"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/users": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    ""
+                ],
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "页码",
+                        "description": "Page number for the user list",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "每页数量",
+                        "description": "Number of users per page",
                         "name": "pageSize",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "状态",
+                        "description": "User status filter",
                         "name": "status",
                         "in": "query"
                     },
@@ -1344,7 +1512,6 @@ const docTemplateapi = `{
         },
         "/version": {
             "get": {
-                "description": "版本",
                 "consumes": [
                     "application/json"
                 ],
@@ -1352,9 +1519,8 @@ const docTemplateapi = `{
                     "application/json"
                 ],
                 "tags": [
-                    "首页"
+                    ""
                 ],
-                "summary": "版本",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -1593,7 +1759,7 @@ const docTemplateapi = `{
                     "type": "integer"
                 },
                 "color": {
-                    "description": "color 是flutter的颜色值,从0x00000000 到 0xFFFFFFFF; 前两位表示透明度，后面6位表示颜色, 可以转成rgba",
+                    "description": "color flutter,0x00000000  0xFFFFFFFF; ，6, rgba",
                     "type": "integer"
                 },
                 "created_at": {
@@ -1683,8 +1849,8 @@ var SwaggerInfoapi = &swag.Spec{
 	Host:             "",
 	BasePath:         "/api",
 	Schemes:          []string{},
-	Title:            "管理系统API",
-	Description:      "接口",
+	Title:            "API",
+	Description:      "",
 	InfoInstanceName: "api",
 	SwaggerTemplate:  docTemplateapi,
 	LeftDelim:        "{{",

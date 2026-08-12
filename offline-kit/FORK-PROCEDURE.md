@@ -1,11 +1,16 @@
-# FORK-PROCEDURE — how to make a fork sovereign
+# FORK-PROCEDURE — historical fork/dependency procedure (frozen reference)
 
-> **FROZEN** — procedure was completed for 1.4.7/1.4.8. Below is reference for a new version
-> or for downstream forkers. Commands are executed by the repo owner.
+> **FROZEN** — examples below use 1.4.8 and are historical reference for a new version
+> or downstream forkers. The commands are not a claim that a current release or complete
+> offline build exists; commands are executed only by the repo owner.
+>
+> This procedure is not evidence of upstream independence, a network-denied full build,
+> a verified license bundle, or a release. The offline kit has no signature claim;
+> signature verification is still a gap.
 
 ---
 
-## Level A — fork + vendor (minimum to survive upstream deletion)
+## Level A — historical fork + vendor candidate (not current proof)
 
 ### A1. Fork rustdesk + hbb_common
 
@@ -35,15 +40,40 @@ git push origin release/1.4.8
 ```env
 RUSTDESK_REPO="https://github.com/YOUR_ORG/rustdesk.git"
 RUSTDESK_REF="1.4.8"
+# Also record the exact 40-character RUSTDESK_COMMIT and expected local
+# artifact SHA-256 values before accepting a freeze.
 ```
+
+### A4. Verify before handoff
+
+From `offline-kit/`, after the local artifact set has been assembled:
+
+```bash
+bash freeze.sh --verify
+bash license-inventory.sh > /tmp/deskforge-third-party-inventory.txt
+```
+
+Verification is read-only and fail-closed. It checks exact manifest byte sizes,
+file SHA-256 values, Git-tree/content-hash records, source/tag/commit equality,
+a clean non-shallow source checkout, recursive submodules, the source bundle,
+vendor/source consistency, vcpkg baseline, the active TopMostWindow workflow
+pin, and required pins. Only generated `vendor/` and
+`.cargo/config.vendor.toml` source paths are allowed as working-tree additions;
+their content is included in the manifest contract. It never downloads or
+rewrites `MANIFEST.txt`. Missing
+engine/source/vendor files are local blockers; missing provider assets are
+reported as unavailable rather than treated as success.
+If an expected digest is missing, only `freeze.sh --allow-tofu ...` may proceed
+as an explicit manual exception, and `--verify` remains red until the digest is
+manually recorded in `versions.env`.
 
 ---
 
-## Level B — full sovereignty (binaries in releases)
+## Level B — historical candidate asset handoff (not current sovereignty proof)
 
-### B1. What to upload
+### B1. What to upload (historical candidate handoff)
 
-From `offline-kit/artifacts/`:
+From `offline-kit/artifacts/`, after the local verification gates pass:
 
 | Artifact                         | Why                                |
 | -------------------------------- | ---------------------------------- |
@@ -53,7 +83,7 @@ From `offline-kit/artifacts/`:
 | `printer_driver_adapter.zip`     | Printer adapter                    |
 | `vendor-*.tar.gz`                | (optional, if not in git)          |
 
-### B2. Commands
+### B2. Historical release command (not a publication or readiness claim)
 
 ```bash
 gh release create offline-assets-1.4.8 --repo YOUR_ORG/rustdesk \
@@ -78,24 +108,32 @@ Someone forks **your** DeskForge → changes one line:
 ```env
 RUSTDESK_REPO="https://github.com/THEIR_ORG/rustdesk.git"
 ```
-→ their GUI builds from their fork. Upstream is not involved.
+→ their GUI can be configured to build from their fork. Upstream independence remains
+unverified until the source, submodule, dependency, license, and offline-build checklist
+passes.
 
 ### C1. Versions in admin UI
 
 The version list in the admin UI (Custom Client → Version dropdown) is loaded
-dynamically via `GET /api/admin/custom_build/versions`. This endpoint queries
-GitHub releases of the fork tagged `offline-assets-*`.
+dynamically from the configured provider repository's `offline-assets-*` catalog.
+Matching source-tag and required-asset checks determine the entries; provider
+catalog failure returns an empty/error state rather than a hardcoded fallback.
 
 **For downstream forkers:**
-- After publishing your own `offline-assets-{tag}` release, the version will
-  automatically appear in the UI
-- If the GitHub API is unavailable, falls back to `['1.4.8', '1.4.7']`
+- After a matching provider asset release and source tag are available, the version
+  may appear in the UI after the provider-derived catalog refreshes
+- If the provider API is unavailable, no obsolete version fallback is shown
 - No hardcoded values in code need to be changed
 
-### C2. Workflow deployment
+### C2. Active workflow ownership
 
-Workflow files (`rustqs-*.yml`, `bridge.yml`) must be deployed to **three branches**
-of the fork:
+The configured RustDesk fork's `.github/workflows/` files are the sole executable
+source. `github-build/` and `rdgen/` are reference/frozen material and must not be
+copied into the active fork as deployment sources. The API preserves the configured
+branch/tag selector and separately checks the resolved workflow SHA; immutable
+workflow-ref protection remains a gate, not a current readiness claim.
+
+The following three-branch model is historical reference only:
 
 | Branch | Purpose |
 |---|---|
@@ -103,16 +141,21 @@ of the fork:
 | `rustqs/min-test` | Execution — all dispatches go here |
 | `rustqs/master-workflows` | Mirror — backup for applying after upstream sync |
 
-**Important:** `bridge.yml` must be **without `inputs.version`** — same as upstream.
-Checkout — **without `repository:`** (checkout the current repo, not upstream).
-Otherwise the workflow will fail with `startup_failure`.
+Historical bridge/checkout constraints are retained for maintenance context:
+`bridge.yml` must be without `inputs.version`, and checkout must use the current
+fork repository rather than upstream. They do not make a live run or support claim.
 
 ---
 
-## Sovereignty verification
+## Sovereignty verification checklist (not a current claim)
 
-- [ ] `YOUR_ORG/rustdesk` with vendor + `.cargo/config.toml`
-- [ ] `YOUR_ORG/hbb_common` (submodule)
-- [ ] Release `offline-assets-{tag}` with binaries
+- [ ] `YOUR_ORG/rustdesk` with independently verified vendor + Cargo source config
+- [ ] `YOUR_ORG/hbb_common` (submodule) with clean, published provenance
+- [ ] Provider `offline-assets-{tag}` with independently verified candidate assets
 - [ ] `versions.env` → your fork
 - [ ] `cargo build --offline` passes without `github.com/rustdesk*`
+- [ ] `bash freeze.sh --verify` passes in the handoff environment
+- [ ] `license-inventory.sh` reviewed; every `GAP` has an owner or accepted risk
+- [ ] Current local gaps (missing engine, legacy manifest/trusted expected values,
+      license evidence, signature/attestation, and network-denied full-build proof)
+      are closed with separate evidence

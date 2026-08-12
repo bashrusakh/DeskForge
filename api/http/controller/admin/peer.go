@@ -1,12 +1,12 @@
-﻿package admin
+package admin
 
 import (
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 	"rustdesk-server/api/global"
 	"rustdesk-server/api/http/request/admin"
 	"rustdesk-server/api/http/response"
 	"rustdesk-server/api/service"
-	"gorm.io/gorm"
 	"strconv"
 	"time"
 )
@@ -14,10 +14,10 @@ import (
 type Peer struct {
 }
 
-// Detail 
-// @Tags 
-// @Summary 
-// @Description 
+// Detail
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
 // @Param id path int true "ID"
@@ -37,13 +37,13 @@ func (ct *Peer) Detail(c *gin.Context) {
 	return
 }
 
-// Create 
-// @Tags 
-// @Summary 
-// @Description 
+// Create
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param body body admin.PeerForm true ""
+// @Param body body admin.PeerForm true "Peer form payload"
 // @Success 200 {object} response.Response{data=model.Peer}
 // @Failure 500 {object} response.Response
 // @Router /admin/peer/create [post]
@@ -68,17 +68,17 @@ func (ct *Peer) Create(c *gin.Context) {
 	response.Success(c, nil)
 }
 
-// List 
-// @Tags 
-// @Summary 
-// @Description 
+// List
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param page query int false ""
-// @Param page_size query int false ""
-// @Param time_ago query int false ""
+// @Param page query int false "Page number for the peer list"
+// @Param page_size query int false "Number of peers per page"
+// @Param time_ago query int false "Last-online time offset filter"
 // @Param id query string false "ID"
-// @Param hostname query string false ""
+// @Param hostname query string false "Hostname filter"
 // @Param uuids query string false "uuids "
 // @Success 200 {object} response.Response{data=model.PeerList}
 // @Failure 500 {object} response.Response
@@ -121,13 +121,13 @@ func (ct *Peer) List(c *gin.Context) {
 	response.Success(c, res)
 }
 
-// Update 
-// @Tags 
-// @Summary 
-// @Description 
+// Update
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param body body admin.PeerForm true ""
+// @Param body body admin.PeerForm true "Peer update form payload"
 // @Success 200 {object} response.Response{data=model.Peer}
 // @Failure 500 {object} response.Response
 // @Router /admin/peer/update [post]
@@ -156,13 +156,13 @@ func (ct *Peer) Update(c *gin.Context) {
 	response.Success(c, nil)
 }
 
-// Delete 
-// @Tags 
-// @Summary 
-// @Description 
+// Delete
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param body body admin.PeerForm true ""
+// @Param body body admin.PeerForm true "Peer deletion form payload"
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/peer/delete [post]
@@ -192,10 +192,10 @@ func (ct *Peer) Delete(c *gin.Context) {
 	response.Fail(c, 101, response.TranslateMsg(c, "ItemNotFound"))
 }
 
-// BatchDelete 
-// @Tags 
-// @Summary 
-// @Description 
+// BatchDelete
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
 // @Param body body admin.PeerBatchDeleteForm true "id"
@@ -221,6 +221,17 @@ func (ct *Peer) BatchDelete(c *gin.Context) {
 	response.Success(c, nil)
 }
 
+// SimpleData returns the requested peer IDs and versions for authenticated clients.
+// @Tags Peer
+// @Summary Get peer version data
+// @Description Authenticated peer version lookup used by the admin panel.
+// @Accept json
+// @Produce json
+// @Param body body admin.SimpleDataQuery true "Peer ID lookup payload"
+// @Success 200 {object} response.Response{data=model.PeerList}
+// @Failure 500 {object} response.Response
+// @Router /admin/peer/simpleData [post]
+// @Security token
 func (ct *Peer) SimpleData(c *gin.Context) {
 	f := &admin.SimpleDataQuery{}
 	if err := c.ShouldBindJSON(f); err != nil {

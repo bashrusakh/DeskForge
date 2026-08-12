@@ -2,25 +2,32 @@
 # Multi-stage build: Rust server + Go API + Web Admin + s6-overlay
 
 # Stage 1: Build Rust server (hbbs, hbbr) with musl for Alpine compatibility
-FROM rust:bookworm AS rust-builder
+# Rust 1.92 is the local pinned toolchain used for the committed lockfile;
+# its locked transitive dependencies declare MSRVs through Rust 1.88.
+FROM rust:1.92.0-bookworm@sha256:e90e846de4124376164ddfbaab4b0774c7bdeef5e738866295e5a90a34a307a2 AS rust-builder
 
 # Map Docker TARGETARCH to the musl Rust target so arm64 builds produce aarch64 binaries
 # (s6-overlay stage already uses this mapping for its own arch selection).
 ARG TARGETARCH=amd64
+# Optional trusted commit timestamp for deterministic Rust build metadata. When
+# omitted, hbb_common emits "unknown" rather than reading the wall clock.
+ARG SOURCE_DATE_EPOCH
 
 RUN apt-get update && apt-get install -y --no-install-recommends musl-tools sqlite3 perl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build/server
 
-# Copy Cargo files and delete lock to regenerate with compatible versions
+# Copy the manifest and committed lockfile for reproducible dependency resolution.
 COPY server/Cargo.toml ./
+COPY server/Cargo.lock ./
 COPY server/build.rs ./
-COPY libs/hbb_common ./libs/hbb_common
+COPY libs/hbb_common /build/libs/hbb_common
 
 # Create dummy src files for dependency caching
 RUN mkdir -p src && \
     echo 'fn main() {}' > src/main.rs && \
-    echo 'fn main() {}' > src/hbbr.rs
+    echo 'fn main() {}' > src/hbbr.rs && \
+    echo 'fn main() {}' > src/utils.rs
 
 # Build dependencies only (musl target matching TARGETARCH)
 RUN case "${TARGETARCH}" in \
@@ -29,7 +36,8 @@ RUN case "${TARGETARCH}" in \
       *) echo "Unsupported TARGETARCH: ${TARGETARCH}" && exit 1 ;; \
     esac && \
     rustup target add ${RUST_TARGET} && \
-    cargo build --release --target ${RUST_TARGET} 2>/dev/null || true
+    if [ -n "${SOURCE_DATE_EPOCH:-}" ]; then export SOURCE_DATE_EPOCH; else unset SOURCE_DATE_EPOCH; fi && \
+      cargo build --locked --release --target ${RUST_TARGET}
 
 # Create dummy SQLite DB for sqlx compile-time query checks
 RUN rm -f /tmp/dummy.db && \
@@ -44,8 +52,9 @@ RUN case "${TARGETARCH}" in \
       amd64) RUST_TARGET=x86_64-unknown-linux-musl ;; \
       arm64) RUST_TARGET=aarch64-unknown-linux-musl ;; \
       *) echo "Unsupported TARGETARCH: ${TARGETARCH}" && exit 1 ;; \
-    esac && \
-    rm -f Cargo.lock && cargo build --release --target ${RUST_TARGET} --bin hbbs --bin hbbr --bin rustdesk-utils && \
+     esac && \
+     if [ -n "${SOURCE_DATE_EPOCH:-}" ]; then export SOURCE_DATE_EPOCH; else unset SOURCE_DATE_EPOCH; fi && \
+     cargo build --locked --release --target ${RUST_TARGET} --bin hbbs --bin hbbr --bin rustdesk-utils && \
     # Stage the binaries at arch-independent paths so the final stage can COPY them
     # without re-deriving the musl target. Mirrors what `cargo install` does.
     mkdir -p /build/server/release && \
@@ -54,24 +63,23 @@ RUN case "${TARGETARCH}" in \
     cp /build/server/target/${RUST_TARGET}/release/rustdesk-utils /build/server/release/rustdesk-utils
 
 # Stage 2: Build Go API
-FROM golang:1.23-alpine AS go-builder
+FROM golang:1.25.0-alpine@sha256:f18a072054848d87a8077455f0ac8a25886f2397f88bfdd222d6fafbb5bba440 AS go-builder
+
+ENV GOTOOLCHAIN=local
 
 RUN apk add --no-cache gcc musl-dev
 
 WORKDIR /build/api
 
-# Copy source and generate go.sum
+# Copy source and use the checked-in module lock metadata.
 COPY api ./
-RUN go mod tidy
-
-# Download dependencies
 RUN go mod download
 
 # Build the API binary
 RUN CGO_ENABLED=1 GOOS=linux go build -ldflags "-s -w" -o apimain ./cmd/apimain.go
 
 # Stage 3: Web Admin (Vue 3 + Element Plus) — build from source inside Docker
-FROM node:20-bookworm AS admin-ui-builder
+FROM node:20.20.2-bookworm@sha256:8f693eaa7e0a8e71560c9a82b55fd54c2ae920a2ba5d2cde28bac7d1c01c9ba5 AS admin-ui-builder
 WORKDIR /build/admin-ui
 COPY admin-ui/package*.json ./
 RUN npm ci
@@ -79,7 +87,7 @@ COPY admin-ui/ ./
 RUN npm run build
 
 # Stage 4: Install s6-overlay from official GitHub release (no upstream dependency)
-FROM alpine:latest AS s6-stage
+FROM alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b AS s6-stage
 
 ARG S6_OVERLAY_VERSION=3.2.3.0
 # s6-overlay arch differs from Docker TARGETARCH naming (x86_64 vs amd64)
@@ -117,7 +125,7 @@ RUN case "${TARGETARCH}" in \
 SHELL ["/bin/sh", "-c"]
 
 # Stage 5: Final image
-FROM alpine
+FROM alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
 
 ARG BUILDARCH
 ARG VERSION=dev

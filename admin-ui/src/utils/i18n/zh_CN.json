@@ -5,6 +5,9 @@
   "Logout": {
     "One": "退出登录"
   },
+  "LogoutFailed": {
+    "One": "会话撤销失败；已在本地退出登录。"
+  },
   "Register": {
     "One": "注册"
   },
@@ -55,6 +58,72 @@
   },
   "Platform": {
     "One": "平台"
+  },
+  "PlatformWindows": {
+    "One": "Windows 64 位"
+  },
+  "PlatformLinuxUnavailable": {
+    "One": "Linux x64 — 实验性 / 暂不可用（PR11）"
+  },
+  "PlatformAndroidUnavailable": {
+    "One": "Android arm64 — 实验性 / 暂不可用（PR11）"
+  },
+  "ProductionPlatformUnavailable": {
+    "One": "此平台为实验性平台，在 PR11 完成验证前不可用于生产构建。"
+  },
+  "WorkflowApprovalTitle": {
+    "One": "Workflow 审批"
+  },
+  "WorkflowApprovalDescription": {
+    "One": "审批需要服务商提供的、已验证的注释标签，以及当前实时服务商证据。"
+  },
+  "WorkflowApprovalProtectedExplanation": {
+    "One": "服务商必须确认该标签受到有效的受保护标签策略约束：明确禁止更新和删除、没有绕过参与者，并且不存在同名分支。服务商还必须验证注释标签及其解析到的确切 workflow 提交。这里只能选择标签名称；不能输入 ref、SHA、凭据或 workflow 内部信息。仅有本地检查不足以证明审批。"
+  },
+  "WorkflowApprovalState": {
+    "One": "审批状态"
+  },
+  "WorkflowApprovalStatusApprovalRequired": {
+    "One": "需要审批"
+  },
+  "WorkflowApprovalStatusProviderPolicyUnverified": {
+    "One": "服务商策略未验证"
+  },
+  "WorkflowApprovalStatusApproved": {
+    "One": "已审批"
+  },
+  "WorkflowApprovalTagLabel": {
+    "One": "已验证的 workflow 标签"
+  },
+  "WorkflowApprovalTagPlaceholder": {
+    "One": "选择服务商验证的标签"
+  },
+  "WorkflowApprovalCurrentTag": {
+    "One": "当前已审批标签：{param}"
+  },
+  "WorkflowApprovalLoading": {
+    "One": "正在加载服务商验证的标签..."
+  },
+  "WorkflowApprovalLoadError": {
+    "One": "无法加载服务商验证的 workflow 标签。"
+  },
+  "WorkflowApprovalConfigError": {
+    "One": "无法加载 workflow 审批状态。"
+  },
+  "WorkflowApprovalEmpty": {
+    "One": "没有可用的服务商验证 workflow 标签。"
+  },
+  "WorkflowApprovalRetry": {
+    "One": "重试"
+  },
+  "WorkflowApprovalApprove": {
+    "One": "审批所选标签"
+  },
+  "WorkflowApprovalApproving": {
+    "One": "审批中..."
+  },
+  "WorkflowApprovalRequestFailed": {
+    "One": "审批未记录。请查看服务商状态后重试。"
   },
   "Status": {
     "One": "状态"
@@ -583,6 +652,12 @@
   },
   "StartBuild": {
     "One": "开始构建"
+  },
+  "Downloading": {
+    "One": "正在下载构建产物"
+  },
+  "Extracting": {
+    "One": "正在解压构建产物"
   },
   "VersionListLoading": {
     "One": "版本列表加载中，请稍候..."

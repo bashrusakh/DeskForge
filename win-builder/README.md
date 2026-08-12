@@ -1,9 +1,9 @@
-# win-builder — ❄️ FROZEN / FALLBACK
+# win-builder — ❄️ FROZEN / MANUAL-HISTORICAL ONLY
 
 > **Not in use.** Active build path is GitHub Actions
 > ([github-build/](../github-build/README.md)).
 >
-> This is a contingency for when GitHub Actions becomes unavailable.
+> This is manual/historical reference material, not a current production fallback.
 > Code is untested (no Windows host available).
 
 ## What it is
@@ -17,7 +17,7 @@ API channel: SMB share of the `rdgen-data` volume.
 - `agent.ps1` — SMB queue poller: 3 injection layers + build
 - `SERVER-SETUP.md` — detailed deployment guide
 
-## If activated
+## Historical/manual procedure (not the current API path)
 
 1. Windows Server 2022 / Win 11 Pro, 8+ core, 32 GB, 250 GB NVMe
 2. `setup.ps1 -KitPath D:\offline-kit\artifacts`

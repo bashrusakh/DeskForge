@@ -8,6 +8,18 @@ export function save (data) {
   return request({ url: '/github_build_config/save', method: 'post', data })
 }
 
+export function getWorkflowTags () {
+  return request({ url: '/github_build_config/workflow_tags' })
+}
+
+export function approveWorkflowRef (workflowTag) {
+  return request({
+    url: '/github_build_config/approve_workflow_ref',
+    method: 'post',
+    data: { confirm: true, workflow_tag: workflowTag },
+  })
+}
+
 export function generateKey () {
   return request({ url: '/github_build_config/generate_key', method: 'post' })
 }
@@ -18,10 +30,6 @@ export function test () {
 
 export function syncSecret () {
   return request({ url: '/github_build_config/sync_secret', method: 'post' })
-}
-
-export function syncPat () {
-  return request({ url: '/github_build_config/sync_pat', method: 'post' })
 }
 
 export function dispatchTest () {

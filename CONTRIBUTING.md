@@ -111,8 +111,11 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 
 ## License & attribution (AGPL-3.0)
 
-DeskForge is distributed under **AGPL-3.0** (because `server/` is AGPL-3.0 and it's
-the strongest copyleft in the bundle).
+The covered DeskForge distribution is identified as **AGPL-3.0** because `server/` is
+AGPL-3.0 and is the strongest copyleft in the covered bundle. This does not relicense
+separate or independent components; preserve each component's applicable license and
+notice. The license inventory is incomplete; no signatures or attestations are recorded,
+and no full sovereignty claim is made.
 
 When you add new files derived from upstream sources:
 
@@ -132,12 +135,21 @@ To run the server stack:
 
 ```bash
 cd docker
-docker compose build server     # rebuilds Go code; admin-ui needs pre-built dist
-docker compose up -d server
-docker compose logs -f server
+docker compose build rustdesk  # build the combined server image
+docker compose up -d rustdesk
+docker compose logs -f rustdesk
 ```
 
-For the GitHub-based Windows client builder workflow — see [PLAN.md](PLAN.md) §8.8.
+For GitHub-based client-build workflow maintenance, the configured RustDesk fork's
+`.github/workflows/` files are the sole active executable workflow source. See
+[PLAN.md](PLAN.md) §7 for the historical maintenance notes. `github-build/` is
+frozen reference/documentation material only, and `rdgen/` is frozen vendored
+historical/reference material; neither is an active workflow source.
+
+The published RustDesk client source/ref is 1.4.8 and the published DeskForge API
+schema is `DatabaseVersion` 272. The local uncommitted corrective worktree targets
+API schema 282; that local schema target is not published. Live provider execution and
+MySQL/PostgreSQL migration/read/write coverage remain unverified.
 
 ## What goes where
 
@@ -148,9 +160,15 @@ For the GitHub-based Windows client builder workflow — see [PLAN.md](PLAN.md) 
 | `admin-ui/` | Vue 3 admin panel. MIT. |
 | `libs/` | Shared Rust libs. |
 | `docker/` | Dockerfiles + compose. |
-| `github-build/` | Workflow + docs for building Windows client via GitHub Actions. |
-| `win-builder/` | Native Windows build agent (fallback path, frozen). |
-| `offline-kit/` | Frozen toolchain + sources (sovereign build kit). |
-| `rdgen/` | Vendored reference: rdgen workflow patches (not running as a service). GPL-3.0. |
+| `github-build/` | Frozen reference/documentation for fork workflows; no executable workflow copies. |
+| `win-builder/` | Frozen manual/historical-only Windows build material; not the API path. |
+| `offline-kit/` | Frozen dependency-freeze tool; verification and license inventory are incomplete, with no signature/attestation or full-sovereignty claim. |
+| `rdgen/` | Frozen vendored historical/reference workflow material, not the active source; not running as a service. GPL-3.0. |
 | `PLAN.md` | Single source of truth for the project plan. |
 | `CHANGELOG.md` | Chronological log of changes. |
+
+The current repository has no tracked `vendor/` tree, `rustdesk-deps/` archive, or
+client-release directory. Rust and Go manifests still use active third-party upstream
+dependencies, and the configured RustDesk fork's `hbb_common` submodule is currently
+upstream-referenced, dirty, and unpublished; upstream independence and MySQL/PostgreSQL
+cross-database support therefore remain unverified.

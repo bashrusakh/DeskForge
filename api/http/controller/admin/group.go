@@ -41,7 +41,7 @@ func (ct *Group) Detail(c *gin.Context) {
 // @Description 
 // @Accept  json
 // @Produce  json
-// @Param body body admin.GroupForm true ""
+// @Param body body admin.GroupForm true "Group form payload"
 // @Success 200 {object} response.Response{data=model.Group}
 // @Failure 500 {object} response.Response
 // @Router /admin/group/create [post]
@@ -72,8 +72,8 @@ func (ct *Group) Create(c *gin.Context) {
 // @Description 
 // @Accept  json
 // @Produce  json
-// @Param page query int false ""
-// @Param page_size query int false ""
+// @Param page query int false "Page number for the group list"
+// @Param page_size query int false "Number of groups per page"
 // @Success 200 {object} response.Response{data=model.GroupList}
 // @Failure 500 {object} response.Response
 // @Router /admin/group/list [get]
@@ -94,7 +94,7 @@ func (ct *Group) List(c *gin.Context) {
 // @Description 
 // @Accept  json
 // @Produce  json
-// @Param body body admin.GroupForm true ""
+// @Param body body admin.GroupForm true "Group update form payload"
 // @Success 200 {object} response.Response{data=model.Group}
 // @Failure 500 {object} response.Response
 // @Router /admin/group/update [post]
@@ -129,7 +129,7 @@ func (ct *Group) Update(c *gin.Context) {
 // @Description 
 // @Accept  json
 // @Produce  json
-// @Param body body admin.GroupForm true ""
+// @Param body body admin.GroupForm true "Group deletion form payload"
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/group/delete [post]

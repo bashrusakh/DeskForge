@@ -5,6 +5,9 @@
   "Logout": {
     "One": "Выход"
   },
+  "LogoutFailed": {
+    "One": "Не удалось отозвать сессию; локальный выход выполнен."
+  },
   "Register": {
     "One": "Регистрация"
   },
@@ -55,6 +58,72 @@
   },
   "Platform": {
     "One": "Платформа"
+  },
+  "PlatformWindows": {
+    "One": "Windows 64-bit"
+  },
+  "PlatformLinuxUnavailable": {
+    "One": "Linux x64 — экспериментальная / недоступна (PR11)"
+  },
+  "PlatformAndroidUnavailable": {
+    "One": "Android arm64 — экспериментальная / недоступна (PR11)"
+  },
+  "ProductionPlatformUnavailable": {
+    "One": "Эта платформа экспериментальна и недоступна для production-сборок до подтверждения в PR11."
+  },
+  "WorkflowApprovalTitle": {
+    "One": "Подтверждение workflow"
+  },
+  "WorkflowApprovalDescription": {
+    "One": "Для одобрения workflow требуется полученный от провайдера проверенный аннотированный тег и актуальное подтверждение от провайдера."
+  },
+  "WorkflowApprovalProtectedExplanation": {
+    "One": "Провайдер должен подтвердить действующую политику защиты тега для этой метки: обновление и удаление явно запрещены, обходных участников нет, а ветка с такой же меткой отсутствует. Он также должен проверить аннотированный тег и точный workflow на разрешённом коммите. Выбирается только метка тега; refs, SHA, учётные данные и внутренние данные workflow здесь не вводятся. Одних локальных проверок недостаточно для одобрения."
+  },
+  "WorkflowApprovalState": {
+    "One": "Состояние подтверждения"
+  },
+  "WorkflowApprovalStatusApprovalRequired": {
+    "One": "Требуется подтверждение"
+  },
+  "WorkflowApprovalStatusProviderPolicyUnverified": {
+    "One": "Политика провайдера не подтверждена"
+  },
+  "WorkflowApprovalStatusApproved": {
+    "One": "Подтверждено"
+  },
+  "WorkflowApprovalTagLabel": {
+    "One": "Подтверждённый workflow-тег"
+  },
+  "WorkflowApprovalTagPlaceholder": {
+    "One": "Выберите подтверждённый провайдером тег"
+  },
+  "WorkflowApprovalCurrentTag": {
+    "One": "Текущий подтверждённый тег: {param}"
+  },
+  "WorkflowApprovalLoading": {
+    "One": "Загрузка подтверждённых провайдером тегов..."
+  },
+  "WorkflowApprovalLoadError": {
+    "One": "Не удалось загрузить подтверждённые провайдером workflow-теги."
+  },
+  "WorkflowApprovalConfigError": {
+    "One": "Не удалось загрузить состояние подтверждения workflow."
+  },
+  "WorkflowApprovalEmpty": {
+    "One": "Нет доступных подтверждённых провайдером workflow-тегов."
+  },
+  "WorkflowApprovalRetry": {
+    "One": "Повторить"
+  },
+  "WorkflowApprovalApprove": {
+    "One": "Подтвердить выбранный тег"
+  },
+  "WorkflowApprovalApproving": {
+    "One": "Подтверждение..."
+  },
+  "WorkflowApprovalRequestFailed": {
+    "One": "Подтверждение не записано. Проверьте состояние провайдера и повторите попытку."
   },
   "Status": {
     "One": "Статус"
@@ -570,6 +639,12 @@
   },
   "StartBuild": {
     "One": "Запустить сборку"
+  },
+  "Downloading": {
+    "One": "Загрузка артефакта"
+  },
+  "Extracting": {
+    "One": "Распаковка артефакта"
   },
   "VersionListLoading": {
     "One": "Список версий загружается, подождите..."

@@ -1,12 +1,12 @@
-﻿package admin
+package admin
 
 import (
 	"github.com/gin-gonic/gin"
+	"os"
 	"rustdesk-server/api/global"
 	"rustdesk-server/api/http/response"
 	"rustdesk-server/api/model"
 	"rustdesk-server/api/service"
-	"os"
 	"strings"
 )
 
@@ -49,7 +49,15 @@ func (co *Config) AppConfig(c *gin.Context) {
 	})
 }
 
-// AllConfig 
+// AllConfig
+// @Tags ADMIN
+// @Summary Get all admin configuration
+// @Description Admin-only configuration used by the admin panel.
+// @Produce json
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/config/all [get]
+// @Security token
 func (co *Config) AllConfig(c *gin.Context) {
 	response.Success(c, &gin.H{
 		"id_server":    global.Config.Rustdesk.IdServer,
@@ -67,16 +75,14 @@ func (co *Config) AllConfig(c *gin.Context) {
 	})
 }
 
-// AdminConfig ADMIN
+// AdminConfig returns public admin branding, with optional authenticated greeting data.
 // @Tags ADMIN
-// @Summary ADMIN
-// @Description ADMIN
-// @Accept  json
+// @Summary Get public admin configuration
+// @Description Public pre-authentication route returning the admin title and, when a valid api-token is supplied, the personalized greeting.
 // @Produce  json
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/config/admin [get]
-// @Security token
 func (co *Config) AdminConfig(c *gin.Context) {
 
 	u := &model.User{}

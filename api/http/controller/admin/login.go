@@ -1,7 +1,8 @@
-﻿package admin
+package admin
 
 import (
 	"fmt"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"rustdesk-server/api/global"
@@ -17,17 +18,16 @@ import (
 type Login struct {
 }
 
-// Login 
-// @Tags 
-// @Summary 
-// @Description 
+// Login authenticates an administrator before the admin middleware is applied.
+// @Tags Auth
+// @Summary Log in to the admin panel
+// @Description Public pre-authentication route for administrator credentials; it returns the admin access-token payload on success.
 // @Accept  json
 // @Produce  json
-// @Param body body admin.Login true ""
+// @Param body body admin.Login true "Admin login credentials payload"
 // @Success 200 {object} response.Response{data=adResp.LoginPayload}
 // @Failure 500 {object} response.Response
 // @Router /admin/login [post]
-// @Security token
 func (ct *Login) Login(c *gin.Context) {
 	if global.Config.App.DisablePwdLogin {
 		response.Fail(c, 101, response.TranslateMsg(c, "PwdLoginDisabled"))
@@ -97,6 +97,15 @@ func (ct *Login) Login(c *gin.Context) {
 	loginLimiter.RemoveAttempts(clientIp)
 	responseLoginSuccess(c, u, ut.Token)
 }
+
+// Captcha returns a CAPTCHA challenge when the login limiter requires one.
+// @Tags Auth
+// @Summary Get an admin login CAPTCHA
+// @Description Public pre-authentication route; a challenge is returned only when the client IP requires CAPTCHA verification.
+// @Produce json
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/captcha [get]
 func (ct *Login) Captcha(c *gin.Context) {
 	loginLimiter := global.LoginLimiter
 	clientIp := c.ClientIP()
@@ -127,33 +136,36 @@ func (ct *Login) Captcha(c *gin.Context) {
 	})
 }
 
-// Logout 
-// @Tags 
-// @Summary 
-// @Description 
+// Logout ends the current admin session when an api-token is supplied.
+// @Tags Auth
+// @Summary Log out of the admin panel
+// @Description Clears the supplied admin access token when it identifies a current user; the route is registered before the admin authentication middleware.
 // @Accept  json
 // @Produce  json
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/logout [post]
+// @Security token
 func (ct *Login) Logout(c *gin.Context) {
 	u := service.AllService.UserService.CurUser(c)
 	token, ok := c.Get("token")
 	if ok {
-		service.AllService.UserService.Logout(u, token.(string))
+		if err := service.AllService.UserService.Logout(u, token.(string)); err != nil {
+			response.FailStatus(c, http.StatusInternalServerError, 101, "logout failed")
+			return
+		}
 	}
 	response.Success(c, nil)
 }
 
-// LoginOptions
-// @Tags 
-// @Summary 
-// @Description 
-// @Accept  json
+// LoginOptions returns public admin login capabilities and configured OIDC providers.
+// @Tags Auth
+// @Summary Get admin login options
+// @Description Public pre-authentication route returning registration, password-login, CAPTCHA, and OIDC-provider capabilities.
 // @Produce  json
-// @Success 200 {object} []string
-// @Failure 500 {object} response.ErrorResponse
-// @Router /admin/login-options [post]
+// @Success 200 {object} response.Response "Public admin login capabilities"
+// @Failure 400 {object} response.Response "Login options could not be read"
+// @Router /admin/login-options [get]
 func (ct *Login) LoginOptions(c *gin.Context) {
 	loginLimiter := global.LoginLimiter
 	clientIp := c.ClientIP()
@@ -172,12 +184,14 @@ func (ct *Login) LoginOptions(c *gin.Context) {
 	})
 }
 
-// OidcAuth
+// OidcAuth starts the public admin OIDC authorization flow.
 // @Tags Oauth
-// @Summary OidcAuth
-// @Description OidcAuth
+// @Summary Start admin OIDC authorization
+// @Description Public pre-authentication route returning the state code and provider URL for the admin OIDC flow.
 // @Accept  json
 // @Produce  json
+// @Success 200 {object} response.Response{data=map[string]string} "Authorization state code and provider URL"
+// @Failure 400 {object} response.ErrorResponse "OIDC authorization could not be started"
 // @Router /admin/oidc/auth [post]
 func (ct *Login) OidcAuth(c *gin.Context) {
 	// o := &api.Oauth{}
@@ -213,14 +227,13 @@ func (ct *Login) OidcAuth(c *gin.Context) {
 	})
 }
 
-// OidcAuthQuery
+// OidcAuthQuery completes the public admin OIDC authorization flow.
 // @Tags Oauth
-// @Summary OidcAuthQuery
-// @Description OidcAuthQuery
-// @Accept  json
+// @Summary Complete admin OIDC authorization
+// @Description Public pre-authentication route exchanging the OIDC state code and provider callback values for an admin login payload.
 // @Produce  json
 // @Success 200 {object} response.Response{data=adResp.LoginPayload}
-// @Failure 500 {object} response.Response
+// @Failure 400 {object} response.ErrorResponse "OIDC authorization query failed"
 // @Router /admin/oidc/auth-query [get]
 func (ct *Login) OidcAuthQuery(c *gin.Context) {
 	o := &api.Oauth{}

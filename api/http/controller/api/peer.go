@@ -19,7 +19,7 @@ type Peer struct {
 // @Description 
 // @Accept  json
 // @Produce  json
-// @Param body body requstform.PeerForm true ""
+// @Param body body requstform.PeerForm true "Peer request form payload"
 // @Success 200 {string} string "SYSINFO_UPDATED,ID_NOT_FOUND"
 // @Failure 500 {object} response.ErrorResponse
 // @Router /sysinfo [post]

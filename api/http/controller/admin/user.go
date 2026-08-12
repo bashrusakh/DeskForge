@@ -1,7 +1,8 @@
-﻿package admin
+package admin
 
 import (
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 	"rustdesk-server/api/global"
 	"rustdesk-server/api/http/request/admin"
 	"rustdesk-server/api/http/response"
@@ -9,7 +10,6 @@ import (
 	"rustdesk-server/api/model"
 	"rustdesk-server/api/service"
 	"rustdesk-server/api/utils"
-	"gorm.io/gorm"
 	"strconv"
 	"strings"
 )
@@ -17,10 +17,10 @@ import (
 type User struct {
 }
 
-// Detail 
-// @Tags 
-// @Summary 
-// @Description 
+// Detail
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
 // @Param id path int true "ID"
@@ -40,13 +40,13 @@ func (ct *User) Detail(c *gin.Context) {
 	return
 }
 
-// Create 
-// @Tags 
-// @Summary 
-// @Description 
+// Create
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param body body admin.UserForm true ""
+// @Param body body admin.UserForm true "User form payload"
 // @Success 200 {object} response.Response{data=model.User}
 // @Failure 500 {object} response.Response
 // @Router /admin/user/create [post]
@@ -71,15 +71,15 @@ func (ct *User) Create(c *gin.Context) {
 	response.Success(c, nil)
 }
 
-// List 
-// @Tags 
-// @Summary 
-// @Description 
+// List
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param page query int false ""
-// @Param page_size query int false ""
-// @Param username query int false ""
+// @Param page query int false "Page number for the user list"
+// @Param page_size query int false "Number of users per page"
+// @Param username query int false "Username filter"
 // @Success 200 {object} response.Response{data=model.UserList}
 // @Failure 500 {object} response.Response
 // @Router /admin/user/list [get]
@@ -98,13 +98,13 @@ func (ct *User) List(c *gin.Context) {
 	response.Success(c, res)
 }
 
-// Update 
-// @Tags 
-// @Summary 
-// @Description 
+// Update
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param body body admin.UserForm true ""
+// @Param body body admin.UserForm true "User update form payload"
 // @Success 200 {object} response.Response{data=model.User}
 // @Failure 500 {object} response.Response
 // @Router /admin/user/update [post]
@@ -147,13 +147,13 @@ func (ct *User) Update(c *gin.Context) {
 	response.Success(c, nil)
 }
 
-// Delete 
-// @Tags 
-// @Summary 
-// @Description 
+// Delete
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param body body admin.UserForm true ""
+// @Param body body admin.UserForm true "User deletion form payload"
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/user/delete [post]
@@ -188,16 +188,16 @@ func (ct *User) Delete(c *gin.Context) {
 	response.Fail(c, 101, response.TranslateMsg(c, "ItemNotFound"))
 }
 
-// UpdatePassword 
-// @Tags 
-// @Summary 
-// @Description 
+// UpdatePassword
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param body body admin.UserPasswordForm true ""
+// @Param body body admin.UserPasswordForm true "User password update form payload"
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
-// @Router /admin/user/updatePassword [post]
+// @Router /admin/user/changePwd [post]
 // @Security token
 func (ct *User) UpdatePassword(c *gin.Context) {
 	f := &admin.UserPasswordForm{}
@@ -223,10 +223,10 @@ func (ct *User) UpdatePassword(c *gin.Context) {
 	response.Success(c, nil)
 }
 
-// Current 
-// @Tags 
-// @Summary 
-// @Description 
+// Current
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
 // @Success 200 {object} response.Response{data=adResp.LoginPayload}
@@ -240,13 +240,13 @@ func (ct *User) Current(c *gin.Context) {
 	responseLoginSuccess(c, u, t)
 }
 
-// ChangeCurPwd 
-// @Tags 
-// @Summary 
-// @Description 
+// ChangeCurPwd
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param body body admin.ChangeCurPasswordForm true ""
+// @Param body body admin.ChangeCurPasswordForm true "Current user password change form payload"
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/user/changeCurPwd [post]
@@ -283,6 +283,16 @@ func (ct *User) ChangeCurPwd(c *gin.Context) {
 // UpdateCurrent — обновление профиля текущего пользователя (BUGS.md AU-M-021).
 // Редактируемы только nickname и email; username — идентификатор, role/status/group
 // меняет лишь админ. Email проверяется на уникальность.
+// @Tags User
+// @Summary Update the current user profile
+// @Description Authenticated users may update only their nickname and email.
+// @Accept json
+// @Produce json
+// @Param body body admin.UpdateCurrentForm true "Current user profile update payload"
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/user/updateCurrent [post]
+// @Security token
 func (ct *User) UpdateCurrent(c *gin.Context) {
 	f := &admin.UpdateCurrentForm{}
 	if err := c.ShouldBindJSON(f); err != nil {
@@ -314,14 +324,14 @@ func (ct *User) UpdateCurrent(c *gin.Context) {
 }
 
 // MyOauth
-// @Tags 
-// @Summary 
-// @Description 
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
 // @Success 200 {object} response.Response{data=[]adResp.UserOauthItem}
 // @Failure 500 {object} response.Response
-// @Router /admin/user/myOauth [get]
+// @Router /admin/user/myOauth [post]
 // @Security token
 func (ct *User) MyOauth(c *gin.Context) {
 	u := service.AllService.UserService.CurUser(c)
@@ -347,7 +357,15 @@ func (ct *User) MyOauth(c *gin.Context) {
 	response.Success(c, res)
 }
 
-// groupUsers
+// groupUsers returns the groups and users available to an administrator.
+// @Tags User
+// @Summary List users grouped by group
+// @Description Admin-only group and user picker data.
+// @Produce json
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/user/groupUsers [post]
+// @Security token
 func (ct *User) GroupUsers(c *gin.Context) {
 	aG := service.AllService.GroupService.List(1, 999, nil)
 	aU := service.AllService.UserService.List(1, 9999, nil)
@@ -357,6 +375,16 @@ func (ct *User) GroupUsers(c *gin.Context) {
 	})
 }
 
+// GroupUsersForShare returns the restricted group and user picker data for a
+// personal address-book share.
+// @Tags User
+// @Summary List shareable users and groups
+// @Description Authenticated users receive only the group and user entries allowed for personal sharing.
+// @Produce json
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/my/groupUsers [post]
+// @Security token
 func (ct *User) GroupUsersForShare(c *gin.Context) {
 	cu := service.AllService.UserService.CurUser(c)
 	if cu == nil || cu.Id == 0 {
@@ -386,7 +414,16 @@ func (ct *User) GroupUsersForShare(c *gin.Context) {
 	})
 }
 
-// Register
+// Register creates a public user registration request when registration is enabled.
+// @Tags User
+// @Summary Register a user
+// @Description Public registration route; the server decides whether the new account is enabled immediately.
+// @Accept json
+// @Produce json
+// @Param body body admin.RegisterForm true "User registration payload"
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/user/register [post]
 func (ct *User) Register(c *gin.Context) {
 	if !global.Config.App.Register {
 		response.Fail(c, 101, response.TranslateMsg(c, "RegisterClosed"))

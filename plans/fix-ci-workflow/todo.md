@@ -2,9 +2,17 @@
 
 **Plan:** `plans/fix-ci-workflow/plan.md`
 
+> **Historical/superseded:** retained for the original CI repair history. Active
+> workflow ownership is now the configured RustDesk fork only; local workflow copies,
+> open-input/debug fallback, and version fallback notes below are not current behavior.
+>
+> **Provenance boundary (2026-08-10):** broad local corrective changes remain
+> uncommitted; the separately tracked PR12 docs-only reconciliation is
+> `verified-with-notes` within that worktree and is not an isolated diff.
+
 ---
 
-## Status
+## Historical/superseded status record
 
 - [x] **Step 1:** Fix `bridge.yml` in fork (3 branches)
   - [x] `rustqs/min-test` — commit `3bdd91b`

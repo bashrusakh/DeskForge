@@ -19,10 +19,10 @@ type Audit struct {
 // @Description 
 // @Accept  json
 // @Produce  json
-// @Param page query int false ""
-// @Param page_size query int false ""
-// @Param peer_id query int false ""
-// @Param from_peer query int false ""
+// @Param page query int false "Page number for audit connection records"
+// @Param page_size query int false "Number of audit connection records per page"
+// @Param peer_id query int false "Peer ID filter for audit connections"
+// @Param from_peer query int false "Source peer ID filter for audit connections"
 // @Success 200 {object} response.Response{data=model.AuditConnList}
 // @Failure 500 {object} response.Response
 // @Router /admin/audit_conn/list [get]
@@ -51,7 +51,7 @@ func (a *Audit) ConnList(c *gin.Context) {
 // @Description 
 // @Accept  json
 // @Produce  json
-// @Param body body model.AuditConn true ""
+// @Param body body model.AuditConn true "Audit connection deletion form payload"
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/audit_conn/delete [post]
@@ -87,7 +87,7 @@ func (a *Audit) ConnDelete(c *gin.Context) {
 // @Description 
 // @Accept  json
 // @Produce  json
-// @Param body body admin.AuditConnLogIds true ""
+// @Param body body admin.AuditConnLogIds true "Audit connection log ID batch deletion payload"
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/audit_conn/batchDelete [post]
@@ -118,10 +118,10 @@ func (a *Audit) BatchConnDelete(c *gin.Context) {
 // @Description 
 // @Accept  json
 // @Produce  json
-// @Param page query int false ""
-// @Param page_size query int false ""
-// @Param peer_id query int false ""
-// @Param from_peer query int false ""
+// @Param page query int false "Page number for audit file records"
+// @Param page_size query int false "Number of audit file records per page"
+// @Param peer_id query int false "Peer ID filter for audit file records"
+// @Param from_peer query int false "Source peer ID filter for audit file records"
 // @Success 200 {object} response.Response{data=model.AuditFileList}
 // @Failure 500 {object} response.Response
 // @Router /admin/audit_file/list [get]
@@ -150,7 +150,7 @@ func (a *Audit) FileList(c *gin.Context) {
 // @Description 
 // @Accept  json
 // @Produce  json
-// @Param body body model.AuditFile true ""
+// @Param body body model.AuditFile true "Audit file deletion form payload"
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/audit_file/delete [post]
@@ -186,7 +186,7 @@ func (a *Audit) FileDelete(c *gin.Context) {
 // @Description 
 // @Accept  json
 // @Produce  json
-// @Param body body admin.AuditFileLogIds true ""
+// @Param body body admin.AuditFileLogIds true "Audit file log ID batch deletion payload"
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/audit_file/batchDelete [post]

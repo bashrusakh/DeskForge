@@ -60,6 +60,34 @@ service.interceptors.response.use(
    * You can also judge the status by HTTP Status Code
    */
   response => {
+    // Binary downloads do not use the normal JSON response envelope.
+    if (response.config.responseType === 'blob') {
+      const contentType = response.headers?.['content-type'] || ''
+      if (!contentType.includes('application/json')) {
+        return response
+      }
+
+      // Auth/API failures can still arrive as a JSON envelope with HTTP 200.
+      // Parse those responses so a failed download is not saved as a .zip file.
+      return response.data.text().then(text => {
+        const res = JSON.parse(text)
+        if (res.code !== 0) {
+          ElMessage({
+            message: res.message || 'error',
+            type: 'error',
+            duration: 5 * 1000,
+          })
+
+          if (res.code === 403) {
+            removeToken()
+            window.location.reload()
+          }
+          return Promise.reject(res)
+        }
+        return response
+      }).catch(error => Promise.reject(error))
+    }
+
     const res = response.data
 
     // for the endpoint /login-options
@@ -70,13 +98,15 @@ service.interceptors.response.use(
 
     // if the custom code is not 20000, it is judged as an error.
     if (res.code !== 0) {
-      ElMessage({
-        message: res.message || 'error',
-        type: 'error',
-        duration: 5 * 1000,
-      })
+      if (!response.config.skipErrorMessage) {
+        ElMessage({
+          message: res.message || 'error',
+          type: 'error',
+          duration: 5 * 1000,
+        })
+      }
 
-      if (res.code === 403) {
+      if (res.code === 403 && !response.config.skipAuthRedirect) {
         removeToken()
         window.location.reload()
       }
@@ -90,11 +120,13 @@ service.interceptors.response.use(
       && error.message.indexOf('timeout') > -1) {
       error.message = 'Connection Time Out!'
     }
-    ElMessage({
-      message: error.message,
-      type: 'error',
-      duration: 5 * 1000,
-    })
+    if (!error.config?.skipErrorMessage) {
+      ElMessage({
+        message: error.message,
+        type: 'error',
+        duration: 5 * 1000,
+      })
+    }
     return Promise.reject(error)
   },
 )

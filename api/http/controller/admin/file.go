@@ -1,4 +1,4 @@
-﻿package admin
+package admin
 
 import (
 	"crypto/rand"
@@ -19,8 +19,8 @@ import (
 type File struct {
 }
 
-// OssToken 
-// @Tags 
+// OssToken
+// @Tags
 // @Summary ossToken
 // @Description ossToken
 // @Accept  json
@@ -39,7 +39,16 @@ type FileBack struct {
 	Url string `json:"url"`
 }
 
-// Notify 
+// Notify handles the authenticated upload callback after provider verification.
+// @Tags File
+// @Summary Confirm an uploaded file
+// @Description Authenticated upload callback used after the object-storage provider verifies the request.
+// @Accept multipart/form-data
+// @Produce json
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/file/notify [post]
+// @Security token
 func (f *File) Notify(c *gin.Context) {
 
 	res := global.Oss.Verify(c.Request)
@@ -56,13 +65,13 @@ func (f *File) Notify(c *gin.Context) {
 
 }
 
-// Upload 
-// @Tags 
-// @Summary 
-// @Description 
+// Upload
+// @Tags
+// @Summary
+// @Description
 // @Accept  multipart/form-data
 // @Produce  json
-// @Param file formData file true ""
+// @Param file formData file true "Multipart file to upload"
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/file/upload [post]

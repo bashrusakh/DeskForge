@@ -2,7 +2,6 @@ package cache
 
 import (
 	"fmt"
-	"github.com/go-redis/redis/v8"
 	"reflect"
 	"testing"
 )
@@ -61,32 +60,23 @@ func TestFileCacheGet(t *testing.T) {
 }
 
 func TestRedisCacheSet(t *testing.T) {
-	rc := NewRedis(&redis.Options{
-		Addr:     "192.168.1.168:6379",
-		Password: "", // no password set
-		DB:       0,  // use default DB
-	})
+	rc := newRedisTestCache(t)
 	err := rc.Set("123", "ddd", 0)
 	if err != nil {
-		fmt.Println(err.Error())
-		t.Fatalf("")
+		t.Fatalf("Redis set failed: %v", err)
 	}
 }
 
 func TestRedisCacheGet(t *testing.T) {
-	rc := NewRedis(&redis.Options{
-		Addr:     "192.168.1.168:6379",
-		Password: "", // no password set
-		DB:       0,  // use default DB
-	})
+	rc := newRedisTestCache(t)
 	err := rc.Set("123", "451156", 300)
 	if err != nil {
-		t.Fatalf("")
+		t.Fatalf("Redis set failed: %v", err)
 	}
 	res := ""
 	err = rc.Get("123", &res)
 	if err != nil {
-		t.Fatalf("")
+		t.Fatalf("Redis get failed: %v", err)
 	}
 	fmt.Println("res", res)
 }

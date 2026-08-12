@@ -47,14 +47,29 @@
   import { ref } from 'vue'
   import { T } from '@/utils/i18n'
   import ThemeSwitch from '@/components/ui/ThemeSwitch.vue'
+  import { useRouter } from 'vue-router'
+  import { ElMessage } from 'element-plus'
 
   const userStore = useUserStore()
   const user = userStore
   const appStore = useAppStore()
+  const router = useRouter()
+  let logoutPromise = null
 
   const logout = () => {
-    userStore.logout()
-    window.location.reload()
+    if (logoutPromise) {
+      return logoutPromise
+    }
+
+    logoutPromise = (async () => {
+      const logoutSucceeded = await userStore.logout()
+      await router.replace('/login')
+      if (!logoutSucceeded) {
+        ElMessage.error(T('LogoutFailed'))
+      }
+    })()
+
+    return logoutPromise
   }
 
   const changePwdVisible = ref(false)

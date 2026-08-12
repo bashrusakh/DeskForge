@@ -36,7 +36,7 @@ router.beforeEach(async (to, from, next) => {
     if (!userStore.route_names.length) {
       const info = await userStore.info()
       if (!info) {
-        userStore.logout()
+        await userStore.logout()
         next(`/login?redirect=${to.path}`)
       } else {
         next({ ...to, replace: true })

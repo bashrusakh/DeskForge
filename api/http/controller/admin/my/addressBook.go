@@ -1,27 +1,27 @@
-﻿package my
+package my
 
 import (
 	"encoding/json"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 	"rustdesk-server/api/global"
 	"rustdesk-server/api/http/request/admin"
 	"rustdesk-server/api/http/response"
 	"rustdesk-server/api/service"
-	"gorm.io/gorm"
 )
 
 type AddressBook struct{}
 
-// List 
-// @Tags 
-// @Summary 
-// @Description 
+// List
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param page query int false ""
-// @Param page_size query int false ""
+// @Param page query int false "Page number for the personal address book list"
+// @Param page_size query int false "Number of personal address book entries per page"
 // @Param user_id query int false "id"
-// @Success 200 {object} response.Response{data=model.AddressBookList}
+// @Success 200 {object} response.Response{data=model.AddressBookSafeList} "Redacted personal address-book list envelope"
 // @Failure 500 {object} response.Response
 // @Router /admin/my/address_book/list [get]
 // @Security token
@@ -57,17 +57,17 @@ func (ct *AddressBook) List(c *gin.Context) {
 	for _, ab := range res.AddressBooks {
 		abCIds = append(abCIds, ab.CollectionId)
 	}
-	response.Success(c, res)
+	response.Success(c, res.Safe())
 }
 
-// Create 
-// @Tags 
-// @Summary 
-// @Description 
+// Create
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param body body admin.AddressBookForm true ""
-// @Success 200 {object} response.Response{data=model.AddressBook}
+// @Param body body admin.AddressBookForm true "Personal address book entry form payload"
+// @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/my/address_book/create [post]
 // @Security token
@@ -104,14 +104,14 @@ func (ct *AddressBook) Create(c *gin.Context) {
 	response.Success(c, nil)
 }
 
-// Update 
-// @Tags 
-// @Summary 
-// @Description 
+// Update
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param body body admin.AddressBookForm true ""
-// @Success 200 {object} response.Response{data=model.AddressBook}
+// @Param body body admin.AddressBookForm true "Personal address book entry update form payload"
+// @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/my/address_book/update [post]
 // @Security token
@@ -158,13 +158,13 @@ func (ct *AddressBook) Update(c *gin.Context) {
 	response.Success(c, nil)
 }
 
-// Delete 
-// @Tags 
-// @Summary 
-// @Description 
+// Delete
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param body body admin.AddressBookForm true ""
+// @Param body body admin.AddressBookForm true "Personal address book entry deletion form payload"
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/my/address_book/delete [post]
@@ -199,6 +199,18 @@ func (ct *AddressBook) Delete(c *gin.Context) {
 	response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
 	return
 }
+
+// BatchCreateFromPeers
+// @Tags
+// @Summary
+// @Description Personal batch creation of address-book entries from the current user's peers.
+// @Accept  json
+// @Produce  json
+// @Param body body admin.BatchCreateFromPeersForm true "Peer IDs and address-book destination payload"
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/my/address_book/batchCreateFromPeers [post]
+// @Security token
 func (ct *AddressBook) BatchCreateFromPeers(c *gin.Context) {
 	f := &admin.BatchCreateFromPeersForm{}
 	if err := c.ShouldBindJSON(f); err != nil {
@@ -246,6 +258,17 @@ func (ct *AddressBook) BatchCreateFromPeers(c *gin.Context) {
 	response.Success(c, nil)
 }
 
+// BatchUpdateTags changes tags for the current user's address-book entries.
+// @Tags AddressBook
+// @Summary Update personal address-book tags
+// @Description Authenticated users may update tags on their own address-book entries.
+// @Accept json
+// @Produce json
+// @Param body body admin.BatchUpdateTagsForm true "Address-book tag update payload"
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/my/address_book/batchUpdateTags [post]
+// @Security token
 func (ct *AddressBook) BatchUpdateTags(c *gin.Context) {
 	f := &admin.BatchUpdateTagsForm{}
 	if err := c.ShouldBindJSON(f); err != nil {

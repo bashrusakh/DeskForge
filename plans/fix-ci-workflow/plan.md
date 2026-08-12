@@ -1,8 +1,22 @@
 # Plan: Fix CI Workflows and Version Management
 
 **Date:** 2026-06-28
-**Status:** 🟡 Implemented — pending live workflow validation
+**Status:** 🟡 Historical/superseded — preserved; no current live-validation claim
 **Priority:** High (workflows were failing)
+
+> **Historical/superseded notice (2026-08-10):** This plan preserves the original
+> CI repair record. Its local `github-build/` copies, multi-branch deployment notes,
+> open-input/debug fallback, and version fallback descriptions are historical and
+> are not the current production contract. Active executable workflows belong only
+> to the configured RustDesk fork; the current payload boundary is authenticated
+> `DFP1`, provider catalog failure has no obsolete version fallback, and PR10/PR11
+> remain `in-progress`. PR12 is a separately tracked, docs-only
+> `verified-with-notes` reconciliation; this historical plan is not current PR12 work
+> and makes no live-run or readiness claim.
+>
+> **Provenance boundary:** broad corrective changes remain uncommitted in the local
+> worktrees; PR12 documentation reconciliation is not an isolated diff and this
+> historical plan does not authorize publication or change the current PR statuses.
 
 ---
 
@@ -77,7 +91,7 @@ bashrusakh/rustdesk
 
 ---
 
-## 3. What Was Done
+## 3. Historical implementation record (superseded)
 
 ### 3.1. Fixed `bridge.yml` — restored upstream pattern
 
@@ -156,7 +170,7 @@ GET /repos/bashrusakh/rustdesk/releases?per_page=100
 
 ---
 
-## 4. Validation
+## 4. Historical validation record (superseded)
 
 | Check | Result |
 |---|---|

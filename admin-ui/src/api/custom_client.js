@@ -23,9 +23,10 @@ export function remove (data) {
   })
 }
 
-export function detailByKey (key) {
+export function download (id) {
   return request({
-    url: '/custom_build/public/detailByKey/' + key,
+    url: `/custom_build/download/${id}`,
+    responseType: 'blob',
   })
 }
 
