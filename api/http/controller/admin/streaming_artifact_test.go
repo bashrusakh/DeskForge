@@ -106,6 +106,9 @@ func TestPublishDownloadedArtifactFailsClosedAndCleansStaging(t *testing.T) {
 	}{
 		{name: "invalid zip", files: nil},
 		{name: "zip slip", files: map[string]string{"../escape.exe": "bad"}},
+		{name: "backslash traversal", files: map[string]string{`..\escape.exe`: "bad"}},
+		{name: "absolute path", files: map[string]string{"/escape.exe": "bad"}},
+		{name: "drive absolute path", files: map[string]string{`C:\escape.exe`: "bad"}},
 		{name: "reserved device", files: map[string]string{"CON.exe": "bad"}},
 		{name: "unsafe extension", files: map[string]string{"helper.bat": "bad"}},
 		{name: "nested Windows path", files: map[string]string{"nested/helper.dll": "bad"}},
@@ -300,6 +303,36 @@ func TestExtractValidatedArtifactAcceptsNestedBridgeManifestFiles(t *testing.T) 
 	}
 	if contents, err := os.ReadFile(filepath.Join(staging, "custom_.txt")); err != nil || string(contents) != "private settings" {
 		t.Fatalf("private custom_.txt = %q, err=%v; want extracted private file", contents, err)
+	}
+}
+
+func TestExtractValidatedArtifactRejectsTraversalOutsideStaging(t *testing.T) {
+	archive := makeArtifactZip(t, map[string]string{
+		"../escape.txt": "must not be written",
+	})
+	archiveReader, err := zip.OpenReader(archive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer archiveReader.Close()
+
+	staging := t.TempDir()
+	build := &model.CustomBuild{
+		Platform: "bridge",
+		AppName:  "rustdesk-bridge",
+	}
+	if _, _, err := extractValidatedArtifact(archiveReader, staging, build); err == nil {
+		t.Fatal("extractValidatedArtifact() error = nil, want traversal rejection")
+	}
+	if _, err := os.Stat(filepath.Join(filepath.Dir(staging), "escape.txt")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("traversal destination stat = %v, want absent", err)
+	}
+	entries, err := os.ReadDir(staging)
+	if err != nil {
+		t.Fatalf("read staging directory: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("staging entries = %v, want no extracted files", entries)
 	}
 }
 

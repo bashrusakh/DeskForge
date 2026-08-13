@@ -30,6 +30,11 @@ import (
 
 type CustomBuild struct{}
 
+type validatedZipEntry struct {
+	name        string
+	destination string
+}
+
 func failCustomBuildRead(c *gin.Context, err error) {
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		response.Fail(c, 101, response.TranslateMsg(c, "ItemNotFound"))
@@ -2153,6 +2158,14 @@ func extractValidatedArtifact(zr *zip.ReadCloser, staging string, build *model.C
 	if err := validateZipMetadata(zr.File); err != nil {
 		return 0, service.ProducerManifest{}, err
 	}
+	validatedEntries := make(map[*zip.File]validatedZipEntry, len(zr.File))
+	for _, zf := range zr.File {
+		entry, err := validateZipEntryPath(staging, zf.Name, true)
+		if err != nil {
+			return 0, service.ProducerManifest{}, err
+		}
+		validatedEntries[zf] = entry
+	}
 	producerManifest, hasProducerManifest, err := readProducerManifest(zr, build)
 	if err != nil {
 		return 0, service.ProducerManifest{}, err
@@ -2168,10 +2181,8 @@ func extractValidatedArtifact(zr *zip.ReadCloser, staging string, build *model.C
 	var windowsExe bool
 
 	for _, zf := range zr.File {
-		name, err := safeZipEntryName(zf.Name)
-		if err != nil {
-			return 0, service.ProducerManifest{}, err
-		}
+		entry := validatedEntries[zf]
+		name := entry.name
 		if hasProducerManifest {
 			if zf.Name == service.ProducerManifestFilename {
 				continue
@@ -2191,7 +2202,7 @@ func extractValidatedArtifact(zr *zip.ReadCloser, staging string, build *model.C
 			if !producerManifestHasFile(producerManifest, name) && !producerManifestHasPrivateFile(producerManifest, name) {
 				return 0, service.ProducerManifest{}, fmt.Errorf("producer artifact contains unexpected output file %q", zf.Name)
 			}
-			n, err := extractZipFile(zf, staging, name, &extractedBytes, build.Platform == "bridge")
+			n, err := extractZipFile(zf, entry, &extractedBytes)
 			if err != nil {
 				return 0, service.ProducerManifest{}, fmt.Errorf("extract producer output %q: %w", zf.Name, err)
 			}
@@ -2218,7 +2229,11 @@ func extractValidatedArtifact(zr *zip.ReadCloser, staging string, build *model.C
 			if _, exists := seen[name]; exists {
 				return 0, service.ProducerManifest{}, fmt.Errorf("artifact ZIP contains duplicate output file %q", name)
 			}
-			n, err := extractZipFile(zf, staging, name, &extractedBytes, false)
+			flatEntry, err := validateZipEntryPath(staging, name, false)
+			if err != nil {
+				return 0, service.ProducerManifest{}, err
+			}
+			n, err := extractZipFile(zf, flatEntry, &extractedBytes)
 			if err != nil {
 				return 0, service.ProducerManifest{}, fmt.Errorf("extract %q: %w", zf.Name, err)
 			}
@@ -2252,7 +2267,11 @@ func extractValidatedArtifact(zr *zip.ReadCloser, staging string, build *model.C
 			if _, exists := seen[seenKey]; exists {
 				return 0, service.ProducerManifest{}, fmt.Errorf("artifact ZIP contains duplicate output file %q", target)
 			}
-			n, err := extractZipFile(zf, staging, target, &extractedBytes, false)
+			flatEntry, err := validateZipEntryPath(staging, target, false)
+			if err != nil {
+				return 0, service.ProducerManifest{}, err
+			}
+			n, err := extractZipFile(zf, flatEntry, &extractedBytes)
 			if err != nil {
 				return 0, service.ProducerManifest{}, fmt.Errorf("extract %q: %w", zf.Name, err)
 			}
@@ -2397,19 +2416,42 @@ func safeZipEntryName(name string) (string, error) {
 	return clean, nil
 }
 
-// extractZipFile writes one already-validated output name without
-// replacing an earlier entry. A failed copy removes its partial file.
+// validateZipEntryPath validates an archive name and resolves its destination
+// under outDir. Callers must use the returned destination for all filesystem
+// operations; the archive name is never used as a filesystem path directly.
+func validateZipEntryPath(outDir, name string, allowNested bool) (validatedZipEntry, error) {
+	clean, err := safeZipEntryName(name)
+	if err != nil {
+		return validatedZipEntry{}, err
+	}
+	if !allowNested && strings.ContainsRune(clean, '/') {
+		return validatedZipEntry{}, fmt.Errorf("invalid flat extraction name %q", name)
+	}
 
-func extractZipFile(zf *zip.File, outDir, name string, aggregate *uint64, allowNested bool) (int64, error) {
-	if name == "" || strings.ContainsAny(name, `\\`) || path.IsAbs(name) || path.Clean(name) != name || strings.HasPrefix(name, "../") {
-		return 0, fmt.Errorf("invalid extraction name %q", name)
+	root, err := filepath.Abs(outDir)
+	if err != nil {
+		return validatedZipEntry{}, fmt.Errorf("resolve artifact staging directory: %w", err)
 	}
-	if !allowNested && strings.ContainsRune(name, '/') {
-		return 0, fmt.Errorf("invalid flat extraction name %q", name)
+	destination, err := filepath.Abs(filepath.Join(root, filepath.FromSlash(clean)))
+	if err != nil {
+		return validatedZipEntry{}, fmt.Errorf("resolve artifact destination: %w", err)
 	}
-	dst := filepath.Join(outDir, name)
-	if allowNested {
-		parent := filepath.Dir(dst)
+	relative, err := filepath.Rel(root, destination)
+	if err != nil {
+		return validatedZipEntry{}, fmt.Errorf("check artifact destination: %w", err)
+	}
+	if relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || filepath.IsAbs(relative) {
+		return validatedZipEntry{}, fmt.Errorf("zip slip: artifact path escapes staging directory %q", name)
+	}
+	return validatedZipEntry{name: clean, destination: destination}, nil
+}
+
+// extractZipFile writes one already-validated output name without replacing
+// an earlier entry. A failed copy removes its partial file.
+func extractZipFile(zf *zip.File, entry validatedZipEntry, aggregate *uint64) (int64, error) {
+	dst := entry.destination
+	if strings.ContainsRune(entry.name, '/') {
+		parent := filepath.Dir(entry.destination)
 		if err := os.MkdirAll(parent, 0700); err != nil {
 			return 0, err
 		}

@@ -69,8 +69,10 @@ async fn write_set_to_file(file: &str, lock: &RwLock<HashSet<String>>) {
         drop(f);
         std::fs::rename(&tmp, &file_owned)?;
         Ok(())
-    }).await {
-        Ok(Ok(())) => {},
+    })
+    .await
+    {
+        Ok(Ok(())) => {}
         Ok(Err(e)) => log::error!("Failed to write {}: {}", file, e),
         Err(e) => log::error!("spawn_blocking failed for {}: {}", file, e),
     }
