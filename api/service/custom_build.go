@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"rustdesk-server/api/model"
@@ -24,6 +25,27 @@ func IsSecretEncryptionConfigurationError(err error) bool {
 }
 
 var removeBuildOutputDir = os.RemoveAll
+
+// buildOutputLifecycleMu serializes the DB deletion boundary and exact output
+// and marker removal with stale-tombstone cleanup. Normal SQLite/GORM model
+// operation does not reuse deleted IDs, but this closes the in-process
+// delete/sweep overlap that could otherwise remove a live path.
+var buildOutputLifecycleMu sync.Mutex
+
+// CustomBuildCleanupPending reports a successful authoritative DB deletion
+// whose service-owned output directory still needs cleanup. Callers must not
+// turn this into a failed deletion: the row is gone, while the filesystem
+// condition remains observable for operator/sweeper handling.
+type CustomBuildCleanupPending struct {
+	Directory string
+	Cause     error
+}
+
+func (e *CustomBuildCleanupPending) Error() string {
+	return fmt.Sprintf("custom build deleted; artifact cleanup pending for %s: %v", e.Directory, e.Cause)
+}
+
+func (e *CustomBuildCleanupPending) Unwrap() error { return e.Cause }
 
 // BuildOutputDir returns the on-disk path where the build agent writes
 // artifacts for a given build id. The convention `/rdgen-data/output/<id>`
@@ -54,29 +76,34 @@ func (is *CustomBuildService) Info(id uint) (*model.CustomBuild, error) {
 	return u, nil
 }
 
-// Delete removes the DB row before attempting artifact cleanup. The row is the
-// authoritative ownership record: a failed DB delete leaves both the record
-// and artifact untouched, while cleanup after a successful delete is
-// best-effort and cannot resurrect the row.
-//
-// There is intentionally no tombstone for a failed filesystem delete: the
-// startup sweeper removes only service-owned stale temporary/recovery paths
-// under an orphaned numeric directory. It leaves published and unknown files
-// untouched, so complete orphan-directory removal still requires operator
-// review rather than risking deletion of a valid artifact.
+// Delete records cleanup intent before deleting the DB row. A nil DB.Delete
+// result is the authoritative deletion boundary: database errors remain ordinary
+// failures, while only filesystem/tombstone errors after that boundary are
+// reported as cleanup pending. The row remains authoritative before that point;
+// cleanup after a successful delete cannot resurrect ownership.
 func (is *CustomBuildService) Delete(u *model.CustomBuild) error {
 	id := u.Id
 	dir := BuildOutputDir(id)
+	outputRoot := filepath.Dir(dir)
+	buildOutputLifecycleMu.Lock()
+	defer buildOutputLifecycleMu.Unlock()
+	tombstone, err := ensureBuildOutputDeletionTombstone(outputRoot, id)
+	if err != nil {
+		return err
+	}
 	if err := DB.Delete(u).Error; err != nil {
 		return err
 	}
 	if err := removeBuildOutputDir(dir); err != nil {
-		return fmt.Errorf("remove custom build artifact directory %s after database delete: %w", dir, err)
+		return &CustomBuildCleanupPending{Directory: dir, Cause: err}
 	}
 	if _, err := os.Lstat(dir); err == nil {
-		return fmt.Errorf("remove custom build artifact directory %s after database delete: directory remains after cleanup", dir)
+		return &CustomBuildCleanupPending{Directory: dir, Cause: errors.New("directory remains after cleanup")}
 	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("verify custom build artifact cleanup %s after database delete: %w", dir, err)
+		return &CustomBuildCleanupPending{Directory: dir, Cause: fmt.Errorf("verify cleanup: %w", err)}
+	}
+	if err := removeBuildOutputDeletionTombstoneIfPresent(tombstone); err != nil {
+		return &CustomBuildCleanupPending{Directory: dir, Cause: fmt.Errorf("remove cleanup tombstone: %w", err)}
 	}
 	return nil
 }

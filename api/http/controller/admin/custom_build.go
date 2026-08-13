@@ -756,6 +756,16 @@ func (ct *CustomBuild) Delete(c *gin.Context) {
 	}
 	err = service.AllService.CustomBuildService.Delete(ex)
 	if err != nil {
+		var cleanupPending *service.CustomBuildCleanupPending
+		if errors.As(err, &cleanupPending) {
+			if global.Logger != nil {
+				global.Logger.Warnf("custom build %d deleted from database; artifact cleanup remains pending: %s", ex.Id, service.GithubErrorDetail(err))
+			}
+			// Preserve HTTP/UI deletion success after the irreversible DB delete,
+			// but expose the filesystem warning without requiring a new API shape.
+			response.Success(c, gin.H{"cleanup_pending": true})
+			return
+		}
 		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
 		return
 	}

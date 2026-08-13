@@ -20,11 +20,28 @@ import (
 const validRustDeskPublicKey = "5Qbwsde3unUcJBtrx9ZkvUmwFNoExHzpryHuPUdqlWM="
 
 func testProtectedRulesetResponse(pattern string) string {
-	return `[{"id":1,"target":"tag","enforcement":"active","bypass_actors":[],"conditions":{"ref_name":{"include":["refs/tags/` + pattern + `"],"exclude":[]}},"rules":[{"type":"tag_name_pattern","parameters":{"operator":"fnmatch","pattern":"` + pattern + `"}},{"type":"update"},{"type":"deletion"}]}]`
+	pattern = strings.TrimSuffix(strings.TrimPrefix(pattern, "refs/tags/"), "*")
+	return `{"id":1,"target":"tag","enforcement":"active","bypass_actors":[],"current_user_can_bypass":"never","conditions":{"ref_name":{"include":["refs/tags/` + pattern + `*"],"exclude":[]}},"rules":[{"type":"tag_name_pattern","parameters":{"name":"tag_name","negate":false,"operator":"starts_with","pattern":"` + pattern + `"}},{"type":"update"},{"type":"deletion"}]}`
 }
 
 func testPatternOnlyRulesetResponse(pattern string) string {
-	return `[{"id":1,"target":"tag","enforcement":"active","bypass_actors":[],"conditions":{"ref_name":{"include":["refs/tags/` + pattern + `"],"exclude":[]}},"rules":[{"type":"tag_name_pattern","parameters":{"operator":"fnmatch","pattern":"` + pattern + `"}}]}]`
+	pattern = strings.TrimSuffix(strings.TrimPrefix(pattern, "refs/tags/"), "*")
+	return `{"id":1,"target":"tag","enforcement":"active","bypass_actors":[],"current_user_can_bypass":"never","conditions":{"ref_name":{"include":["refs/tags/` + pattern + `*"],"exclude":[]}},"rules":[{"type":"tag_name_pattern","parameters":{"name":"tag_name","negate":false,"operator":"starts_with","pattern":"` + pattern + `"}}]}`
+}
+
+func testRulesetSummaryResponse() string { return `[{"id":1}]` }
+
+func testRulesetResponse(req *http.Request, pattern string) *http.Response {
+	if strings.Contains(req.URL.Path, "/rulesets/") {
+		id := strings.TrimPrefix(req.URL.Path, "/repos/owner/repo-a/rulesets/")
+		id = strings.TrimPrefix(id, "/repos/owner/repo/rulesets/")
+		response := testProtectedRulesetResponse(pattern)
+		if id != "" && id != req.URL.Path {
+			response = strings.Replace(response, `"id":1`, `"id":`+id, 1)
+		}
+		return githubResponse(http.StatusOK, response, nil)
+	}
+	return githubResponse(http.StatusOK, testRulesetSummaryResponse(), nil)
 }
 
 func TestWorkflowFilenameForPlatformUsesFixedApplicationMapping(t *testing.T) {
@@ -45,6 +62,122 @@ func TestWorkflowFilenameForPlatformUsesFixedApplicationMapping(t *testing.T) {
 	}
 	if _, err := WorkflowFilenameForPlatform("macos"); err == nil {
 		t.Fatal("unsupported platform returned a workflow")
+	}
+}
+
+func TestGithubTagPatternMatchingUsesRefPathSemantics(t *testing.T) {
+	for _, test := range []struct {
+		pattern string
+		value   string
+		want    bool
+	}{
+		{"workflow-*", "workflow-v1", true},
+		{"workflow-*", "workflow/team-v1", false},
+		{"workflow/**", "workflow/team/v1", true},
+		{"workflow/?", "workflow/x", true},
+		{"workflow/?", "workflow/team", false},
+		{"release/**/*", "release/v1", true},
+		{"release/**/*", "release/foo/bar", true},
+		{"release/**/*", "release", false},
+		{"**/release", "release", true},
+		{"**/release", "team/release", true},
+		{"**/release", "team/subteam/release", true},
+		{"**/release", "team/release/extra", false},
+		{"release/*", "release/v1", true},
+		{"release/*", "release/foo/bar", false},
+		{"release/?", "release/x", true},
+		{"release/?", "release/foo", false},
+		{"refs/tags/release/v1", "release/v1", true},
+		{"refs/tags/release/v1", "release/v2", false},
+		{"workflow-[abc]", "workflow-b", true},
+		{"workflow-[abc]", "workflow-d", false},
+		{"workflow-v[0-9]", "workflow-v7", true},
+		{"workflow-v[0-9]", "workflow-vx", false},
+		{"[-a]", "-", true},
+		{"[-a]", "a", true},
+		{"[-a]", "0", false},
+		{"workflow-[-a]", "workflow--", true},
+		{"workflow-[-a]", "workflow-a", true},
+		{"workflow-[-a]", "workflow-0", false},
+		{"refs/tags/release/[a-z]/**", "release/a/nested/v1", true},
+		{"refs/tags/release/[a-z]/**", "release/a/b/c", true},
+		{"refs/tags/release/[a-z]/**", "release/ab/c", false},
+		{"~ALL", "anything/nested", true},
+		{"~DEFAULT_BRANCH", "workflow-v1", false},
+	} {
+		t.Run(test.pattern+"/"+test.value, func(t *testing.T) {
+			got := githubTagPatternMatches(test.pattern, test.value)
+			if got != test.want {
+				t.Fatalf("githubTagPatternMatches(%q, %q) = %v, want %v", test.pattern, test.value, got, test.want)
+			}
+		})
+	}
+}
+
+func TestRulesetRefNameMatchesGitHubIncludeExcludeGlobstarSemantics(t *testing.T) {
+	condition := &githubRulesetRefNameCondition{
+		Include: []string{"refs/tags/release/**/*"},
+		Exclude: []string{"refs/tags/release/private/**"},
+	}
+	for _, test := range []struct {
+		name string
+		tag  string
+		want bool
+	}{
+		{name: "single component after directory", tag: "release/v1", want: true},
+		{name: "deeper nested path", tag: "release/foo/bar", want: true},
+		{name: "excluded nested path", tag: "release/private/v1", want: false},
+		{name: "directory itself remains outside exclusion suffix", tag: "release/private", want: true},
+		{name: "outside include", tag: "hotfix/v1", want: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := rulesetRefNameMatches(condition, test.tag); got != test.want {
+				t.Fatalf("rulesetRefNameMatches(%q) = %v, want %v", test.tag, got, test.want)
+			}
+		})
+	}
+}
+
+func TestGithubTagGlobRejectsMalformedUnsupportedAndUnsafeClasses(t *testing.T) {
+	for _, pattern := range []string{
+		"workflow-[abc",
+		"workflow-[]",
+		"workflow-[z-a]",
+		"workflow-[^a]",
+		"workflow-[!a]",
+		"workflow-[a/]",
+		"workflow-[!-0]",
+		"workflow-]",
+		"workflow-\\",
+		`workflow-\*`,
+		`workflow-[a\-z]`,
+	} {
+		if githubTagGlobMatches(pattern, "workflow-a") {
+			t.Fatalf("githubTagGlobMatches(%q) = true, want malformed/unsupported pattern rejected", pattern)
+		}
+	}
+	for _, pattern := range []string{`workflow-\*`, `workflow-\[a\]`, `workflow-[a\-z]`} {
+		if githubTagGlobMatches(pattern, "workflow-*") || githubTagGlobMatches(pattern, "workflow-[a]") {
+			t.Fatalf("githubTagGlobMatches(%q) matched a backslash-quoted value", pattern)
+		}
+	}
+}
+
+func TestRulesetTagNamePatternOperatorsDoNotControlRefProtection(t *testing.T) {
+	for _, operator := range []string{"starts_with", "ends_with", "contains", "regex"} {
+		t.Run(operator, func(t *testing.T) {
+			if !githubTagNamePatternMatches(operator, map[string]string{
+				"starts_with": "workflow-",
+				"ends_with":   "-v1",
+				"contains":    "flow",
+				"regex":       `^workflow-v[0-9]+$`,
+			}[operator], "workflow-v1") {
+				t.Fatalf("operator %q did not match documented pattern", operator)
+			}
+		})
+	}
+	if githubTagNamePatternMatches("fnmatch", "workflow-*", "workflow-v1") {
+		t.Fatal("unsupported fnmatch operator was accepted")
 	}
 }
 
@@ -188,12 +321,19 @@ func TestVerifyProtectedWorkflowTagRequiresMatchingProviderPattern(t *testing.T)
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			withGithubTransport(t, githubRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+				if req.URL.Path == "/repos/owner/repo/rulesets/1" {
+					return githubResponse(http.StatusOK, test.modernBody, nil), nil
+				}
 				if req.URL.Path == "/repos/owner/repo/rulesets" {
 					status := http.StatusOK
 					if strings.HasPrefix(test.modernBody, `{"message"`) {
 						status = http.StatusNotFound
 					}
-					return githubResponse(status, test.modernBody, nil), nil
+					body := testRulesetSummaryResponse()
+					if status != http.StatusOK {
+						body = test.modernBody
+					}
+					return githubResponse(status, body, nil), nil
 				}
 				if req.URL.Path != "/repos/owner/repo/tags/protection" {
 					t.Fatalf("unexpected protected-tag request: %s %s", req.Method, req.URL.Path)
@@ -228,6 +368,8 @@ func TestVerifyProtectedWorkflowTagRejectsLegacyPositiveWhenModernRulesetAllowsB
 		case "/repos/owner/repo/tags/protection":
 			return githubResponse(http.StatusOK, `[{"pattern":"workflow-*"}]`, nil), nil
 		case "/repos/owner/repo/rulesets":
+			return githubResponse(http.StatusOK, testRulesetSummaryResponse(), nil), nil
+		case "/repos/owner/repo/rulesets/1":
 			return githubResponse(http.StatusOK, strings.Replace(
 				testProtectedRulesetResponse("workflow-*"),
 				`"bypass_actors":[]`,
@@ -260,11 +402,15 @@ func TestVerifyProtectedWorkflowTagRequiresModernActiveRuleset(t *testing.T) {
 	}{
 		{name: "protected", ruleset: testProtectedRulesetResponse("workflow-*")},
 		{name: "mismatch", ruleset: testProtectedRulesetResponse("release-*"), wantPolicy: true},
+		{name: "tag metadata does not select protection", ruleset: strings.Replace(testProtectedRulesetResponse("workflow-*"), `"operator":"starts_with","pattern":"workflow-"`, `"operator":"ends_with","pattern":"not-the-ref"`, 1)},
+		{name: "tag metadata is optional", ruleset: strings.Replace(testProtectedRulesetResponse("workflow-*"), `{"type":"tag_name_pattern","parameters":{"name":"tag_name","negate":false,"operator":"starts_with","pattern":"workflow-"}},`, "", 1)},
 		{name: "pattern only", ruleset: testPatternOnlyRulesetResponse("workflow-*"), wantPolicy: true},
 		{name: "missing update rule", ruleset: strings.Replace(testProtectedRulesetResponse("workflow-*"), `{"type":"update"},`, "", 1), wantPolicy: true},
 		{name: "missing deletion rule", ruleset: strings.Replace(testProtectedRulesetResponse("workflow-*"), `,{"type":"deletion"}`, "", 1), wantPolicy: true},
 		{name: "unsupported rule", ruleset: strings.Replace(testProtectedRulesetResponse("workflow-*"), `{"type":"deletion"}`, `{"type":"required_signatures"}`, 1), wantPolicy: true},
-		{name: "ambiguous update parameters", ruleset: strings.Replace(testProtectedRulesetResponse("workflow-*"), `{"type":"update"}`, `{"type":"update","parameters":{"operator":"fnmatch"}}`, 1), wantPolicy: true},
+		{name: "unknown rule is rejected", ruleset: strings.Replace(testProtectedRulesetResponse("workflow-*"), `,{"type":"deletion"}]`, `,{"type":"deletion"},{"type":"unknown_rule"}]`, 1), wantContract: true},
+		{name: "update allows fetch and merge", ruleset: strings.Replace(testProtectedRulesetResponse("workflow-*"), `{"type":"update"}`, `{"type":"update","parameters":{"update_allows_fetch_and_merge":true}}`, 1)},
+		{name: "unknown update parameter", ruleset: strings.Replace(testProtectedRulesetResponse("workflow-*"), `{"type":"update"}`, `{"type":"update","parameters":{"operator":"fnmatch"}}`, 1), wantContract: true},
 		{name: "inactive", ruleset: strings.Replace(testProtectedRulesetResponse("workflow-*"), `"enforcement":"active"`, `"enforcement":"disabled"`, 1), wantPolicy: true},
 		{name: "bypass actor", ruleset: strings.Replace(testProtectedRulesetResponse("workflow-*"), `"bypass_actors":[]`, `"bypass_actors":[{"actor_id":1,"actor_type":"RepositoryRole","bypass_mode":"always"}]`, 1), wantPolicy: true},
 		{name: "missing bypass declaration", ruleset: strings.Replace(testProtectedRulesetResponse("workflow-*"), `"bypass_actors":[],`, "", 1), wantPolicy: true},
@@ -277,11 +423,16 @@ func TestVerifyProtectedWorkflowTagRequiresModernActiveRuleset(t *testing.T) {
 				switch req.URL.Path {
 				case "/repos/owner/repo/tags/protection":
 					return githubResponse(http.StatusOK, `[{"pattern":"release-*"}]`, nil), nil
-				case "/repos/owner/repo/rulesets":
+				case "/repos/owner/repo/rulesets/1":
 					if test.status != 0 {
 						return githubResponse(test.status, `{"message":"rulesets unavailable"}`, nil), nil
 					}
 					return githubResponse(http.StatusOK, test.ruleset, nil), nil
+				case "/repos/owner/repo/rulesets":
+					if test.status != 0 {
+						return githubResponse(test.status, `{"message":"rulesets unavailable"}`, nil), nil
+					}
+					return githubResponse(http.StatusOK, testRulesetSummaryResponse(), nil), nil
 				default:
 					t.Fatalf("unexpected ruleset policy request: %s %s", req.Method, req.URL.Path)
 					return nil, nil
@@ -327,6 +478,8 @@ func TestVerifyProtectedWorkflowTagFindsLegacyPatternBeyondFirstPage(t *testing.
 			}
 			return githubResponse(http.StatusOK, `[{"pattern":"release-*"}]`, http.Header{"Link": []string{`<https://api.github.com/repos/owner/repo/tags/protection?per_page=100&page=2>; rel="next"`}}), nil
 		case "/repos/owner/repo/rulesets":
+			return testRulesetResponse(req, "workflow-*"), nil
+		case "/repos/owner/repo/rulesets/1":
 			return githubResponse(http.StatusOK, testProtectedRulesetResponse("workflow-*"), nil), nil
 		default:
 			t.Fatalf("unexpected paginated protection request: %s %s", req.Method, req.URL.Path)
@@ -366,13 +519,17 @@ func TestVerifyModernProtectedWorkflowTagFindsRulesetBeyondFirstPage(t *testing.
 		switch req.URL.Path {
 		case "/repos/owner/repo/rulesets":
 			rulesetPages++
-			if req.URL.Query().Get("includes_parents") != "true" {
-				t.Fatalf("ruleset page %q omitted includes_parents=true", req.URL.RawQuery)
+			if req.URL.Query().Get("targets") != "tag" || req.URL.Query().Get("includes_parents") != "true" {
+				t.Fatalf("ruleset page %q omitted targets=tag or includes_parents=true", req.URL.RawQuery)
 			}
 			if req.URL.Query().Get("page") == "2" {
-				return githubResponse(http.StatusOK, testProtectedRulesetResponse("workflow-*"), nil), nil
+				return githubResponse(http.StatusOK, `[{"id":1}]`, nil), nil
 			}
-			return githubResponse(http.StatusOK, `[{"id":2,"target":"tag","enforcement":"active","bypass_actors":[],"conditions":{"ref_name":{"include":["refs/tags/release-*"],"exclude":[]}},"rules":[{"type":"tag_name_pattern","parameters":{"operator":"fnmatch","pattern":"release-*"}},{"type":"update"},{"type":"deletion"}]}]`, http.Header{"Link": []string{`<https://api.github.com/repos/owner/repo/rulesets?per_page=100&page=2>; rel="next"`}}), nil
+			return githubResponse(http.StatusOK, `[{"id":2}]`, http.Header{"Link": []string{`<https://api.github.com/repos/owner/repo/rulesets?per_page=100&page=2>; rel="next"`}}), nil
+		case "/repos/owner/repo/rulesets/1":
+			return githubResponse(http.StatusOK, testProtectedRulesetResponse("workflow-*"), nil), nil
+		case "/repos/owner/repo/rulesets/2":
+			return githubResponse(http.StatusOK, strings.Replace(testProtectedRulesetResponse("release-*"), `"id":1`, `"id":2`, 1), nil), nil
 		default:
 			t.Fatalf("unexpected ruleset pagination request: %s %s", req.Method, req.URL.Path)
 			return nil, nil
@@ -388,16 +545,44 @@ func TestVerifyModernProtectedWorkflowTagFindsRulesetBeyondFirstPage(t *testing.
 
 func TestVerifyModernProtectedWorkflowTagIncludesInheritedParentRulesets(t *testing.T) {
 	withGithubTransport(t, githubRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Path == "/repos/owner/repo/rulesets/9" {
+			return githubResponse(http.StatusOK, strings.Replace(testProtectedRulesetResponse("workflow-*"), `"id":1`, `"id":9`, 1), nil), nil
+		}
 		if req.URL.Path != "/repos/owner/repo/rulesets" {
 			t.Fatalf("unexpected inherited-ruleset request: %s %s", req.Method, req.URL.RequestURI())
 		}
-		if req.URL.Query().Get("includes_parents") != "true" || req.URL.Query().Get("per_page") != "100" || req.URL.Query().Get("page") != "1" {
+		if req.URL.Query().Get("targets") != "tag" || req.URL.Query().Get("includes_parents") != "true" || req.URL.Query().Get("per_page") != "100" || req.URL.Query().Get("page") != "1" {
 			t.Fatalf("ruleset query = %q, want bounded inherited-ruleset query", req.URL.RawQuery)
 		}
-		return githubResponse(http.StatusOK, `[{"id":9,"target":"tag","enforcement":"active","source_type":"Organization","source":"parent-org","bypass_actors":[],"conditions":{"ref_name":{"include":["refs/tags/workflow-*"]}},"rules":[{"type":"tag_name_pattern","parameters":{"operator":"fnmatch","pattern":"workflow-*"}},{"type":"update"},{"type":"deletion"}]}]`, nil), nil
+		return githubResponse(http.StatusOK, `[{"id":9}]`, nil), nil
 	}))
 	if err := (&GithubBuildConfigService{}).verifyModernProtectedWorkflowTag(context.Background(), &model.GithubBuildConfig{Repo: "owner/repo"}, "workflow-v1"); err != nil {
 		t.Fatalf("verifyModernProtectedWorkflowTag() error = %v, want inherited parent policy to count", err)
+	}
+}
+
+func TestGithubRulesetParserAcceptsDocumentedKnownRuleParameters(t *testing.T) {
+	fixture := `{"id":1,"target":"tag","enforcement":"active","bypass_actors":[],"current_user_can_bypass":"never","conditions":{"ref_name":{"include":["refs/tags/workflow-*"]}},"rules":[{"type":"workflows","parameters":{"do_not_enforce_on_create":true,"workflows":[{"path":".github/workflows/build.yml","repository_id":123,"ref":"refs/heads/main","sha":"` + strings.Repeat("a", 40) + `"}]}},{"type":"pull_request","parameters":{"dismiss_stale_reviews_on_push":true,"require_code_owner_review":true,"required_approving_review_count":1,"required_review_thread_resolution":true,"require_last_push_approval":true,"allowed_merge_methods":["merge","squash"],"dismissal_restriction":{"users":["octocat"]},"required_reviewers":[{"reviewer":{"id":123,"type":"User"},"required":true}]}},{"type":"update"},{"type":"deletion"}]}`
+	var ruleset githubRepositoryRulesetRecord
+	if err := json.Unmarshal([]byte(fixture), &ruleset); err != nil {
+		t.Fatalf("documented ruleset fixture rejected: %v", err)
+	}
+	if !rulesetTagPatternMatches(ruleset, "workflow-0") {
+		t.Fatal("documented known rule parameters prevented valid tag ruleset protection")
+	}
+}
+
+func TestGithubRulesetParserRejectsMalformedKnownRuleParameters(t *testing.T) {
+	for _, parameters := range []string{`null`, `[]`, `{`} {
+		fixture := `{"type":"workflows","parameters":` + parameters + `}`
+		var rule githubRulesetRule
+		if err := json.Unmarshal([]byte(fixture), &rule); err == nil {
+			t.Fatalf("ruleset parameters %s were accepted, want fail-closed rejection", parameters)
+		}
+	}
+	var unknown githubRulesetRule
+	if err := json.Unmarshal([]byte(`{"type":"unknown_rule","parameters":{}}`), &unknown); err == nil {
+		t.Fatal("unknown ruleset type was accepted")
 	}
 }
 
@@ -495,7 +680,7 @@ func TestDispatchBuildRejectsBranchCollisionBeforeProviderPayloadPost(t *testing
 		case "/repos/owner/repo/tags/protection":
 			return githubResponse(http.StatusOK, `[{"pattern":"workflow-*"}]`, nil), nil
 		case "/repos/owner/repo/rulesets":
-			return githubResponse(http.StatusOK, testProtectedRulesetResponse("workflow-*"), nil), nil
+			return testRulesetResponse(req, "workflow-*"), nil
 		case "/repos/owner/repo/git/ref/tags/workflow-v1":
 			return githubResponse(http.StatusOK, `{"ref":"refs/tags/workflow-v1","object":{"sha":"`+strings.Repeat("e", 40)+`","type":"tag"}}`, nil), nil
 		case "/repos/owner/repo/git/tags/" + strings.Repeat("e", 40):
@@ -529,8 +714,10 @@ func TestListWorkflowTagOptionsReturnsOnlyVerifiedReadyProviderTags(t *testing.T
 		switch {
 		case strings.HasSuffix(req.URL.Path, "/tags/protection"):
 			return githubResponse(http.StatusOK, `[{"pattern":"workflow-*"}]`, nil), nil
+		case strings.HasPrefix(req.URL.Path, "/repos/owner/repo/rulesets/"):
+			return testRulesetResponse(req, "workflow-*"), nil
 		case strings.HasSuffix(req.URL.Path, "/rulesets"):
-			return githubResponse(http.StatusOK, testProtectedRulesetResponse("workflow-*"), nil), nil
+			return testRulesetResponse(req, "workflow-*"), nil
 		case strings.HasSuffix(req.URL.Path, "/git/refs/tags"):
 			return githubResponse(http.StatusOK, `[{"ref":"refs/tags/lightweight","object":{"sha":"`+strings.Repeat("c", 40)+`","type":"commit"}},{"ref":"refs/tags/unverified","object":{"sha":"`+strings.Repeat("d", 40)+`","type":"tag"}},{"ref":"refs/tags/workflow-v1","object":{"sha":"`+tagObjectSHA+`","type":"tag"}}]`, nil), nil
 		case strings.HasSuffix(req.URL.Path, "/git/ref/tags/unverified"):
@@ -589,8 +776,10 @@ func TestDispatchBuildRejectsMovedWorkflowBeforeDFP1Payload(t *testing.T) {
 		switch {
 		case strings.HasSuffix(req.URL.Path, "/tags/protection"):
 			return githubResponse(http.StatusOK, `[{"pattern":"workflow-*"}]`, nil), nil
+		case strings.HasPrefix(req.URL.Path, "/repos/owner/repo/rulesets/"):
+			return testRulesetResponse(req, "workflow-*"), nil
 		case strings.HasSuffix(req.URL.Path, "/rulesets"):
-			return githubResponse(http.StatusOK, testProtectedRulesetResponse("workflow-*"), nil), nil
+			return testRulesetResponse(req, "workflow-*"), nil
 		case strings.HasSuffix(req.URL.Path, "/git/ref/tags/workflow-v1"):
 			return githubResponse(http.StatusOK, `{"ref":"refs/tags/workflow-v1","object":{"sha":"`+strings.Repeat("e", 40)+`","type":"tag"}}`, nil), nil
 		case strings.HasSuffix(req.URL.Path, "/git/tags/"+strings.Repeat("e", 40)):
@@ -716,8 +905,10 @@ func TestApproveWorkflowRefUsesClosedDomainAndOptionalEffectiveSelector(t *testi
 		switch {
 		case strings.HasSuffix(req.URL.Path, "/tags/protection"):
 			return githubResponse(http.StatusOK, `[{"pattern":"workflow-*"}]`, nil), nil
+		case strings.HasPrefix(req.URL.Path, "/repos/owner/repo/rulesets/"):
+			return testRulesetResponse(req, "workflow-*"), nil
 		case strings.HasSuffix(req.URL.Path, "/rulesets"):
-			return githubResponse(http.StatusOK, testProtectedRulesetResponse("workflow-*"), nil), nil
+			return testRulesetResponse(req, "workflow-*"), nil
 		case strings.HasSuffix(req.URL.Path, "/git/ref/tags/workflow-v1"):
 			return githubResponse(http.StatusOK, `{"ref":"refs/tags/workflow-v1","object":{"sha":"`+annotatedTagSHA+`","type":"tag"}}`, nil), nil
 		case strings.HasSuffix(req.URL.Path, "/git/tags/"+annotatedTagSHA):
@@ -787,8 +978,11 @@ func TestApproveWorkflowRefPreservesLegacyPlaintextSecretsWithoutEncryptionKey(t
 		if strings.HasSuffix(req.URL.Path, "/tags/protection") {
 			return githubResponse(http.StatusOK, `[{"pattern":"workflow-*"}]`, nil), nil
 		}
+		if strings.HasPrefix(req.URL.Path, "/repos/owner/repo/rulesets/") {
+			return testRulesetResponse(req, "workflow-*"), nil
+		}
 		if strings.HasSuffix(req.URL.Path, "/rulesets") {
-			return githubResponse(http.StatusOK, testProtectedRulesetResponse("workflow-*"), nil), nil
+			return testRulesetResponse(req, "workflow-*"), nil
 		}
 		if strings.HasSuffix(req.URL.Path, "/git/ref/tags/workflow-v1") {
 			return githubResponse(http.StatusOK, `{"ref":"refs/tags/workflow-v1","object":{"sha":"`+strings.Repeat("b", 40)+`","type":"tag"}}`, nil), nil
@@ -838,8 +1032,11 @@ func TestApproveWorkflowRefPreservesNewEncryptedSecrets(t *testing.T) {
 		if strings.HasSuffix(req.URL.Path, "/tags/protection") {
 			return githubResponse(http.StatusOK, `[{"pattern":"workflow-*"}]`, nil), nil
 		}
+		if strings.HasPrefix(req.URL.Path, "/repos/owner/repo/rulesets/") {
+			return testRulesetResponse(req, "workflow-*"), nil
+		}
 		if strings.HasSuffix(req.URL.Path, "/rulesets") {
-			return githubResponse(http.StatusOK, testProtectedRulesetResponse("workflow-*"), nil), nil
+			return testRulesetResponse(req, "workflow-*"), nil
 		}
 		if strings.HasSuffix(req.URL.Path, "/git/ref/tags/workflow-v1") {
 			return githubResponse(http.StatusOK, `{"ref":"refs/tags/workflow-v1","object":{"sha":"`+strings.Repeat("b", 40)+`","type":"tag"}}`, nil), nil
@@ -1206,8 +1403,11 @@ func TestPrepareBuildRejectsUnavailableWorkflowBeforeBuildPersistence(t *testing
 				if strings.HasSuffix(req.URL.Path, "/tags/protection") {
 					return githubResponse(http.StatusOK, `[{"pattern":"workflow-*"}]`, nil), nil
 				}
+				if strings.HasPrefix(req.URL.Path, "/repos/owner/repo/rulesets/") {
+					return testRulesetResponse(req, "workflow-*"), nil
+				}
 				if strings.HasSuffix(req.URL.Path, "/rulesets") {
-					return githubResponse(http.StatusOK, testProtectedRulesetResponse("workflow-*"), nil), nil
+					return testRulesetResponse(req, "workflow-*"), nil
 				}
 				if strings.HasSuffix(req.URL.Path, "/git/ref/tags/workflow-v1") {
 					if tc.expectType == "contract" {
@@ -1232,7 +1432,7 @@ func TestPrepareBuildRejectsUnavailableWorkflowBeforeBuildPersistence(t *testing
 			if !errors.As(err, &providerErr) {
 				t.Fatalf("PrepareBuild() error = %T %v, want provider configuration error", err, err)
 			}
-			expectedPaths := []string{"GET /repos/owner/repo/tags/protection", "GET /repos/owner/repo/rulesets", "GET /repos/owner/repo/git/ref/tags/workflow-v1"}
+			expectedPaths := []string{"GET /repos/owner/repo/tags/protection", "GET /repos/owner/repo/rulesets", "GET /repos/owner/repo/rulesets/1", "GET /repos/owner/repo/git/ref/tags/workflow-v1"}
 			if tc.expectType == "contract" {
 				expectedPaths = append(expectedPaths, "GET /repos/owner/repo/git/tags/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "GET /repos/owner/repo/git/ref/heads/workflow-v1", "GET /repos/owner/repo/contents/.github/workflows/rustqs-windows-min-test.yml")
 			}
@@ -1299,7 +1499,7 @@ func TestPrepareBuildAcceptsActiveMappedWorkflowAndPreservesCatalogIdentity(t *t
 		case "/repos/owner/repo/tags/protection":
 			return githubResponse(http.StatusOK, `[{"pattern":"workflow-*"}]`, nil), nil
 		case "/repos/owner/repo/rulesets":
-			return githubResponse(http.StatusOK, testProtectedRulesetResponse("workflow-*"), nil), nil
+			return testRulesetResponse(req, "workflow-*"), nil
 		case "/repos/owner/repo/git/ref/tags/workflow-v1":
 			return githubResponse(http.StatusOK, `{"ref":"refs/tags/workflow-v1","object":{"sha":"`+strings.Repeat("a", 40)+`","type":"tag"}}`, nil), nil
 		case "/repos/owner/repo/git/tags/" + strings.Repeat("a", 40):
@@ -1359,7 +1559,7 @@ func TestPreparedConfigSnapshotSurvivesGlobalConfigMutationBeforeDispatch(t *tes
 		case "/repos/owner/repo-a/tags/protection":
 			return githubResponse(http.StatusOK, `[{"pattern":"workflow-*"}]`, nil), nil
 		case "/repos/owner/repo-a/rulesets":
-			return githubResponse(http.StatusOK, testProtectedRulesetResponse("workflow-*"), nil), nil
+			return testRulesetResponse(req, "workflow-*"), nil
 		case "/repos/owner/repo-a/git/ref/tags/workflow-v1":
 			return githubResponse(http.StatusOK, `{"ref":"refs/tags/workflow-v1","object":{"sha":"`+strings.Repeat("a", 40)+`","type":"tag"}}`, nil), nil
 		case "/repos/owner/repo-a/git/tags/" + strings.Repeat("a", 40):

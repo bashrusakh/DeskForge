@@ -255,7 +255,7 @@ func TestWorkflowRefApprovalEndpointRequiresAdminAndReturnsSafeStatus(t *testing
 			body = `[{"pattern":"workflow-*"}]`
 		} else if strings.HasSuffix(req.URL.Path, "/rulesets") {
 			status = http.StatusOK
-			body = `[{"id":1,"target":"tag","enforcement":"active","bypass_actors":[],"conditions":{"ref_name":{"include":["refs/tags/workflow-*"],"exclude":[]}},"rules":[{"type":"tag_name_pattern","parameters":{"operator":"fnmatch","pattern":"workflow-*"}},{"type":"update"},{"type":"deletion"}]}]`
+			body = `[{"id":1,"target":"tag","enforcement":"active","bypass_actors":[],"current_user_can_bypass":"never","conditions":{"ref_name":{"include":["refs/tags/workflow-*"],"exclude":[]}},"rules":[{"type":"tag_name_pattern","parameters":{"name":"tag_name","negate":false,"operator":"starts_with","pattern":"workflow-"}},{"type":"update"},{"type":"deletion"}]}]`
 		} else if strings.HasSuffix(req.URL.Path, "/git/ref/tags/workflow-v1") {
 			status = http.StatusOK
 			body = `{"ref":"refs/tags/workflow-v1","object":{"sha":"` + strings.Repeat("b", 40) + `","type":"tag"}}`

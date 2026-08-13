@@ -10,14 +10,21 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"rustdesk-server/api/model"
+
+	"gorm.io/gorm"
 )
 
 var githubArtifactTempPattern = regexp.MustCompile(`^deskforge-artifact-[A-Za-z0-9]{6}\.(?:part|zip)$`)
 var buildOutputNestedTempPattern = regexp.MustCompile(`^\.(?:[0-9]+-)?(?:download|archive|artifact)-[A-Za-z0-9._-]+\.(?:part|zip)$`)
 var buildOutputRecoveryPattern = regexp.MustCompile(`^\.artifact-recovery-[A-Za-z0-9._-]+$`)
 var buildOutputSnapshotPattern = regexp.MustCompile(`^\.[0-9]+-snapshot-[A-Za-z0-9._-]+$`)
+var buildOutputDeletionTombstonePattern = regexp.MustCompile(`^\.deskforge-build-delete-([1-9][0-9]*)\.tombstone$`)
+var buildOutputDeletionTombstoneTempPattern = regexp.MustCompile(`^\.deskforge-build-delete-[A-Za-z0-9]{6}\.tmp$`)
 
 const maxNestedBuildOutputTempEntries = 256
+const maxBuildOutputDeletionTombstones = 256
 
 var activeGithubArtifactTemps = struct {
 	sync.Mutex
@@ -86,6 +93,125 @@ func isProtectedGithubArtifactTemp(path string) bool {
 	return protected
 }
 
+func buildOutputDeletionTombstonePath(outputRoot string, id uint) string {
+	return filepath.Join(outputRoot, fmt.Sprintf(".deskforge-build-delete-%d.tombstone", id))
+}
+
+// ensureBuildOutputDeletionTombstone durably records deletion intent before
+// the database row is removed. Existing valid markers are reused so retries do
+// not create a second intent.
+func ensureBuildOutputDeletionTombstone(outputRoot string, id uint) (string, error) {
+	if outputRoot == "" || id == 0 {
+		return "", errors.New("build deletion tombstone requires an output root and positive id")
+	}
+	if err := os.MkdirAll(outputRoot, 0700); err != nil {
+		return "", fmt.Errorf("create build output root for deletion tombstone: %w", err)
+	}
+	rootInfo, err := os.Lstat(outputRoot)
+	if err != nil {
+		return "", fmt.Errorf("inspect build output root for deletion tombstone: %w", err)
+	}
+	if !rootInfo.IsDir() || rootInfo.Mode()&os.ModeSymlink != 0 {
+		return "", errors.New("build output root for deletion tombstone is not a regular directory")
+	}
+	path := buildOutputDeletionTombstonePath(outputRoot, id)
+	info, err := os.Lstat(path)
+	if err == nil {
+		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			return "", errors.New("build deletion tombstone is not a regular file")
+		}
+		if err := validateBuildOutputDeletionTombstone(path, id); err != nil {
+			return "", err
+		}
+		if err := os.Chmod(path, 0600); err != nil {
+			return "", fmt.Errorf("restrict build deletion tombstone permissions: %w", err)
+		}
+		return path, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("inspect build deletion tombstone: %w", err)
+	}
+	file, err := os.CreateTemp(outputRoot, ".deskforge-build-delete-*.tmp")
+	if err != nil {
+		return "", fmt.Errorf("create build deletion tombstone: %w", err)
+	}
+	tempPath := file.Name()
+	if err := file.Chmod(0600); err != nil {
+		_ = file.Close()
+		_ = os.Remove(tempPath)
+		return "", fmt.Errorf("restrict build deletion tombstone permissions: %w", err)
+	}
+	content := []byte(fmt.Sprintf("%d\n", id))
+	if _, err := file.Write(content); err != nil {
+		_ = file.Close()
+		_ = os.Remove(tempPath)
+		return "", fmt.Errorf("write build deletion tombstone: %w", err)
+	}
+	if err := file.Sync(); err != nil {
+		_ = file.Close()
+		_ = os.Remove(tempPath)
+		return "", fmt.Errorf("sync build deletion tombstone: %w", err)
+	}
+	if err := file.Close(); err != nil {
+		_ = os.Remove(tempPath)
+		return "", fmt.Errorf("close build deletion tombstone: %w", err)
+	}
+	if err := os.Rename(tempPath, path); err != nil {
+		if _, statErr := os.Lstat(path); statErr == nil {
+			_ = os.Remove(tempPath)
+			if validateErr := validateBuildOutputDeletionTombstone(path, id); validateErr != nil {
+				return "", validateErr
+			}
+			return path, nil
+		}
+		_ = os.Remove(tempPath)
+		return "", fmt.Errorf("publish build deletion tombstone: %w", err)
+	}
+	if err := syncBuildOutputDirectory(outputRoot); err != nil {
+		return "", fmt.Errorf("sync build output root after deletion tombstone: %w", err)
+	}
+	return path, nil
+}
+
+func syncBuildOutputDirectory(path string) error {
+	dir, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = dir.Close() }()
+	return dir.Sync()
+}
+
+func validateBuildOutputDeletionTombstone(path string, id uint) error {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read build deletion tombstone: %w", err)
+	}
+	if string(content) != fmt.Sprintf("%d\n", id) {
+		return errors.New("build deletion tombstone does not match its filename")
+	}
+	return nil
+}
+
+var removeBuildOutputDeletionTombstone = os.Remove
+
+func removeBuildOutputDeletionTombstoneIfPresent(path string) error {
+	info, err := os.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return errors.New("build deletion tombstone is not a regular file")
+	}
+	if err := removeBuildOutputDeletionTombstone(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
+}
+
 // SweepBuildOutputTemps removes only stale temporary artifact files and
 // staging directories directly below outputRoot. Final numeric build
 // directories are never candidates. activeBuildIDs protects temporary paths
@@ -113,7 +239,7 @@ func SweepBuildOutputTemps(outputRoot string, now time.Time, ttl time.Duration, 
 	if err != nil {
 		return fmt.Errorf("read build output root: %w", err)
 	}
-	var cleanupErr error
+	cleanupErr := sweepBuildOutputDeletionTombstones(outputRoot, entries, now, ttl, activeBuildIDs)
 	for _, entry := range entries {
 		if entry.IsDir() {
 			buildID, buildDir := parseBuildOutputDirectory(entry.Name())
@@ -122,6 +248,9 @@ func SweepBuildOutputTemps(outputRoot string, now time.Time, ttl time.Duration, 
 					continue
 				}
 				path := filepath.Join(outputRoot, entry.Name())
+				if _, err := os.Lstat(path); errors.Is(err, os.ErrNotExist) {
+					continue
+				}
 				if err := sweepNestedBuildOutputTemps(path, now, ttl); err != nil {
 					cleanupErr = errors.Join(cleanupErr, err)
 				}
@@ -171,6 +300,104 @@ func SweepBuildOutputTemps(outputRoot string, now time.Time, ttl time.Duration, 
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			cleanupErr = errors.Join(cleanupErr, fmt.Errorf("remove stale build output temp %q: %w", path, err))
 		}
+	}
+	return cleanupErr
+}
+
+func sweepBuildOutputDeletionTombstones(outputRoot string, entries []os.DirEntry, now time.Time, ttl time.Duration, activeBuildIDs map[uint]struct{}) error {
+	var cleanupErr error
+	candidates := 0
+	for _, entry := range entries {
+		if buildOutputDeletionTombstoneTempPattern.MatchString(entry.Name()) {
+			path := filepath.Join(outputRoot, entry.Name())
+			info, err := os.Lstat(path)
+			if err != nil {
+				if !errors.Is(err, os.ErrNotExist) {
+					cleanupErr = errors.Join(cleanupErr, fmt.Errorf("inspect build deletion tombstone temp %q: %w", path, err))
+				}
+				continue
+			}
+			if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() || now.Sub(info.ModTime()) < ttl {
+				continue
+			}
+			if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+				cleanupErr = errors.Join(cleanupErr, fmt.Errorf("remove stale build deletion tombstone temp %q: %w", path, err))
+			}
+			continue
+		}
+		matches := buildOutputDeletionTombstonePattern.FindStringSubmatch(entry.Name())
+		if len(matches) != 2 {
+			continue
+		}
+		candidates++
+		if candidates > maxBuildOutputDeletionTombstones {
+			cleanupErr = errors.Join(cleanupErr, fmt.Errorf("build output deletion tombstone limit exceeded: %d", maxBuildOutputDeletionTombstones))
+			break
+		}
+		parsed, err := strconv.ParseUint(matches[1], 10, 0)
+		if err != nil || parsed == 0 {
+			continue
+		}
+		buildID := uint(parsed)
+		if _, active := activeBuildIDs[buildID]; active {
+			continue
+		}
+		path := filepath.Join(outputRoot, entry.Name())
+		info, err := os.Lstat(path)
+		if err != nil {
+			if !errors.Is(err, os.ErrNotExist) {
+				cleanupErr = errors.Join(cleanupErr, fmt.Errorf("inspect build deletion tombstone %q: %w", path, err))
+			}
+			continue
+		}
+		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			continue
+		}
+		if now.Sub(info.ModTime()) < ttl {
+			continue
+		}
+		if err := validateBuildOutputDeletionTombstone(path, buildID); err != nil {
+			continue
+		}
+		if DB == nil {
+			cleanupErr = errors.Join(cleanupErr, errors.New("database is unavailable for build deletion tombstone cleanup"))
+			continue
+		}
+		cleanupErr = errors.Join(cleanupErr, func() error {
+			buildOutputLifecycleMu.Lock()
+			defer buildOutputLifecycleMu.Unlock()
+
+			// Recheck immediately under the shared lifecycle lock. This is the
+			// final authority check before exact output and marker removal.
+			var build model.CustomBuild
+			err = DB.First(&build, buildID).Error
+			if err == nil {
+				return nil
+			}
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("verify deleted custom build %d: %w", buildID, err)
+			}
+			outputDir := filepath.Join(outputRoot, strconv.FormatUint(parsed, 10))
+			outputInfo, err := os.Lstat(outputDir)
+			if err != nil && !errors.Is(err, os.ErrNotExist) {
+				return fmt.Errorf("inspect deleted custom build output %q: %w", outputDir, err)
+			}
+			if err == nil {
+				if outputInfo.Mode()&os.ModeSymlink != 0 || !outputInfo.IsDir() {
+					return nil
+				}
+				if err := removeBuildOutputDir(outputDir); err != nil {
+					return fmt.Errorf("remove deleted custom build output %q: %w", outputDir, err)
+				}
+				if _, err := os.Lstat(outputDir); err != nil && !errors.Is(err, os.ErrNotExist) {
+					return fmt.Errorf("verify deleted custom build output %q: %w", outputDir, err)
+				}
+			}
+			if err := removeBuildOutputDeletionTombstoneIfPresent(path); err != nil {
+				return fmt.Errorf("remove build deletion tombstone %q: %w", path, err)
+			}
+			return nil
+		}())
 	}
 	return cleanupErr
 }

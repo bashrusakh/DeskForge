@@ -1,10 +1,12 @@
 package admin
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -654,13 +656,17 @@ func TestDeleteWaitsForSameBuildLifecycleGuard(t *testing.T) {
 	db, sqlDB := newAdminProvenanceDB(t)
 	previousGlobalDB, previousServiceDB := global.DB, service.DB
 	previousServices := service.AllService
+	previousOutputDir := service.BuildOutputDir
 	global.DB = db
 	service.DB = db
 	service.AllService = &service.Service{CustomBuildService: &service.CustomBuildService{}}
+	outputRoot := t.TempDir()
+	service.BuildOutputDir = func(id uint) string { return filepath.Join(outputRoot, fmt.Sprint(id)) }
 	t.Cleanup(func() {
 		global.DB = previousGlobalDB
 		service.DB = previousServiceDB
 		service.AllService = previousServices
+		service.BuildOutputDir = previousOutputDir
 		_ = sqlDB.Close()
 	})
 	build := &model.CustomBuild{Status: model.CustomBuildStatusBuilding, GithubRunId: 17}
@@ -703,6 +709,74 @@ func TestDeleteWaitsForSameBuildLifecycleGuard(t *testing.T) {
 	var deleted model.CustomBuild
 	if err := db.First(&deleted, build.Id).Error; !errors.Is(err, gorm.ErrRecordNotFound) {
 		t.Fatalf("deleted build lookup error = %v, want record not found", err)
+	}
+}
+
+func TestCustomBuildDeleteReturnsSuccessWhenArtifactCleanupIsPending(t *testing.T) {
+	db, sqlDB := newAdminProvenanceDB(t)
+	previousGlobalDB, previousServiceDB := global.DB, service.DB
+	previousServices := service.AllService
+	previousOutputDir := service.BuildOutputDir
+	previousLogger, previousLocalizer := global.Logger, global.Localizer
+	var logs bytes.Buffer
+	logger := logrus.New()
+	logger.SetOutput(&logs)
+	t.Cleanup(func() {
+		global.DB = previousGlobalDB
+		service.DB = previousServiceDB
+		service.AllService = previousServices
+		service.BuildOutputDir = previousOutputDir
+		global.Logger = previousLogger
+		global.Localizer = previousLocalizer
+		_ = sqlDB.Close()
+	})
+	global.DB = db
+	service.DB = db
+	service.AllService = &service.Service{CustomBuildService: &service.CustomBuildService{}}
+	global.Logger = logger
+	global.Localizer = testManifestLocalizer
+	outputRoot := t.TempDir()
+	service.BuildOutputDir = func(id uint) string {
+		return filepath.Join(outputRoot, "output", fmt.Sprint(id), "\x00")
+	}
+
+	build := &model.CustomBuild{Status: model.CustomBuildStatusDone}
+	if err := db.Create(build).Error; err != nil {
+		t.Fatalf("create build: %v", err)
+	}
+	body, err := json.Marshal(map[string]any{"id": build.Id})
+	if err != nil {
+		t.Fatal(err)
+	}
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/delete", strings.NewReader(string(body)))
+
+	(&CustomBuild{}).Delete(c)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("Delete HTTP status = %d, want %d: %s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+	var envelope struct {
+		Code int `json:"code"`
+		Data struct {
+			CleanupPending bool `json:"cleanup_pending"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("Delete response JSON: %v", err)
+	}
+	if envelope.Code != 0 {
+		t.Fatalf("Delete response code = %d, want success: %s", envelope.Code, recorder.Body.String())
+	}
+	if !envelope.Data.CleanupPending {
+		t.Fatalf("Delete response data = %#v, want cleanup_pending marker", envelope.Data)
+	}
+	var deleted model.CustomBuild
+	if err := db.First(&deleted, build.Id).Error; !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("deleted build lookup error = %v, want record not found", err)
+	}
+	if !strings.Contains(logs.String(), "artifact cleanup remains pending") {
+		t.Fatalf("cleanup failure was not logged: %s", logs.String())
 	}
 }
 

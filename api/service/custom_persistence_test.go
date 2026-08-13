@@ -468,12 +468,74 @@ func TestCustomBuildDeleteRemovesRowEvenWhenArtifactCleanupFails(t *testing.T) {
 	removeBuildOutputDir = func(string) error { return errors.New("simulated cleanup failure") }
 	t.Cleanup(func() { removeBuildOutputDir = previousRemove })
 
-	if err := (&CustomBuildService{}).Delete(build); err == nil {
-		t.Fatal("Delete() error = nil, want filesystem cleanup failure after DB delete")
+	err := (&CustomBuildService{}).Delete(build)
+	var cleanupPending *CustomBuildCleanupPending
+	if !errors.As(err, &cleanupPending) {
+		t.Fatalf("Delete() error = %T %v, want cleanup-pending status", err, err)
 	}
 	var stored model.CustomBuild
 	if err := db.First(&stored, build.Id).Error; !errors.Is(err, gorm.ErrRecordNotFound) {
 		t.Fatalf("read build after successful DB delete: error = %v, want record-not-found", err)
+	}
+	tombstone := buildOutputDeletionTombstonePath(filepath.Dir(BuildOutputDir(build.Id)), build.Id)
+	if _, err := os.Stat(tombstone); err != nil {
+		t.Fatalf("cleanup tombstone stat = %v, want retained marker", err)
+	}
+}
+
+func TestCustomBuildDeleteCreatesAndRemovesCleanupTombstone(t *testing.T) {
+	db := newCustomPersistenceDB(t)
+	build := &model.CustomBuild{Status: model.CustomBuildStatusDone}
+	if err := db.Create(build).Error; err != nil {
+		t.Fatalf("create build: %v", err)
+	}
+	outDir := BuildOutputDir(build.Id)
+	if err := os.MkdirAll(outDir, 0700); err != nil {
+		t.Fatalf("create output directory: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(outDir, "artifact.bin"), []byte("artifact"), 0600); err != nil {
+		t.Fatalf("write artifact: %v", err)
+	}
+	tombstone := buildOutputDeletionTombstonePath(filepath.Dir(outDir), build.Id)
+	callbackName := "test:check-custom-build-delete-tombstone-" + strings.ReplaceAll(t.Name(), "/", "-")
+	if err := db.Callback().Delete().Before("gorm:delete").Register(callbackName, func(tx *gorm.DB) {
+		if _, err := os.Stat(tombstone); err != nil {
+			tx.AddError(fmt.Errorf("deletion tombstone was not created before DB delete: %w", err))
+		}
+	}); err != nil {
+		t.Fatalf("register tombstone callback: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Callback().Delete().Remove(callbackName) })
+
+	if err := (&CustomBuildService{}).Delete(build); err != nil {
+		t.Fatalf("Delete() error = %v, want nil", err)
+	}
+	if _, err := os.Stat(tombstone); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("cleanup tombstone stat = %v, want removed", err)
+	}
+	if _, err := os.Stat(outDir); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("output directory stat = %v, want removed", err)
+	}
+}
+
+func TestCustomBuildDeleteReturnsPendingWhenTombstoneRemovalFails(t *testing.T) {
+	db := newCustomPersistenceDB(t)
+	build := &model.CustomBuild{Status: model.CustomBuildStatusDone}
+	if err := db.Create(build).Error; err != nil {
+		t.Fatalf("create build: %v", err)
+	}
+	previousRemove := removeBuildOutputDeletionTombstone
+	removeBuildOutputDeletionTombstone = func(string) error { return errors.New("simulated tombstone removal failure") }
+	t.Cleanup(func() { removeBuildOutputDeletionTombstone = previousRemove })
+
+	err := (&CustomBuildService{}).Delete(build)
+	var cleanupPending *CustomBuildCleanupPending
+	if !errors.As(err, &cleanupPending) {
+		t.Fatalf("Delete() error = %T %v, want cleanup-pending status", err, err)
+	}
+	tombstone := buildOutputDeletionTombstonePath(filepath.Dir(BuildOutputDir(build.Id)), build.Id)
+	if _, err := os.Stat(tombstone); err != nil {
+		t.Fatalf("cleanup tombstone stat = %v, want retained marker", err)
 	}
 }
 
@@ -510,6 +572,49 @@ func TestCustomBuildDeleteRetainsRowAndArtifactWhenDBDeleteFails(t *testing.T) {
 	}
 	if contents, err := os.ReadFile(artifact); err != nil || string(contents) != "must remain accessible" {
 		t.Fatalf("artifact after failed DB delete = %q, error = %v; want accessible artifact", contents, err)
+	}
+	tombstone := buildOutputDeletionTombstonePath(filepath.Dir(outDir), build.Id)
+	if _, err := os.Stat(tombstone); err != nil {
+		t.Fatalf("cleanup tombstone after failed DB delete = %v, want marker", err)
+	}
+}
+
+func TestCustomBuildDeleteDoesNotClassifyPostDeleteDatabaseUncertaintyAsCleanupPending(t *testing.T) {
+	db := newCustomPersistenceDB(t)
+	build := &model.CustomBuild{Status: model.CustomBuildStatusDone}
+	if err := db.Create(build).Error; err != nil {
+		t.Fatalf("create build: %v", err)
+	}
+	if err := (&CustomBuildService{}).Delete(build); err != nil {
+		var cleanupPending *CustomBuildCleanupPending
+		if errors.As(err, &cleanupPending) {
+			t.Fatalf("Delete() error = %T %v, cleanup-pending must only represent filesystem failures after DB delete", err, err)
+		}
+		t.Fatalf("Delete() error = %v, want nil after successful DB delete and filesystem cleanup", err)
+	}
+}
+
+func TestCustomBuildDeleteReturnsOrdinaryErrorWhenTombstonePrecreationFails(t *testing.T) {
+	db := newCustomPersistenceDB(t)
+	build := &model.CustomBuild{Status: model.CustomBuildStatusDone}
+	if err := db.Create(build).Error; err != nil {
+		t.Fatalf("create build: %v", err)
+	}
+	previousOutputDir := BuildOutputDir
+	BuildOutputDir = func(uint) string { return filepath.Join(t.TempDir(), "invalid\x00root", "1") }
+	t.Cleanup(func() { BuildOutputDir = previousOutputDir })
+
+	err := (&CustomBuildService{}).Delete(build)
+	var cleanupPending *CustomBuildCleanupPending
+	if errors.As(err, &cleanupPending) {
+		t.Fatalf("Delete() error = %T %v, tombstone precreation failure must remain ordinary", err, err)
+	}
+	if err == nil {
+		t.Fatal("Delete() error = nil, want tombstone precreation failure")
+	}
+	var stored model.CustomBuild
+	if err := db.First(&stored, build.Id).Error; err != nil {
+		t.Fatalf("read build after tombstone precreation failure: %v", err)
 	}
 }
 

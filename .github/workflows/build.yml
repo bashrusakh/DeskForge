@@ -1,0 +1,97 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "api/**"
+      - "admin-ui/**"
+      - "server/**"
+      - "libs/**"
+      - "go.mod"
+      - "go.work"
+      - "go.work.sum"
+      - "docker/**"
+      - ".dockerignore"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - "docker-compose.yaml"
+      - "compose.yml"
+      - "compose.yaml"
+      - ".github/workflows/**"
+  pull_request:
+    paths:
+      - "api/**"
+      - "admin-ui/**"
+      - "server/**"
+      - "libs/**"
+      - "go.mod"
+      - "go.work"
+      - "go.work.sum"
+      - "docker/**"
+      - ".dockerignore"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - "docker-compose.yaml"
+      - "compose.yml"
+      - "compose.yaml"
+      - ".github/workflows/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    name: Go checks
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@7b8cf10d4e4a01d4992d18a89f4d7dc5a3e6d6f4 # v4.3.0
+        with:
+          go-version-file: api/go.mod
+          cache: true
+          cache-dependency-path: |
+            api/go.sum
+            go.work.sum
+      - run: go test ./...
+      - run: go vet ./...
+      - run: go build -o /tmp/deskforge-apimain ./cmd/apimain.go
+
+  admin-ui:
+    name: Admin UI build
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: admin-ui
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@7c12f8017d5436eb855f1ed4399f037a36fbd9e8 # v2.5.2
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: admin-ui/package-lock.json
+      - run: npm ci
+      - run: npm run build
+
+  rust:
+    name: Rust checks
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - run: rustup toolchain install stable --profile minimal
+      - run: cargo fmt --all -- --check
+        working-directory: server
+      - run: cargo check --locked
+        working-directory: server
+      - run: cargo test --locked
+        working-directory: server

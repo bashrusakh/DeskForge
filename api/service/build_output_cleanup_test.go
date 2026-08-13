@@ -2,10 +2,15 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"rustdesk-server/api/model"
+
+	"gorm.io/gorm"
 )
 
 func TestSweepBuildOutputTempsRemovesOnlyStaleInactiveTemps(t *testing.T) {
@@ -184,4 +189,160 @@ func TestSweepGithubArtifactTempsRemovesOnlyStaleUnprotectedArchives(t *testing.
 			t.Fatalf("fresh/protected/unrelated path %q stat = %v, want preserved", path, err)
 		}
 	}
+}
+
+func TestSweepBuildOutputDeletionTombstonesRetriesOnlyDeletedBuilds(t *testing.T) {
+	db := newCustomPersistenceDB(t)
+	root := t.TempDir()
+	now := time.Unix(2_000, 0)
+	ttl := time.Hour
+	old := now.Add(-2 * ttl)
+	fresh := now.Add(-ttl / 2)
+
+	deletedID := uint(41)
+	rowID := uint(42)
+	activeID := uint(43)
+	for _, id := range []uint{deletedID, rowID, activeID} {
+		marker := buildOutputDeletionTombstonePath(root, id)
+		if err := os.WriteFile(marker, []byte(fmt.Sprintf("%d\n", id)), 0600); err != nil {
+			t.Fatalf("write tombstone %d: %v", id, err)
+		}
+		if err := os.Chtimes(marker, old, old); err != nil {
+			t.Fatalf("age tombstone %d: %v", id, err)
+		}
+		outDir := filepath.Join(root, fmt.Sprint(id))
+		if err := os.MkdirAll(outDir, 0700); err != nil {
+			t.Fatalf("create output %d: %v", id, err)
+		}
+		if err := os.WriteFile(filepath.Join(outDir, "artifact.bin"), []byte("artifact"), 0600); err != nil {
+			t.Fatalf("write output %d: %v", id, err)
+		}
+	}
+	if err := db.Create(&model.CustomBuild{IdModel: model.IdModel{Id: rowID}}).Error; err != nil {
+		t.Fatalf("create retained row: %v", err)
+	}
+
+	if err := SweepBuildOutputTemps(root, now, ttl, map[uint]struct{}{activeID: {}}); err != nil {
+		t.Fatalf("SweepBuildOutputTemps() error = %v", err)
+	}
+	for _, path := range []string{
+		filepath.Join(root, fmt.Sprint(deletedID)),
+		buildOutputDeletionTombstonePath(root, deletedID),
+	} {
+		if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("deleted build path %q stat = %v, want removed", path, err)
+		}
+	}
+	for _, id := range []uint{rowID, activeID} {
+		for _, path := range []string{filepath.Join(root, fmt.Sprint(id)), buildOutputDeletionTombstonePath(root, id)} {
+			if _, err := os.Stat(path); err != nil {
+				t.Fatalf("protected build path %q stat = %v, want preserved", path, err)
+			}
+		}
+	}
+
+	freshID := uint(44)
+	freshMarker := buildOutputDeletionTombstonePath(root, freshID)
+	if err := os.WriteFile(freshMarker, []byte(fmt.Sprintf("%d\n", freshID)), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(freshMarker, fresh, fresh); err != nil {
+		t.Fatal(err)
+	}
+	if err := SweepBuildOutputTemps(root, now, ttl, nil); err != nil {
+		t.Fatalf("fresh tombstone sweep error = %v", err)
+	}
+	if _, err := os.Stat(freshMarker); err != nil {
+		t.Fatalf("fresh tombstone stat = %v, want preserved", err)
+	}
+}
+
+func TestSweepBuildOutputDeletionTombstonesWaitsForLifecycleLock(t *testing.T) {
+	db := newCustomPersistenceDB(t)
+	root := t.TempDir()
+	now := time.Unix(2_000, 0)
+	ttl := time.Hour
+	buildID := uint(61)
+	if err := db.Create(&model.CustomBuild{IdModel: model.IdModel{Id: buildID}}).Error; err != nil {
+		t.Fatalf("create retained row: %v", err)
+	}
+	marker := buildOutputDeletionTombstonePath(root, buildID)
+	if err := os.WriteFile(marker, []byte(fmt.Sprintf("%d\n", buildID)), 0600); err != nil {
+		t.Fatalf("write tombstone: %v", err)
+	}
+	if err := os.Chtimes(marker, now.Add(-2*ttl), now.Add(-2*ttl)); err != nil {
+		t.Fatalf("age tombstone: %v", err)
+	}
+
+	buildOutputLifecycleMu.Lock()
+	result := make(chan error, 1)
+	go func() { result <- SweepBuildOutputTemps(root, now, ttl, nil) }()
+	select {
+	case err := <-result:
+		buildOutputLifecycleMu.Unlock()
+		t.Fatalf("sweep completed while lifecycle lock was held: %v", err)
+	case <-time.After(25 * time.Millisecond):
+	}
+	buildOutputLifecycleMu.Unlock()
+	if err := <-result; err != nil {
+		t.Fatalf("SweepBuildOutputTemps() error = %v", err)
+	}
+	if _, err := os.Stat(marker); err != nil {
+		t.Fatalf("retained-row tombstone stat = %v, want preserved", err)
+	}
+}
+
+func TestSweepBuildOutputDeletionTombstonesSkipsMalformedAndFailsClosed(t *testing.T) {
+	newCustomPersistenceDB(t)
+	root := t.TempDir()
+	now := time.Unix(2_000, 0)
+	ttl := time.Hour
+	old := now.Add(-2 * ttl)
+	malformed := filepath.Join(root, ".deskforge-build-delete-51.tombstone")
+	if err := os.WriteFile(malformed, []byte("not-51\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(malformed, old, old); err != nil {
+		t.Fatal(err)
+	}
+	unknownNumeric := filepath.Join(root, "52")
+	if err := os.MkdirAll(unknownNumeric, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := SweepBuildOutputTemps(root, now, ttl, nil); err != nil {
+		t.Fatalf("malformed tombstone sweep error = %v", err)
+	}
+	for _, path := range []string{malformed, unknownNumeric} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("malformed/unknown path %q stat = %v, want preserved", path, err)
+		}
+	}
+
+	newClosedCustomPersistenceDB(t)
+	closedMarker := filepath.Join(root, ".deskforge-build-delete-53.tombstone")
+	if err := os.WriteFile(closedMarker, []byte("53\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(closedMarker, old, old); err != nil {
+		t.Fatal(err)
+	}
+	if err := SweepBuildOutputTemps(root, now, ttl, nil); err == nil {
+		t.Fatal("closed database sweep error = nil, want fail-closed error")
+	}
+	if _, err := os.Stat(closedMarker); err != nil {
+		t.Fatalf("closed database marker stat = %v, want preserved", err)
+	}
+}
+
+func newClosedCustomPersistenceDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	db := newCustomPersistenceDB(t)
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sqlDB.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return db
 }

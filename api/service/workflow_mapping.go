@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"rustdesk-server/api/config"
 	"rustdesk-server/api/global"
@@ -239,6 +239,8 @@ type githubRulesetRefNameCondition struct {
 }
 
 type githubRulesetRuleParameters struct {
+	Name     string `json:"name"`
+	Negate   bool   `json:"negate"`
 	Operator string `json:"operator"`
 	Pattern  string `json:"pattern"`
 }
@@ -248,9 +250,10 @@ type githubRulesetConditions struct {
 }
 
 type githubRulesetRule struct {
-	Type              string                       `json:"type"`
-	Parameters        *githubRulesetRuleParameters `json:"parameters"`
-	ParametersPresent bool                         `json:"-"`
+	Type                      string                       `json:"type"`
+	Parameters                *githubRulesetRuleParameters `json:"parameters"`
+	ParametersPresent         bool                         `json:"-"`
+	UpdateAllowsFetchAndMerge *bool                        `json:"-"`
 }
 
 func (r *githubRulesetRule) UnmarshalJSON(data []byte) error {
@@ -264,33 +267,121 @@ func (r *githubRulesetRule) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	r.Type = raw.Type
-	r.Parameters = nil
-	r.ParametersPresent = len(raw.Parameters) != 0
-	if !r.ParametersPresent {
-		return nil
+	if !githubRulesetRuleTypeAllowed(r.Type) {
+		return fmt.Errorf("unsupported or missing ruleset rule type %q", r.Type)
 	}
-	if string(raw.Parameters) == "null" {
+	r.Parameters = nil
+	r.UpdateAllowsFetchAndMerge = nil
+	r.ParametersPresent = len(raw.Parameters) != 0
+	if r.ParametersPresent && string(raw.Parameters) == "null" {
 		return errors.New("ruleset rule parameters cannot be null")
+	}
+	if !r.ParametersPresent {
+		if r.Type == "tag_name_pattern" || rulesetRuleRequiresParameters(r.Type) {
+			return fmt.Errorf("ruleset rule %q requires parameters", r.Type)
+		}
+		return nil
 	}
 	var parameters githubRulesetRuleParameters
 	parametersDecoder := json.NewDecoder(strings.NewReader(string(raw.Parameters)))
 	parametersDecoder.DisallowUnknownFields()
-	if err := parametersDecoder.Decode(&parameters); err != nil {
-		return fmt.Errorf("decode ruleset rule parameters: %w", err)
+	switch raw.Type {
+	case "tag_name_pattern", "branch_name_pattern", "commit_author_email_pattern", "commit_message_pattern", "committer_email_pattern":
+		if err := parametersDecoder.Decode(&parameters); err != nil {
+			return fmt.Errorf("decode %s parameters: %w", raw.Type, err)
+		}
+		if !validGithubTagNamePattern(parameters.Operator, parameters.Pattern) {
+			return fmt.Errorf("%s parameters contain an unsupported operator or pattern", raw.Type)
+		}
+	case "update":
+		var updateParameters struct {
+			UpdateAllowsFetchAndMerge *bool `json:"update_allows_fetch_and_merge"`
+		}
+		if err := parametersDecoder.Decode(&updateParameters); err != nil {
+			return fmt.Errorf("decode update parameters: %w", err)
+		}
+		r.UpdateAllowsFetchAndMerge = updateParameters.UpdateAllowsFetchAndMerge
+	case "required_deployments":
+		if err := validateGithubRulesetObjectParameters(raw.Parameters); err != nil {
+			return fmt.Errorf("decode %s parameters: %w", raw.Type, err)
+		}
+	case "pull_request":
+		if err := validateGithubRulesetObjectParameters(raw.Parameters); err != nil {
+			return fmt.Errorf("decode %s parameters: %w", raw.Type, err)
+		}
+	case "required_status_checks":
+		if err := validateGithubRulesetObjectParameters(raw.Parameters); err != nil {
+			return fmt.Errorf("decode %s parameters: %w", raw.Type, err)
+		}
+	case "workflows":
+		if err := validateGithubRulesetObjectParameters(raw.Parameters); err != nil {
+			return fmt.Errorf("decode %s parameters: %w", raw.Type, err)
+		}
+	default:
+		if err := validateGithubRulesetObjectParameters(raw.Parameters); err != nil {
+			return fmt.Errorf("decode %s parameters: %w", raw.Type, err)
+		}
 	}
 	r.Parameters = &parameters
 	return nil
 }
 
+// validateGithubRulesetObjectParameters checks the provider contract without
+// coupling unrelated, known rules to an exhaustive local copy of GitHub's
+// evolving parameter schema. Protection-critical rules remain decoded strictly
+// above; this helper still rejects malformed JSON values and null parameters.
+func validateGithubRulesetObjectParameters(data json.RawMessage) error {
+	var parameters map[string]json.RawMessage
+	if err := json.Unmarshal(data, &parameters); err != nil {
+		return err
+	}
+	if parameters == nil {
+		return errors.New("ruleset rule parameters must be a JSON object")
+	}
+	return nil
+}
+
+// githubRulesetRuleTypeAllowed is intentionally explicit. Ruleset evaluation
+// must reject a provider rule added outside this reviewed domain rather than
+// silently treating it as irrelevant to tag protection.
+func githubRulesetRuleTypeAllowed(ruleType string) bool {
+	switch ruleType {
+	case "creation", "update", "deletion", "required_linear_history", "merge_queue",
+		"required_deployments", "required_signatures", "pull_request", "required_status_checks",
+		"non_fast_forward", "workflows", "copilot_code_review", "code_scanning",
+		"commit_author_email_pattern", "commit_message_pattern", "committer_email_pattern",
+		"branch_name_pattern", "tag_name_pattern":
+		return true
+	default:
+		return false
+	}
+}
+
+func rulesetRuleRequiresParameters(ruleType string) bool {
+	switch ruleType {
+	case "required_deployments", "pull_request", "required_status_checks", "workflows",
+		"commit_author_email_pattern", "commit_message_pattern", "committer_email_pattern",
+		"branch_name_pattern":
+		return true
+	default:
+		return false
+	}
+}
+
 type githubRepositoryRulesetRecord struct {
-	ID           int64                      `json:"id"`
-	Target       string                     `json:"target"`
-	Enforcement  string                     `json:"enforcement"`
-	SourceType   string                     `json:"source_type"`
-	Source       string                     `json:"source"`
-	BypassActors []githubRulesetBypassActor `json:"bypass_actors"`
-	Conditions   *githubRulesetConditions   `json:"conditions"`
-	Rules        []githubRulesetRule        `json:"rules"`
+	ID                   int64                       `json:"id"`
+	Target               string                      `json:"target"`
+	Enforcement          string                      `json:"enforcement"`
+	SourceType           string                      `json:"source_type"`
+	Source               string                      `json:"source"`
+	BypassActors         *[]githubRulesetBypassActor `json:"bypass_actors"`
+	CurrentUserCanBypass *string                     `json:"current_user_can_bypass"`
+	Conditions           *githubRulesetConditions    `json:"conditions"`
+	Rules                []githubRulesetRule         `json:"rules"`
+}
+
+type githubRulesetSummary struct {
+	ID int64 `json:"id"`
 }
 
 const (
@@ -309,6 +400,12 @@ const (
 func githubTagPatternMatches(pattern, tag string) bool {
 	pattern = strings.TrimSpace(pattern)
 	if pattern == "" {
+		return false
+	}
+	if pattern == "~ALL" {
+		return true
+	}
+	if pattern == "~DEFAULT_BRANCH" {
 		return false
 	}
 	candidate := tag
@@ -332,33 +429,233 @@ func githubRulesetTagPatternMatches(pattern, tag string) bool {
 	return githubTagPatternMatches(pattern, tag)
 }
 
-func githubTagGlobMatches(pattern, value string) bool {
-	if pattern == "" {
-		return value == ""
+type githubTagGlobRange struct {
+	first rune
+	last  rune
+}
+
+type githubTagGlobToken struct {
+	kind          byte
+	literal       rune
+	ranges        []githubTagGlobRange
+	globstar      bool
+	globstarSlash bool
+}
+
+const (
+	githubTagGlobLiteral byte = iota
+	githubTagGlobStar
+	githubTagGlobQuestion
+	githubTagGlobClass
+)
+
+func readGithubTagGlobClassRune(pattern []rune, index int) (rune, int, bool) {
+	if index >= len(pattern) {
+		return 0, index, false
 	}
-	if pattern[0] == '*' {
-		for index := 0; index <= len(value); {
-			if githubTagGlobMatches(pattern[1:], value[index:]) {
-				return true
-			}
-			_, size := utf8.DecodeRuneInString(value[index:])
-			if size == 0 {
-				break
-			}
-			index += size
+	if pattern[index] == '\\' {
+		return 0, index, false
+	}
+	return pattern[index], index + 1, true
+}
+
+// parseGithubTagGlobClass parses one positive fnmatch character class. GitHub
+// protection patterns do not need complement classes here; rejecting them and
+// any class that could match '/' keeps pathname matching fail-closed.
+func parseGithubTagGlobClass(pattern []rune, start int) (githubTagGlobToken, int, bool) {
+	if start >= len(pattern) || pattern[start] != '[' {
+		return githubTagGlobToken{}, start, false
+	}
+	index := start + 1
+	if index >= len(pattern) || pattern[index] == '^' || pattern[index] == '!' {
+		return githubTagGlobToken{}, start, false
+	}
+	ranges := make([]githubTagGlobRange, 0, 1)
+	for {
+		if index >= len(pattern) {
+			return githubTagGlobToken{}, start, false
 		}
+		if pattern[index] == ']' {
+			if len(ranges) == 0 {
+				return githubTagGlobToken{}, start, false
+			}
+			return githubTagGlobToken{kind: githubTagGlobClass, ranges: ranges}, index + 1, true
+		}
+		if pattern[index] == '[' {
+			return githubTagGlobToken{}, start, false
+		}
+		first, next, ok := readGithubTagGlobClassRune(pattern, index)
+		if !ok || first == '/' {
+			return githubTagGlobToken{}, start, false
+		}
+		index = next
+		// A leading hyphen is literal in a positive fnmatch class. Do not
+		// parse a range when the first member is '-', so [-a] denotes '-'
+		// or 'a' rather than a range beginning at '-'.
+		if first != '-' && index < len(pattern) && pattern[index] == '-' && index+1 < len(pattern) && pattern[index+1] != ']' {
+			last, rangeEnd, rangeOK := readGithubTagGlobClassRune(pattern, index+1)
+			if !rangeOK || last == '/' || first > last || (first <= '/' && '/' <= last) {
+				return githubTagGlobToken{}, start, false
+			}
+			ranges = append(ranges, githubTagGlobRange{first: first, last: last})
+			index = rangeEnd
+			continue
+		}
+		ranges = append(ranges, githubTagGlobRange{first: first, last: first})
+	}
+}
+
+func parseGithubTagGlob(pattern string) ([]githubTagGlobToken, bool) {
+	// GitHub ruleset fnmatch does not support backslash quoting. Reject it
+	// before parsing classes as well, so no parser path can reinterpret it as
+	// an escape and produce a false-positive protection match.
+	if strings.ContainsRune(pattern, '\\') {
+		return nil, false
+	}
+	patternRunes := []rune(pattern)
+	tokens := make([]githubTagGlobToken, 0, len(patternRunes))
+	for index := 0; index < len(patternRunes); {
+		switch patternRunes[index] {
+		case '[':
+			token, next, ok := parseGithubTagGlobClass(patternRunes, index)
+			if !ok {
+				return nil, false
+			}
+			tokens = append(tokens, token)
+			index = next
+		case ']':
+			return nil, false
+		case '{', '}':
+			// Brace expansion is not part of the supported GitHub pattern subset.
+			return nil, false
+		case '*':
+			end := index
+			for end < len(patternRunes) && patternRunes[end] == '*' {
+				end++
+			}
+			isGlobstar := end-index >= 2
+			tokens = append(tokens, githubTagGlobToken{
+				kind:          githubTagGlobStar,
+				globstar:      isGlobstar,
+				globstarSlash: isGlobstar && end < len(patternRunes) && patternRunes[end] == '/',
+			})
+			index = end
+		case '?':
+			tokens = append(tokens, githubTagGlobToken{kind: githubTagGlobQuestion})
+			index++
+		default:
+			tokens = append(tokens, githubTagGlobToken{kind: githubTagGlobLiteral, literal: patternRunes[index]})
+			index++
+		}
+	}
+	return tokens, true
+}
+
+func githubTagGlobClassMatches(ranges []githubTagGlobRange, value rune) bool {
+	if value == '/' {
 		return false
 	}
-	if value == "" {
+	for _, classRange := range ranges {
+		if classRange.first <= value && value <= classRange.last {
+			return true
+		}
+	}
+	return false
+}
+
+func githubTagGlobMatches(pattern, value string) bool {
+	tokens, valid := parseGithubTagGlob(pattern)
+	if !valid {
 		return false
 	}
-	if pattern[0] == '?' {
-		_, size := utf8.DecodeRuneInString(value)
-		return githubTagGlobMatches(pattern[1:], value[size:])
+	valueRunes := []rune(value)
+	cache := make(map[[2]int]bool)
+	seen := make(map[[2]int]bool)
+	var match func(int, int) bool
+	match = func(patternIndex, valueIndex int) bool {
+		key := [2]int{patternIndex, valueIndex}
+		if seen[key] {
+			return cache[key]
+		}
+		seen[key] = true
+		matched := false
+		switch {
+		case patternIndex == len(tokens):
+			matched = valueIndex == len(valueRunes)
+		case tokens[patternIndex].kind == githubTagGlobStar:
+			starEnd := patternIndex + 1
+			if tokens[patternIndex].globstarSlash {
+				// GitHub's FNM_PATHNAME-compatible `**/` matches zero or more
+				// complete directory components. The slash belongs to this
+				// construct, so `release/**/*` also matches `release/v1`.
+				if starEnd < len(tokens) && tokens[starEnd].kind == githubTagGlobLiteral && tokens[starEnd].literal == '/' {
+					matched = match(starEnd+1, valueIndex)
+					for index := valueIndex; !matched && index < len(valueRunes); index++ {
+						if valueRunes[index] == '/' {
+							matched = match(starEnd+1, index+1)
+						}
+					}
+				}
+			} else if tokens[patternIndex].globstar {
+				matched = match(starEnd, valueIndex)
+				if !matched && valueIndex < len(valueRunes) {
+					matched = match(patternIndex, valueIndex+1)
+				}
+			} else {
+				matched = match(starEnd, valueIndex)
+				if !matched && valueIndex < len(valueRunes) && valueRunes[valueIndex] != '/' {
+					matched = match(patternIndex, valueIndex+1)
+				}
+			}
+		case tokens[patternIndex].kind == githubTagGlobQuestion:
+			matched = valueIndex < len(valueRunes) && valueRunes[valueIndex] != '/' && match(patternIndex+1, valueIndex+1)
+		case tokens[patternIndex].kind == githubTagGlobClass:
+			matched = valueIndex < len(valueRunes) && githubTagGlobClassMatches(tokens[patternIndex].ranges, valueRunes[valueIndex]) && match(patternIndex+1, valueIndex+1)
+		default:
+			matched = valueIndex < len(valueRunes) && tokens[patternIndex].literal == valueRunes[valueIndex] && match(patternIndex+1, valueIndex+1)
+		}
+		cache[key] = matched
+		return matched
 	}
-	patternRune, patternSize := utf8.DecodeRuneInString(pattern)
-	valueRune, valueSize := utf8.DecodeRuneInString(value)
-	return patternRune == valueRune && githubTagGlobMatches(pattern[patternSize:], value[valueSize:])
+	return match(0, 0)
+}
+
+func githubTagNamePatternMatches(operator, pattern, tag string) bool {
+	if !validGithubTagNamePattern(operator, pattern) {
+		return false
+	}
+	pattern = strings.TrimSpace(pattern)
+	switch operator {
+	case "starts_with":
+		return strings.HasPrefix(tag, pattern)
+	case "ends_with":
+		return strings.HasSuffix(tag, pattern)
+	case "contains":
+		return strings.Contains(tag, pattern)
+	case "regex":
+		re, _ := regexp.Compile(pattern)
+		return re.MatchString(tag)
+	default:
+		return false
+	}
+}
+
+func validGithubTagNamePattern(operator, pattern string) bool {
+	pattern = strings.TrimSpace(pattern)
+	if pattern == "" {
+		return false
+	}
+	switch operator {
+	case "starts_with":
+	case "ends_with":
+	case "contains":
+	case "regex":
+		re, err := regexp.Compile(pattern)
+		return err == nil && re != nil
+	default:
+		return false
+	}
+	return true
 }
 
 func validGithubTagVerification(record githubTagObjectRecord) bool {
@@ -469,22 +766,20 @@ func rulesetTagPatternMatches(ruleset githubRepositoryRulesetRecord, tag string)
 	if ruleset.Conditions == nil || !rulesetRefNameMatches(ruleset.Conditions.RefName, tag) {
 		return false
 	}
-	// A tag_name_pattern is only a selector. The update and deletion rules are
-	// the immutable-tag policy. Keep this parser deliberately closed: silently
-	// ignoring an unknown rule would turn a provider schema change into false
-	// protection evidence.
-	hasTagRule := false
 	hasUpdateRule := false
 	hasDeletionRule := false
 	for _, rule := range ruleset.Rules {
 		switch rule.Type {
 		case "tag_name_pattern":
-			if hasTagRule || rule.Parameters == nil || rule.Parameters.Operator != "fnmatch" || !githubRulesetTagPatternMatches(rule.Parameters.Pattern, tag) {
-				return false
-			}
-			hasTagRule = true
+			// Parse documented metadata, but do not use its semantics as a
+			// protection selector. Ref protection comes from conditions.ref_name
+			// plus update/deletion.
+		case "pull_request", "required_deployments", "required_status_checks", "workflows":
+			// These known rules do not weaken tag immutability. Their parameters
+			// are validated by the ruleset decoder but are not part of this
+			// protection decision.
 		case "update":
-			if hasUpdateRule || rule.ParametersPresent {
+			if hasUpdateRule || !validGithubUpdateRuleParameters(rule) {
 				return false
 			}
 			hasUpdateRule = true
@@ -494,16 +789,23 @@ func rulesetTagPatternMatches(ruleset githubRepositoryRulesetRecord, tag string)
 			}
 			hasDeletionRule = true
 		default:
-			// Do not claim to understand a rule that is outside the bounded
-			// immutable-tag schema used by this policy gate.
+			// The JSON decoder rejects unknown rule types. This branch is kept
+			// fail-closed if the in-memory representation is constructed directly.
 			return false
 		}
 	}
-	return hasTagRule && hasUpdateRule && hasDeletionRule
+	return hasUpdateRule && hasDeletionRule
+}
+
+func validGithubUpdateRuleParameters(rule githubRulesetRule) bool {
+	if !rule.ParametersPresent {
+		return true
+	}
+	return rule.Parameters != nil && rule.UpdateAllowsFetchAndMerge != nil
 }
 
 func activeRulesetProtectsWorkflowTag(ruleset githubRepositoryRulesetRecord, tag string) bool {
-	if ruleset.ID <= 0 || ruleset.Target != "tag" || ruleset.Enforcement != "active" || ruleset.BypassActors == nil || len(ruleset.BypassActors) != 0 || len(ruleset.Rules) == 0 || len(ruleset.Rules) > maxRulesetRules {
+	if ruleset.ID <= 0 || ruleset.Target != "tag" || ruleset.Enforcement != "active" || ruleset.BypassActors == nil || len(*ruleset.BypassActors) != 0 || ruleset.CurrentUserCanBypass == nil || *ruleset.CurrentUserCanBypass != "never" || len(ruleset.Rules) == 0 || len(ruleset.Rules) > maxRulesetRules {
 		return false
 	}
 	return rulesetTagPatternMatches(ruleset, tag)
@@ -513,12 +815,30 @@ func activeRulesetTargetsWorkflowTag(ruleset githubRepositoryRulesetRecord, tag 
 	if ruleset.ID <= 0 || ruleset.Target != "tag" || ruleset.Enforcement != "active" || ruleset.Conditions == nil || !rulesetRefNameMatches(ruleset.Conditions.RefName, tag) {
 		return false
 	}
-	for _, rule := range ruleset.Rules {
-		if rule.Type == "tag_name_pattern" && rule.Parameters != nil && rule.Parameters.Operator == "fnmatch" && githubRulesetTagPatternMatches(rule.Parameters.Pattern, tag) {
-			return true
-		}
+	return true
+}
+
+func fetchRulesetDetail(ctx context.Context, s *GithubBuildConfigService, config *model.GithubBuildConfig, summary githubRulesetSummary) (githubRepositoryRulesetRecord, error) {
+	if summary.ID <= 0 {
+		return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: errors.New("ruleset summary has no positive id")}
 	}
-	return false
+	path, err := githubRepoPath(config.Repo, fmt.Sprintf("/rulesets/%d?includes_parents=true", summary.ID))
+	if err != nil {
+		return githubRepositoryRulesetRecord{}, err
+	}
+	resp, err := s.ghReq(ctx, config, http.MethodGet, path, nil, http.StatusOK)
+	if err != nil {
+		return githubRepositoryRulesetRecord{}, fmt.Errorf("verify repository ruleset detail: %w", err)
+	}
+	defer resp.Body.Close()
+	var detail githubRepositoryRulesetRecord
+	if err := decodeGithubJSON(resp, "verify repository ruleset detail", &detail); err != nil {
+		return githubRepositoryRulesetRecord{}, err
+	}
+	if detail.ID != summary.ID {
+		return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: errors.New("ruleset detail id does not match summary")}
+	}
+	return detail, nil
 }
 
 func inheritedRulesetPagePath(path string) (string, error) {
@@ -527,6 +847,7 @@ func inheritedRulesetPagePath(path string) (string, error) {
 		return "", errors.New("invalid GitHub ruleset pagination path")
 	}
 	query := u.Query()
+	query.Set("targets", "tag")
 	query.Set("includes_parents", "true")
 	u.RawQuery = query.Encode()
 	return u.EscapedPath() + "?" + u.RawQuery, nil
@@ -539,7 +860,7 @@ func inheritedRulesetPagePath(path string) (string, error) {
 // the configured workflow selector; exact workflow path/SHA readiness remains
 // enforced separately by verifyWorkflowAvailable.
 func (s *GithubBuildConfigService) verifyModernProtectedWorkflowTag(ctx context.Context, config *model.GithubBuildConfig, tag string) error {
-	path, err := githubRepoPath(config.Repo, "/rulesets?includes_parents=true&per_page=100&page=1")
+	path, err := githubRepoPath(config.Repo, "/rulesets?targets=tag&includes_parents=true&per_page=100&page=1")
 	if err != nil {
 		return err
 	}
@@ -551,8 +872,8 @@ func (s *GithubBuildConfigService) verifyModernProtectedWorkflowTag(ctx context.
 		if requestErr != nil {
 			return fmt.Errorf("verify repository rulesets: %w", requestErr)
 		}
-		var rulesets []githubRepositoryRulesetRecord
-		decodeErr := decodeGithubJSON(resp, "verify repository rulesets", &rulesets)
+		var summaries []githubRulesetSummary
+		decodeErr := decodeGithubJSON(resp, "verify repository rulesets", &summaries)
 		next, hasNext, linkErr := nextGithubLink(resp.Header.Get("Link"))
 		resp.Body.Close()
 		if decodeErr != nil {
@@ -561,15 +882,19 @@ func (s *GithubBuildConfigService) verifyModernProtectedWorkflowTag(ctx context.
 		if linkErr != nil {
 			return &GithubContractError{Operation: "verify repository rulesets", Cause: linkErr}
 		}
-		rulesetCount += len(rulesets)
+		rulesetCount += len(summaries)
 		if rulesetCount > maxRulesetRecords {
 			return &GithubContractError{Operation: "verify repository rulesets", Cause: errors.New("provider returned too many repository rulesets")}
 		}
-		for _, ruleset := range rulesets {
+		for _, summary := range summaries {
+			ruleset, detailErr := fetchRulesetDetail(ctx, s, config, summary)
+			if detailErr != nil {
+				return detailErr
+			}
 			if !activeRulesetTargetsWorkflowTag(ruleset, tag) {
 				continue
 			}
-			if len(ruleset.BypassActors) != 0 || !activeRulesetProtectsWorkflowTag(ruleset, tag) {
+			if ruleset.BypassActors != nil && len(*ruleset.BypassActors) != 0 || !activeRulesetProtectsWorkflowTag(ruleset, tag) {
 				foundConflictingRuleset = true
 				continue
 			}

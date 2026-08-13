@@ -267,8 +267,11 @@ func TestDispatchBuildUsesExactRunDetailsWithoutPolling(t *testing.T) {
 		if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/tags/protection") {
 			return githubResponse(http.StatusOK, `[{"pattern":"workflow-*"}]`, nil), nil
 		}
+		if req.Method == http.MethodGet && strings.HasPrefix(req.URL.Path, "/repos/owner/repo/rulesets/") {
+			return githubResponse(http.StatusOK, strings.Replace(testProtectedRulesetResponse("workflow-*"), `"id":1`, `"id":1`, 1), nil), nil
+		}
 		if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/rulesets") {
-			return githubResponse(http.StatusOK, testProtectedRulesetResponse("workflow-*"), nil), nil
+			return testRulesetResponse(req, "workflow-*"), nil
 		}
 		if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/git/ref/tags/workflow-v1") {
 			return githubResponse(http.StatusOK, `{"ref":"refs/tags/workflow-v1","object":{"sha":"`+strings.Repeat("e", 40)+`","type":"tag"}}`, nil), nil
@@ -311,7 +314,7 @@ func TestDispatchBuildUsesExactRunDetailsWithoutPolling(t *testing.T) {
 	if result.WorkflowRunID != 12345 || result.RunURL == "" || result.HTMLURL == "" {
 		t.Fatalf("unexpected exact dispatch result: %#v", result)
 	}
-	if atomic.LoadInt32(&requests) != 8 || atomic.LoadInt32(&listRequests) != 0 {
+	if atomic.LoadInt32(&requests) != 9 || atomic.LoadInt32(&listRequests) != 0 {
 		t.Fatalf("dispatch made unexpected policy/readiness/polling requests: requests=%d list=%d", requests, listRequests)
 	}
 	if config.Branch != identity.WorkflowRef {
@@ -327,8 +330,11 @@ func TestDispatchBuildBindsEncryptedSourceSHAAndImmutableWorkflowSHA(t *testing.
 		if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/tags/protection") {
 			return githubResponse(http.StatusOK, `[{"pattern":"workflow-*"}]`, nil), nil
 		}
+		if req.Method == http.MethodGet && strings.HasPrefix(req.URL.Path, "/repos/owner/repo/rulesets/") {
+			return testRulesetResponse(req, "workflow-*"), nil
+		}
 		if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/rulesets") {
-			return githubResponse(http.StatusOK, testProtectedRulesetResponse("workflow-*"), nil), nil
+			return testRulesetResponse(req, "workflow-*"), nil
 		}
 		if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/git/ref/tags/workflow-v1") {
 			return githubResponse(http.StatusOK, `{"ref":"refs/tags/workflow-v1","object":{"sha":"`+strings.Repeat("e", 40)+`","type":"tag"}}`, nil), nil
@@ -538,8 +544,11 @@ func TestDispatchBuildRejectsMissingMalformedZeroAnd204(t *testing.T) {
 				if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/tags/protection") {
 					return githubResponse(http.StatusOK, `[{"pattern":"workflow-*"}]`, nil), nil
 				}
+				if req.Method == http.MethodGet && strings.HasPrefix(req.URL.Path, "/repos/owner/repo/rulesets/") {
+					return testRulesetResponse(req, "workflow-*"), nil
+				}
 				if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/rulesets") {
-					return githubResponse(http.StatusOK, testProtectedRulesetResponse("workflow-*"), nil), nil
+					return testRulesetResponse(req, "workflow-*"), nil
 				}
 				if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/git/ref/tags/workflow-v1") {
 					return githubResponse(http.StatusOK, `{"ref":"refs/tags/workflow-v1","object":{"sha":"`+strings.Repeat("e", 40)+`","type":"tag"}}`, nil), nil
