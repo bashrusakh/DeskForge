@@ -82,6 +82,8 @@ jobs:
   rust:
     name: Rust checks
     runs-on: ubuntu-24.04
+    env:
+      DATABASE_URL: sqlite:///tmp/deskforge-sqlx.sqlite3
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -91,6 +93,31 @@ jobs:
         working-directory: server
       - run: cargo fmt --all -- --check
         working-directory: libs/hbb_common
+      - name: Prepare SQLx SQLite schema
+        run: |
+          python3 - <<'PY'
+          import sqlite3
+
+          with sqlite3.connect("/tmp/deskforge-sqlx.sqlite3") as connection:
+              connection.executescript(
+                  """
+                  create table if not exists peer (
+                      guid blob primary key not null,
+                      id varchar(100) not null,
+                      uuid blob not null,
+                      pk blob not null,
+                      created_at datetime not null default(current_timestamp),
+                      user blob,
+                      status tinyint,
+                      note varchar(300),
+                      info text not null
+                  ) without rowid;
+                  create unique index if not exists index_peer_id on peer (id);
+                  create index if not exists index_peer_user on peer (user);
+                  create index if not exists index_peer_created_at on peer (created_at);
+                  create index if not exists index_peer_status on peer (status);
+                  """
+              )
       - run: cargo check --locked
         working-directory: server
       - run: cargo test --locked
