@@ -694,5 +694,17 @@
   },
   "Upload": {
     "One": "上传"
+  },
+  "HostEndpointHint": {
+    "One": "可选字段。支持主机名或 IP 地址，可选择是否指定端口。仅在未指定端口时，RustDesk 使用默认端口 21116。"
+  },
+  "HostEndpointPlaceholder": {
+    "One": "例如 your-server.com 或 your-server.com:21116（未填写端口时使用默认端口）"
+  },
+  "RelayEndpointHint": {
+    "One": "可选字段。支持主机名或 IP 地址，可选择是否指定端口。仅在未指定端口时，RustDesk 使用默认端口 21117。"
+  },
+  "RelayEndpointPlaceholder": {
+    "One": "例如 your-server.com 或 your-server.com:21117（未填写端口时使用默认端口）"
   }
 }

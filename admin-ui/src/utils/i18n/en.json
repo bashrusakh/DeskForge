@@ -805,14 +805,23 @@
   "Host": {
     "One": "Host"
   },
-  "HostnameOnlyHint": {
-    "One": "Hostname only, no port. Client appends the default port automatically."
+  "HostEndpointHint": {
+    "One": "Optional. Accepts a hostname or IP address with an optional port. RustDesk uses port 21116 only when the port is omitted."
+  },
+  "HostEndpointPlaceholder": {
+    "One": "e.g. your-server.com or your-server.com:21116 (default when omitted)"
   },
   "ApiServer": {
     "One": "API Server"
   },
   "RelayServer": {
     "One": "Relay Server"
+  },
+  "RelayEndpointHint": {
+    "One": "Optional. Accepts a hostname or IP address with an optional port. RustDesk uses port 21117 only when the port is omitted."
+  },
+  "RelayEndpointPlaceholder": {
+    "One": "e.g. your-server.com or your-server.com:21117 (default when omitted)"
   },
   "Key": {
     "One": "Key"

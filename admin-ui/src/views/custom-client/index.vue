@@ -58,10 +58,12 @@
         <el-row :gutter="20">
           <el-col :span="8">
             <el-form-item :label="T('Host')">
-              <el-input v-model="form.server_ip" placeholder="e.g. your-server.com">
+              <el-input v-model="form.server_ip" :placeholder="T('HostEndpointPlaceholder')">
                 <template #append>
-                  <el-tooltip :content="T('HostnameOnlyHint')" placement="top">
-                    <el-icon><InfoFilled /></el-icon>
+                  <el-tooltip :content="T('HostEndpointHint')" placement="top" :trigger="['hover', 'focus']">
+                    <button type="button" class="endpoint-hint-trigger" :aria-label="T('HostEndpointHint')">
+                      <el-icon aria-hidden="true"><InfoFilled /></el-icon>
+                    </button>
                   </el-tooltip>
                 </template>
               </el-input>
@@ -81,10 +83,12 @@
         <el-row :gutter="20">
           <el-col :span="8">
             <el-form-item :label="T('RelayServer')">
-              <el-input v-model="form.relay_server" placeholder="e.g. your-server.com">
+              <el-input v-model="form.relay_server" :placeholder="T('RelayEndpointPlaceholder')">
                 <template #append>
-                  <el-tooltip :content="T('HostnameOnlyHint')" placement="top">
-                    <el-icon><InfoFilled /></el-icon>
+                  <el-tooltip :content="T('RelayEndpointHint')" placement="top" :trigger="['hover', 'focus']">
+                    <button type="button" class="endpoint-hint-trigger" :aria-label="T('RelayEndpointHint')">
+                      <el-icon aria-hidden="true"><InfoFilled /></el-icon>
+                    </button>
                   </el-tooltip>
                 </template>
               </el-input>
@@ -832,6 +836,24 @@ export default defineComponent({
   &--loading { color: var(--el-color-info); }
   &--empty   { color: var(--el-color-warning); }
   &--error   { color: var(--el-color-danger); }
+}
+
+.endpoint-hint-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: help;
+  font: inherit;
+
+  &:focus-visible {
+    outline: 2px solid var(--el-color-primary);
+    outline-offset: 2px;
+  }
 }
 
 .build-history {
