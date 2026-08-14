@@ -302,98 +302,7 @@ type githubRulesetRefNameCondition struct {
 	Exclude []string `json:"exclude"`
 }
 
-type githubRulesetRepositoryNameCondition struct {
-	Include   []string `json:"include"`
-	Exclude   []string `json:"exclude"`
-	Protected *bool    `json:"protected"`
-}
-
-type githubRulesetRepositoryIDCondition struct {
-	RepositoryIDs []int64 `json:"repository_ids"`
-}
-
-func (c *githubRulesetRepositoryIDCondition) UnmarshalJSON(data []byte) error {
-	decoder := json.NewDecoder(strings.NewReader(string(data)))
-	decoder.DisallowUnknownFields()
-	var raw struct {
-		RepositoryIDs json.RawMessage `json:"repository_ids"`
-	}
-	if err := decoder.Decode(&raw); err != nil {
-		return err
-	}
-	if len(raw.RepositoryIDs) == 0 || string(raw.RepositoryIDs) == "null" {
-		return errors.New("repository_id.repository_ids is required")
-	}
-	var repositoryIDs []int64
-	if err := json.Unmarshal(raw.RepositoryIDs, &repositoryIDs); err != nil {
-		return fmt.Errorf("decode repository_id.repository_ids: %w", err)
-	}
-	if len(repositoryIDs) == 0 {
-		return errors.New("repository_id.repository_ids must not be empty")
-	}
-	for _, repositoryID := range repositoryIDs {
-		if repositoryID <= 0 {
-			return errors.New("repository_id.repository_ids must contain positive IDs")
-		}
-	}
-	c.RepositoryIDs = repositoryIDs
-	return nil
-}
-
-type githubRulesetRepositoryProperty struct {
-	Name           string   `json:"name"`
-	PropertyValues []string `json:"property_values"`
-	Source         string   `json:"source"`
-}
-
-func (p *githubRulesetRepositoryProperty) UnmarshalJSON(data []byte) error {
-	decoder := json.NewDecoder(strings.NewReader(string(data)))
-	decoder.DisallowUnknownFields()
-	var raw struct {
-		Name           *string         `json:"name"`
-		PropertyValues json.RawMessage `json:"property_values"`
-		Source         *string         `json:"source"`
-	}
-	if err := decoder.Decode(&raw); err != nil {
-		return err
-	}
-	if raw.Name == nil || strings.TrimSpace(*raw.Name) == "" {
-		return errors.New("repository_property entry name is required")
-	}
-	if len(raw.PropertyValues) == 0 || string(raw.PropertyValues) == "null" {
-		return errors.New("repository_property entry property_values is required")
-	}
-	var propertyValues []string
-	if err := json.Unmarshal(raw.PropertyValues, &propertyValues); err != nil {
-		return fmt.Errorf("decode repository_property entry property_values: %w", err)
-	}
-	if err := validateNonEmptyStrings(propertyValues, "repository_property entry property_values"); err != nil {
-		return err
-	}
-	source := "custom"
-	if raw.Source != nil {
-		if strings.TrimSpace(*raw.Source) == "" {
-			return errors.New("repository_property entry source must not be empty")
-		}
-		source = *raw.Source
-	}
-	switch source {
-	case "custom", "system":
-	default:
-		return fmt.Errorf("unsupported repository_property entry source %q", source)
-	}
-	p.Name = *raw.Name
-	p.PropertyValues = propertyValues
-	p.Source = source
-	return nil
-}
-
-type githubRulesetRepositoryPropertyCondition struct {
-	Include []githubRulesetRepositoryProperty `json:"include"`
-	Exclude []githubRulesetRepositoryProperty `json:"exclude"`
-}
-
-func (c *githubRulesetRepositoryPropertyCondition) UnmarshalJSON(data []byte) error {
+func decodeStrictGithubRulesetCondition(data []byte, conditionName string) ([]string, []string, error) {
 	decoder := json.NewDecoder(strings.NewReader(string(data)))
 	decoder.DisallowUnknownFields()
 	var raw struct {
@@ -401,50 +310,7 @@ func (c *githubRulesetRepositoryPropertyCondition) UnmarshalJSON(data []byte) er
 		Exclude json.RawMessage `json:"exclude"`
 	}
 	if err := decoder.Decode(&raw); err != nil {
-		return err
-	}
-	decodeProperties := func(data json.RawMessage, field string) ([]githubRulesetRepositoryProperty, error) {
-		if len(data) == 0 || string(data) == "null" {
-			if string(data) == "null" {
-				return nil, fmt.Errorf("repository_property.%s must be an array", field)
-			}
-			return nil, nil
-		}
-		var properties []githubRulesetRepositoryProperty
-		if err := json.Unmarshal(data, &properties); err != nil {
-			return nil, fmt.Errorf("decode repository_property.%s: %w", field, err)
-		}
-		return properties, nil
-	}
-	include, err := decodeProperties(raw.Include, "include")
-	if err != nil {
-		return err
-	}
-	exclude, err := decodeProperties(raw.Exclude, "exclude")
-	if err != nil {
-		return err
-	}
-	if len(include) == 0 && len(exclude) == 0 {
-		return errors.New("repository_property must contain an include or exclude entry")
-	}
-	c.Include = include
-	c.Exclude = exclude
-	return nil
-}
-
-func decodeStrictGithubRulesetCondition(data []byte, conditionName string, allowProtected bool) ([]string, []string, *bool, error) {
-	decoder := json.NewDecoder(strings.NewReader(string(data)))
-	decoder.DisallowUnknownFields()
-	var raw struct {
-		Include   json.RawMessage `json:"include"`
-		Exclude   json.RawMessage `json:"exclude"`
-		Protected json.RawMessage `json:"protected"`
-	}
-	if err := decoder.Decode(&raw); err != nil {
-		return nil, nil, nil, err
-	}
-	if len(raw.Protected) != 0 && !allowProtected {
-		return nil, nil, nil, errors.New("protected is not valid for this ruleset condition")
+		return nil, nil, err
 	}
 	decodePatterns := func(data json.RawMessage, field string) ([]string, error) {
 		if len(data) == 0 {
@@ -461,55 +327,22 @@ func decodeStrictGithubRulesetCondition(data []byte, conditionName string, allow
 	}
 	include, err := decodePatterns(raw.Include, "include")
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	exclude, err := decodePatterns(raw.Exclude, "exclude")
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
-	var protected *bool
-	if len(raw.Protected) != 0 {
-		if string(raw.Protected) == "null" {
-			return nil, nil, nil, fmt.Errorf("%s.protected must be a boolean", conditionName)
-		}
-		var value bool
-		if err := json.Unmarshal(raw.Protected, &value); err != nil {
-			return nil, nil, nil, fmt.Errorf("decode %s.protected: %w", conditionName, err)
-		}
-		protected = &value
-	}
-	return include, exclude, protected, nil
+	return include, exclude, nil
 }
 
 func (c *githubRulesetRefNameCondition) UnmarshalJSON(data []byte) error {
-	include, exclude, _, err := decodeStrictGithubRulesetCondition(data, "ref_name", false)
+	include, exclude, err := decodeStrictGithubRulesetCondition(data, "ref_name")
 	if err != nil {
 		return err
 	}
 	c.Include = include
 	c.Exclude = exclude
-	return nil
-}
-
-func (c *githubRulesetRepositoryNameCondition) UnmarshalJSON(data []byte) error {
-	include, exclude, protected, err := decodeStrictGithubRulesetCondition(data, "repository_name", true)
-	if err != nil {
-		return err
-	}
-	hasNonEmptyPattern := func(patterns []string) bool {
-		for _, pattern := range patterns {
-			if strings.TrimSpace(pattern) != "" {
-				return true
-			}
-		}
-		return false
-	}
-	if !hasNonEmptyPattern(include) && !hasNonEmptyPattern(exclude) {
-		return errors.New("repository_name must contain at least one non-empty include or exclude pattern")
-	}
-	c.Include = include
-	c.Exclude = exclude
-	c.Protected = protected
 	return nil
 }
 
@@ -521,28 +354,19 @@ type githubRulesetRuleParameters struct {
 }
 
 type githubRulesetConditions struct {
-	RefName            *githubRulesetRefNameCondition            `json:"ref_name"`
-	RepositoryName     *githubRulesetRepositoryNameCondition     `json:"repository_name"`
-	RepositoryID       *githubRulesetRepositoryIDCondition       `json:"repository_id"`
-	RepositoryProperty *githubRulesetRepositoryPropertyCondition `json:"repository_property"`
+	RefName *githubRulesetRefNameCondition `json:"ref_name"`
 }
 
 func (c *githubRulesetConditions) UnmarshalJSON(data []byte) error {
 	decoder := json.NewDecoder(strings.NewReader(string(data)))
 	decoder.DisallowUnknownFields()
 	var raw struct {
-		RefName            json.RawMessage `json:"ref_name"`
-		RepositoryName     json.RawMessage `json:"repository_name"`
-		RepositoryID       json.RawMessage `json:"repository_id"`
-		RepositoryProperty json.RawMessage `json:"repository_property"`
+		RefName json.RawMessage `json:"ref_name"`
 	}
 	if err := decoder.Decode(&raw); err != nil {
 		return err
 	}
 	c.RefName = nil
-	c.RepositoryName = nil
-	c.RepositoryID = nil
-	c.RepositoryProperty = nil
 	if len(raw.RefName) != 0 {
 		if string(raw.RefName) == "null" {
 			return errors.New("conditions.ref_name must be an object")
@@ -552,36 +376,6 @@ func (c *githubRulesetConditions) UnmarshalJSON(data []byte) error {
 			return fmt.Errorf("decode conditions.ref_name: %w", err)
 		}
 		c.RefName = &refName
-	}
-	if len(raw.RepositoryName) != 0 {
-		if string(raw.RepositoryName) == "null" {
-			return errors.New("conditions.repository_name must be an object")
-		}
-		var repositoryName githubRulesetRepositoryNameCondition
-		if err := json.Unmarshal(raw.RepositoryName, &repositoryName); err != nil {
-			return fmt.Errorf("decode conditions.repository_name: %w", err)
-		}
-		c.RepositoryName = &repositoryName
-	}
-	if len(raw.RepositoryID) != 0 {
-		if string(raw.RepositoryID) == "null" {
-			return errors.New("conditions.repository_id must be an object")
-		}
-		var repositoryID githubRulesetRepositoryIDCondition
-		if err := json.Unmarshal(raw.RepositoryID, &repositoryID); err != nil {
-			return fmt.Errorf("decode conditions.repository_id: %w", err)
-		}
-		c.RepositoryID = &repositoryID
-	}
-	if len(raw.RepositoryProperty) != 0 {
-		if string(raw.RepositoryProperty) == "null" {
-			return errors.New("conditions.repository_property must be an object")
-		}
-		var repositoryProperty githubRulesetRepositoryPropertyCondition
-		if err := json.Unmarshal(raw.RepositoryProperty, &repositoryProperty); err != nil {
-			return fmt.Errorf("decode conditions.repository_property: %w", err)
-		}
-		c.RepositoryProperty = &repositoryProperty
 	}
 	return nil
 }
@@ -969,7 +763,7 @@ func githubRulesetRuleTypeAllowed(ruleType string) bool {
 
 func rulesetRuleRequiresParameters(ruleType string) bool {
 	switch ruleType {
-	case "update", "required_deployments", "pull_request", "required_status_checks", "workflows",
+	case "required_deployments", "pull_request", "required_status_checks", "workflows",
 		"merge_queue", "copilot_code_review", "code_scanning", "file_path_restriction",
 		"max_file_path_length", "file_extension_restriction", "max_file_size",
 		"commit_author_email_pattern", "commit_message_pattern", "committer_email_pattern",
@@ -1457,6 +1251,9 @@ func evaluateRulesetTagProtection(ruleset githubRepositoryRulesetRecord, tag str
 	if ruleset.Conditions == nil || !rulesetRefNameMatches(ruleset.Conditions.RefName, tag) {
 		return githubRulesetProtection{}, nil
 	}
+	if err := validateGithubRulesetRules(ruleset.Target, ruleset.Rules); err != nil {
+		return githubRulesetProtection{}, err
+	}
 	if err := validateGithubRulesetBypassPolicy(ruleset); err != nil {
 		return githubRulesetProtection{}, err
 	}
@@ -1479,7 +1276,7 @@ func evaluateRulesetTagProtection(ruleset githubRepositoryRulesetRecord, tag str
 			// are validated by the ruleset decoder but are not part of this
 			// protection decision.
 		case "update":
-			if protection.hasUpdateRule || !validGithubUpdateRuleParameters(rule) {
+			if protection.hasUpdateRule || (rule.ParametersPresent && !validGithubUpdateRuleParameters(rule)) {
 				return githubRulesetProtection{}, errors.New("ruleset update rule is duplicated or malformed")
 			}
 			protection.hasUpdateRule = true
@@ -1499,6 +1296,24 @@ func evaluateRulesetTagProtection(ruleset githubRepositoryRulesetRecord, tag str
 
 func validGithubUpdateRuleParameters(rule githubRulesetRule) bool {
 	return rule.ParametersPresent && rule.Parameters != nil && rule.UpdateAllowsFetchAndMerge != nil
+}
+
+func validateGithubRulesetRules(target string, rules []githubRulesetRule) error {
+	for _, rule := range rules {
+		if rule.Type != "update" {
+			continue
+		}
+		if !rule.ParametersPresent {
+			if target != "tag" {
+				return errors.New("branch ruleset update rule requires parameters")
+			}
+			continue
+		}
+		if !validGithubUpdateRuleParameters(rule) {
+			return errors.New("ruleset update rule parameters are malformed")
+		}
+	}
+	return nil
 }
 
 func activeRulesetTargetsWorkflowTag(ruleset githubRepositoryRulesetRecord, tag string) bool {
@@ -1571,7 +1386,7 @@ func fetchRulesetDetail(ctx context.Context, s *GithubBuildConfigService, config
 		detail.Conditions = &conditions
 	}
 	if detail.Target == "tag" {
-		if err := validateGithubTagRulesetConditions(detail.SourceType, detail.Conditions); err != nil {
+		if err := validateGithubTagRulesetConditions(detail.Conditions); err != nil {
 			return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: err}
 		}
 	}
@@ -1604,34 +1419,15 @@ func fetchRulesetDetail(ctx context.Context, s *GithubBuildConfigService, config
 	if err := json.Unmarshal(rawDetail.Rules, &detail.Rules); err != nil {
 		return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: fmt.Errorf("decode rules: %w", err)}
 	}
+	if err := validateGithubRulesetRules(detail.Target, detail.Rules); err != nil {
+		return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: err}
+	}
 	return detail, nil
 }
 
-func validateGithubTagRulesetConditions(sourceType string, conditions *githubRulesetConditions) error {
+func validateGithubTagRulesetConditions(conditions *githubRulesetConditions) error {
 	if conditions == nil || conditions.RefName == nil {
 		return errors.New("tag ruleset conditions must include ref_name")
-	}
-	selectorCount := 0
-	if conditions.RepositoryName != nil {
-		selectorCount++
-	}
-	if conditions.RepositoryID != nil {
-		selectorCount++
-	}
-	if conditions.RepositoryProperty != nil {
-		selectorCount++
-	}
-	switch sourceType {
-	case "Repository":
-		if selectorCount != 0 {
-			return errors.New("repository tag ruleset conditions must contain only ref_name")
-		}
-	case "Organization", "Enterprise":
-		if selectorCount != 1 {
-			return errors.New("organization or enterprise tag ruleset conditions must include exactly one repository selector")
-		}
-	default:
-		return fmt.Errorf("tag ruleset has an invalid source_type %q", sourceType)
 	}
 	return nil
 }

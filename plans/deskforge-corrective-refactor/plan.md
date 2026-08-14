@@ -126,18 +126,39 @@ files, local implementation checks, or dirty submodule state as publication evid
 
 ## Latest workflow review/fix state — 2026-08-14
 
-- Follow-up commit `68e7f30` (`workflow: harden ruleset failure handling`) is pushed to
-  `refactor/deskforge-corrective-pr`. GitHub Actions run `31785951197` passed Go, Rust,
-  Admin UI, and CodeQL/analyzer checks; CodeRabbit was skipped because the PR has 191 files.
-- Only an initial modern `/rulesets` 404 permits legacy fallback; later modern failures fail
-  closed. Strict inherited Organization/Enterprise selector support covers `repository_name`,
-  `repository_id.repository_ids`, and `repository_property`, and `repository_name` selectors
-  require non-empty patterns. The stale controller fixture was corrected.
-- The legacy enabled-field concern was not reproduced and is intentional fail-closed behavior:
-  official documentation lists `enabled` and `pattern` as the only explicitly required fields,
-  but a missing `enabled` value cannot prove active protection.
-- The workflow-dispatch selector TOCTOU, live-provider, PR10/PR11, cross-DB, and offline
-  limitations remain preserved. No live evidence is claimed and the PR is not marked ready.
+- Only an initial modern `/rulesets` list 404 permits legacy fallback; later list-page, detail,
+  policy, or contract failures fail closed. The legacy tag-protection endpoint is closing
+  down/sunset and is compatibility fallback only. The official [LIST docs](https://docs.github.com/en/rest/repos/tags#get-all-tag-protection-states-for-a-repository)
+  identify `pattern` as required and list `id`, `created_at`, `updated_at`, and `enabled`;
+  documented fields are type-checked when present. Positive evidence requires an explicitly
+  present `enabled: true` with a matching pattern, so pattern-only evidence is not positive.
+- GitHub's [organization ruleset creation endpoint](https://docs.github.com/en/rest/orgs/rules#create-an-organization-repository-ruleset),
+  `/orgs/{org}/rulesets`, uses repository selectors when authoring a definition. DeskForge instead
+  consumes the repository-scoped list `/repos/{owner}/{repo}/rulesets?targets=tag&includes_parents=true`
+  and detail `/repos/{owner}/{repo}/rulesets/{id}?includes_parents=true`, as described by the
+  [repository ruleset detail docs](https://docs.github.com/en/rest/repos/rules#get-a-repository-ruleset).
+  The repository-scoped `includes_parents=true` response resolves applicability; tag matching
+  requires only `conditions.ref_name`, and DeskForge does not independently evaluate repository
+  selectors. Unknown or malformed condition fields fail closed.
+- Exact authenticated observation on 2026-08-14: `GET
+  https://api.github.com/repos/github/docs/rulesets?targets=tag&includes_parents=true&per_page=100`
+  returned summary `id=18281681`, `target=tag`, `source_type=Organization`, `source=github`,
+  `enforcement=active`, without conditions/rules/bypass metadata. `GET
+  https://api.github.com/repos/github/docs/rulesets/18281681?includes_parents=true` returned
+  `conditions.ref_name` only, rules exactly `deletion`, `non_fast_forward`, `creation`, and
+  `update` with no parameters, and `current_user_can_bypass=never`. Its exact ref patterns are
+  recorded in `api/README.md`. The observed detail omitted `bypass_actors` because the token
+  lacked write access; the positive DeskForge contract therefore requires `bypass_actors: []`
+  and fails closed when it is omitted.
+- Root cause/fix: repository-detail validation incorrectly required exactly one Organization/
+  Enterprise repository selector. The selector evaluator/parsers were removed; the provider
+  scoped repository response now supplies applicability. Rule decoding is target-aware: tag
+  `update` may omit parameters, while present parameters must be a strict object containing
+  boolean `update_allows_fetch_and_merge`; branch `update` still requires that parameter.
+- Follow-up commit `68e7f30` remains pushed to `refactor/deskforge-corrective-pr`, but this
+  documentation update does not mark PR #59 ready or claim live approval, dispatch, runner,
+  release, or completion evidence. The workflow-dispatch selector TOCTOU, PR10/PR11, cross-DB,
+  and offline limitations remain preserved.
 
 ## PR10 blueprint — `in-progress`
 

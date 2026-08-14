@@ -165,14 +165,32 @@ release-readiness, or sovereignty claim is made.
   files. The PR11 helper is untracked at the remote HEAD, and PR10/PR11 remain `in-progress`
   with their evidence limitations preserved; the PR is not marked ready and no live evidence is
   claimed.
-- Latest review/fix confirmations: only an initial modern `/rulesets` 404 permits legacy
-  fallback; later modern failures fail closed. Strict inherited Organization/Enterprise selector
-  support covers `repository_name`, `repository_id.repository_ids`, and `repository_property`,
-  with non-empty patterns required for `repository_name`. The stale controller fixture was
-  corrected. The legacy enabled-field concern was not reproduced and is intentional fail-closed
-  behavior: official documentation lists `enabled` and `pattern` as the only explicitly required
-  fields, and missing `enabled` cannot prove active protection. The workflow-dispatch selector
-  TOCTOU, live-provider, PR10/PR11, cross-DB, and offline limitations remain unchanged.
+- Latest ruleset review/fix confirmation: only an initial modern `/rulesets` list 404 permits
+  legacy fallback; later list-page/detail/policy/contract failures fail closed. The legacy LIST
+  endpoint is closing down/sunset and is compatibility fallback only. The official LIST docs
+  identify `pattern` as required and list `id`, `created_at`, `updated_at`, and `enabled`;
+  documented fields are type-checked when present. Positive evidence still requires an explicitly
+  present `enabled: true` with a matching pattern, and pattern-only evidence remains non-positive.
+- Endpoint distinction is explicit: GitHub's organization authoring endpoint
+  `https://docs.github.com/en/rest/orgs/rules#create-an-organization-repository-ruleset`
+  (`/orgs/{org}/rulesets`) uses repository selectors, while DeskForge consumes the repository
+  list `/repos/{owner}/{repo}/rulesets?targets=tag&includes_parents=true` and detail
+  `/repos/{owner}/{repo}/rulesets/{id}?includes_parents=true` from the [repository ruleset
+  docs](https://docs.github.com/en/rest/repos/rules#get-a-repository-ruleset). The provider-resolved repository detail
+  establishes applicability; only `conditions.ref_name` is required for tag matching, and
+  unknown/malformed condition fields fail closed.
+- Exact authenticated observation on 2026-08-14 for `github/docs`: list returned ruleset
+  `18281681`, `target=tag`, `source_type=Organization`, `source=github`, and
+  `enforcement=active`, with no conditions/rules/bypass metadata. Detail returned
+  `conditions.ref_name` only, rules `deletion`, `non_fast_forward`, `creation`, and parameterless
+  `update`, plus `current_user_can_bypass=never`; `bypass_actors` was omitted because the token
+  lacked write access. The positive contract uses `bypass_actors: []` and omission fails closed;
+  the exact ref patterns are recorded in `api/README.md`.
+- Root cause/fix: repository-scoped inherited Organization/Enterprise details were incorrectly
+  required to contain exactly one repository selector. Selector parsing/evaluation was removed.
+  Tag `update` may omit parameters; present parameters remain strict and branch `update` still
+  requires boolean `update_allows_fetch_and_merge`. The workflow-dispatch selector TOCTOU,
+  live-provider, PR10/PR11, cross-DB, and offline limitations remain unchanged.
 
 ## Immediate next action
 

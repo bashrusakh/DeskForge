@@ -150,36 +150,40 @@ typed as unavailable by the provider (404), not when a later page, detail
 request, policy, or contract response is negative:
 
 - legacy `GET /repos/{owner}/{repo}/tags/protection`, bounded to three pages and
-  256 patterns, must return an enabled documented protection record with the
-  required `pattern` field (optional `id`, `created_at`, `updated_at`, and
-  `enabled` fields are type-checked when present) matching the label or a
-  `refs/tags/` glob. A matching record must explicitly report `enabled: true`
-  and is the provider's immutable-tag contract because this surface does not
-  expose separate update/deletion switches;
+  256 patterns, is closing down/sunset and is retained only as a compatibility
+  fallback when the initial modern ruleset surface is typed as unsupported. The
+  official [LIST docs](https://docs.github.com/en/rest/repos/tags#get-all-tag-protection-states-for-a-repository)
+  identify `pattern` as required and list `id`, `created_at`, `updated_at`, and
+  `enabled`; documented fields are type-checked when present and unknown fields
+  fail closed. Positive evidence requires an explicitly present `enabled: true`
+  with a matching `pattern`; a pattern-only record is not positive evidence.
+  This endpoint does not expose separate update/deletion switches;
 - modern `GET /repos/{owner}/{repo}/rulesets?targets=tag&includes_parents=true`, bounded to
-  three pages and 256 rulesets, followed by the detail request for each
-  candidate, validates the documented detail metadata (`name`, `source`, and
+  three pages and 256 rulesets, discovers candidate IDs only. DeskForge then
+  consumes `GET /repos/{owner}/{repo}/rulesets/{id}?includes_parents=true` and
+  validates the repository-scoped detail metadata (`name`, `source`, and
   `source_type` in `Repository`, `Organization`, or `Enterprise`; documented
-  `created_at` and `updated_at` values are type-checked when present), and
-  aggregates all active rulesets with `target=tag` and a matching
-  `conditions.ref_name` include. Documented organization-level
-  `conditions.repository_name` (including its documented optional `protected`
-  boolean), `repository_id.repository_ids`, and
-  `repository_property` include/exclude entries (required `name` and
-  `property_values`, with `source` defaulting to `custom` and accepting
-  `custom` or `system`) are supported for inherited rulesets. Repository tag
-  rulesets use only `ref_name`; Organization and Enterprise tag rulesets must
-  contain `ref_name` plus exactly one of those repository selectors. The
-  `includes_parents=true` response is the provider-scoped applicability
-  decision; DeskForge does not perform a separate repository metadata lookup.
-  Unknown condition fields and malformed condition values fail closed. Excludes win.
+  `created_at` and `updated_at` values are type-checked when present). The
+  repository-scoped `includes_parents=true` response establishes applicability
+  at the provider boundary. DeskForge requires `conditions.ref_name` for tag
+  matching and does not independently evaluate `repository_name`,
+  `repository_id`, or `repository_property` selectors. The separate
+  organization authoring endpoint, `POST /orgs/{org}/rulesets`, uses repository
+  selectors to define where a ruleset applies; that create-schema requirement
+  must not be imposed on repository-scoped inherited detail responses. Unknown
+  condition fields and malformed condition values fail closed. Excludes win.
   `tag_name_pattern` is validated only as rule metadata; it is not the ref
-  selector, and no `fnmatch` rule is required for selection. Every applicable ruleset must expose
-  `bypass_actors: []` and `current_user_can_bypass: "never"`; any applicable
-  bypass actor or other current-user bypass mode rejects approval. Effective
-  `update` and `deletion` rules may be split across matching rulesets. Other
-  documented known rules are neutral or stronger additions, while unknown or
-  malformed rules fail closed. Inherited parent rulesets use the same checks;
+  selector, and no `fnmatch` rule is required for selection. For tag rules,
+  `update` without parameters is valid; when parameters are present they must
+  be a strict object containing the boolean
+  `update_allows_fetch_and_merge`. Null, empty, malformed, or unknown parameter
+  objects fail closed. Branch-target rules continue to require that parameter.
+  Every applicable ruleset must expose `bypass_actors: []` and
+  `current_user_can_bypass: "never"`; any applicable bypass actor or other
+  current-user bypass mode rejects approval. Effective `update` and `deletion`
+  rules may be split across matching rulesets. Other documented known rules are
+  neutral or stronger additions, while unknown or malformed rules fail closed.
+  Inherited parent rulesets use the same checks;
 - the provider must reject a tag/branch collision for the same label, and the
   tag's verification must report `verified=true` with the accepted provider
   verification reason. Raw SHA selectors are not approval inputs.
@@ -189,6 +193,56 @@ masked by a legacy positive. A legacy 404/unsupported response is likewise
 not evidence of protection. A mismatch, absent evidence, any bypass actor, or
 an active applicable ruleset without effective update and deletion protection
 never proves protection.
+
+### Recorded ruleset provider evidence
+
+The endpoint distinction follows the [organization ruleset creation
+documentation](https://docs.github.com/en/rest/orgs/rules#create-an-organization-repository-ruleset),
+the [repository ruleset detail documentation](https://docs.github.com/en/rest/repos/rules#get-a-repository-ruleset),
+and the [tag protection LIST documentation](https://docs.github.com/en/rest/repos/tags#get-all-tag-protection-states-for-a-repository).
+
+On 2026-08-14, an authenticated observation of `github/docs` returned the
+following summary from the repository-scoped list endpoint:
+
+```text
+GET https://api.github.com/repos/github/docs/rulesets?targets=tag&includes_parents=true&per_page=100
+=> id=18281681, target=tag, source_type=Organization, source=github, enforcement=active
+```
+
+The summary did not contain conditions, rules, or bypass metadata. The matching
+repository-scoped detail was:
+
+```text
+GET https://api.github.com/repos/github/docs/rulesets/18281681?includes_parents=true
+```
+
+It was ruleset `18281681` (`Enterprise Tags`) with
+`conditions.ref_name` only and these exact include patterns:
+
+```text
+refs/tags/enterprise-[0-9].*-freeze
+refs/tags/enterprise-[0-9].[0-9].[0-9]
+refs/tags/enterprise-[0-9].[0-9].[0-9][0-9]
+refs/tags/enterprise-[0-9].[0-9][0-9].[0-9]
+refs/tags/enterprise-[0-9].[0-9][0-9].[0-9][0-9]
+refs/tags/enterprise-[0-9].*.pre[0-9]
+refs/tags/enterprise-[0-9].*.pre[0-9][0-9]
+refs/tags/enterprise-[0-9].*.gm[0-9]
+refs/tags/enterprise-[0-9].*.gm[0-9][0-9]
+refs/tags/enterprise-[0-9].*.rc[0-9]
+refs/tags/enterprise-[0-9].*.rc[0-9][0-9]
+```
+
+Its rules were `deletion`, `non_fast_forward`, `creation`, and `update` with
+no parameters; `created_at` was `2026-06-30T07:19:50.340+11:00`,
+`updated_at` was `2026-06-30T07:20:37.936+11:00`, and
+`current_user_can_bypass` was `never`. `bypass_actors` was omitted because the
+observing token lacked write access. DeskForge therefore uses
+`bypass_actors: []` as the positive write-authorized contract fixture and fails
+closed when the field is omitted. This observation is provider evidence, not a
+completed live approval, dispatch, or release claim. Only an initial modern
+`/rulesets` list 404 permits legacy fallback; later list-page, detail, policy,
+or contract failures remain failures.
 
 The stored PAT must have the provider's repository Metadata read, Contents read,
 Actions read, and Administration write permissions for the read-only checks.
