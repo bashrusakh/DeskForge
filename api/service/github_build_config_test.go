@@ -265,7 +265,7 @@ func TestDispatchBuildUsesExactRunDetailsWithoutPolling(t *testing.T) {
 			atomic.AddInt32(&listRequests, 1)
 		}
 		if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/tags/protection") {
-			return githubResponse(http.StatusOK, `[{"pattern":"workflow-*"}]`, nil), nil
+			return githubResponse(http.StatusOK, testLegacyProtectedTagResponse("workflow-*"), nil), nil
 		}
 		if req.Method == http.MethodGet && strings.HasPrefix(req.URL.Path, "/repos/owner/repo/rulesets/") {
 			return githubResponse(http.StatusOK, strings.Replace(testProtectedRulesetResponse("workflow-*"), `"id":1`, `"id":1`, 1), nil), nil
@@ -314,7 +314,7 @@ func TestDispatchBuildUsesExactRunDetailsWithoutPolling(t *testing.T) {
 	if result.WorkflowRunID != 12345 || result.RunURL == "" || result.HTMLURL == "" {
 		t.Fatalf("unexpected exact dispatch result: %#v", result)
 	}
-	if atomic.LoadInt32(&requests) != 9 || atomic.LoadInt32(&listRequests) != 0 {
+	if atomic.LoadInt32(&requests) != 8 || atomic.LoadInt32(&listRequests) != 0 {
 		t.Fatalf("dispatch made unexpected policy/readiness/polling requests: requests=%d list=%d", requests, listRequests)
 	}
 	if config.Branch != identity.WorkflowRef {
@@ -328,7 +328,7 @@ func TestDispatchBuildBindsEncryptedSourceSHAAndImmutableWorkflowSHA(t *testing.
 	config.Branch = identity.WorkflowRef
 	withGithubTransport(t, githubRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/tags/protection") {
-			return githubResponse(http.StatusOK, `[{"pattern":"workflow-*"}]`, nil), nil
+			return githubResponse(http.StatusOK, testLegacyProtectedTagResponse("workflow-*"), nil), nil
 		}
 		if req.Method == http.MethodGet && strings.HasPrefix(req.URL.Path, "/repos/owner/repo/rulesets/") {
 			return testRulesetResponse(req, "workflow-*"), nil
@@ -542,7 +542,7 @@ func TestDispatchBuildRejectsMissingMalformedZeroAnd204(t *testing.T) {
 			identity := githubVersionIdentity()
 			withGithubTransport(t, githubRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 				if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/tags/protection") {
-					return githubResponse(http.StatusOK, `[{"pattern":"workflow-*"}]`, nil), nil
+					return githubResponse(http.StatusOK, testLegacyProtectedTagResponse("workflow-*"), nil), nil
 				}
 				if req.Method == http.MethodGet && strings.HasPrefix(req.URL.Path, "/repos/owner/repo/rulesets/") {
 					return testRulesetResponse(req, "workflow-*"), nil

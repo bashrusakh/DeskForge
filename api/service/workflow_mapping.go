@@ -211,31 +211,171 @@ type githubTagObjectRecord struct {
 }
 
 type githubTagProtectionRecord struct {
-	Pattern string `json:"pattern"`
+	ID        int64     `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Enabled   bool      `json:"enabled"`
+	Pattern   string    `json:"pattern"`
 }
 
 func (r *githubTagProtectionRecord) UnmarshalJSON(data []byte) error {
 	decoder := json.NewDecoder(strings.NewReader(string(data)))
 	decoder.DisallowUnknownFields()
 	var record struct {
-		Pattern string `json:"pattern"`
+		ID        *int64     `json:"id"`
+		CreatedAt *time.Time `json:"created_at"`
+		UpdatedAt *time.Time `json:"updated_at"`
+		Enabled   *bool      `json:"enabled"`
+		Pattern   *string    `json:"pattern"`
 	}
 	if err := decoder.Decode(&record); err != nil {
 		return err
 	}
-	r.Pattern = record.Pattern
+	if record.Pattern == nil {
+		return errors.New("legacy tag protection record is missing required pattern")
+	}
+	if record.ID != nil {
+		r.ID = *record.ID
+	}
+	if record.CreatedAt != nil {
+		r.CreatedAt = *record.CreatedAt
+	}
+	if record.UpdatedAt != nil {
+		r.UpdatedAt = *record.UpdatedAt
+	}
+	if record.Enabled != nil {
+		r.Enabled = *record.Enabled
+	}
+	r.Pattern = *record.Pattern
 	return nil
 }
 
 type githubRulesetBypassActor struct {
-	ActorID    int64  `json:"actor_id"`
+	ActorID    *int64 `json:"actor_id"`
 	ActorType  string `json:"actor_type"`
 	BypassMode string `json:"bypass_mode"`
+}
+
+func (a *githubRulesetBypassActor) UnmarshalJSON(data []byte) error {
+	decoder := json.NewDecoder(strings.NewReader(string(data)))
+	decoder.DisallowUnknownFields()
+	var raw struct {
+		ActorID    json.RawMessage `json:"actor_id"`
+		ActorType  string          `json:"actor_type"`
+		BypassMode string          `json:"bypass_mode"`
+	}
+	if err := decoder.Decode(&raw); err != nil {
+		return err
+	}
+	if raw.ActorID == nil {
+		return errors.New("ruleset bypass actor is missing actor_id")
+	}
+	if string(raw.ActorID) != "null" {
+		var actorID int64
+		if err := json.Unmarshal(raw.ActorID, &actorID); err != nil {
+			return fmt.Errorf("decode actor_id: %w", err)
+		}
+		a.ActorID = &actorID
+	} else {
+		a.ActorID = nil
+	}
+	if raw.ActorType == "" {
+		return errors.New("ruleset bypass actor is missing actor_type")
+	}
+	switch raw.ActorType {
+	case "Integration", "OrganizationAdmin", "RepositoryRole", "Team", "DeployKey", "User":
+	default:
+		return fmt.Errorf("unsupported ruleset bypass actor type %q", raw.ActorType)
+	}
+	switch raw.BypassMode {
+	case "always", "pull_request", "exempt":
+	default:
+		return fmt.Errorf("unsupported ruleset bypass mode %q", raw.BypassMode)
+	}
+	a.ActorType = raw.ActorType
+	a.BypassMode = raw.BypassMode
+	return nil
 }
 
 type githubRulesetRefNameCondition struct {
 	Include []string `json:"include"`
 	Exclude []string `json:"exclude"`
+}
+
+type githubRulesetRepositoryNameCondition struct {
+	Include   []string `json:"include"`
+	Exclude   []string `json:"exclude"`
+	Protected *bool    `json:"protected"`
+}
+
+func decodeStrictGithubRulesetCondition(data []byte, conditionName string, allowProtected bool) ([]string, []string, *bool, error) {
+	decoder := json.NewDecoder(strings.NewReader(string(data)))
+	decoder.DisallowUnknownFields()
+	var raw struct {
+		Include   json.RawMessage `json:"include"`
+		Exclude   json.RawMessage `json:"exclude"`
+		Protected json.RawMessage `json:"protected"`
+	}
+	if err := decoder.Decode(&raw); err != nil {
+		return nil, nil, nil, err
+	}
+	if len(raw.Protected) != 0 && !allowProtected {
+		return nil, nil, nil, errors.New("protected is not valid for this ruleset condition")
+	}
+	decodePatterns := func(data json.RawMessage, field string) ([]string, error) {
+		if len(data) == 0 {
+			return nil, nil
+		}
+		if string(data) == "null" {
+			return nil, fmt.Errorf("%s.%s must be an array", conditionName, field)
+		}
+		var patterns []string
+		if err := json.Unmarshal(data, &patterns); err != nil {
+			return nil, fmt.Errorf("decode %s.%s: %w", conditionName, field, err)
+		}
+		return patterns, nil
+	}
+	include, err := decodePatterns(raw.Include, "include")
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	exclude, err := decodePatterns(raw.Exclude, "exclude")
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	var protected *bool
+	if len(raw.Protected) != 0 {
+		if string(raw.Protected) == "null" {
+			return nil, nil, nil, fmt.Errorf("%s.protected must be a boolean", conditionName)
+		}
+		var value bool
+		if err := json.Unmarshal(raw.Protected, &value); err != nil {
+			return nil, nil, nil, fmt.Errorf("decode %s.protected: %w", conditionName, err)
+		}
+		protected = &value
+	}
+	return include, exclude, protected, nil
+}
+
+func (c *githubRulesetRefNameCondition) UnmarshalJSON(data []byte) error {
+	include, exclude, _, err := decodeStrictGithubRulesetCondition(data, "ref_name", false)
+	if err != nil {
+		return err
+	}
+	c.Include = include
+	c.Exclude = exclude
+	return nil
+}
+
+func (c *githubRulesetRepositoryNameCondition) UnmarshalJSON(data []byte) error {
+	include, exclude, protected, err := decodeStrictGithubRulesetCondition(data, "repository_name", true)
+	if err != nil {
+		return err
+	}
+	c.Include = include
+	c.Exclude = exclude
+	c.Protected = protected
+	return nil
 }
 
 type githubRulesetRuleParameters struct {
@@ -246,7 +386,43 @@ type githubRulesetRuleParameters struct {
 }
 
 type githubRulesetConditions struct {
-	RefName *githubRulesetRefNameCondition `json:"ref_name"`
+	RefName        *githubRulesetRefNameCondition        `json:"ref_name"`
+	RepositoryName *githubRulesetRepositoryNameCondition `json:"repository_name"`
+}
+
+func (c *githubRulesetConditions) UnmarshalJSON(data []byte) error {
+	decoder := json.NewDecoder(strings.NewReader(string(data)))
+	decoder.DisallowUnknownFields()
+	var raw struct {
+		RefName        json.RawMessage `json:"ref_name"`
+		RepositoryName json.RawMessage `json:"repository_name"`
+	}
+	if err := decoder.Decode(&raw); err != nil {
+		return err
+	}
+	c.RefName = nil
+	c.RepositoryName = nil
+	if len(raw.RefName) != 0 {
+		if string(raw.RefName) == "null" {
+			return errors.New("conditions.ref_name must be an object")
+		}
+		var refName githubRulesetRefNameCondition
+		if err := json.Unmarshal(raw.RefName, &refName); err != nil {
+			return fmt.Errorf("decode conditions.ref_name: %w", err)
+		}
+		c.RefName = &refName
+	}
+	if len(raw.RepositoryName) != 0 {
+		if string(raw.RepositoryName) == "null" {
+			return errors.New("conditions.repository_name must be an object")
+		}
+		var repositoryName githubRulesetRepositoryNameCondition
+		if err := json.Unmarshal(raw.RepositoryName, &repositoryName); err != nil {
+			return fmt.Errorf("decode conditions.repository_name: %w", err)
+		}
+		c.RepositoryName = &repositoryName
+	}
+	return nil
 }
 
 type githubRulesetRule struct {
@@ -254,6 +430,306 @@ type githubRulesetRule struct {
 	Parameters                *githubRulesetRuleParameters `json:"parameters"`
 	ParametersPresent         bool                         `json:"-"`
 	UpdateAllowsFetchAndMerge *bool                        `json:"-"`
+}
+
+type githubRulesetUpdateParameters struct {
+	UpdateAllowsFetchAndMerge *bool `json:"update_allows_fetch_and_merge"`
+}
+
+type githubRulesetRequiredDeploymentsParameters struct {
+	RequiredDeploymentEnvironments *[]string `json:"required_deployment_environments"`
+}
+
+type githubRulesetWorkflowParameter struct {
+	Path         *string `json:"path"`
+	Ref          *string `json:"ref"`
+	RepositoryID *int64  `json:"repository_id"`
+	SHA          *string `json:"sha"`
+}
+
+type githubRulesetWorkflowsParameters struct {
+	DoNotEnforceOnCreate *bool                             `json:"do_not_enforce_on_create"`
+	Workflows            *[]githubRulesetWorkflowParameter `json:"workflows"`
+}
+
+type githubRulesetStatusCheck struct {
+	Context       *string `json:"context"`
+	IntegrationID *int64  `json:"integration_id"`
+}
+
+type githubRulesetRequiredStatusChecksParameters struct {
+	DoNotEnforceOnCreate             *bool                       `json:"do_not_enforce_on_create"`
+	RequiredStatusChecks             *[]githubRulesetStatusCheck `json:"required_status_checks"`
+	StrictRequiredStatusChecksPolicy *bool                       `json:"strict_required_status_checks_policy"`
+}
+
+type githubRulesetDismissalActor struct {
+	ID   *int64  `json:"id"`
+	Type *string `json:"type"`
+}
+
+type githubRulesetDismissalRestriction struct {
+	AllowedActors *[]githubRulesetDismissalActor `json:"allowed_actors"`
+	Enabled       *bool                          `json:"enabled"`
+}
+
+type githubRulesetRequiredReviewer struct {
+	FilePatterns     *[]string `json:"file_patterns"`
+	MinimumApprovals *int      `json:"minimum_approvals"`
+	Reviewer         *struct {
+		ID   *int64  `json:"id"`
+		Type *string `json:"type"`
+	} `json:"reviewer"`
+}
+
+type githubRulesetPullRequestParameters struct {
+	AllowedMergeMethods            *[]string                          `json:"allowed_merge_methods"`
+	DismissStaleReviewsOnPush      *bool                              `json:"dismiss_stale_reviews_on_push"`
+	DismissalRestriction           *githubRulesetDismissalRestriction `json:"dismissal_restriction"`
+	RequireCodeOwnerReview         *bool                              `json:"require_code_owner_review"`
+	RequireLastPushApproval        *bool                              `json:"require_last_push_approval"`
+	RequiredApprovingReviewCount   *int                               `json:"required_approving_review_count"`
+	RequiredReviewThreadResolution *bool                              `json:"required_review_thread_resolution"`
+	RequiredReviewers              *[]githubRulesetRequiredReviewer   `json:"required_reviewers"`
+}
+
+type githubRulesetMergeQueueParameters struct {
+	CheckResponseTimeoutMinutes  *int    `json:"check_response_timeout_minutes"`
+	GroupingStrategy             *string `json:"grouping_strategy"`
+	MaxEntriesToBuild            *int    `json:"max_entries_to_build"`
+	MaxEntriesToMerge            *int    `json:"max_entries_to_merge"`
+	MergeMethod                  *string `json:"merge_method"`
+	MinEntriesToMerge            *int    `json:"min_entries_to_merge"`
+	MinEntriesToMergeWaitMinutes *int    `json:"min_entries_to_merge_wait_minutes"`
+}
+
+type githubRulesetCopilotCodeReviewParameters struct {
+	ReviewDraftPullRequests *bool `json:"review_draft_pull_requests"`
+	ReviewOnPush            *bool `json:"review_on_push"`
+}
+
+type githubRulesetCodeScanningTool struct {
+	AlertsThreshold         *string `json:"alerts_threshold"`
+	SecurityAlertsThreshold *string `json:"security_alerts_threshold"`
+	Tool                    *string `json:"tool"`
+}
+
+type githubRulesetCodeScanningParameters struct {
+	CodeScanningTools *[]githubRulesetCodeScanningTool `json:"code_scanning_tools"`
+}
+
+type githubRulesetFilePathRestrictionParameters struct {
+	RestrictedFilePaths *[]string `json:"restricted_file_paths"`
+}
+
+type githubRulesetMaxFilePathLengthParameters struct {
+	MaxFilePathLength *int `json:"max_file_path_length"`
+}
+
+type githubRulesetFileExtensionRestrictionParameters struct {
+	RestrictedFileExtensions *[]string `json:"restricted_file_extensions"`
+}
+
+type githubRulesetMaxFileSizeParameters struct {
+	MaxFileSize *int `json:"max_file_size"`
+}
+
+func decodeStrictGithubRulesetParameters(data json.RawMessage, ruleType string, target any) error {
+	decoder := json.NewDecoder(strings.NewReader(string(data)))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		return fmt.Errorf("decode %s parameters: %w", ruleType, err)
+	}
+	return nil
+}
+
+func validateNonEmptyStrings(values []string, field string) error {
+	if len(values) == 0 {
+		return fmt.Errorf("%s must not be empty", field)
+	}
+	for _, value := range values {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("%s contains an empty value", field)
+		}
+	}
+	return nil
+}
+
+func validateGithubRulesetParameters(ruleType string, data json.RawMessage) error {
+	switch ruleType {
+	case "required_deployments":
+		var parameters githubRulesetRequiredDeploymentsParameters
+		if err := decodeStrictGithubRulesetParameters(data, ruleType, &parameters); err != nil {
+			return err
+		}
+		if parameters.RequiredDeploymentEnvironments == nil {
+			return errors.New("required_deployment_environments is required")
+		}
+		return validateNonEmptyStrings(*parameters.RequiredDeploymentEnvironments, "required_deployment_environments")
+	case "pull_request":
+		var parameters githubRulesetPullRequestParameters
+		if err := decodeStrictGithubRulesetParameters(data, ruleType, &parameters); err != nil {
+			return err
+		}
+		if parameters.DismissStaleReviewsOnPush == nil || parameters.RequireCodeOwnerReview == nil || parameters.RequireLastPushApproval == nil || parameters.RequiredApprovingReviewCount == nil || parameters.RequiredReviewThreadResolution == nil {
+			return errors.New("pull_request parameters are missing a required field")
+		}
+		if parameters.AllowedMergeMethods != nil {
+			if err := validateNonEmptyStrings(*parameters.AllowedMergeMethods, "allowed_merge_methods"); err != nil {
+				return err
+			}
+			for _, method := range *parameters.AllowedMergeMethods {
+				switch method {
+				case "merge", "squash", "rebase":
+				default:
+					return fmt.Errorf("unsupported allowed merge method %q", method)
+				}
+			}
+		}
+		if restriction := parameters.DismissalRestriction; restriction != nil {
+			if restriction.Enabled == nil || restriction.AllowedActors == nil {
+				return errors.New("dismissal_restriction is missing a required field")
+			}
+			for _, actor := range *restriction.AllowedActors {
+				if actor.ID == nil || *actor.ID <= 0 || actor.Type == nil {
+					return errors.New("dismissal_restriction contains an invalid allowed actor")
+				}
+				switch *actor.Type {
+				case "User", "Team", "IntegrationInstallation", "RepositoryRole":
+				default:
+					return fmt.Errorf("unsupported dismissal actor type %q", *actor.Type)
+				}
+			}
+		}
+		if reviewers := parameters.RequiredReviewers; reviewers != nil {
+			for _, reviewer := range *reviewers {
+				if reviewer.FilePatterns == nil || reviewer.MinimumApprovals == nil || reviewer.Reviewer == nil || reviewer.Reviewer.ID == nil || reviewer.Reviewer.Type == nil {
+					return errors.New("required_reviewers contains a missing required field")
+				}
+				if err := validateNonEmptyStrings(*reviewer.FilePatterns, "required reviewer file_patterns"); err != nil {
+					return err
+				}
+				if *reviewer.Reviewer.ID <= 0 || *reviewer.Reviewer.Type != "Team" {
+					return errors.New("required_reviewers contains an invalid reviewer")
+				}
+			}
+		}
+	case "required_status_checks":
+		var parameters githubRulesetRequiredStatusChecksParameters
+		if err := decodeStrictGithubRulesetParameters(data, ruleType, &parameters); err != nil {
+			return err
+		}
+		if parameters.RequiredStatusChecks == nil || parameters.StrictRequiredStatusChecksPolicy == nil {
+			return errors.New("required_status_checks parameters are missing a required field")
+		}
+		if len(*parameters.RequiredStatusChecks) == 0 {
+			return errors.New("required_status_checks must not be empty")
+		}
+		for _, check := range *parameters.RequiredStatusChecks {
+			if check.Context == nil || strings.TrimSpace(*check.Context) == "" {
+				return errors.New("required_status_checks contains an empty context")
+			}
+		}
+	case "workflows":
+		var parameters githubRulesetWorkflowsParameters
+		if err := decodeStrictGithubRulesetParameters(data, ruleType, &parameters); err != nil {
+			return err
+		}
+		if parameters.Workflows == nil || len(*parameters.Workflows) == 0 {
+			return errors.New("workflows must not be empty")
+		}
+		for _, workflow := range *parameters.Workflows {
+			if workflow.Path == nil || strings.TrimSpace(*workflow.Path) == "" || workflow.RepositoryID == nil || *workflow.RepositoryID <= 0 {
+				return errors.New("workflows contains a missing required field")
+			}
+		}
+	case "merge_queue":
+		var parameters githubRulesetMergeQueueParameters
+		if err := decodeStrictGithubRulesetParameters(data, ruleType, &parameters); err != nil {
+			return err
+		}
+		if parameters.CheckResponseTimeoutMinutes == nil || parameters.GroupingStrategy == nil || parameters.MaxEntriesToBuild == nil || parameters.MaxEntriesToMerge == nil || parameters.MergeMethod == nil || parameters.MinEntriesToMerge == nil || parameters.MinEntriesToMergeWaitMinutes == nil {
+			return errors.New("merge_queue parameters are missing a required field")
+		}
+		switch *parameters.GroupingStrategy {
+		case "ALLGREEN", "HEADGREEN":
+		default:
+			return fmt.Errorf("unsupported merge queue grouping strategy %q", *parameters.GroupingStrategy)
+		}
+		switch *parameters.MergeMethod {
+		case "MERGE", "SQUASH", "REBASE":
+		default:
+			return fmt.Errorf("unsupported merge queue merge method %q", *parameters.MergeMethod)
+		}
+	case "copilot_code_review":
+		var parameters githubRulesetCopilotCodeReviewParameters
+		if err := decodeStrictGithubRulesetParameters(data, ruleType, &parameters); err != nil {
+			return err
+		}
+		if parameters.ReviewDraftPullRequests == nil && parameters.ReviewOnPush == nil {
+			return errors.New("copilot_code_review parameters must not be empty")
+		}
+	case "code_scanning":
+		var parameters githubRulesetCodeScanningParameters
+		if err := decodeStrictGithubRulesetParameters(data, ruleType, &parameters); err != nil {
+			return err
+		}
+		if parameters.CodeScanningTools == nil || len(*parameters.CodeScanningTools) == 0 {
+			return errors.New("code_scanning_tools must not be empty")
+		}
+		for _, tool := range *parameters.CodeScanningTools {
+			if tool.AlertsThreshold == nil || tool.SecurityAlertsThreshold == nil || tool.Tool == nil || strings.TrimSpace(*tool.Tool) == "" {
+				return errors.New("code_scanning_tools contains a missing required field")
+			}
+			switch *tool.AlertsThreshold {
+			case "none", "errors", "errors_and_warnings", "all":
+			default:
+				return fmt.Errorf("unsupported code scanning alerts threshold %q", *tool.AlertsThreshold)
+			}
+			switch *tool.SecurityAlertsThreshold {
+			case "none", "critical", "high_or_higher", "medium_or_higher", "all":
+			default:
+				return fmt.Errorf("unsupported code scanning security alerts threshold %q", *tool.SecurityAlertsThreshold)
+			}
+		}
+	case "file_path_restriction":
+		var parameters githubRulesetFilePathRestrictionParameters
+		if err := decodeStrictGithubRulesetParameters(data, ruleType, &parameters); err != nil {
+			return err
+		}
+		if parameters.RestrictedFilePaths == nil {
+			return errors.New("restricted_file_paths is required")
+		}
+		return validateNonEmptyStrings(*parameters.RestrictedFilePaths, "restricted_file_paths")
+	case "max_file_path_length":
+		var parameters githubRulesetMaxFilePathLengthParameters
+		if err := decodeStrictGithubRulesetParameters(data, ruleType, &parameters); err != nil {
+			return err
+		}
+		if parameters.MaxFilePathLength == nil {
+			return errors.New("max_file_path_length is required")
+		}
+	case "file_extension_restriction":
+		var parameters githubRulesetFileExtensionRestrictionParameters
+		if err := decodeStrictGithubRulesetParameters(data, ruleType, &parameters); err != nil {
+			return err
+		}
+		if parameters.RestrictedFileExtensions == nil {
+			return errors.New("restricted_file_extensions is required")
+		}
+		return validateNonEmptyStrings(*parameters.RestrictedFileExtensions, "restricted_file_extensions")
+	case "max_file_size":
+		var parameters githubRulesetMaxFileSizeParameters
+		if err := decodeStrictGithubRulesetParameters(data, ruleType, &parameters); err != nil {
+			return err
+		}
+		if parameters.MaxFileSize == nil {
+			return errors.New("max_file_size is required")
+		}
+	default:
+		return fmt.Errorf("unsupported parameterized ruleset rule type %q", ruleType)
+	}
+	return nil
 }
 
 func (r *githubRulesetRule) UnmarshalJSON(data []byte) error {
@@ -294,50 +770,22 @@ func (r *githubRulesetRule) UnmarshalJSON(data []byte) error {
 			return fmt.Errorf("%s parameters contain an unsupported operator or pattern", raw.Type)
 		}
 	case "update":
-		var updateParameters struct {
-			UpdateAllowsFetchAndMerge *bool `json:"update_allows_fetch_and_merge"`
-		}
+		var updateParameters githubRulesetUpdateParameters
 		if err := parametersDecoder.Decode(&updateParameters); err != nil {
 			return fmt.Errorf("decode update parameters: %w", err)
 		}
+		if updateParameters.UpdateAllowsFetchAndMerge == nil {
+			return errors.New("decode update parameters: update_allows_fetch_and_merge is required")
+		}
 		r.UpdateAllowsFetchAndMerge = updateParameters.UpdateAllowsFetchAndMerge
-	case "required_deployments":
-		if err := validateGithubRulesetObjectParameters(raw.Parameters); err != nil {
-			return fmt.Errorf("decode %s parameters: %w", raw.Type, err)
-		}
-	case "pull_request":
-		if err := validateGithubRulesetObjectParameters(raw.Parameters); err != nil {
-			return fmt.Errorf("decode %s parameters: %w", raw.Type, err)
-		}
-	case "required_status_checks":
-		if err := validateGithubRulesetObjectParameters(raw.Parameters); err != nil {
-			return fmt.Errorf("decode %s parameters: %w", raw.Type, err)
-		}
-	case "workflows":
-		if err := validateGithubRulesetObjectParameters(raw.Parameters); err != nil {
-			return fmt.Errorf("decode %s parameters: %w", raw.Type, err)
-		}
+	case "creation", "deletion", "required_linear_history", "required_signatures", "non_fast_forward", "license_compliance_scanning":
+		return fmt.Errorf("ruleset rule %q does not accept parameters", raw.Type)
 	default:
-		if err := validateGithubRulesetObjectParameters(raw.Parameters); err != nil {
+		if err := validateGithubRulesetParameters(raw.Type, raw.Parameters); err != nil {
 			return fmt.Errorf("decode %s parameters: %w", raw.Type, err)
 		}
 	}
 	r.Parameters = &parameters
-	return nil
-}
-
-// validateGithubRulesetObjectParameters checks the provider contract without
-// coupling unrelated, known rules to an exhaustive local copy of GitHub's
-// evolving parameter schema. Protection-critical rules remain decoded strictly
-// above; this helper still rejects malformed JSON values and null parameters.
-func validateGithubRulesetObjectParameters(data json.RawMessage) error {
-	var parameters map[string]json.RawMessage
-	if err := json.Unmarshal(data, &parameters); err != nil {
-		return err
-	}
-	if parameters == nil {
-		return errors.New("ruleset rule parameters must be a JSON object")
-	}
 	return nil
 }
 
@@ -350,7 +798,8 @@ func githubRulesetRuleTypeAllowed(ruleType string) bool {
 		"required_deployments", "required_signatures", "pull_request", "required_status_checks",
 		"non_fast_forward", "workflows", "copilot_code_review", "code_scanning",
 		"commit_author_email_pattern", "commit_message_pattern", "committer_email_pattern",
-		"branch_name_pattern", "tag_name_pattern":
+		"branch_name_pattern", "tag_name_pattern", "license_compliance_scanning",
+		"file_path_restriction", "max_file_path_length", "file_extension_restriction", "max_file_size":
 		return true
 	default:
 		return false
@@ -359,7 +808,9 @@ func githubRulesetRuleTypeAllowed(ruleType string) bool {
 
 func rulesetRuleRequiresParameters(ruleType string) bool {
 	switch ruleType {
-	case "required_deployments", "pull_request", "required_status_checks", "workflows",
+	case "update", "required_deployments", "pull_request", "required_status_checks", "workflows",
+		"merge_queue", "copilot_code_review", "code_scanning", "file_path_restriction",
+		"max_file_path_length", "file_extension_restriction", "max_file_size",
 		"commit_author_email_pattern", "commit_message_pattern", "committer_email_pattern",
 		"branch_name_pattern":
 		return true
@@ -384,6 +835,35 @@ type githubRulesetSummary struct {
 	ID int64 `json:"id"`
 }
 
+type githubRepositoryRulesetDetail struct {
+	ID                   *int64          `json:"id"`
+	Name                 *string         `json:"name"`
+	Target               *string         `json:"target"`
+	Enforcement          *string         `json:"enforcement"`
+	SourceType           *string         `json:"source_type"`
+	Source               *string         `json:"source"`
+	CreatedAt            json.RawMessage `json:"created_at"`
+	UpdatedAt            json.RawMessage `json:"updated_at"`
+	BypassActors         json.RawMessage `json:"bypass_actors"`
+	CurrentUserCanBypass json.RawMessage `json:"current_user_can_bypass"`
+	Conditions           json.RawMessage `json:"conditions"`
+	Rules                json.RawMessage `json:"rules"`
+}
+
+func validateOptionalGithubRulesetTimestamp(data json.RawMessage, field string) error {
+	if len(data) == 0 {
+		return nil
+	}
+	if string(data) == "null" {
+		return fmt.Errorf("ruleset detail %s must be a date-time string", field)
+	}
+	var timestamp time.Time
+	if err := json.Unmarshal(data, &timestamp); err != nil {
+		return fmt.Errorf("decode ruleset detail %s: %w", field, err)
+	}
+	return nil
+}
+
 const (
 	maxProtectedTagPatterns       = 256
 	maxRulesetRecords             = 256
@@ -398,7 +878,6 @@ const (
 // fully-qualified refs/tags selector; neither form is treated as a raw manual
 // selector outside the provider boundary.
 func githubTagPatternMatches(pattern, tag string) bool {
-	pattern = strings.TrimSpace(pattern)
 	if pattern == "" {
 		return false
 	}
@@ -422,7 +901,7 @@ func githubTagPatternMatches(pattern, tag string) bool {
 // endpoint is the provider's explicit contract that the tag pattern is
 // protected from tag mutation and deletion.
 func legacyTagProtectionProvesImmutable(record githubTagProtectionRecord, tag string) bool {
-	return strings.TrimSpace(record.Pattern) != "" && githubTagPatternMatches(record.Pattern, tag)
+	return record.Enabled && record.Pattern != "" && githubTagPatternMatches(record.Pattern, tag)
 }
 
 func githubRulesetTagPatternMatches(pattern, tag string) bool {
@@ -624,7 +1103,6 @@ func githubTagNamePatternMatches(operator, pattern, tag string) bool {
 	if !validGithubTagNamePattern(operator, pattern) {
 		return false
 	}
-	pattern = strings.TrimSpace(pattern)
 	switch operator {
 	case "starts_with":
 		return strings.HasPrefix(tag, pattern)
@@ -641,7 +1119,6 @@ func githubTagNamePatternMatches(operator, pattern, tag string) bool {
 }
 
 func validGithubTagNamePattern(operator, pattern string) bool {
-	pattern = strings.TrimSpace(pattern)
 	if pattern == "" {
 		return false
 	}
@@ -762,53 +1239,105 @@ func rulesetRefNameMatches(condition *githubRulesetRefNameCondition, tag string)
 	return false
 }
 
-func rulesetTagPatternMatches(ruleset githubRepositoryRulesetRecord, tag string) bool {
-	if ruleset.Conditions == nil || !rulesetRefNameMatches(ruleset.Conditions.RefName, tag) {
-		return false
+type githubRulesetProtection struct {
+	hasUpdateRule   bool
+	hasDeletionRule bool
+}
+
+func validateGithubRulesetBypassActors(actors []githubRulesetBypassActor) error {
+	for _, actor := range actors {
+		switch actor.ActorType {
+		case "Integration", "OrganizationAdmin", "RepositoryRole", "Team", "DeployKey", "User":
+		default:
+			return fmt.Errorf("unsupported ruleset bypass actor type %q", actor.ActorType)
+		}
+		switch actor.ActorType {
+		case "Integration", "RepositoryRole", "Team", "User":
+			if actor.ActorID == nil || *actor.ActorID <= 0 {
+				return errors.New("ruleset bypass actor has no positive actor_id")
+			}
+		case "DeployKey", "OrganizationAdmin":
+			if actor.ActorID != nil && *actor.ActorID <= 0 {
+				return errors.New("ruleset bypass actor has an invalid actor_id")
+			}
+		}
+		switch actor.BypassMode {
+		case "always", "exempt":
+		case "pull_request":
+			return errors.New("pull_request bypass mode is not valid for tag rulesets")
+		default:
+			return fmt.Errorf("unsupported ruleset bypass mode %q", actor.BypassMode)
+		}
 	}
-	hasUpdateRule := false
-	hasDeletionRule := false
+	return nil
+}
+
+func validateGithubRulesetBypassPolicy(ruleset githubRepositoryRulesetRecord) error {
+	if ruleset.BypassActors == nil || ruleset.CurrentUserCanBypass == nil {
+		return errors.New("ruleset bypass metadata is missing or not visible")
+	}
+	if err := validateGithubRulesetBypassActors(*ruleset.BypassActors); err != nil {
+		return err
+	}
+	switch *ruleset.CurrentUserCanBypass {
+	case "never":
+	case "always", "pull_requests_only", "exempt":
+		return &WorkflowRefApprovalError{Reason: "workflow tag matches an active repository ruleset with bypass permission"}
+	default:
+		return fmt.Errorf("unsupported current_user_can_bypass value %q", *ruleset.CurrentUserCanBypass)
+	}
+	if len(*ruleset.BypassActors) != 0 {
+		return &WorkflowRefApprovalError{Reason: "workflow tag matches an active repository ruleset with bypass actors"}
+	}
+	return nil
+}
+
+func evaluateRulesetTagProtection(ruleset githubRepositoryRulesetRecord, tag string) (githubRulesetProtection, error) {
+	if ruleset.Conditions == nil || !rulesetRefNameMatches(ruleset.Conditions.RefName, tag) {
+		return githubRulesetProtection{}, nil
+	}
+	if err := validateGithubRulesetBypassPolicy(ruleset); err != nil {
+		return githubRulesetProtection{}, err
+	}
+	if len(ruleset.Rules) > maxRulesetRules {
+		return githubRulesetProtection{}, errors.New("provider returned too many ruleset rules")
+	}
+	protection := githubRulesetProtection{}
 	for _, rule := range ruleset.Rules {
 		switch rule.Type {
 		case "tag_name_pattern":
 			// Parse documented metadata, but do not use its semantics as a
 			// protection selector. Ref protection comes from conditions.ref_name
 			// plus update/deletion.
-		case "pull_request", "required_deployments", "required_status_checks", "workflows":
+		case "creation", "required_linear_history", "merge_queue", "required_deployments",
+			"required_signatures", "pull_request", "required_status_checks", "non_fast_forward",
+			"workflows", "copilot_code_review", "code_scanning", "license_compliance_scanning",
+			"file_path_restriction", "max_file_path_length", "file_extension_restriction", "max_file_size",
+			"commit_author_email_pattern", "commit_message_pattern", "committer_email_pattern", "branch_name_pattern":
 			// These known rules do not weaken tag immutability. Their parameters
 			// are validated by the ruleset decoder but are not part of this
 			// protection decision.
 		case "update":
-			if hasUpdateRule || !validGithubUpdateRuleParameters(rule) {
-				return false
+			if protection.hasUpdateRule || !validGithubUpdateRuleParameters(rule) {
+				return githubRulesetProtection{}, errors.New("ruleset update rule is duplicated or malformed")
 			}
-			hasUpdateRule = true
+			protection.hasUpdateRule = true
 		case "deletion":
-			if hasDeletionRule || rule.ParametersPresent {
-				return false
+			if protection.hasDeletionRule || rule.ParametersPresent {
+				return githubRulesetProtection{}, errors.New("ruleset deletion rule is duplicated or malformed")
 			}
-			hasDeletionRule = true
+			protection.hasDeletionRule = true
 		default:
 			// The JSON decoder rejects unknown rule types. This branch is kept
 			// fail-closed if the in-memory representation is constructed directly.
-			return false
+			return githubRulesetProtection{}, fmt.Errorf("unsupported or missing ruleset rule type %q", rule.Type)
 		}
 	}
-	return hasUpdateRule && hasDeletionRule
+	return protection, nil
 }
 
 func validGithubUpdateRuleParameters(rule githubRulesetRule) bool {
-	if !rule.ParametersPresent {
-		return true
-	}
-	return rule.Parameters != nil && rule.UpdateAllowsFetchAndMerge != nil
-}
-
-func activeRulesetProtectsWorkflowTag(ruleset githubRepositoryRulesetRecord, tag string) bool {
-	if ruleset.ID <= 0 || ruleset.Target != "tag" || ruleset.Enforcement != "active" || ruleset.BypassActors == nil || len(*ruleset.BypassActors) != 0 || ruleset.CurrentUserCanBypass == nil || *ruleset.CurrentUserCanBypass != "never" || len(ruleset.Rules) == 0 || len(ruleset.Rules) > maxRulesetRules {
-		return false
-	}
-	return rulesetTagPatternMatches(ruleset, tag)
+	return rule.ParametersPresent && rule.Parameters != nil && rule.UpdateAllowsFetchAndMerge != nil
 }
 
 func activeRulesetTargetsWorkflowTag(ruleset githubRepositoryRulesetRecord, tag string) bool {
@@ -818,7 +1347,7 @@ func activeRulesetTargetsWorkflowTag(ruleset githubRepositoryRulesetRecord, tag 
 	return true
 }
 
-func fetchRulesetDetail(ctx context.Context, s *GithubBuildConfigService, config *model.GithubBuildConfig, summary githubRulesetSummary) (githubRepositoryRulesetRecord, error) {
+func fetchRulesetDetail(ctx context.Context, s *GithubBuildConfigService, config *model.GithubBuildConfig, summary githubRulesetSummary, tag string) (githubRepositoryRulesetRecord, error) {
 	if summary.ID <= 0 {
 		return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: errors.New("ruleset summary has no positive id")}
 	}
@@ -831,12 +1360,83 @@ func fetchRulesetDetail(ctx context.Context, s *GithubBuildConfigService, config
 		return githubRepositoryRulesetRecord{}, fmt.Errorf("verify repository ruleset detail: %w", err)
 	}
 	defer resp.Body.Close()
-	var detail githubRepositoryRulesetRecord
-	if err := decodeGithubJSON(resp, "verify repository ruleset detail", &detail); err != nil {
+	var rawDetail githubRepositoryRulesetDetail
+	if err := decodeGithubJSON(resp, "verify repository ruleset detail", &rawDetail); err != nil {
 		return githubRepositoryRulesetRecord{}, err
 	}
-	if detail.ID != summary.ID {
+	if rawDetail.ID == nil || *rawDetail.ID != summary.ID {
 		return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: errors.New("ruleset detail id does not match summary")}
+	}
+	if *rawDetail.ID <= 0 || rawDetail.Name == nil || strings.TrimSpace(*rawDetail.Name) == "" || rawDetail.Source == nil || strings.TrimSpace(*rawDetail.Source) == "" || rawDetail.SourceType == nil {
+		return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: errors.New("ruleset detail is missing required metadata")}
+	}
+	switch *rawDetail.SourceType {
+	case "Repository", "Organization", "Enterprise":
+	default:
+		return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: fmt.Errorf("ruleset detail has an invalid source_type %q", *rawDetail.SourceType)}
+	}
+	if err := validateOptionalGithubRulesetTimestamp(rawDetail.CreatedAt, "created_at"); err != nil {
+		return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: err}
+	}
+	if err := validateOptionalGithubRulesetTimestamp(rawDetail.UpdatedAt, "updated_at"); err != nil {
+		return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: err}
+	}
+	if rawDetail.Target == nil || *rawDetail.Target != "tag" {
+		return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: errors.New("ruleset detail has an invalid target")}
+	}
+	if rawDetail.Enforcement == nil {
+		return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: errors.New("ruleset detail has an invalid enforcement")}
+	}
+	switch *rawDetail.Enforcement {
+	case "active", "evaluate", "disabled":
+	default:
+		return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: errors.New("ruleset detail has an invalid enforcement")}
+	}
+	detail := githubRepositoryRulesetRecord{
+		ID:          *rawDetail.ID,
+		Target:      *rawDetail.Target,
+		Enforcement: *rawDetail.Enforcement,
+		SourceType:  *rawDetail.SourceType,
+		Source:      *rawDetail.Source,
+	}
+	if string(rawDetail.Conditions) == "null" {
+		return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: errors.New("ruleset conditions must be an object")}
+	}
+	if len(rawDetail.Conditions) != 0 {
+		var conditions githubRulesetConditions
+		if err := json.Unmarshal(rawDetail.Conditions, &conditions); err != nil {
+			return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: fmt.Errorf("decode conditions: %w", err)}
+		}
+		detail.Conditions = &conditions
+	}
+	if detail.Target != "tag" || detail.Enforcement != "active" {
+		return detail, nil
+	}
+	if !activeRulesetTargetsWorkflowTag(detail, tag) {
+		return detail, nil
+	}
+	if len(rawDetail.BypassActors) != 0 && string(rawDetail.BypassActors) != "null" {
+		var actors []githubRulesetBypassActor
+		if err := json.Unmarshal(rawDetail.BypassActors, &actors); err != nil {
+			return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: fmt.Errorf("decode bypass_actors: %w", err)}
+		}
+		detail.BypassActors = &actors
+	}
+	if len(rawDetail.CurrentUserCanBypass) != 0 && string(rawDetail.CurrentUserCanBypass) != "null" {
+		var currentUserCanBypass string
+		if err := json.Unmarshal(rawDetail.CurrentUserCanBypass, &currentUserCanBypass); err != nil {
+			return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: fmt.Errorf("decode current_user_can_bypass: %w", err)}
+		}
+		detail.CurrentUserCanBypass = &currentUserCanBypass
+	}
+	if len(rawDetail.Rules) == 0 {
+		return detail, nil
+	}
+	if string(rawDetail.Rules) == "null" {
+		return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: errors.New("ruleset rules cannot be null")}
+	}
+	if err := json.Unmarshal(rawDetail.Rules, &detail.Rules); err != nil {
+		return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: fmt.Errorf("decode rules: %w", err)}
 	}
 	return detail, nil
 }
@@ -865,8 +1465,9 @@ func (s *GithubBuildConfigService) verifyModernProtectedWorkflowTag(ctx context.
 		return err
 	}
 	rulesetCount := 0
-	foundProtectedRuleset := false
-	foundConflictingRuleset := false
+	foundApplicableRuleset := false
+	var effectiveProtection githubRulesetProtection
+	var evaluationErr error
 	for page := 0; page < maxProtectedTagPages; page++ {
 		resp, requestErr := s.ghReq(ctx, config, http.MethodGet, path, nil, http.StatusOK)
 		if requestErr != nil {
@@ -887,18 +1488,26 @@ func (s *GithubBuildConfigService) verifyModernProtectedWorkflowTag(ctx context.
 			return &GithubContractError{Operation: "verify repository rulesets", Cause: errors.New("provider returned too many repository rulesets")}
 		}
 		for _, summary := range summaries {
-			ruleset, detailErr := fetchRulesetDetail(ctx, s, config, summary)
+			ruleset, detailErr := fetchRulesetDetail(ctx, s, config, summary, tag)
 			if detailErr != nil {
-				return detailErr
+				if evaluationErr == nil {
+					evaluationErr = detailErr
+				}
+				continue
 			}
 			if !activeRulesetTargetsWorkflowTag(ruleset, tag) {
 				continue
 			}
-			if ruleset.BypassActors != nil && len(*ruleset.BypassActors) != 0 || !activeRulesetProtectsWorkflowTag(ruleset, tag) {
-				foundConflictingRuleset = true
+			foundApplicableRuleset = true
+			protection, err := evaluateRulesetTagProtection(ruleset, tag)
+			if err != nil {
+				if evaluationErr == nil {
+					evaluationErr = err
+				}
 				continue
 			}
-			foundProtectedRuleset = true
+			effectiveProtection.hasUpdateRule = effectiveProtection.hasUpdateRule || protection.hasUpdateRule
+			effectiveProtection.hasDeletionRule = effectiveProtection.hasDeletionRule || protection.hasDeletionRule
 		}
 		if !hasNext {
 			break
@@ -911,10 +1520,14 @@ func (s *GithubBuildConfigService) verifyModernProtectedWorkflowTag(ctx context.
 			return &GithubContractError{Operation: "verify repository rulesets", Cause: err}
 		}
 	}
-	if foundConflictingRuleset {
-		return &WorkflowRefApprovalError{Reason: "workflow tag matches an active repository ruleset with bypass actors or without immutable update and deletion rules"}
+	if evaluationErr != nil {
+		var approvalErr *WorkflowRefApprovalError
+		if errors.As(evaluationErr, &approvalErr) {
+			return evaluationErr
+		}
+		return &GithubContractError{Operation: "verify repository ruleset detail", Cause: evaluationErr}
 	}
-	if foundProtectedRuleset {
+	if foundApplicableRuleset && effectiveProtection.hasUpdateRule && effectiveProtection.hasDeletionRule {
 		return nil
 	}
 	if rulesetCount == 0 {
@@ -955,14 +1568,12 @@ func classifyProtectionSurface(err error) protectionSurfaceResult {
 // verifyProtectedWorkflowTag treats the modern /rulesets surface as
 // authoritative whenever GitHub supports it. The legacy /tags/protection
 // endpoint is used only when the modern surface is not found (404). Modern
-// rulesets (requested with includes_parents=true) parse the bounded rule list
-// and require matching ref/tag selectors, explicit update and deletion rules,
-// and an explicitly empty bypass_actors list. This prevents a legacy positive
-// result from masking a modern matching ruleset that permits bypass or is not
-// immutable. Permission/provider failures and malformed successful responses
+// rulesets (requested with includes_parents=true) aggregate effective update
+// and deletion rules across every applicable active tag ruleset, while every
+// applicable ruleset must expose an empty bypass list and current-user value
+// of never. Permission/provider failures and malformed successful responses
 // fail closed; no bypass actor is accepted.
 func (s *GithubBuildConfigService) verifyProtectedWorkflowTag(ctx context.Context, config *model.GithubBuildConfig, tag string) error {
-	legacy := classifyProtectionSurface(s.verifyLegacyProtectedWorkflowTag(ctx, config, tag))
 	modern := classifyProtectionSurface(s.verifyModernProtectedWorkflowTag(ctx, config, tag))
 	if modern.state == protectionSurfacePositive {
 		return nil
@@ -970,6 +1581,7 @@ func (s *GithubBuildConfigService) verifyProtectedWorkflowTag(ctx context.Contex
 	if modern.state != protectionSurfaceUnsupported {
 		return modern.err
 	}
+	legacy := classifyProtectionSurface(s.verifyLegacyProtectedWorkflowTag(ctx, config, tag))
 	if legacy.state == protectionSurfacePositive {
 		return nil
 	}

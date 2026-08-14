@@ -18,9 +18,10 @@
 > port 21114; Rust services use 21115–21119, with relay WebSocket on 21119; current
 > production Compose exposure remains
 > 21114–21118. No live provider run or clean-environment build proof is claimed.
-> Workflow approval requires a provider-derived verified annotated tag, an active
-> protected-tag policy with explicit update and deletion protections, no bypass
-> actors, and rejection of tag/branch label collisions. The local gate is not
+> Workflow approval requires a provider-derived verified annotated tag, the
+> aggregate of all applicable active protected-tag rulesets with effective update
+> and deletion protections, no bypass actors, and rejection of tag/branch label
+> collisions. The local gate is not
 > live-provider evidence. Its pending → building identity write is atomic, but
 > provider dispatch and that database write are not an end-to-end atomic
 > transaction: there is no durable outbox or distributed lease for the
@@ -107,8 +108,9 @@ not to a public release.
 
 Before a provider-backed build can run, the API accepts only a provider-derived
 verified annotated tag. The provider must report an accepted verification reason,
-an active protected tag policy for that label, explicit update and deletion
-protections, and no bypass actors. A tag/branch collision with the same label is
+the aggregate of all applicable active protected tag rulesets for that label with
+effective update and deletion protections, and no bypass actors. A tag/branch
+collision with the same label is
 rejected. The API rechecks the provider policy and exact workflow contents at the
 resolved immutable commit before dispatch; raw refs, SHAs, credentials, and
 workflow internals are not normal UI inputs.

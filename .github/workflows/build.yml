@@ -89,6 +89,7 @@ jobs:
         with:
           persist-credentials: false
       - run: rustup toolchain install stable --profile minimal
+      - run: rustup component add rustfmt --toolchain stable
       - run: cargo fmt --all -- --check
         working-directory: server
       - run: cargo fmt --all -- --check

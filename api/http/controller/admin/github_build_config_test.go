@@ -252,10 +252,10 @@ func TestWorkflowRefApprovalEndpointRequiresAdminAndReturnsSafeStatus(t *testing
 		status := http.StatusNotFound
 		if strings.HasSuffix(req.URL.Path, "/tags/protection") {
 			status = http.StatusOK
-			body = `[{"pattern":"workflow-*"}]`
+			body = `[{"id":1,"created_at":"2026-08-01T00:00:00Z","updated_at":"2026-08-01T00:00:00Z","enabled":true,"pattern":"workflow-*"}]`
 		} else if strings.HasSuffix(req.URL.Path, "/rulesets") {
 			status = http.StatusOK
-			body = `[{"id":1,"target":"tag","enforcement":"active","bypass_actors":[],"current_user_can_bypass":"never","conditions":{"ref_name":{"include":["refs/tags/workflow-*"],"exclude":[]}},"rules":[{"type":"tag_name_pattern","parameters":{"name":"tag_name","negate":false,"operator":"starts_with","pattern":"workflow-"}},{"type":"update"},{"type":"deletion"}]}]`
+			body = `[{"id":1,"target":"tag","enforcement":"active","bypass_actors":[],"current_user_can_bypass":"never","conditions":{"ref_name":{"include":["refs/tags/workflow-*"],"exclude":[]}},"rules":[{"type":"tag_name_pattern","parameters":{"name":"tag_name","negate":false,"operator":"starts_with","pattern":"workflow-"}},{"type":"update","parameters":{"update_allows_fetch_and_merge":false}},{"type":"deletion"}]}]`
 		} else if strings.HasSuffix(req.URL.Path, "/git/ref/tags/workflow-v1") {
 			status = http.StatusOK
 			body = `{"ref":"refs/tags/workflow-v1","object":{"sha":"` + strings.Repeat("b", 40) + `","type":"tag"}}`

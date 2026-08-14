@@ -120,9 +120,9 @@ Approval requires all of the following at the provider boundary:
 
 - a provider-derived annotated tag with `verified=true` and an accepted provider
   verification reason;
-- positive protection evidence for that exact tag from either the supported legacy
-  protection surface or the supported modern ruleset surface, with no bypass actor,
-  explicit update/deletion protections, and no tag/branch collision;
+- positive protection evidence for that exact tag from the supported modern
+  ruleset surface, or from the legacy surface only when modern rulesets are
+  unsupported/404, with no bypass actor and no tag/branch collision;
 - the owned workflow is present and ready at the provider-resolved commit.
 
 The successful response is `response.Response` with `data` as the secret-free
@@ -143,29 +143,54 @@ source annotations and are regenerated from them when the annotations change.
 ## Workflow protection evidence
 
 Workflow-ref approval requires a provider-derived, verified annotated tag and
-one independently positive, provider-verified protection surface for the exact
-tag label. The legacy and modern surfaces are an OR/fallback pair, not an AND
-requirement:
+one provider-verified protection surface for the exact tag label. The modern
+ruleset surface is authoritative when supported; the legacy and modern surfaces
+are an OR/fallback pair only when the modern endpoint is unsupported or returns
+404, not when modern policy or contract evidence is negative:
 
 - legacy `GET /repos/{owner}/{repo}/tags/protection`, bounded to three pages and
-  256 patterns, must return a matching label or `refs/tags/` glob. A matching
-  legacy protection record is the provider's immutable-tag contract because
-  this surface does not expose separate update/deletion switches;
-- modern `GET /repos/{owner}/{repo}/rulesets?includes_parents=true`, bounded to
-  three pages and 256 rulesets, must return an active tag ruleset with a
-  matching `conditions.ref_name` include (not an exclude), a matching
-  `tag_name_pattern`/`fnmatch` rule, and an explicitly present empty
-  `bypass_actors` list, plus explicit `update` and `deletion` protections.
-  Inherited parent rulesets use the same checks;
+  256 patterns, must return an enabled documented protection record with the
+  required `pattern` field (optional `id`, `created_at`, `updated_at`, and
+  `enabled` fields are type-checked when present) matching the label or a
+  `refs/tags/` glob. A matching record must explicitly report `enabled: true`
+  and is the provider's immutable-tag contract because this surface does not
+  expose separate update/deletion switches;
+- modern `GET /repos/{owner}/{repo}/rulesets?targets=tag&includes_parents=true`, bounded to
+  three pages and 256 rulesets, followed by the detail request for each
+  candidate, validates the documented detail metadata (`name`, `source`, and
+  `source_type` in `Repository`, `Organization`, or `Enterprise`; documented
+  `created_at` and `updated_at` values are type-checked when present), and
+  aggregates all active rulesets with `target=tag` and a matching
+  `conditions.ref_name` include. Documented organization-level
+  `conditions.repository_name` (including its documented optional `protected`
+  boolean) is accepted but does not select a tag; unknown condition fields and
+  malformed condition values fail closed. Excludes win.
+  `tag_name_pattern` is validated only as rule metadata; it is not the ref
+  selector, and no `fnmatch` rule is required for selection. Every applicable ruleset must expose
+  `bypass_actors: []` and `current_user_can_bypass: "never"`; any applicable
+  bypass actor or other current-user bypass mode rejects approval. Effective
+  `update` and `deletion` rules may be split across matching rulesets. Other
+  documented known rules are neutral or stronger additions, while unknown or
+  malformed rules fail closed. Inherited parent rulesets use the same checks;
 - the provider must reject a tag/branch collision for the same label, and the
   tag's verification must report `verified=true` with the accepted provider
   verification reason. Raw SHA selectors are not approval inputs.
 
-A 404/unsupported surface falls back to the other surface. Permission/provider
-failures and malformed responses are invalid evidence and fail closed unless
-the other surface independently provides positive evidence. A mismatch, absent
-evidence, any bypass actor, or an active conflicting ruleset never proves
-protection.
+A modern policy rejection, permission failure, or malformed response is not
+masked by a legacy positive. A legacy 404/unsupported response is likewise
+not evidence of protection. A mismatch, absent evidence, any bypass actor, or
+an active applicable ruleset without effective update and deletion protection
+never proves protection.
+
+The stored PAT must have the provider's repository Metadata read, Contents read,
+Actions read, and Administration write permissions for the read-only checks.
+GitHub's Get repository ruleset endpoint only returns `bypass_actors` when the
+caller has write access to the ruleset, so Administration read is insufficient;
+the elevated permission is required to observe bypass actors and fail closed.
+Dispatch also requires Actions write. Secret synchronization additionally
+requires the repository Secrets write permission. Exact fine-grained PAT
+availability and permissions are repository/provider settings, not proven by
+local fake-transport tests.
 
 This policy is a provider-boundary contract, not live-provider evidence: the
 worktree has focused fake-transport coverage but no live GitHub/provider
