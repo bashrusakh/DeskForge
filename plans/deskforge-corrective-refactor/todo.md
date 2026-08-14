@@ -4,12 +4,13 @@
 **Boundary:** cumulative PR1–PR12 DeskForge candidate plus a separate RustDesk candidate.
 The DeskForge candidate includes API/UI/Docker/server/offline-kit/Swagger/docs/tests;
 the RustDesk candidate separately includes active workflow/Android/portable/helper/tests.
-`rdgen` deletion and dirty submodule content are excluded. Follow-up commit `642f36a`
-(`workflow: harden GitHub protection contract`) was pushed to
-`refactor/deskforge-corrective-pr`, and PR #59 remains open. GitHub run `31777799368` passed
-Admin UI, Go, Rust, and CodeQL/analyzer checks; CodeRabbit was skipped due to the repository's
-191-file limit. This does not close PR10/PR11 or their preserved evidence gates. No live-provider, full-offline-build,
-signature/attestation, cross-DB, protected-ref, release-readiness, or sovereignty claim is made.
+`rdgen` deletion and dirty submodule content are excluded. Follow-up commit `68e7f30`
+(`workflow: harden ruleset failure handling`) was pushed to
+`refactor/deskforge-corrective-pr`, and PR #59 remains open. GitHub run `31785951197` passed
+Go, Rust, Admin UI, and CodeQL/analyzer checks; CodeRabbit was skipped because the PR has 191
+files. This does not mark the PR ready, close PR10/PR11, or close their preserved evidence gates.
+No live-provider, full-offline-build, signature/attestation, cross-DB, protected-ref,
+release-readiness, or sovereignty claim is made.
 
 ## Status by original PR order
 
@@ -111,7 +112,7 @@ signature/attestation, cross-DB, protected-ref, release-readiness, or sovereignt
   - [x] Linux deb/RPM `custom_.txt` ordering is recorded.
   - [x] Portable deterministic traversal/timestamp tests and the capability gate/UI disabled state are recorded as local evidence.
   - [x] Workflow manifests, bridge/helper source, Android app-ID/`applicationId`, custom_.txt runtime-path checks, and package assertions are labeled static only; deleted local copies and frozen `rdgen` workflows are not proof.
-  - [ ] Follow-up commit `642f36a` was pushed and PR #59 remains open; the helper is untracked at the remote HEAD. This does not close PR11's evidence gates.
+  - [ ] Follow-up commit `68e7f30` was pushed and PR #59 remains open; the helper is untracked at the remote HEAD. This does not close PR11's evidence gates.
   - [ ] No live Linux, Android, Windows, or provider runs have been performed.
   - [ ] No APK/package/install/runtime evidence exists.
   - [ ] No protected workflow-ref proof exists.
@@ -158,19 +159,28 @@ signature/attestation, cross-DB, protected-ref, release-readiness, or sovereignt
 - Real offline-kit verify/freeze fails closed on secret-bearing artifact presence, legacy manifest, missing engine, empty printer digest, and incomplete license evidence. Full `GOWORK=off go vet ./...`, `GOWORK=off go test ./...`, and `GOWORK=off go test -race ./...` pass after test-only cache diagnostics, opt-in Redis test changes, and test-only lock-test race fixes; production lock code is unchanged. Redis integration/benchmarks remain opt-in through `DESKFORGE_TEST_REDIS_ADDR`, with no live Redis run recorded.
 - Full `GOWORK=off go vet ./...`, `GOWORK=off go test ./...`, and `GOWORK=off go test -race ./...` pass after the test-only cache diagnostics, opt-in Redis changes, and lock-test race fixes; production lock code is unchanged. API build, UI build, deterministic Swagger regeneration/parity, Compose checks, and `git diff --check` pass. Redis integration/benchmarks remain opt-in through `DESKFORGE_TEST_REDIS_ADDR`, with no live Redis run recorded. Default OpenSSL/FindBin compatibility, native `actionlint`/`shellcheck`/`pwsh`, live provider/runner execution, clean/repeat builds, cross-DB coverage, and Windows/Linux/Android execution remain unverified. Swagger metadata remains sparse for legacy operations as a low-usability issue.
 - Workflow dispatch requires a branch/tag selector, exact contents-at-`WorkflowSHA` readiness, and a matching run `head_sha`; protected/immutable workflow-ref deployment remains a release gate.
-- Follow-up commit `642f36a` (`workflow: harden GitHub protection contract`) was pushed to
-  `refactor/deskforge-corrective-pr`, and PR #59 remains open. GitHub run `31777799368` passed
-  Admin UI, Go, Rust, and CodeQL/analyzer checks; CodeRabbit was skipped due to the repository's
-  191-file limit. The PR11 helper is untracked at the remote HEAD, and PR10/PR11 remain
-  `in-progress` with their evidence limitations preserved.
+- Follow-up commit `68e7f30` (`workflow: harden ruleset failure handling`) was pushed to
+  `refactor/deskforge-corrective-pr`, and PR #59 remains open. GitHub run `31785951197` passed
+  Go, Rust, Admin UI, and CodeQL/analyzer checks; CodeRabbit was skipped because the PR has 191
+  files. The PR11 helper is untracked at the remote HEAD, and PR10/PR11 remain `in-progress`
+  with their evidence limitations preserved; the PR is not marked ready and no live evidence is
+  claimed.
+- Latest review/fix confirmations: only an initial modern `/rulesets` 404 permits legacy
+  fallback; later modern failures fail closed. Strict inherited Organization/Enterprise selector
+  support covers `repository_name`, `repository_id.repository_ids`, and `repository_property`,
+  with non-empty patterns required for `repository_name`. The stale controller fixture was
+  corrected. The legacy enabled-field concern was not reproduced and is intentional fail-closed
+  behavior: official documentation lists `enabled` and `pattern` as the only explicitly required
+  fields, and missing `enabled` cannot prove active protection. The workflow-dispatch selector
+  TOCTOU, live-provider, PR10/PR11, cross-DB, and offline limitations remain unchanged.
 
 ## Immediate next action
 
 PR9 is `verified-with-notes`; PR10 and PR11 remain `in-progress`, while PR12 is
 `verified-with-notes` for documentation/tracker reconciliation. Do not mark PR10 or PR11 complete
-without their phase-specific evidence. No live provider execution, clean build, or release
-publication is implied by the PR9 notes. The exact scope, gates, and dependencies are
-maintained in the corresponding phase documents.
+without their phase-specific evidence. Do not mark the PR ready or claim live evidence. No live
+provider execution, clean build, or release publication is implied by the PR9 notes. The exact
+scope, gates, and dependencies are maintained in the corresponding phase documents.
 
 ## Final restoration checks
 

@@ -6,11 +6,11 @@ scoped RustDesk candidate. The DeskForge candidate includes API, UI, Docker, ser
 offline-kit, Swagger, documentation, and tests. The separate RustDesk candidate includes
 active workflows, Android, portable, helper, and tests. `rdgen` deletion and dirty
 RustDesk submodule content are excluded from both candidates.
-**Publication boundary:** follow-up commit `642f36a` (`workflow: harden GitHub protection
-contract`) was pushed to `refactor/deskforge-corrective-pr`, and PR #59 remains open.
-GitHub run `31777799368` passed Admin UI, Go, Rust, and CodeQL/analyzer checks; CodeRabbit
-was skipped due to the repository's 191-file limit. This publication status does not close
-PR10/PR11 or their preserved evidence gates.
+**Publication boundary:** follow-up commit `68e7f30` (`workflow: harden ruleset failure
+handling`) was pushed to `refactor/deskforge-corrective-pr`, and PR #59 remains open.
+GitHub run `31785951197` passed Go, Rust, Admin UI, and CodeQL/analyzer checks; CodeRabbit
+was skipped because the PR has 191 files. This publication status does not make the PR
+ready, close PR10/PR11, or close their preserved evidence gates.
 **Current next action:** keep
 PR10 and PR11 `in-progress`, not verified, and PR12 `verified-with-notes`. This plan
 does not make live-provider, full-offline-build, signature/attestation, cross-DB,
@@ -123,6 +123,21 @@ files, local implementation checks, or dirty submodule state as publication evid
   Secret-bearing production dispatch and live readiness remain gated until provider-side
   immutable/no-bypass deployment proof or atomic API support is actually evidenced. Local
   revalidation does not close that provider-side window.
+
+## Latest workflow review/fix state — 2026-08-14
+
+- Follow-up commit `68e7f30` (`workflow: harden ruleset failure handling`) is pushed to
+  `refactor/deskforge-corrective-pr`. GitHub Actions run `31785951197` passed Go, Rust,
+  Admin UI, and CodeQL/analyzer checks; CodeRabbit was skipped because the PR has 191 files.
+- Only an initial modern `/rulesets` 404 permits legacy fallback; later modern failures fail
+  closed. Strict inherited Organization/Enterprise selector support covers `repository_name`,
+  `repository_id.repository_ids`, and `repository_property`, and `repository_name` selectors
+  require non-empty patterns. The stale controller fixture was corrected.
+- The legacy enabled-field concern was not reproduced and is intentional fail-closed behavior:
+  official documentation lists `enabled` and `pattern` as the only explicitly required fields,
+  but a missing `enabled` value cannot prove active protection.
+- The workflow-dispatch selector TOCTOU, live-provider, PR10/PR11, cross-DB, and offline
+  limitations remain preserved. No live evidence is claimed and the PR is not marked ready.
 
 ## PR10 blueprint — `in-progress`
 
@@ -328,7 +343,7 @@ not proof.
 
 Explicit blockers and non-claims:
 
-- Follow-up commit `642f36a` (`workflow: harden GitHub protection contract`) was pushed to
+- Follow-up commit `68e7f30` (`workflow: harden ruleset failure handling`) was pushed to
   `refactor/deskforge-corrective-pr`, and PR #59 remains open; the helper is untracked at
   the remote HEAD.
 - No live Linux, Android, Windows, or provider runs have been performed.
@@ -442,9 +457,9 @@ package. PR1–PR9 evidence and limitations are preserved above; PR10 and PR11 r
 `in-progress`, while PR12 is `verified-with-notes`. The DeskForge candidate contains
 API/UI/Docker/server/offline-kit/Swagger/docs/tests; the separate RustDesk candidate
 contains active workflow/Android/portable/helper/tests. `rdgen` deletion and dirty
-submodule content are excluded. Follow-up commit `642f36a` (`workflow: harden GitHub
-protection contract`) was pushed to `refactor/deskforge-corrective-pr`, and PR #59 remains
-open. GitHub run `31777799368` passed Admin UI, Go, Rust, and CodeQL/analyzer checks;
-CodeRabbit was skipped due to the repository's 191-file limit. PR10 and PR11 remain
-`in-progress`; their live-provider, TOCTOU, cross-DB, offline, and other preserved
-limitations are unchanged.
+submodule content are excluded. Follow-up commit `68e7f30` (`workflow: harden ruleset
+failure handling`) was pushed to `refactor/deskforge-corrective-pr`, and PR #59 remains
+open. GitHub run `31785951197` passed Go, Rust, Admin UI, and CodeQL/analyzer checks;
+CodeRabbit was skipped because the PR has 191 files. PR10 and PR11 remain `in-progress`;
+their live-provider, TOCTOU, cross-DB, offline, and other preserved limitations are
+unchanged. The PR is not marked ready and no live evidence is claimed.
