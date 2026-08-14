@@ -4,8 +4,11 @@
 **Boundary:** cumulative PR1–PR12 DeskForge candidate plus a separate RustDesk candidate.
 The DeskForge candidate includes API/UI/Docker/server/offline-kit/Swagger/docs/tests;
 the RustDesk candidate separately includes active workflow/Android/portable/helper/tests.
-`rdgen` deletion and dirty submodule content are excluded. Commits and PR publication are
-authorized by the user but pending final checks; no live-provider, full-offline-build,
+`rdgen` deletion and dirty submodule content are excluded. Follow-up commit `642f36a`
+(`workflow: harden GitHub protection contract`) was pushed to
+`refactor/deskforge-corrective-pr`, and PR #59 remains open. GitHub run `31777799368` passed
+Admin UI, Go, Rust, and CodeQL/analyzer checks; CodeRabbit was skipped due to the repository's
+191-file limit. This does not close PR10/PR11 or their preserved evidence gates. No live-provider, full-offline-build,
 signature/attestation, cross-DB, protected-ref, release-readiness, or sovereignty claim is made.
 
 ## Status by original PR order
@@ -108,7 +111,7 @@ signature/attestation, cross-DB, protected-ref, release-readiness, or sovereignt
   - [x] Linux deb/RPM `custom_.txt` ordering is recorded.
   - [x] Portable deterministic traversal/timestamp tests and the capability gate/UI disabled state are recorded as local evidence.
   - [x] Workflow manifests, bridge/helper source, Android app-ID/`applicationId`, custom_.txt runtime-path checks, and package assertions are labeled static only; deleted local copies and frozen `rdgen` workflows are not proof.
-  - [ ] The RustDesk candidate remains pending publication after final checks; the helper is untracked at the remote HEAD.
+  - [ ] Follow-up commit `642f36a` was pushed and PR #59 remains open; the helper is untracked at the remote HEAD. This does not close PR11's evidence gates.
   - [ ] No live Linux, Android, Windows, or provider runs have been performed.
   - [ ] No APK/package/install/runtime evidence exists.
   - [ ] No protected workflow-ref proof exists.
@@ -155,7 +158,11 @@ signature/attestation, cross-DB, protected-ref, release-readiness, or sovereignt
 - Real offline-kit verify/freeze fails closed on secret-bearing artifact presence, legacy manifest, missing engine, empty printer digest, and incomplete license evidence. Full `GOWORK=off go vet ./...`, `GOWORK=off go test ./...`, and `GOWORK=off go test -race ./...` pass after test-only cache diagnostics, opt-in Redis test changes, and test-only lock-test race fixes; production lock code is unchanged. Redis integration/benchmarks remain opt-in through `DESKFORGE_TEST_REDIS_ADDR`, with no live Redis run recorded.
 - Full `GOWORK=off go vet ./...`, `GOWORK=off go test ./...`, and `GOWORK=off go test -race ./...` pass after the test-only cache diagnostics, opt-in Redis changes, and lock-test race fixes; production lock code is unchanged. API build, UI build, deterministic Swagger regeneration/parity, Compose checks, and `git diff --check` pass. Redis integration/benchmarks remain opt-in through `DESKFORGE_TEST_REDIS_ADDR`, with no live Redis run recorded. Default OpenSSL/FindBin compatibility, native `actionlint`/`shellcheck`/`pwsh`, live provider/runner execution, clean/repeat builds, cross-DB coverage, and Windows/Linux/Android execution remain unverified. Swagger metadata remains sparse for legacy operations as a low-usability issue.
 - Workflow dispatch requires a branch/tag selector, exact contents-at-`WorkflowSHA` readiness, and a matching run `head_sha`; protected/immutable workflow-ref deployment remains a release gate.
-- Commits and PR publication are authorized by the user but remain pending final checks; no publication has occurred. The PR11 helper is untracked at the remote HEAD.
+- Follow-up commit `642f36a` (`workflow: harden GitHub protection contract`) was pushed to
+  `refactor/deskforge-corrective-pr`, and PR #59 remains open. GitHub run `31777799368` passed
+  Admin UI, Go, Rust, and CodeQL/analyzer checks; CodeRabbit was skipped due to the repository's
+  191-file limit. The PR11 helper is untracked at the remote HEAD, and PR10/PR11 remain
+  `in-progress` with their evidence limitations preserved.
 
 ## Immediate next action
 

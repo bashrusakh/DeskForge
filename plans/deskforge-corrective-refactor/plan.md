@@ -6,9 +6,12 @@ scoped RustDesk candidate. The DeskForge candidate includes API, UI, Docker, ser
 offline-kit, Swagger, documentation, and tests. The separate RustDesk candidate includes
 active workflows, Android, portable, helper, and tests. `rdgen` deletion and dirty
 RustDesk submodule content are excluded from both candidates.
-**Publication boundary:** the user has authorized commits and PR publication for both
-candidates; final checks are still pending, and no publication has occurred.
-**Current next action:** complete the final candidate/provenance checks while keeping
+**Publication boundary:** follow-up commit `642f36a` (`workflow: harden GitHub protection
+contract`) was pushed to `refactor/deskforge-corrective-pr`, and PR #59 remains open.
+GitHub run `31777799368` passed Admin UI, Go, Rust, and CodeQL/analyzer checks; CodeRabbit
+was skipped due to the repository's 191-file limit. This publication status does not close
+PR10/PR11 or their preserved evidence gates.
+**Current next action:** keep
 PR10 and PR11 `in-progress`, not verified, and PR12 `verified-with-notes`. This plan
 does not make live-provider, full-offline-build, signature/attestation, cross-DB,
 protected-ref, release-readiness, or sovereignty claims.
@@ -325,7 +328,9 @@ not proof.
 
 Explicit blockers and non-claims:
 
-- All changes are unpublished, and the helper is untracked at the remote HEAD.
+- Follow-up commit `642f36a` (`workflow: harden GitHub protection contract`) was pushed to
+  `refactor/deskforge-corrective-pr`, and PR #59 remains open; the helper is untracked at
+  the remote HEAD.
 - No live Linux, Android, Windows, or provider runs have been performed.
 - No APK/package/install/runtime evidence exists.
 - No protected workflow-ref proof exists.
@@ -437,5 +442,9 @@ package. PR1–PR9 evidence and limitations are preserved above; PR10 and PR11 r
 `in-progress`, while PR12 is `verified-with-notes`. The DeskForge candidate contains
 API/UI/Docker/server/offline-kit/Swagger/docs/tests; the separate RustDesk candidate
 contains active workflow/Android/portable/helper/tests. `rdgen` deletion and dirty
-submodule content are excluded. Commits and PR publication are user-authorized but
-pending final checks; no publication has occurred.
+submodule content are excluded. Follow-up commit `642f36a` (`workflow: harden GitHub
+protection contract`) was pushed to `refactor/deskforge-corrective-pr`, and PR #59 remains
+open. GitHub run `31777799368` passed Admin UI, Go, Rust, and CodeQL/analyzer checks;
+CodeRabbit was skipped due to the repository's 191-file limit. PR10 and PR11 remain
+`in-progress`; their live-provider, TOCTOU, cross-DB, offline, and other preserved
+limitations are unchanged.
