@@ -30,6 +30,8 @@ func testLegacyProtectedTagResponse(pattern string) string {
 	return `[{"id":1,"created_at":"2026-08-01T00:00:00Z","updated_at":"2026-08-01T00:00:00Z","enabled":true,"pattern":"` + pattern + `"}]`
 }
 
+const testDocumentedLegacyGetListResponse = `[{"id":2,"created_at":"2026-08-01T00:00:00Z","updated_at":"2026-08-01T00:00:00Z","enabled":true,"pattern":"workflow-*"}]`
+
 func testPatternOnlyRulesetResponse(pattern string) string {
 	pattern = strings.TrimSuffix(strings.TrimPrefix(pattern, "refs/tags/"), "*")
 	return `{"id":1,` + testRulesetMetadata + `,"target":"tag","enforcement":"active","bypass_actors":[],"current_user_can_bypass":"never","conditions":{"ref_name":{"include":["refs/tags/` + pattern + `*"],"exclude":[]}},"rules":[{"type":"tag_name_pattern","parameters":{"name":"tag_name","negate":false,"operator":"starts_with","pattern":"` + pattern + `"}}]}`
@@ -414,7 +416,7 @@ func TestVerifyProtectedWorkflowTagRequiresMatchingProviderProtection(t *testing
 		{name: "legacy malformed modern positive", legacyStatus: http.StatusOK, legacyBody: `{`, modernBody: testProtectedRulesetResponse("workflow-*")},
 		{name: "legacy positive modern mismatch", legacyStatus: http.StatusOK, legacyBody: testLegacyProtectedTagResponse("workflow-*"), modernBody: testProtectedRulesetResponse("release-*"), wantError: true, wantPolicy: true},
 		{name: "legacy positive modern non-immutable", legacyStatus: http.StatusOK, legacyBody: testLegacyProtectedTagResponse("workflow-*"), modernBody: testPatternOnlyRulesetResponse("workflow-*"), wantError: true, wantPolicy: true},
-		{name: "initial modern 404 plus legacy positive", legacyStatus: http.StatusOK, legacyBody: testLegacyProtectedTagResponse("workflow-*"), modernBody: `{"message":"unsupported"}`},
+		{name: "initial modern /rulesets 404 plus full documented legacy GET LIST fallback", legacyStatus: http.StatusOK, legacyBody: testDocumentedLegacyGetListResponse, modernBody: `{"message":"unsupported"}`},
 		{name: "legacy permission modern fallback", legacyStatus: http.StatusForbidden, legacyBody: `{"message":"permission denied"}`, modernBody: testProtectedRulesetResponse("workflow-*")},
 		{name: "both unsupported", legacyStatus: http.StatusNotFound, legacyBody: `{"message":"unsupported"}`, modernBody: `{"message":"unsupported"}`, wantError: true, wantAPIErr: true},
 	} {
@@ -755,32 +757,72 @@ func TestVerifyLegacyProtectedWorkflowTagRejectsUnsupportedPolicyFields(t *testi
 	}
 }
 
-func TestLegacyTagProtectionDecodesDocumentedListResponseShape(t *testing.T) {
-	var records []githubTagProtectionRecord
-	if err := json.Unmarshal([]byte(testLegacyProtectedTagResponse("workflow-*")), &records); err != nil {
-		t.Fatalf("documented legacy tag protection response rejected: %v", err)
-	}
-	if len(records) != 1 || !legacyTagProtectionProvesImmutable(records[0], "workflow-v1") {
-		t.Fatalf("legacy tag protection records = %#v, want enabled matching record", records)
-	}
-
-	var disabled []githubTagProtectionRecord
-	if err := json.Unmarshal([]byte(strings.Replace(testLegacyProtectedTagResponse("workflow-*"), `"enabled":true`, `"enabled":false`, 1)), &disabled); err != nil {
-		t.Fatalf("documented disabled legacy tag protection response rejected: %v", err)
-	}
-	if legacyTagProtectionProvesImmutable(disabled[0], "workflow-v1") {
-		t.Fatal("disabled legacy tag protection record proved immutability")
-	}
-	var patternOnly []githubTagProtectionRecord
-	if err := json.Unmarshal([]byte(`[{"pattern":"workflow-*"}]`), &patternOnly); err != nil {
-		t.Fatalf("legacy response with only required pattern rejected: %v", err)
-	}
-	if legacyTagProtectionProvesImmutable(patternOnly[0], "workflow-v1") {
-		t.Fatal("legacy response without enabled=true proved immutability")
-	}
-	var malformed []githubTagProtectionRecord
-	if err := json.Unmarshal([]byte(strings.Replace(testLegacyProtectedTagResponse("workflow-*"), `"pattern":"workflow-*"`, `"pattern":"workflow-*","unexpected":true`, 1)), &malformed); err == nil {
-		t.Fatal("legacy tag protection response with unknown field was accepted")
+func TestLegacyTagProtectionDecodesDocumentedGETListResponseShape(t *testing.T) {
+	for _, test := range []struct {
+		name          string
+		response      string
+		wantDecode    bool
+		wantProtected bool
+	}{
+		{
+			name:          "matching documented GET LIST record with id 2 proves workflow-v1 protected",
+			response:      testDocumentedLegacyGetListResponse,
+			wantDecode:    true,
+			wantProtected: true,
+		},
+		{
+			name:          "nonmatching documented GET LIST record release-* does not prove workflow-v1",
+			response:      strings.Replace(testDocumentedLegacyGetListResponse, `"pattern":"workflow-*"`, `"pattern":"release-*"`, 1),
+			wantDecode:    true,
+			wantProtected: false,
+		},
+		{
+			name:       "GET LIST record with wrong id type fails closed during JSON decode",
+			response:   strings.Replace(testDocumentedLegacyGetListResponse, `"id":2`, `"id":"2"`, 1),
+			wantDecode: false,
+		},
+		{
+			name:       "GET LIST record missing required pattern fails closed during JSON decode",
+			response:   strings.Replace(testDocumentedLegacyGetListResponse, `,"pattern":"workflow-*"`, "", 1),
+			wantDecode: false,
+		},
+		{
+			name:       "GET LIST unknown field remains rejected by strict provider-contract policy",
+			response:   strings.Replace(testDocumentedLegacyGetListResponse, `,"pattern":"workflow-*"`, `,"pattern":"workflow-*","unexpected":true`, 1),
+			wantDecode: false,
+		},
+		{
+			name:          "partial GET LIST record without enabled is non-positive",
+			response:      strings.Replace(testDocumentedLegacyGetListResponse, `,"enabled":true`, "", 1),
+			wantDecode:    true,
+			wantProtected: false,
+		},
+		{
+			name:          "disabled documented GET LIST record is non-positive",
+			response:      strings.Replace(testDocumentedLegacyGetListResponse, `"enabled":true`, `"enabled":false`, 1),
+			wantDecode:    true,
+			wantProtected: false,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var records []githubTagProtectionRecord
+			err := json.Unmarshal([]byte(test.response), &records)
+			if !test.wantDecode {
+				if err == nil {
+					t.Fatalf("documented GET LIST response %s decoded successfully, want fail-closed JSON decode rejection", test.name)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("documented GET LIST response rejected: %v", err)
+			}
+			if len(records) != 1 || records[0].ID != 2 {
+				t.Fatalf("documented GET LIST records = %#v, want one record with id 2", records)
+			}
+			if got := legacyTagProtectionProvesImmutable(records[0], "workflow-v1"); got != test.wantProtected {
+				t.Fatalf("documented GET LIST record protection = %v, want %v", got, test.wantProtected)
+			}
+		})
 	}
 }
 
