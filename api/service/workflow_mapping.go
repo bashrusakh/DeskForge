@@ -308,6 +308,130 @@ type githubRulesetRepositoryNameCondition struct {
 	Protected *bool    `json:"protected"`
 }
 
+type githubRulesetRepositoryIDCondition struct {
+	RepositoryIDs []int64 `json:"repository_ids"`
+}
+
+func (c *githubRulesetRepositoryIDCondition) UnmarshalJSON(data []byte) error {
+	decoder := json.NewDecoder(strings.NewReader(string(data)))
+	decoder.DisallowUnknownFields()
+	var raw struct {
+		RepositoryIDs json.RawMessage `json:"repository_ids"`
+	}
+	if err := decoder.Decode(&raw); err != nil {
+		return err
+	}
+	if len(raw.RepositoryIDs) == 0 || string(raw.RepositoryIDs) == "null" {
+		return errors.New("repository_id.repository_ids is required")
+	}
+	var repositoryIDs []int64
+	if err := json.Unmarshal(raw.RepositoryIDs, &repositoryIDs); err != nil {
+		return fmt.Errorf("decode repository_id.repository_ids: %w", err)
+	}
+	if len(repositoryIDs) == 0 {
+		return errors.New("repository_id.repository_ids must not be empty")
+	}
+	for _, repositoryID := range repositoryIDs {
+		if repositoryID <= 0 {
+			return errors.New("repository_id.repository_ids must contain positive IDs")
+		}
+	}
+	c.RepositoryIDs = repositoryIDs
+	return nil
+}
+
+type githubRulesetRepositoryProperty struct {
+	Name           string   `json:"name"`
+	PropertyValues []string `json:"property_values"`
+	Source         string   `json:"source"`
+}
+
+func (p *githubRulesetRepositoryProperty) UnmarshalJSON(data []byte) error {
+	decoder := json.NewDecoder(strings.NewReader(string(data)))
+	decoder.DisallowUnknownFields()
+	var raw struct {
+		Name           *string         `json:"name"`
+		PropertyValues json.RawMessage `json:"property_values"`
+		Source         *string         `json:"source"`
+	}
+	if err := decoder.Decode(&raw); err != nil {
+		return err
+	}
+	if raw.Name == nil || strings.TrimSpace(*raw.Name) == "" {
+		return errors.New("repository_property entry name is required")
+	}
+	if len(raw.PropertyValues) == 0 || string(raw.PropertyValues) == "null" {
+		return errors.New("repository_property entry property_values is required")
+	}
+	var propertyValues []string
+	if err := json.Unmarshal(raw.PropertyValues, &propertyValues); err != nil {
+		return fmt.Errorf("decode repository_property entry property_values: %w", err)
+	}
+	if err := validateNonEmptyStrings(propertyValues, "repository_property entry property_values"); err != nil {
+		return err
+	}
+	source := "custom"
+	if raw.Source != nil {
+		if strings.TrimSpace(*raw.Source) == "" {
+			return errors.New("repository_property entry source must not be empty")
+		}
+		source = *raw.Source
+	}
+	switch source {
+	case "custom", "system":
+	default:
+		return fmt.Errorf("unsupported repository_property entry source %q", source)
+	}
+	p.Name = *raw.Name
+	p.PropertyValues = propertyValues
+	p.Source = source
+	return nil
+}
+
+type githubRulesetRepositoryPropertyCondition struct {
+	Include []githubRulesetRepositoryProperty `json:"include"`
+	Exclude []githubRulesetRepositoryProperty `json:"exclude"`
+}
+
+func (c *githubRulesetRepositoryPropertyCondition) UnmarshalJSON(data []byte) error {
+	decoder := json.NewDecoder(strings.NewReader(string(data)))
+	decoder.DisallowUnknownFields()
+	var raw struct {
+		Include json.RawMessage `json:"include"`
+		Exclude json.RawMessage `json:"exclude"`
+	}
+	if err := decoder.Decode(&raw); err != nil {
+		return err
+	}
+	decodeProperties := func(data json.RawMessage, field string) ([]githubRulesetRepositoryProperty, error) {
+		if len(data) == 0 || string(data) == "null" {
+			if string(data) == "null" {
+				return nil, fmt.Errorf("repository_property.%s must be an array", field)
+			}
+			return nil, nil
+		}
+		var properties []githubRulesetRepositoryProperty
+		if err := json.Unmarshal(data, &properties); err != nil {
+			return nil, fmt.Errorf("decode repository_property.%s: %w", field, err)
+		}
+		return properties, nil
+	}
+	include, err := decodeProperties(raw.Include, "include")
+	if err != nil {
+		return err
+	}
+	exclude, err := decodeProperties(raw.Exclude, "exclude")
+	if err != nil {
+		return err
+	}
+	if len(include) == 0 && len(exclude) == 0 {
+		return errors.New("repository_property must contain an include or exclude entry")
+	}
+	c.Include = include
+	c.Exclude = exclude
+	return nil
+}
+
 func decodeStrictGithubRulesetCondition(data []byte, conditionName string, allowProtected bool) ([]string, []string, *bool, error) {
 	decoder := json.NewDecoder(strings.NewReader(string(data)))
 	decoder.DisallowUnknownFields()
@@ -372,6 +496,17 @@ func (c *githubRulesetRepositoryNameCondition) UnmarshalJSON(data []byte) error 
 	if err != nil {
 		return err
 	}
+	hasNonEmptyPattern := func(patterns []string) bool {
+		for _, pattern := range patterns {
+			if strings.TrimSpace(pattern) != "" {
+				return true
+			}
+		}
+		return false
+	}
+	if !hasNonEmptyPattern(include) && !hasNonEmptyPattern(exclude) {
+		return errors.New("repository_name must contain at least one non-empty include or exclude pattern")
+	}
 	c.Include = include
 	c.Exclude = exclude
 	c.Protected = protected
@@ -386,22 +521,28 @@ type githubRulesetRuleParameters struct {
 }
 
 type githubRulesetConditions struct {
-	RefName        *githubRulesetRefNameCondition        `json:"ref_name"`
-	RepositoryName *githubRulesetRepositoryNameCondition `json:"repository_name"`
+	RefName            *githubRulesetRefNameCondition            `json:"ref_name"`
+	RepositoryName     *githubRulesetRepositoryNameCondition     `json:"repository_name"`
+	RepositoryID       *githubRulesetRepositoryIDCondition       `json:"repository_id"`
+	RepositoryProperty *githubRulesetRepositoryPropertyCondition `json:"repository_property"`
 }
 
 func (c *githubRulesetConditions) UnmarshalJSON(data []byte) error {
 	decoder := json.NewDecoder(strings.NewReader(string(data)))
 	decoder.DisallowUnknownFields()
 	var raw struct {
-		RefName        json.RawMessage `json:"ref_name"`
-		RepositoryName json.RawMessage `json:"repository_name"`
+		RefName            json.RawMessage `json:"ref_name"`
+		RepositoryName     json.RawMessage `json:"repository_name"`
+		RepositoryID       json.RawMessage `json:"repository_id"`
+		RepositoryProperty json.RawMessage `json:"repository_property"`
 	}
 	if err := decoder.Decode(&raw); err != nil {
 		return err
 	}
 	c.RefName = nil
 	c.RepositoryName = nil
+	c.RepositoryID = nil
+	c.RepositoryProperty = nil
 	if len(raw.RefName) != 0 {
 		if string(raw.RefName) == "null" {
 			return errors.New("conditions.ref_name must be an object")
@@ -421,6 +562,26 @@ func (c *githubRulesetConditions) UnmarshalJSON(data []byte) error {
 			return fmt.Errorf("decode conditions.repository_name: %w", err)
 		}
 		c.RepositoryName = &repositoryName
+	}
+	if len(raw.RepositoryID) != 0 {
+		if string(raw.RepositoryID) == "null" {
+			return errors.New("conditions.repository_id must be an object")
+		}
+		var repositoryID githubRulesetRepositoryIDCondition
+		if err := json.Unmarshal(raw.RepositoryID, &repositoryID); err != nil {
+			return fmt.Errorf("decode conditions.repository_id: %w", err)
+		}
+		c.RepositoryID = &repositoryID
+	}
+	if len(raw.RepositoryProperty) != 0 {
+		if string(raw.RepositoryProperty) == "null" {
+			return errors.New("conditions.repository_property must be an object")
+		}
+		var repositoryProperty githubRulesetRepositoryPropertyCondition
+		if err := json.Unmarshal(raw.RepositoryProperty, &repositoryProperty); err != nil {
+			return fmt.Errorf("decode conditions.repository_property: %w", err)
+		}
+		c.RepositoryProperty = &repositoryProperty
 	}
 	return nil
 }
@@ -1409,6 +1570,11 @@ func fetchRulesetDetail(ctx context.Context, s *GithubBuildConfigService, config
 		}
 		detail.Conditions = &conditions
 	}
+	if detail.Target == "tag" {
+		if err := validateGithubTagRulesetConditions(detail.SourceType, detail.Conditions); err != nil {
+			return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: err}
+		}
+	}
 	if detail.Target != "tag" || detail.Enforcement != "active" {
 		return detail, nil
 	}
@@ -1441,6 +1607,35 @@ func fetchRulesetDetail(ctx context.Context, s *GithubBuildConfigService, config
 	return detail, nil
 }
 
+func validateGithubTagRulesetConditions(sourceType string, conditions *githubRulesetConditions) error {
+	if conditions == nil || conditions.RefName == nil {
+		return errors.New("tag ruleset conditions must include ref_name")
+	}
+	selectorCount := 0
+	if conditions.RepositoryName != nil {
+		selectorCount++
+	}
+	if conditions.RepositoryID != nil {
+		selectorCount++
+	}
+	if conditions.RepositoryProperty != nil {
+		selectorCount++
+	}
+	switch sourceType {
+	case "Repository":
+		if selectorCount != 0 {
+			return errors.New("repository tag ruleset conditions must contain only ref_name")
+		}
+	case "Organization", "Enterprise":
+		if selectorCount != 1 {
+			return errors.New("organization or enterprise tag ruleset conditions must include exactly one repository selector")
+		}
+	default:
+		return fmt.Errorf("tag ruleset has an invalid source_type %q", sourceType)
+	}
+	return nil
+}
+
 func inheritedRulesetPagePath(path string) (string, error) {
 	u, err := url.Parse(path)
 	if err != nil || u.Path == "" {
@@ -1471,6 +1666,12 @@ func (s *GithubBuildConfigService) verifyModernProtectedWorkflowTag(ctx context.
 	for page := 0; page < maxProtectedTagPages; page++ {
 		resp, requestErr := s.ghReq(ctx, config, http.MethodGet, path, nil, http.StatusOK)
 		if requestErr != nil {
+			if page == 0 {
+				var apiErr *GithubAPIError
+				if errors.As(requestErr, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
+					return &githubModernRulesetsUnsupportedError{Cause: requestErr}
+				}
+			}
 			return fmt.Errorf("verify repository rulesets: %w", requestErr)
 		}
 		var summaries []githubRulesetSummary
@@ -1550,12 +1751,25 @@ type protectionSurfaceResult struct {
 	err   error
 }
 
+type githubModernRulesetsUnsupportedError struct {
+	Cause error
+}
+
+func (e *githubModernRulesetsUnsupportedError) Error() string {
+	if e == nil || e.Cause == nil {
+		return "GitHub modern rulesets surface is unsupported"
+	}
+	return fmt.Sprintf("GitHub modern rulesets surface is unsupported: %v", e.Cause)
+}
+
+func (e *githubModernRulesetsUnsupportedError) Unwrap() error { return e.Cause }
+
 func classifyProtectionSurface(err error) protectionSurfaceResult {
 	if err == nil {
 		return protectionSurfaceResult{state: protectionSurfacePositive}
 	}
-	var apiErr *GithubAPIError
-	if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
+	var unsupportedErr *githubModernRulesetsUnsupportedError
+	if errors.As(err, &unsupportedErr) {
 		return protectionSurfaceResult{state: protectionSurfaceUnsupported, err: err}
 	}
 	var approvalErr *WorkflowRefApprovalError

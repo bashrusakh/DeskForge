@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -33,6 +34,12 @@ func testLegacyProtectedTagResponse(pattern string) string {
 func testPatternOnlyRulesetResponse(pattern string) string {
 	pattern = strings.TrimSuffix(strings.TrimPrefix(pattern, "refs/tags/"), "*")
 	return `{"id":1,` + testRulesetMetadata + `,"target":"tag","enforcement":"active","bypass_actors":[],"current_user_can_bypass":"never","conditions":{"ref_name":{"include":["refs/tags/` + pattern + `*"],"exclude":[]}},"rules":[{"type":"tag_name_pattern","parameters":{"name":"tag_name","negate":false,"operator":"starts_with","pattern":"` + pattern + `"}}]}`
+}
+
+func testInheritedProtectedRulesetResponse(sourceType, source, selector string) string {
+	response := testProtectedRulesetResponse("workflow-*")
+	response = strings.Replace(response, `"source_type":"Repository","source":"owner/repo"`, `"source_type":"`+sourceType+`","source":"`+source+`"`, 1)
+	return strings.Replace(response, `"conditions":{"ref_name":{"include":["refs/tags/workflow-*"],"exclude":[]}}`, `"conditions":{"ref_name":{"include":["refs/tags/workflow-*"],"exclude":[]},`+selector+`}`, 1)
 }
 
 func testRulesetResponseWithRules(id int, include string, exclude string, rules string) string {
@@ -194,6 +201,130 @@ func TestGithubRulesetConditionsAcceptDocumentedOrganizationRepositoryName(t *te
 	}
 }
 
+func TestGithubRulesetConditionsAcceptRepositoryNameIncludeExcludeAndOptionalProtected(t *testing.T) {
+	for _, test := range []struct {
+		name             string
+		fixture          string
+		wantInclude      []string
+		wantExclude      []string
+		wantProtectedNil bool
+	}{
+		{
+			name:        "include and exclude with protected",
+			fixture:     `{"repository_name":{"include":["owner/*"],"exclude":["owner/private/*"],"protected":false}}`,
+			wantInclude: []string{"owner/*"},
+			wantExclude: []string{"owner/private/*"},
+		},
+		{
+			name:             "exclude without protected",
+			fixture:          `{"repository_name":{"exclude":["owner/private/*"]}}`,
+			wantExclude:      []string{"owner/private/*"},
+			wantProtectedNil: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var conditions githubRulesetConditions
+			if err := json.Unmarshal([]byte(test.fixture), &conditions); err != nil {
+				t.Fatalf("repository_name condition rejected: %v", err)
+			}
+			if conditions.RepositoryName == nil {
+				t.Fatal("repository_name condition is nil")
+			}
+			if !reflect.DeepEqual(conditions.RepositoryName.Include, test.wantInclude) {
+				t.Fatalf("repository_name include = %v, want %v", conditions.RepositoryName.Include, test.wantInclude)
+			}
+			if !reflect.DeepEqual(conditions.RepositoryName.Exclude, test.wantExclude) {
+				t.Fatalf("repository_name exclude = %v, want %v", conditions.RepositoryName.Exclude, test.wantExclude)
+			}
+			if test.wantProtectedNil && conditions.RepositoryName.Protected != nil {
+				t.Fatal("repository_name protected is set, want omitted")
+			}
+		})
+	}
+}
+
+func TestGithubRulesetConditionsRejectEmptyRepositoryNameSelectors(t *testing.T) {
+	for _, fixture := range []string{
+		`{"repository_name":{}}`,
+		`{"repository_name":{"include":[],"exclude":[]}}`,
+		`{"repository_name":{"include":[""]}}`,
+		`{"repository_name":{"exclude":["   "]}}`,
+		`{"repository_name":{"include":["\t"],"exclude":["\n"]}}`,
+	} {
+		var conditions githubRulesetConditions
+		if err := json.Unmarshal([]byte(fixture), &conditions); err == nil {
+			t.Fatalf("ruleset conditions %s were accepted, want fail-closed rejection", fixture)
+		}
+	}
+}
+
+func TestGithubRulesetConditionsAcceptDocumentedInheritedSelectors(t *testing.T) {
+	tests := []struct {
+		name               string
+		fixture            string
+		wantRepositoryID   []int64
+		wantPropertySource string
+	}{
+		{
+			name:             "repository id",
+			fixture:          `{"ref_name":{"include":["refs/tags/*"],"exclude":[]},"repository_id":{"repository_ids":[123,456]}}`,
+			wantRepositoryID: []int64{123, 456},
+		},
+		{
+			name:               "repository property with default source",
+			fixture:            `{"ref_name":{"include":["refs/tags/*"],"exclude":[]},"repository_property":{"include":[{"name":"tier","property_values":["production"]}],"exclude":[{"name":"status","property_values":["archived"],"source":"system"}]}}`,
+			wantPropertySource: "custom",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var conditions githubRulesetConditions
+			if err := json.Unmarshal([]byte(test.fixture), &conditions); err != nil {
+				t.Fatalf("documented inherited condition rejected: %v", err)
+			}
+			if test.wantRepositoryID != nil {
+				if conditions.RepositoryID == nil || !reflect.DeepEqual(conditions.RepositoryID.RepositoryIDs, test.wantRepositoryID) {
+					t.Fatalf("repository_id condition = %#v, want IDs %v", conditions.RepositoryID, test.wantRepositoryID)
+				}
+			}
+			if test.wantPropertySource != "" {
+				if conditions.RepositoryProperty == nil || len(conditions.RepositoryProperty.Include) != 1 || conditions.RepositoryProperty.Include[0].Source != test.wantPropertySource {
+					t.Fatalf("repository_property condition = %#v, want default source %q", conditions.RepositoryProperty, test.wantPropertySource)
+				}
+				if conditions.RepositoryProperty.Exclude[0].Source != "system" {
+					t.Fatalf("repository_property exclude source = %q, want system", conditions.RepositoryProperty.Exclude[0].Source)
+				}
+			}
+		})
+	}
+}
+
+func TestGithubTagRulesetConditionScopeIsStrict(t *testing.T) {
+	validRef := &githubRulesetRefNameCondition{Include: []string{"refs/tags/*"}}
+	tests := []struct {
+		name       string
+		sourceType string
+		conditions *githubRulesetConditions
+		wantErr    bool
+	}{
+		{name: "repository ref only", sourceType: "Repository", conditions: &githubRulesetConditions{RefName: validRef}},
+		{name: "organization repository id", sourceType: "Organization", conditions: &githubRulesetConditions{RefName: validRef, RepositoryID: &githubRulesetRepositoryIDCondition{RepositoryIDs: []int64{123}}}},
+		{name: "enterprise repository property", sourceType: "Enterprise", conditions: &githubRulesetConditions{RefName: validRef, RepositoryProperty: &githubRulesetRepositoryPropertyCondition{Include: []githubRulesetRepositoryProperty{{Name: "tier", PropertyValues: []string{"production"}, Source: "custom"}}}}},
+		{name: "organization missing selector", sourceType: "Organization", conditions: &githubRulesetConditions{RefName: validRef}, wantErr: true},
+		{name: "organization multiple selectors", sourceType: "Organization", conditions: &githubRulesetConditions{RefName: validRef, RepositoryName: &githubRulesetRepositoryNameCondition{Include: []string{"owner/*"}}, RepositoryID: &githubRulesetRepositoryIDCondition{RepositoryIDs: []int64{123}}}, wantErr: true},
+		{name: "repository selector is invalid", sourceType: "Repository", conditions: &githubRulesetConditions{RefName: validRef, RepositoryName: &githubRulesetRepositoryNameCondition{Include: []string{"owner/*"}}}, wantErr: true},
+		{name: "organization missing ref", sourceType: "Organization", conditions: &githubRulesetConditions{RepositoryID: &githubRulesetRepositoryIDCondition{RepositoryIDs: []int64{123}}}, wantErr: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateGithubTagRulesetConditions(test.sourceType, test.conditions)
+			if (err != nil) != test.wantErr {
+				t.Fatalf("validateGithubTagRulesetConditions() error = %v, wantErr=%v", err, test.wantErr)
+			}
+		})
+	}
+}
+
 func TestGithubRulesetConditionsRejectUnknownFieldsAndMalformedTypes(t *testing.T) {
 	for _, fixture := range []string{
 		`{"unknown":{"include":["refs/tags/*"]}}`,
@@ -201,6 +332,13 @@ func TestGithubRulesetConditionsRejectUnknownFieldsAndMalformedTypes(t *testing.
 		`{"repository_name":{"include":["owner/*"],"unknown":[]}}`,
 		`{"ref_name":{"include":["refs/tags/*"],"protected":true}}`,
 		`{"repository_name":{"include":["owner/*"],"protected":"true"}}`,
+		`{"repository_id":{"repository_ids":["123"]}}`,
+		`{"repository_id":{"repository_ids":[]}}`,
+		`{"repository_property":{"include":[{"name":"tier","property_values":[],"source":"custom"}]}}`,
+		`{"repository_property":{"include":[{"name":"tier","property_values":["production"],"source":"unknown"}]}}`,
+		`{"repository_property":{"include":[{"name":"tier","property_values":["production"],"unknown":true}]}}`,
+		`{"repository_property":{"include":[{"property_values":["production"]}]}}`,
+		`{"repository_property":{"include":[{"name":"tier"}]}}`,
 		`{"ref_name":{"include":"refs/tags/*"}}`,
 		`{"ref_name":null}`,
 		`{"repository_name":[]}`,
@@ -389,7 +527,7 @@ func TestVerifyProtectedWorkflowTagRequiresMatchingProviderProtection(t *testing
 		{name: "legacy malformed modern positive", legacyStatus: http.StatusOK, legacyBody: `{`, modernBody: testProtectedRulesetResponse("workflow-*")},
 		{name: "legacy positive modern mismatch", legacyStatus: http.StatusOK, legacyBody: testLegacyProtectedTagResponse("workflow-*"), modernBody: testProtectedRulesetResponse("release-*"), wantError: true, wantPolicy: true},
 		{name: "legacy positive modern non-immutable", legacyStatus: http.StatusOK, legacyBody: testLegacyProtectedTagResponse("workflow-*"), modernBody: testPatternOnlyRulesetResponse("workflow-*"), wantError: true, wantPolicy: true},
-		{name: "legacy positive modern unsupported", legacyStatus: http.StatusOK, legacyBody: testLegacyProtectedTagResponse("workflow-*"), modernBody: `{"message":"unsupported"}`},
+		{name: "initial modern 404 plus legacy positive", legacyStatus: http.StatusOK, legacyBody: testLegacyProtectedTagResponse("workflow-*"), modernBody: `{"message":"unsupported"}`},
 		{name: "legacy permission modern fallback", legacyStatus: http.StatusForbidden, legacyBody: `{"message":"permission denied"}`, modernBody: testProtectedRulesetResponse("workflow-*")},
 		{name: "both unsupported", legacyStatus: http.StatusNotFound, legacyBody: `{"message":"unsupported"}`, modernBody: `{"message":"unsupported"}`, wantError: true, wantAPIErr: true},
 	} {
@@ -433,6 +571,140 @@ func TestVerifyProtectedWorkflowTagRequiresMatchingProviderProtection(t *testing
 				}
 			}
 		})
+	}
+}
+
+func TestVerifyModernProtectedWorkflowTagAcceptsInheritedRepositorySelectors(t *testing.T) {
+	tests := []struct {
+		name       string
+		sourceType string
+		source     string
+		selector   string
+	}{
+		{
+			name:       "organization repository id",
+			sourceType: "Organization",
+			source:     "example-org",
+			selector:   `"repository_id":{"repository_ids":[123456]}`,
+		},
+		{
+			name:       "enterprise repository property",
+			sourceType: "Enterprise",
+			source:     "example-enterprise",
+			selector:   `"repository_property":{"include":[{"name":"tier","property_values":["production"],"source":"system"}],"exclude":[]}`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			response := testInheritedProtectedRulesetResponse(test.sourceType, test.source, test.selector)
+			withGithubTransport(t, githubRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+				switch req.URL.Path {
+				case "/repos/owner/repo/rulesets":
+					return githubResponse(http.StatusOK, testRulesetSummaryResponse(), nil), nil
+				case "/repos/owner/repo/rulesets/1":
+					return githubResponse(http.StatusOK, response, nil), nil
+				default:
+					t.Fatalf("unexpected inherited-ruleset request: %s %s", req.Method, req.URL.RequestURI())
+					return nil, nil
+				}
+			}))
+			if err := (&GithubBuildConfigService{}).verifyModernProtectedWorkflowTag(context.Background(), &model.GithubBuildConfig{Repo: "owner/repo"}, "workflow-v1"); err != nil {
+				t.Fatalf("verifyModernProtectedWorkflowTag() error = %v, want matching inherited protection", err)
+			}
+		})
+	}
+}
+
+func TestVerifyProtectedWorkflowTagDoesNotFallbackAfterModernSurfaceIsSupported(t *testing.T) {
+	tests := []struct {
+		name          string
+		modernPageTwo bool
+		detailStatus  int
+		detailBody    string
+		wantAPI       bool
+	}{
+		{
+			name:         "detail 404",
+			detailStatus: http.StatusNotFound,
+			detailBody:   `{"message":"detail disappeared"}`,
+		},
+		{
+			name:         "detail 403",
+			detailStatus: http.StatusForbidden,
+			detailBody:   `{"message":"permission denied"}`,
+		},
+		{
+			name:         "detail 500",
+			detailStatus: http.StatusInternalServerError,
+			detailBody:   `{"message":"server failed"}`,
+		},
+		{
+			name:       "detail malformed",
+			detailBody: `{`,
+		},
+		{
+			name:          "later list page 404",
+			modernPageTwo: true,
+			detailBody:    testProtectedRulesetResponse("workflow-*"),
+			wantAPI:       true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			withGithubTransport(t, githubRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+				switch req.URL.Path {
+				case "/repos/owner/repo/tags/protection":
+					return githubResponse(http.StatusOK, testLegacyProtectedTagResponse("workflow-*"), nil), nil
+				case "/repos/owner/repo/rulesets":
+					if test.modernPageTwo {
+						if req.URL.Query().Get("page") == "2" {
+							return githubResponse(http.StatusNotFound, test.detailBody, nil), nil
+						}
+						return githubResponse(http.StatusOK, testRulesetSummaryResponse(), http.Header{"Link": []string{`<https://api.github.com/repos/owner/repo/rulesets?per_page=100&page=2>; rel="next"`}}), nil
+					}
+					return githubResponse(http.StatusOK, testRulesetSummaryResponse(), nil), nil
+				case "/repos/owner/repo/rulesets/1":
+					if test.detailStatus != 0 {
+						return githubResponse(test.detailStatus, test.detailBody, nil), nil
+					}
+					return githubResponse(http.StatusOK, test.detailBody, nil), nil
+				default:
+					t.Fatalf("unexpected protected-tag request: %s %s", req.Method, req.URL.RequestURI())
+					return nil, nil
+				}
+			}))
+			err := (&GithubBuildConfigService{}).verifyProtectedWorkflowTag(context.Background(), &model.GithubBuildConfig{Repo: "owner/repo"}, "workflow-v1")
+			if err == nil {
+				t.Fatal("verifyProtectedWorkflowTag() returned nil after modern failure despite legacy positive")
+			}
+			if test.wantAPI {
+				var apiErr *GithubAPIError
+				if !errors.As(err, &apiErr) {
+					t.Fatalf("verifyProtectedWorkflowTag() error = %T %v, want later-page GithubAPIError", err, err)
+				}
+				return
+			}
+			var contractErr *GithubContractError
+			if !errors.As(err, &contractErr) {
+				t.Fatalf("verifyProtectedWorkflowTag() error = %T %v, want detail contract error", err, err)
+			}
+		})
+	}
+}
+
+func TestClassifyProtectionSurfaceRequiresInitialModernUnsupportedState(t *testing.T) {
+	initial404 := &githubModernRulesetsUnsupportedError{Cause: &GithubAPIError{StatusCode: http.StatusNotFound}}
+	if result := classifyProtectionSurface(initial404); result.state != protectionSurfaceUnsupported {
+		t.Fatalf("classifyProtectionSurface(initial 404) = %v, want unsupported", result.state)
+	}
+	for _, err := range []error{
+		&GithubAPIError{StatusCode: http.StatusNotFound},
+		fmt.Errorf("detail: %w", &GithubAPIError{StatusCode: http.StatusNotFound}),
+		&GithubContractError{Operation: "detail", Cause: &GithubAPIError{StatusCode: http.StatusNotFound}},
+	} {
+		if result := classifyProtectionSurface(err); result.state == protectionSurfaceUnsupported {
+			t.Fatalf("classifyProtectionSurface(%T) = unsupported, want invalid", err)
+		}
 	}
 }
 
@@ -950,7 +1222,9 @@ func TestDispatchBuildRejectsBranchCollisionBeforeProviderPayloadPost(t *testing
 		case "/repos/owner/repo/tags/protection":
 			return githubResponse(http.StatusOK, testLegacyProtectedTagResponse("workflow-*"), nil), nil
 		case "/repos/owner/repo/rulesets":
-			return testRulesetResponse(req, "workflow-*"), nil
+			return githubResponse(http.StatusOK, testRulesetSummaryResponse(), nil), nil
+		case "/repos/owner/repo/rulesets/1":
+			return githubResponse(http.StatusOK, testProtectedRulesetResponse("workflow-*"), nil), nil
 		case "/repos/owner/repo/git/ref/tags/workflow-v1":
 			return githubResponse(http.StatusOK, `{"ref":"refs/tags/workflow-v1","object":{"sha":"`+strings.Repeat("e", 40)+`","type":"tag"}}`, nil), nil
 		case "/repos/owner/repo/git/tags/" + strings.Repeat("e", 40):
@@ -1769,7 +2043,9 @@ func TestPrepareBuildAcceptsActiveMappedWorkflowAndPreservesCatalogIdentity(t *t
 		case "/repos/owner/repo/tags/protection":
 			return githubResponse(http.StatusOK, testLegacyProtectedTagResponse("workflow-*"), nil), nil
 		case "/repos/owner/repo/rulesets":
-			return testRulesetResponse(req, "workflow-*"), nil
+			return githubResponse(http.StatusOK, testRulesetSummaryResponse(), nil), nil
+		case "/repos/owner/repo/rulesets/1":
+			return githubResponse(http.StatusOK, testProtectedRulesetResponse("workflow-*"), nil), nil
 		case "/repos/owner/repo/git/ref/tags/workflow-v1":
 			return githubResponse(http.StatusOK, `{"ref":"refs/tags/workflow-v1","object":{"sha":"`+strings.Repeat("a", 40)+`","type":"tag"}}`, nil), nil
 		case "/repos/owner/repo/git/tags/" + strings.Repeat("a", 40):
@@ -1829,7 +2105,9 @@ func TestPreparedConfigSnapshotSurvivesGlobalConfigMutationBeforeDispatch(t *tes
 		case "/repos/owner/repo-a/tags/protection":
 			return githubResponse(http.StatusOK, testLegacyProtectedTagResponse("workflow-*"), nil), nil
 		case "/repos/owner/repo-a/rulesets":
-			return testRulesetResponse(req, "workflow-*"), nil
+			return githubResponse(http.StatusOK, testRulesetSummaryResponse(), nil), nil
+		case "/repos/owner/repo-a/rulesets/1":
+			return githubResponse(http.StatusOK, testProtectedRulesetResponse("workflow-*"), nil), nil
 		case "/repos/owner/repo-a/git/ref/tags/workflow-v1":
 			return githubResponse(http.StatusOK, `{"ref":"refs/tags/workflow-v1","object":{"sha":"`+strings.Repeat("a", 40)+`","type":"tag"}}`, nil), nil
 		case "/repos/owner/repo-a/git/tags/" + strings.Repeat("a", 40):

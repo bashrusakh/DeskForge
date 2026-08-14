@@ -145,8 +145,9 @@ source annotations and are regenerated from them when the annotations change.
 Workflow-ref approval requires a provider-derived, verified annotated tag and
 one provider-verified protection surface for the exact tag label. The modern
 ruleset surface is authoritative when supported; the legacy and modern surfaces
-are an OR/fallback pair only when the modern endpoint is unsupported or returns
-404, not when modern policy or contract evidence is negative:
+are an OR/fallback pair only when the initial modern `/rulesets` list request is
+typed as unavailable by the provider (404), not when a later page, detail
+request, policy, or contract response is negative:
 
 - legacy `GET /repos/{owner}/{repo}/tags/protection`, bounded to three pages and
   256 patterns, must return an enabled documented protection record with the
@@ -163,8 +164,15 @@ are an OR/fallback pair only when the modern endpoint is unsupported or returns
   aggregates all active rulesets with `target=tag` and a matching
   `conditions.ref_name` include. Documented organization-level
   `conditions.repository_name` (including its documented optional `protected`
-  boolean) is accepted but does not select a tag; unknown condition fields and
-  malformed condition values fail closed. Excludes win.
+  boolean), `repository_id.repository_ids`, and
+  `repository_property` include/exclude entries (required `name` and
+  `property_values`, with `source` defaulting to `custom` and accepting
+  `custom` or `system`) are supported for inherited rulesets. Repository tag
+  rulesets use only `ref_name`; Organization and Enterprise tag rulesets must
+  contain `ref_name` plus exactly one of those repository selectors. The
+  `includes_parents=true` response is the provider-scoped applicability
+  decision; DeskForge does not perform a separate repository metadata lookup.
+  Unknown condition fields and malformed condition values fail closed. Excludes win.
   `tag_name_pattern` is validated only as rule metadata; it is not the ref
   selector, and no `fnmatch` rule is required for selection. Every applicable ruleset must expose
   `bypass_actors: []` and `current_user_can_bypass: "never"`; any applicable
