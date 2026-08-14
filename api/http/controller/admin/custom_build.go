@@ -2432,7 +2432,11 @@ func validateZipEntryPath(outDir, name string, allowNested bool) (validatedZipEn
 	if err != nil {
 		return validatedZipEntry{}, fmt.Errorf("resolve artifact staging directory: %w", err)
 	}
-	destination, err := filepath.Abs(filepath.Join(root, filepath.FromSlash(clean)))
+	normalizedPath := filepath.FromSlash(clean)
+	if !filepath.IsLocal(normalizedPath) {
+		return validatedZipEntry{}, fmt.Errorf("zip slip: non-local artifact path %q", name)
+	}
+	destination, err := filepath.Abs(filepath.Join(root, normalizedPath))
 	if err != nil {
 		return validatedZipEntry{}, fmt.Errorf("resolve artifact destination: %w", err)
 	}
