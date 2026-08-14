@@ -165,12 +165,12 @@ release-readiness, or sovereignty claim is made.
   files. The PR11 helper is untracked at the remote HEAD, and PR10/PR11 remain `in-progress`
   with their evidence limitations preserved; the PR is not marked ready and no live evidence is
   claimed.
-- Latest ruleset review/fix confirmation: only an initial modern `/rulesets` list 404 permits
-  legacy fallback; later list-page/detail/policy/contract failures fail closed. The legacy LIST
-  endpoint is closing down/sunset and is compatibility fallback only. The official LIST docs
-  identify `pattern` as required and list `id`, `created_at`, `updated_at`, and `enabled`;
-  documented fields are type-checked when present. Positive evidence still requires an explicitly
-  present `enabled: true` with a matching pattern, and pattern-only evidence remains non-positive.
+- Latest ruleset review/fix confirmation: modern repository rulesets are the sole protection
+  surface; initial and later list-page/detail/policy/contract failures fail closed. The former
+  tag-protection LIST compatibility path is **CONFIRMED OBSOLETE** because DeskForge is hard-wired
+  to `https://api.github.com`, has no configurable GHES base URL/provider, and current GitHub
+  documentation marks that legacy surface as closing down/removed. A GHES `enabled`/`pattern`
+  schema is separate historical context, not a DeskForge capability.
 - Endpoint distinction is explicit: GitHub's organization authoring endpoint
   `https://docs.github.com/en/rest/orgs/rules#create-an-organization-repository-ruleset`
   (`/orgs/{org}/rulesets`) uses repository selectors, while DeskForge consumes the repository

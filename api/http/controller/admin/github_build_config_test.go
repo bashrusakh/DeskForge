@@ -248,12 +248,12 @@ func TestWorkflowRefApprovalEndpointRequiresAdminAndReturnsSafeStatus(t *testing
 	}
 	previousTransport := http.DefaultTransport
 	http.DefaultTransport = githubApprovalRoundTripper(func(req *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(req.URL.Path, "/tags/protection") {
+			t.Fatalf("legacy tag-protection endpoint was requested: %s %s", req.Method, req.URL.Path)
+		}
 		body := `{"message":"unexpected endpoint"}`
 		status := http.StatusNotFound
-		if strings.HasSuffix(req.URL.Path, "/tags/protection") {
-			status = http.StatusOK
-			body = `[{"id":1,"created_at":"2026-08-01T00:00:00Z","updated_at":"2026-08-01T00:00:00Z","enabled":true,"pattern":"workflow-*"}]`
-		} else if strings.HasSuffix(req.URL.Path, "/rulesets/1") {
+		if strings.HasSuffix(req.URL.Path, "/rulesets/1") {
 			status = http.StatusOK
 			body = `{"id":1,"name":"workflow-protection","source_type":"Repository","source":"owner/repo","created_at":"2026-08-01T00:00:00Z","updated_at":"2026-08-01T00:00:00Z","target":"tag","enforcement":"active","bypass_actors":[],"current_user_can_bypass":"never","conditions":{"ref_name":{"include":["refs/tags/workflow-*"],"exclude":[]}},"rules":[{"type":"tag_name_pattern","parameters":{"name":"tag_name","negate":false,"operator":"starts_with","pattern":"workflow-"}},{"type":"update","parameters":{"update_allows_fetch_and_merge":false}},{"type":"deletion"}]}`
 		} else if strings.HasSuffix(req.URL.Path, "/rulesets") {

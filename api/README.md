@@ -121,8 +121,7 @@ Approval requires all of the following at the provider boundary:
 - a provider-derived annotated tag with `verified=true` and an accepted provider
   verification reason;
 - positive protection evidence for that exact tag from the supported modern
-  ruleset surface, or from the legacy surface only when modern rulesets are
-  unsupported/404, with no bypass actor and no tag/branch collision;
+  ruleset surface, with no bypass actor and no tag/branch collision;
 - the owned workflow is present and ready at the provider-resolved commit.
 
 The successful response is `response.Response` with `data` as the secret-free
@@ -143,21 +142,10 @@ source annotations and are regenerated from them when the annotations change.
 ## Workflow protection evidence
 
 Workflow-ref approval requires a provider-derived, verified annotated tag and
-one provider-verified protection surface for the exact tag label. The modern
-ruleset surface is authoritative when supported; the legacy and modern surfaces
-are an OR/fallback pair only when the initial modern `/rulesets` list request is
-typed as unavailable by the provider (404), not when a later page, detail
-request, policy, or contract response is negative:
+one modern provider-verified ruleset surface for the exact tag label. The modern
+ruleset surface is authoritative and the only supported protection surface;
+initial list, later page, detail, policy, and contract failures all fail closed:
 
-- legacy `GET /repos/{owner}/{repo}/tags/protection`, bounded to three pages and
-  256 patterns, is closing down/sunset and is retained only as a compatibility
-  fallback when the initial modern ruleset surface is typed as unsupported. The
-  official [LIST docs](https://docs.github.com/en/rest/repos/tags#get-all-tag-protection-states-for-a-repository)
-  identify `pattern` as required and list `id`, `created_at`, `updated_at`, and
-  `enabled`; documented fields are type-checked when present and unknown fields
-  fail closed. Positive evidence requires an explicitly present `enabled: true`
-  with a matching `pattern`; a pattern-only record is not positive evidence.
-  This endpoint does not expose separate update/deletion switches;
 - modern `GET /repos/{owner}/{repo}/rulesets?targets=tag&includes_parents=true`, bounded to
   three pages and 256 rulesets, discovers candidate IDs only. DeskForge then
   consumes `GET /repos/{owner}/{repo}/rulesets/{id}?includes_parents=true` and
@@ -188,9 +176,12 @@ request, policy, or contract response is negative:
   tag's verification must report `verified=true` with the accepted provider
   verification reason. Raw SHA selectors are not approval inputs.
 
-A modern policy rejection, permission failure, or malformed response is not
-masked by a legacy positive. A legacy 404/unsupported response is likewise
-not evidence of protection. A mismatch, absent evidence, any bypass actor, or
+The former tag-protection LIST compatibility path is **CONFIRMED OBSOLETE**:
+the GitHub.com provider is hard-wired to `https://api.github.com`, DeskForge has
+no configurable GHES base URL or provider, and current GitHub documentation marks
+that legacy surface as closing down/removed. A GHES installation may have a
+historical `enabled`/`pattern` schema, but it is separate context rather than a
+DeskForge capability. A mismatch, absent evidence, any bypass actor, or
 an active applicable ruleset without effective update and deletion protection
 never proves protection.
 
@@ -240,9 +231,9 @@ no parameters; `created_at` was `2026-06-30T07:19:50.340+11:00`,
 observing token lacked write access. DeskForge therefore uses
 `bypass_actors: []` as the positive write-authorized contract fixture and fails
 closed when the field is omitted. This observation is provider evidence, not a
-completed live approval, dispatch, or release claim. Only an initial modern
-`/rulesets` list 404 permits legacy fallback; later list-page, detail, policy,
-or contract failures remain failures.
+completed live approval, dispatch, or release claim. Initial and later ruleset
+list failures, detail failures, policy failures, and contract failures remain
+failures.
 
 The stored PAT must have the provider's repository Metadata read, Contents read,
 Actions read, and Administration write permissions for the read-only checks.

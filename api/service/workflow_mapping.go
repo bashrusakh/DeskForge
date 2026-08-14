@@ -210,46 +210,6 @@ type githubTagObjectRecord struct {
 	} `json:"verification"`
 }
 
-type githubTagProtectionRecord struct {
-	ID        int64     `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Enabled   bool      `json:"enabled"`
-	Pattern   string    `json:"pattern"`
-}
-
-func (r *githubTagProtectionRecord) UnmarshalJSON(data []byte) error {
-	decoder := json.NewDecoder(strings.NewReader(string(data)))
-	decoder.DisallowUnknownFields()
-	var record struct {
-		ID        *int64     `json:"id"`
-		CreatedAt *time.Time `json:"created_at"`
-		UpdatedAt *time.Time `json:"updated_at"`
-		Enabled   *bool      `json:"enabled"`
-		Pattern   *string    `json:"pattern"`
-	}
-	if err := decoder.Decode(&record); err != nil {
-		return err
-	}
-	if record.Pattern == nil {
-		return errors.New("legacy tag protection record is missing required pattern")
-	}
-	if record.ID != nil {
-		r.ID = *record.ID
-	}
-	if record.CreatedAt != nil {
-		r.CreatedAt = *record.CreatedAt
-	}
-	if record.UpdatedAt != nil {
-		r.UpdatedAt = *record.UpdatedAt
-	}
-	if record.Enabled != nil {
-		r.Enabled = *record.Enabled
-	}
-	r.Pattern = *record.Pattern
-	return nil
-}
-
 type githubRulesetBypassActor struct {
 	ActorID    *int64 `json:"actor_id"`
 	ActorType  string `json:"actor_type"`
@@ -820,16 +780,15 @@ func validateOptionalGithubRulesetTimestamp(data json.RawMessage, field string) 
 }
 
 const (
-	maxProtectedTagPatterns       = 256
 	maxRulesetRecords             = 256
 	maxRulesetRules               = 64
-	maxProtectedTagPages          = 3
+	maxRulesetPages               = 3
 	githubTrustStatusProvider     = "provider-reported"
 	githubVerificationReasonValid = "valid"
 )
 
 // githubTagPatternMatches implements the small glob domain GitHub exposes for
-// tag-protection patterns. A pattern may be returned as a tag label or as a
+// ruleset tag patterns. A pattern may be returned as a tag label or as a
 // fully-qualified refs/tags selector; neither form is treated as a raw manual
 // selector outside the provider boundary.
 func githubTagPatternMatches(pattern, tag string) bool {
@@ -847,16 +806,6 @@ func githubTagPatternMatches(pattern, tag string) bool {
 		candidate = "refs/tags/" + tag
 	}
 	return githubTagGlobMatches(pattern, candidate)
-}
-
-// legacyTagProtectionProvesImmutable uses the legacy GitHub tag-protection
-// endpoint as a typed policy surface, rather than treating an arbitrary
-// pattern field as equivalent protection. GitHub's legacy response schema has
-// no per-rule update/deletion switches: a matching record returned by this
-// endpoint is the provider's explicit contract that the tag pattern is
-// protected from tag mutation and deletion.
-func legacyTagProtectionProvesImmutable(record githubTagProtectionRecord, tag string) bool {
-	return record.Enabled && record.Pattern != "" && githubTagPatternMatches(record.Pattern, tag)
 }
 
 func githubRulesetTagPatternMatches(pattern, tag string) bool {
@@ -1125,56 +1074,6 @@ func (s *GithubBuildConfigService) verifyWorkflowTagSelectorUnambiguous(ctx cont
 		}
 	}
 	return &WorkflowRefApprovalError{Reason: "workflow tag selector collides with a branch of the same label"}
-}
-
-func (s *GithubBuildConfigService) verifyLegacyProtectedWorkflowTag(ctx context.Context, config *model.GithubBuildConfig, tag string) error {
-	path, err := githubRepoPath(config.Repo, "/tags/protection?per_page=100&page=1")
-	if err != nil {
-		return err
-	}
-	patternCount := 0
-	for page := 0; page < maxProtectedTagPages; page++ {
-		resp, requestErr := s.ghReq(ctx, config, http.MethodGet, path, nil, http.StatusOK)
-		if requestErr != nil {
-			return fmt.Errorf("verify protected workflow tag: %w", requestErr)
-		}
-		var records []githubTagProtectionRecord
-		decodeErr := decodeGithubJSON(resp, "verify protected workflow tag", &records)
-		next, hasNext, linkErr := nextGithubLink(resp.Header.Get("Link"))
-		resp.Body.Close()
-		if decodeErr != nil {
-			return decodeErr
-		}
-		if linkErr != nil {
-			return &GithubContractError{Operation: "verify protected workflow tag", Cause: linkErr}
-		}
-		patternCount += len(records)
-		if patternCount > maxProtectedTagPatterns {
-			return &GithubContractError{
-				Operation: "verify protected workflow tag",
-				Cause:     errors.New("provider returned too many active tag-protection patterns"),
-			}
-		}
-		for _, record := range records {
-			if legacyTagProtectionProvesImmutable(record, tag) {
-				return nil
-			}
-		}
-		if !hasNext {
-			break
-		}
-		if page == maxProtectedTagPages-1 {
-			return &GithubContractError{Operation: "verify protected workflow tag", Cause: fmt.Errorf("pagination exceeds %d pages", maxProtectedTagPages)}
-		}
-		path = next
-	}
-	if patternCount == 0 {
-		return &GithubContractError{
-			Operation: "verify protected workflow tag",
-			Cause:     errors.New("provider returned no bounded active tag-protection patterns"),
-		}
-	}
-	return &WorkflowRefApprovalError{Reason: "workflow tag is not covered by an active provider protection pattern"}
 }
 
 func rulesetRefNameMatches(condition *githubRulesetRefNameCondition, tag string) bool {
@@ -1459,15 +1358,9 @@ func (s *GithubBuildConfigService) verifyModernProtectedWorkflowTag(ctx context.
 	foundApplicableRuleset := false
 	var effectiveProtection githubRulesetProtection
 	var evaluationErr error
-	for page := 0; page < maxProtectedTagPages; page++ {
+	for page := 0; page < maxRulesetPages; page++ {
 		resp, requestErr := s.ghReq(ctx, config, http.MethodGet, path, nil, http.StatusOK)
 		if requestErr != nil {
-			if page == 0 {
-				var apiErr *GithubAPIError
-				if errors.As(requestErr, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
-					return &githubModernRulesetsUnsupportedError{Cause: requestErr}
-				}
-			}
 			return fmt.Errorf("verify repository rulesets: %w", requestErr)
 		}
 		var summaries []githubRulesetSummary
@@ -1509,8 +1402,8 @@ func (s *GithubBuildConfigService) verifyModernProtectedWorkflowTag(ctx context.
 		if !hasNext {
 			break
 		}
-		if page == maxProtectedTagPages-1 {
-			return &GithubContractError{Operation: "verify repository rulesets", Cause: fmt.Errorf("pagination exceeds %d pages", maxProtectedTagPages)}
+		if page == maxRulesetPages-1 {
+			return &GithubContractError{Operation: "verify repository rulesets", Cause: fmt.Errorf("pagination exceeds %d pages", maxRulesetPages)}
 		}
 		path, err = inheritedRulesetPagePath(next)
 		if err != nil {
@@ -1533,69 +1426,14 @@ func (s *GithubBuildConfigService) verifyModernProtectedWorkflowTag(ctx context.
 	return &WorkflowRefApprovalError{Reason: "workflow tag is not covered by an active immutable repository ruleset without bypass actors"}
 }
 
-type protectionSurfaceState uint8
-
-const (
-	protectionSurfaceUnsupported protectionSurfaceState = iota
-	protectionSurfacePositive
-	protectionSurfaceNegative
-	protectionSurfaceInvalid
-)
-
-type protectionSurfaceResult struct {
-	state protectionSurfaceState
-	err   error
-}
-
-type githubModernRulesetsUnsupportedError struct {
-	Cause error
-}
-
-func (e *githubModernRulesetsUnsupportedError) Error() string {
-	if e == nil || e.Cause == nil {
-		return "GitHub modern rulesets surface is unsupported"
-	}
-	return fmt.Sprintf("GitHub modern rulesets surface is unsupported: %v", e.Cause)
-}
-
-func (e *githubModernRulesetsUnsupportedError) Unwrap() error { return e.Cause }
-
-func classifyProtectionSurface(err error) protectionSurfaceResult {
-	if err == nil {
-		return protectionSurfaceResult{state: protectionSurfacePositive}
-	}
-	var unsupportedErr *githubModernRulesetsUnsupportedError
-	if errors.As(err, &unsupportedErr) {
-		return protectionSurfaceResult{state: protectionSurfaceUnsupported, err: err}
-	}
-	var approvalErr *WorkflowRefApprovalError
-	if errors.As(err, &approvalErr) {
-		return protectionSurfaceResult{state: protectionSurfaceNegative, err: err}
-	}
-	return protectionSurfaceResult{state: protectionSurfaceInvalid, err: err}
-}
-
-// verifyProtectedWorkflowTag treats the modern /rulesets surface as
-// authoritative whenever GitHub supports it. The legacy /tags/protection
-// endpoint is used only when the modern surface is not found (404). Modern
-// rulesets (requested with includes_parents=true) aggregate effective update
-// and deletion rules across every applicable active tag ruleset, while every
-// applicable ruleset must expose an empty bypass list and current-user value
-// of never. Permission/provider failures and malformed successful responses
-// fail closed; no bypass actor is accepted.
+// verifyProtectedWorkflowTag delegates to the supported modern ruleset surface.
+// Modern rulesets (requested with includes_parents=true) aggregate effective
+// update and deletion rules across every applicable active tag ruleset, while
+// every applicable ruleset must expose an empty bypass list and current-user
+// value of never. Permission/provider failures and malformed successful
+// responses fail closed; no bypass actor is accepted.
 func (s *GithubBuildConfigService) verifyProtectedWorkflowTag(ctx context.Context, config *model.GithubBuildConfig, tag string) error {
-	modern := classifyProtectionSurface(s.verifyModernProtectedWorkflowTag(ctx, config, tag))
-	if modern.state == protectionSurfacePositive {
-		return nil
-	}
-	if modern.state != protectionSurfaceUnsupported {
-		return modern.err
-	}
-	legacy := classifyProtectionSurface(s.verifyLegacyProtectedWorkflowTag(ctx, config, tag))
-	if legacy.state == protectionSurfacePositive {
-		return nil
-	}
-	return legacy.err
+	return s.verifyModernProtectedWorkflowTag(ctx, config, tag)
 }
 
 const maxWorkflowTagPages = 3

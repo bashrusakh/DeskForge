@@ -124,14 +124,14 @@ files, local implementation checks, or dirty submodule state as publication evid
   immutable/no-bypass deployment proof or atomic API support is actually evidenced. Local
   revalidation does not close that provider-side window.
 
-## Latest workflow review/fix state — 2026-08-14
+## Latest workflow review/fix state — 2026-08-15
 
-- Only an initial modern `/rulesets` list 404 permits legacy fallback; later list-page, detail,
-  policy, or contract failures fail closed. The legacy tag-protection endpoint is closing
-  down/sunset and is compatibility fallback only. The official [LIST docs](https://docs.github.com/en/rest/repos/tags#get-all-tag-protection-states-for-a-repository)
-  identify `pattern` as required and list `id`, `created_at`, `updated_at`, and `enabled`;
-  documented fields are type-checked when present. Positive evidence requires an explicitly
-  present `enabled: true` with a matching pattern, so pattern-only evidence is not positive.
+- Modern repository rulesets are the sole protection surface; initial and later list-page,
+  detail, policy, and contract failures fail closed. The former tag-protection LIST
+  compatibility path is **CONFIRMED OBSOLETE**: DeskForge is hard-wired to
+  `https://api.github.com`, has no configurable GHES base URL/provider, and current
+  GitHub documentation marks that legacy surface as closing down/removed. A GHES
+  `enabled`/`pattern` schema is separate historical context, not a DeskForge capability.
 - GitHub's [organization ruleset creation endpoint](https://docs.github.com/en/rest/orgs/rules#create-an-organization-repository-ruleset),
   `/orgs/{org}/rulesets`, uses repository selectors when authoring a definition. DeskForge instead
   consumes the repository-scoped list `/repos/{owner}/{repo}/rulesets?targets=tag&includes_parents=true`

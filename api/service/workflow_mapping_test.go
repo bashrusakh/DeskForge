@@ -26,12 +26,6 @@ func testProtectedRulesetResponse(pattern string) string {
 	return `{"id":1,` + testRulesetMetadata + `,"target":"tag","enforcement":"active","bypass_actors":[],"current_user_can_bypass":"never","conditions":{"ref_name":{"include":["refs/tags/` + pattern + `*"],"exclude":[]}},"rules":[{"type":"tag_name_pattern","parameters":{"name":"tag_name","negate":false,"operator":"starts_with","pattern":"` + pattern + `"}},{"type":"update","parameters":{"update_allows_fetch_and_merge":false}},{"type":"deletion"}]}`
 }
 
-func testLegacyProtectedTagResponse(pattern string) string {
-	return `[{"id":1,"created_at":"2026-08-01T00:00:00Z","updated_at":"2026-08-01T00:00:00Z","enabled":true,"pattern":"` + pattern + `"}]`
-}
-
-const testDocumentedLegacyGetListResponse = `[{"id":2,"created_at":"2026-08-01T00:00:00Z","updated_at":"2026-08-01T00:00:00Z","enabled":true,"pattern":"workflow-*"}]`
-
 func testPatternOnlyRulesetResponse(pattern string) string {
 	pattern = strings.TrimSuffix(strings.TrimPrefix(pattern, "refs/tags/"), "*")
 	return `{"id":1,` + testRulesetMetadata + `,"target":"tag","enforcement":"active","bypass_actors":[],"current_user_can_bypass":"never","conditions":{"ref_name":{"include":["refs/tags/` + pattern + `*"],"exclude":[]}},"rules":[{"type":"tag_name_pattern","parameters":{"name":"tag_name","negate":false,"operator":"starts_with","pattern":"` + pattern + `"}}]}`
@@ -402,44 +396,37 @@ func TestResolveWorkflowExecutionRequiresVerifiedAnnotatedTag(t *testing.T) {
 
 func TestVerifyProtectedWorkflowTagRequiresMatchingProviderProtection(t *testing.T) {
 	for _, test := range []struct {
-		name         string
-		legacyStatus int
-		legacyBody   string
-		modernBody   string
-		wantError    bool
-		wantAPIErr   bool
-		wantPolicy   bool
+		name       string
+		listStatus int
+		detailBody string
+		wantError  bool
+		wantAPIErr bool
+		wantPolicy bool
 	}{
-		{name: "both positive", legacyStatus: http.StatusOK, legacyBody: testLegacyProtectedTagResponse("workflow-*"), modernBody: testProtectedRulesetResponse("workflow-*")},
-		{name: "modern-only fallback", legacyStatus: http.StatusNotFound, legacyBody: `{"message":"unsupported"}`, modernBody: testProtectedRulesetResponse("workflow-*")},
-		{name: "legacy mismatch modern positive", legacyStatus: http.StatusOK, legacyBody: testLegacyProtectedTagResponse("release-*"), modernBody: testProtectedRulesetResponse("workflow-*")},
-		{name: "legacy malformed modern positive", legacyStatus: http.StatusOK, legacyBody: `{`, modernBody: testProtectedRulesetResponse("workflow-*")},
-		{name: "legacy positive modern mismatch", legacyStatus: http.StatusOK, legacyBody: testLegacyProtectedTagResponse("workflow-*"), modernBody: testProtectedRulesetResponse("release-*"), wantError: true, wantPolicy: true},
-		{name: "legacy positive modern non-immutable", legacyStatus: http.StatusOK, legacyBody: testLegacyProtectedTagResponse("workflow-*"), modernBody: testPatternOnlyRulesetResponse("workflow-*"), wantError: true, wantPolicy: true},
-		{name: "initial modern /rulesets 404 plus full documented legacy GET LIST fallback", legacyStatus: http.StatusOK, legacyBody: testDocumentedLegacyGetListResponse, modernBody: `{"message":"unsupported"}`},
-		{name: "legacy permission modern fallback", legacyStatus: http.StatusForbidden, legacyBody: `{"message":"permission denied"}`, modernBody: testProtectedRulesetResponse("workflow-*")},
-		{name: "both unsupported", legacyStatus: http.StatusNotFound, legacyBody: `{"message":"unsupported"}`, modernBody: `{"message":"unsupported"}`, wantError: true, wantAPIErr: true},
+		{name: "protected"},
+		{name: "initial list 404", listStatus: http.StatusNotFound, wantError: true, wantAPIErr: true},
+		{name: "initial list 403", listStatus: http.StatusForbidden, wantError: true, wantAPIErr: true},
+		{name: "initial list 500", listStatus: http.StatusInternalServerError, wantError: true, wantAPIErr: true},
+		{name: "matching ruleset mismatch", detailBody: testProtectedRulesetResponse("release-*"), wantError: true, wantPolicy: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			withGithubTransport(t, githubRoundTripFunc(func(req *http.Request) (*http.Response, error) {
-				if req.URL.Path == "/repos/owner/repo/rulesets/1" {
-					return githubResponse(http.StatusOK, test.modernBody, nil), nil
-				}
-				if req.URL.Path == "/repos/owner/repo/rulesets" {
-					status := http.StatusOK
-					if strings.HasPrefix(test.modernBody, `{"message"`) {
-						status = http.StatusNotFound
+				switch req.URL.Path {
+				case "/repos/owner/repo/rulesets":
+					if test.listStatus != 0 {
+						return githubResponse(test.listStatus, `{"message":"rulesets unavailable"}`, nil), nil
 					}
-					body := testRulesetSummaryResponse()
-					if status != http.StatusOK {
-						body = test.modernBody
+					return githubResponse(http.StatusOK, testRulesetSummaryResponse(), nil), nil
+				case "/repos/owner/repo/rulesets/1":
+					body := test.detailBody
+					if body == "" {
+						body = testProtectedRulesetResponse("workflow-*")
 					}
-					return githubResponse(status, body, nil), nil
-				}
-				if req.URL.Path != "/repos/owner/repo/tags/protection" {
+					return githubResponse(http.StatusOK, body, nil), nil
+				default:
 					t.Fatalf("unexpected protected-tag request: %s %s", req.Method, req.URL.Path)
+					return nil, nil
 				}
-				return githubResponse(test.legacyStatus, test.legacyBody, nil), nil
 			}))
 			err := (&GithubBuildConfigService{}).verifyProtectedWorkflowTag(
 				context.Background(), &model.GithubBuildConfig{Repo: "owner/repo"}, "workflow-v1",
@@ -499,7 +486,7 @@ func TestVerifyModernProtectedWorkflowTagRejectsObservedOmittedBypassActors(t *t
 	}
 }
 
-func TestVerifyProtectedWorkflowTagDoesNotFallbackAfterModernSurfaceIsSupported(t *testing.T) {
+func TestVerifyProtectedWorkflowTagFailsClosedAfterModernSurfaceIsSupported(t *testing.T) {
 	tests := []struct {
 		name          string
 		modernPageTwo bool
@@ -537,8 +524,6 @@ func TestVerifyProtectedWorkflowTagDoesNotFallbackAfterModernSurfaceIsSupported(
 		t.Run(test.name, func(t *testing.T) {
 			withGithubTransport(t, githubRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 				switch req.URL.Path {
-				case "/repos/owner/repo/tags/protection":
-					return githubResponse(http.StatusOK, testLegacyProtectedTagResponse("workflow-*"), nil), nil
 				case "/repos/owner/repo/rulesets":
 					if test.modernPageTwo {
 						if req.URL.Query().Get("page") == "2" {
@@ -553,13 +538,13 @@ func TestVerifyProtectedWorkflowTagDoesNotFallbackAfterModernSurfaceIsSupported(
 					}
 					return githubResponse(http.StatusOK, test.detailBody, nil), nil
 				default:
-					t.Fatalf("unexpected protected-tag request: %s %s", req.Method, req.URL.RequestURI())
+					t.Fatalf("unexpected ruleset request: %s %s", req.Method, req.URL.RequestURI())
 					return nil, nil
 				}
 			}))
 			err := (&GithubBuildConfigService{}).verifyProtectedWorkflowTag(context.Background(), &model.GithubBuildConfig{Repo: "owner/repo"}, "workflow-v1")
 			if err == nil {
-				t.Fatal("verifyProtectedWorkflowTag() returned nil after modern failure despite legacy positive")
+				t.Fatal("verifyProtectedWorkflowTag() returned nil after modern failure")
 			}
 			if test.wantAPI {
 				var apiErr *GithubAPIError
@@ -573,51 +558,6 @@ func TestVerifyProtectedWorkflowTagDoesNotFallbackAfterModernSurfaceIsSupported(
 				t.Fatalf("verifyProtectedWorkflowTag() error = %T %v, want detail contract error", err, err)
 			}
 		})
-	}
-}
-
-func TestClassifyProtectionSurfaceRequiresInitialModernUnsupportedState(t *testing.T) {
-	initial404 := &githubModernRulesetsUnsupportedError{Cause: &GithubAPIError{StatusCode: http.StatusNotFound}}
-	if result := classifyProtectionSurface(initial404); result.state != protectionSurfaceUnsupported {
-		t.Fatalf("classifyProtectionSurface(initial 404) = %v, want unsupported", result.state)
-	}
-	for _, err := range []error{
-		&GithubAPIError{StatusCode: http.StatusNotFound},
-		fmt.Errorf("detail: %w", &GithubAPIError{StatusCode: http.StatusNotFound}),
-		&GithubContractError{Operation: "detail", Cause: &GithubAPIError{StatusCode: http.StatusNotFound}},
-	} {
-		if result := classifyProtectionSurface(err); result.state == protectionSurfaceUnsupported {
-			t.Fatalf("classifyProtectionSurface(%T) = unsupported, want invalid", err)
-		}
-	}
-}
-
-func TestVerifyProtectedWorkflowTagRejectsLegacyPositiveWhenModernRulesetAllowsBypass(t *testing.T) {
-	withGithubTransport(t, githubRoundTripFunc(func(req *http.Request) (*http.Response, error) {
-		switch req.URL.Path {
-		case "/repos/owner/repo/tags/protection":
-			return githubResponse(http.StatusOK, testLegacyProtectedTagResponse("workflow-*"), nil), nil
-		case "/repos/owner/repo/rulesets":
-			return githubResponse(http.StatusOK, testRulesetSummaryResponse(), nil), nil
-		case "/repos/owner/repo/rulesets/1":
-			return githubResponse(http.StatusOK, strings.Replace(
-				testProtectedRulesetResponse("workflow-*"),
-				`"bypass_actors":[]`,
-				`"bypass_actors":[{"actor_id":1,"actor_type":"RepositoryRole","bypass_mode":"always"}]`,
-				1,
-			), nil), nil
-		default:
-			t.Fatalf("unexpected protected-tag request: %s %s", req.Method, req.URL.Path)
-			return nil, nil
-		}
-	}))
-
-	err := (&GithubBuildConfigService{}).verifyProtectedWorkflowTag(
-		context.Background(), &model.GithubBuildConfig{Repo: "owner/repo"}, "workflow-v1",
-	)
-	var policyErr *WorkflowRefApprovalError
-	if !errors.As(err, &policyErr) {
-		t.Fatalf("verifyProtectedWorkflowTag() error = %T %v, want modern bypass policy rejection", err, err)
 	}
 }
 
@@ -659,14 +599,12 @@ func TestVerifyProtectedWorkflowTagRequiresModernActiveRuleset(t *testing.T) {
 		{name: "invalid ruleset source type", ruleset: strings.Replace(testProtectedRulesetResponse("workflow-*"), `"source_type":"Repository"`, `"source_type":"Unknown"`, 1), wantContract: true},
 		{name: "optional ruleset timestamps", ruleset: strings.Replace(strings.Replace(testProtectedRulesetResponse("workflow-*"), `"created_at":"2026-08-01T00:00:00Z",`, "", 1), `,"updated_at":"2026-08-01T00:00:00Z"`, "", 1)},
 		{name: "malformed response", ruleset: `{`, wantContract: true},
-		{name: "unsupported", status: http.StatusNotFound, wantPolicy: true},
+		{name: "initial list unsupported", status: http.StatusNotFound, wantAPI: true},
 		{name: "permission ambiguity", status: http.StatusForbidden, wantAPI: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			withGithubTransport(t, githubRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 				switch req.URL.Path {
-				case "/repos/owner/repo/tags/protection":
-					return githubResponse(http.StatusOK, testLegacyProtectedTagResponse("release-*"), nil), nil
 				case "/repos/owner/repo/rulesets/1":
 					if test.status != 0 {
 						return githubResponse(test.status, `{"message":"rulesets unavailable"}`, nil), nil
@@ -706,121 +644,6 @@ func TestVerifyProtectedWorkflowTagRequiresModernActiveRuleset(t *testing.T) {
 			}
 			if err != nil {
 				t.Fatalf("verifyProtectedWorkflowTag() error = %v, want protected tag", err)
-			}
-		})
-	}
-}
-
-func TestVerifyProtectedWorkflowTagFindsLegacyPatternBeyondFirstPage(t *testing.T) {
-	var legacyPages int
-	withGithubTransport(t, githubRoundTripFunc(func(req *http.Request) (*http.Response, error) {
-		switch req.URL.Path {
-		case "/repos/owner/repo/tags/protection":
-			legacyPages++
-			if req.URL.Query().Get("page") == "2" {
-				return githubResponse(http.StatusOK, testLegacyProtectedTagResponse("workflow-*"), nil), nil
-			}
-			return githubResponse(http.StatusOK, testLegacyProtectedTagResponse("release-*"), http.Header{"Link": []string{`<https://api.github.com/repos/owner/repo/tags/protection?per_page=100&page=2>; rel="next"`}}), nil
-		case "/repos/owner/repo/rulesets":
-			return githubResponse(http.StatusNotFound, `{"message":"unsupported"}`, nil), nil
-		case "/repos/owner/repo/rulesets/1":
-			return githubResponse(http.StatusOK, testProtectedRulesetResponse("workflow-*"), nil), nil
-		default:
-			t.Fatalf("unexpected paginated protection request: %s %s", req.Method, req.URL.Path)
-			return nil, nil
-		}
-	}))
-	if err := (&GithubBuildConfigService{}).verifyProtectedWorkflowTag(context.Background(), &model.GithubBuildConfig{Repo: "owner/repo"}, "workflow-v1"); err != nil {
-		t.Fatalf("verifyProtectedWorkflowTag() error = %v, want page-two protection", err)
-	}
-	if legacyPages != 2 {
-		t.Fatalf("legacy protection pages = %d, want 2", legacyPages)
-	}
-}
-
-func TestVerifyLegacyProtectedWorkflowTagRejectsUnsupportedPolicyFields(t *testing.T) {
-	withGithubTransport(t, githubRoundTripFunc(func(req *http.Request) (*http.Response, error) {
-		switch req.URL.Path {
-		case "/repos/owner/repo/tags/protection":
-			return githubResponse(http.StatusOK, strings.Replace(testLegacyProtectedTagResponse("workflow-*"), `"pattern":"workflow-*"`, `"pattern":"workflow-*","allow_update":true`, 1), nil), nil
-		case "/repos/owner/repo/rulesets":
-			return githubResponse(http.StatusNotFound, `{"message":"unsupported"}`, nil), nil
-		default:
-			t.Fatalf("unexpected legacy policy request: %s %s", req.Method, req.URL.Path)
-			return nil, nil
-		}
-	}))
-	err := (&GithubBuildConfigService{}).verifyProtectedWorkflowTag(context.Background(), &model.GithubBuildConfig{Repo: "owner/repo"}, "workflow-v1")
-	var contractErr *GithubContractError
-	if !errors.As(err, &contractErr) {
-		t.Fatalf("verifyProtectedWorkflowTag() error = %T %v, want unsupported legacy policy contract error", err, err)
-	}
-}
-
-func TestLegacyTagProtectionDecodesDocumentedGETListResponseShape(t *testing.T) {
-	for _, test := range []struct {
-		name          string
-		response      string
-		wantDecode    bool
-		wantProtected bool
-	}{
-		{
-			name:          "matching documented GET LIST record with id 2 proves workflow-v1 protected",
-			response:      testDocumentedLegacyGetListResponse,
-			wantDecode:    true,
-			wantProtected: true,
-		},
-		{
-			name:          "nonmatching documented GET LIST record release-* does not prove workflow-v1",
-			response:      strings.Replace(testDocumentedLegacyGetListResponse, `"pattern":"workflow-*"`, `"pattern":"release-*"`, 1),
-			wantDecode:    true,
-			wantProtected: false,
-		},
-		{
-			name:       "GET LIST record with wrong id type fails closed during JSON decode",
-			response:   strings.Replace(testDocumentedLegacyGetListResponse, `"id":2`, `"id":"2"`, 1),
-			wantDecode: false,
-		},
-		{
-			name:       "GET LIST record missing required pattern fails closed during JSON decode",
-			response:   strings.Replace(testDocumentedLegacyGetListResponse, `,"pattern":"workflow-*"`, "", 1),
-			wantDecode: false,
-		},
-		{
-			name:       "GET LIST unknown field remains rejected by strict provider-contract policy",
-			response:   strings.Replace(testDocumentedLegacyGetListResponse, `,"pattern":"workflow-*"`, `,"pattern":"workflow-*","unexpected":true`, 1),
-			wantDecode: false,
-		},
-		{
-			name:          "partial GET LIST record without enabled is non-positive",
-			response:      strings.Replace(testDocumentedLegacyGetListResponse, `,"enabled":true`, "", 1),
-			wantDecode:    true,
-			wantProtected: false,
-		},
-		{
-			name:          "disabled documented GET LIST record is non-positive",
-			response:      strings.Replace(testDocumentedLegacyGetListResponse, `"enabled":true`, `"enabled":false`, 1),
-			wantDecode:    true,
-			wantProtected: false,
-		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			var records []githubTagProtectionRecord
-			err := json.Unmarshal([]byte(test.response), &records)
-			if !test.wantDecode {
-				if err == nil {
-					t.Fatalf("documented GET LIST response %s decoded successfully, want fail-closed JSON decode rejection", test.name)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("documented GET LIST response rejected: %v", err)
-			}
-			if len(records) != 1 || records[0].ID != 2 {
-				t.Fatalf("documented GET LIST records = %#v, want one record with id 2", records)
-			}
-			if got := legacyTagProtectionProvesImmutable(records[0], "workflow-v1"); got != test.wantProtected {
-				t.Fatalf("documented GET LIST record protection = %v, want %v", got, test.wantProtected)
 			}
 		})
 	}
@@ -1185,8 +1008,6 @@ func TestDispatchBuildRejectsBranchCollisionBeforeProviderPayloadPost(t *testing
 	var payloadPosts int
 	withGithubTransport(t, githubRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		switch req.URL.Path {
-		case "/repos/owner/repo/tags/protection":
-			return githubResponse(http.StatusOK, testLegacyProtectedTagResponse("workflow-*"), nil), nil
 		case "/repos/owner/repo/rulesets":
 			return githubResponse(http.StatusOK, testRulesetSummaryResponse(), nil), nil
 		case "/repos/owner/repo/rulesets/1":
@@ -1222,8 +1043,6 @@ func TestListWorkflowTagOptionsReturnsOnlyVerifiedReadyProviderTags(t *testing.T
 	workflowSHA := strings.Repeat("b", 40)
 	withGithubTransport(t, githubRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		switch {
-		case strings.HasSuffix(req.URL.Path, "/tags/protection"):
-			return githubResponse(http.StatusOK, testLegacyProtectedTagResponse("workflow-*"), nil), nil
 		case strings.HasPrefix(req.URL.Path, "/repos/owner/repo/rulesets/"):
 			return testRulesetResponse(req, "workflow-*"), nil
 		case strings.HasSuffix(req.URL.Path, "/rulesets"):
@@ -1284,8 +1103,6 @@ func TestDispatchBuildRejectsMovedWorkflowBeforeDFP1Payload(t *testing.T) {
 	var payloadRequests int
 	withGithubTransport(t, githubRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		switch {
-		case strings.HasSuffix(req.URL.Path, "/tags/protection"):
-			return githubResponse(http.StatusOK, testLegacyProtectedTagResponse("workflow-*"), nil), nil
 		case strings.HasPrefix(req.URL.Path, "/repos/owner/repo/rulesets/"):
 			return testRulesetResponse(req, "workflow-*"), nil
 		case strings.HasSuffix(req.URL.Path, "/rulesets"):
@@ -1413,8 +1230,6 @@ func TestApproveWorkflowRefUsesClosedDomainAndOptionalEffectiveSelector(t *testi
 	annotatedTagSHA := strings.Repeat("b", 40)
 	withGithubTransport(t, githubRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		switch {
-		case strings.HasSuffix(req.URL.Path, "/tags/protection"):
-			return githubResponse(http.StatusOK, testLegacyProtectedTagResponse("workflow-*"), nil), nil
 		case strings.HasPrefix(req.URL.Path, "/repos/owner/repo/rulesets/"):
 			return testRulesetResponse(req, "workflow-*"), nil
 		case strings.HasSuffix(req.URL.Path, "/rulesets"):
@@ -1485,9 +1300,6 @@ func TestApproveWorkflowRefPreservesLegacyPlaintextSecretsWithoutEncryptionKey(t
 		t.Fatalf("seed legacy config: %v", err)
 	}
 	withGithubTransport(t, githubRoundTripFunc(func(req *http.Request) (*http.Response, error) {
-		if strings.HasSuffix(req.URL.Path, "/tags/protection") {
-			return githubResponse(http.StatusOK, testLegacyProtectedTagResponse("workflow-*"), nil), nil
-		}
 		if strings.HasPrefix(req.URL.Path, "/repos/owner/repo/rulesets/") {
 			return testRulesetResponse(req, "workflow-*"), nil
 		}
@@ -1539,9 +1351,6 @@ func TestApproveWorkflowRefPreservesNewEncryptedSecrets(t *testing.T) {
 		t.Fatalf("seed encrypted config: %v", err)
 	}
 	withGithubTransport(t, githubRoundTripFunc(func(req *http.Request) (*http.Response, error) {
-		if strings.HasSuffix(req.URL.Path, "/tags/protection") {
-			return githubResponse(http.StatusOK, testLegacyProtectedTagResponse("workflow-*"), nil), nil
-		}
 		if strings.HasPrefix(req.URL.Path, "/repos/owner/repo/rulesets/") {
 			return testRulesetResponse(req, "workflow-*"), nil
 		}
@@ -1910,9 +1719,6 @@ func TestPrepareBuildRejectsUnavailableWorkflowBeforeBuildPersistence(t *testing
 			var paths []string
 			withGithubTransport(t, githubRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 				paths = append(paths, req.Method+" "+req.URL.Path)
-				if strings.HasSuffix(req.URL.Path, "/tags/protection") {
-					return githubResponse(http.StatusOK, testLegacyProtectedTagResponse("workflow-*"), nil), nil
-				}
 				if strings.HasPrefix(req.URL.Path, "/repos/owner/repo/rulesets/") {
 					return testRulesetResponse(req, "workflow-*"), nil
 				}
@@ -2006,8 +1812,6 @@ func TestPrepareBuildAcceptsActiveMappedWorkflowAndPreservesCatalogIdentity(t *t
 	buildRef := strings.Repeat("a", 40)
 	withGithubTransport(t, githubRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		switch req.URL.Path {
-		case "/repos/owner/repo/tags/protection":
-			return githubResponse(http.StatusOK, testLegacyProtectedTagResponse("workflow-*"), nil), nil
 		case "/repos/owner/repo/rulesets":
 			return githubResponse(http.StatusOK, testRulesetSummaryResponse(), nil), nil
 		case "/repos/owner/repo/rulesets/1":
@@ -2068,8 +1872,6 @@ func TestPreparedConfigSnapshotSurvivesGlobalConfigMutationBeforeDispatch(t *tes
 	buildRef := strings.Repeat("a", 40)
 	withGithubTransport(t, githubRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		switch req.URL.Path {
-		case "/repos/owner/repo-a/tags/protection":
-			return githubResponse(http.StatusOK, testLegacyProtectedTagResponse("workflow-*"), nil), nil
 		case "/repos/owner/repo-a/rulesets":
 			return githubResponse(http.StatusOK, testRulesetSummaryResponse(), nil), nil
 		case "/repos/owner/repo-a/rulesets/1":

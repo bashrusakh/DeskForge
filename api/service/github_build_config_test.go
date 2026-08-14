@@ -264,9 +264,6 @@ func TestDispatchBuildUsesExactRunDetailsWithoutPolling(t *testing.T) {
 		if strings.Contains(req.URL.Path, "/runs") {
 			atomic.AddInt32(&listRequests, 1)
 		}
-		if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/tags/protection") {
-			return githubResponse(http.StatusOK, testLegacyProtectedTagResponse("workflow-*"), nil), nil
-		}
 		if req.Method == http.MethodGet && strings.HasPrefix(req.URL.Path, "/repos/owner/repo/rulesets/") {
 			return githubResponse(http.StatusOK, strings.Replace(testProtectedRulesetResponse("workflow-*"), `"id":1`, `"id":1`, 1), nil), nil
 		}
@@ -327,9 +324,6 @@ func TestDispatchBuildBindsEncryptedSourceSHAAndImmutableWorkflowSHA(t *testing.
 	config := githubConfig()
 	config.Branch = identity.WorkflowRef
 	withGithubTransport(t, githubRoundTripFunc(func(req *http.Request) (*http.Response, error) {
-		if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/tags/protection") {
-			return githubResponse(http.StatusOK, testLegacyProtectedTagResponse("workflow-*"), nil), nil
-		}
 		if req.Method == http.MethodGet && strings.HasPrefix(req.URL.Path, "/repos/owner/repo/rulesets/") {
 			return testRulesetResponse(req, "workflow-*"), nil
 		}
@@ -541,9 +535,6 @@ func TestDispatchBuildRejectsMissingMalformedZeroAnd204(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			identity := githubVersionIdentity()
 			withGithubTransport(t, githubRoundTripFunc(func(req *http.Request) (*http.Response, error) {
-				if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/tags/protection") {
-					return githubResponse(http.StatusOK, testLegacyProtectedTagResponse("workflow-*"), nil), nil
-				}
 				if req.Method == http.MethodGet && strings.HasPrefix(req.URL.Path, "/repos/owner/repo/rulesets/") {
 					return testRulesetResponse(req, "workflow-*"), nil
 				}
