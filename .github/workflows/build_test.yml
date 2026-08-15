@@ -13,10 +13,10 @@ jobs:
     env:
       DATABASE_URL: sqlite:///tmp/deskforge-sqlx.sqlite3
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-go@7b8cf10d4e4a01d4992d18a89f4d7dc5a3e6d6f4 # v4.3.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: api/go.mod
           cache: true
@@ -28,7 +28,7 @@ jobs:
         run: |
           go test ./...
           go vet ./...
-      - uses: actions/setup-node@7c12f8017d5436eb855f1ed4399f037a36fbd9e8 # v2.5.2
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 20
       - name: Admin UI build
@@ -36,14 +36,13 @@ jobs:
         run: |
           npm ci
           npm run build
-      - run: rustup toolchain install stable --profile minimal
-      - run: rustup component add rustfmt --toolchain stable
+      - run: rustup toolchain install 1.92.0 --profile minimal --component rustfmt
       - name: Rust format check
         working-directory: server
-        run: cargo fmt --all -- --check
+        run: cargo +1.92.0 fmt --all -- --check
       - name: Shared Rust format check
         working-directory: libs/hbb_common
-        run: cargo fmt --all -- --check
+        run: cargo +1.92.0 fmt --all -- --check
       - name: Prepare SQLx SQLite schema
         run: |
           python3 - <<'PY'
@@ -72,7 +71,7 @@ jobs:
           PY
       - name: Rust check
         working-directory: server
-        run: cargo check --locked
+        run: cargo +1.92.0 check --locked
       - name: Rust tests
         working-directory: server
-        run: cargo test --locked
+        run: cargo +1.92.0 test --locked
