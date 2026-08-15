@@ -1,3 +1,5 @@
+
+
 # DeskForge
 
 Unified self-hosted RustDesk-compatible server.
@@ -61,7 +63,7 @@ captcha + brute-force protection.
 
 **Admin UI (Vue 3):** Login, Dashboard, Devices, Users, Groups, Tags, OAuth, Server Config,
 Audit, Custom Client Builder, Profile, My Workspace, Guest Sharing.
-3 locales (en/ru/zh_CN). Light/Dark/Auto themes.
+3 locales (en/ru/en/ru/zh_CN). Light/Dark/Auto themes.
 Shared UI: DataTable, AppDialog, AppDrawer, FilterBar, ActionsToolbar.
 
 **Custom client:** GitHub Actions → rustdesk fork → `rustqs.exe` (Windows).
@@ -101,6 +103,7 @@ rdgen/           — vendored reference workflow (not a service)
 cd docker
 docker compose build          # full build
 docker compose up -d          # start
+docker compose -f docker-compose-dev.yaml up -d   # dev
 ```
 
 ---
