@@ -458,8 +458,8 @@ func scheduleArtifactCleanupRetryDefault(buildID uint, archivePath string) {
 }
 
 // defaultWindowsArtifactName — имя GitHub-артефакта, который продюсит
-// windows-min-test workflow. Вынесено из inline-строки (BUGS.md AU-L-011).
-const defaultWindowsArtifactName = "rustdesk-min-test-windows"
+// rustqs-windows workflow. Вынесено из inline-строки (BUGS.md AU-L-011).
+const defaultWindowsArtifactName = "rustqs-windows"
 
 func artifactNameForPlatform(platform string) string {
 	switch platform {
@@ -1628,7 +1628,7 @@ func ResumePendingPolls() {
 }
 
 // pollAndDownload — асинхронно опрашивает статус рана GitHub до завершения,
-// при успехе скачивает артефакт rustdesk-min-test-windows.zip, кладёт exe в
+// при успехе скачивает артефакт rustqs-windows.zip, кладёт exe в
 // /rdgen-data/output/{buildId}/{appname}.exe, обновляет статус CustomBuild.
 type githubPollErrorAction uint8
 

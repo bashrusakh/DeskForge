@@ -212,7 +212,7 @@ func setupDownloadBuild(t *testing.T, status string) (*model.CustomBuild, *gorm.
 		GithubProvider:        "github",
 		GithubRepo:            "owner/repo",
 		GithubWorkflow:        "workflow.yml",
-		WorkflowSelector:      "rustqs/min-test",
+		WorkflowSelector:      "rustqs/workflows",
 		GithubRef:             strings.Repeat("a", 40),
 		GithubArtifactName:    "artifact",
 		GithubArtifactID:      42,

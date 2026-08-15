@@ -185,8 +185,8 @@ func TestCatalogResolvedIdentityDispatchesAndRejectsMismatchedRepo(t *testing.T)
 	t.Cleanup(resetVersionCatalogCache)
 	buildRef := strings.Repeat("a", 40)
 	withGithubTransport(t, githubRoundTripFunc(func(req *http.Request) (*http.Response, error) {
-		if req.URL.Path == "/repos/owner/repo/git/ref/heads/rustqs/min-test" {
-			return githubResponse(http.StatusOK, `{"ref":"refs/heads/rustqs/min-test","object":{"sha":"`+strings.Repeat("b", 40)+`","type":"commit"}}`, nil), nil
+		if req.URL.Path == "/repos/owner/repo/git/ref/heads/rustqs/workflows" {
+			return githubResponse(http.StatusOK, `{"ref":"refs/heads/rustqs/workflows","object":{"sha":"`+strings.Repeat("b", 40)+`","type":"commit"}}`, nil), nil
 		}
 		if strings.HasSuffix(req.URL.Path, "/releases") {
 			return githubResponse(http.StatusOK, `[{"id":48,"tag_name":"offline-assets-1.4.8"}]`, nil), nil
@@ -502,6 +502,8 @@ func TestUpdateNoRunFailureClosesLegacyActiveRowWithoutProviderRun(t *testing.T)
 }
 
 func TestLegacyMutableWorkflowRefFailsClosed(t *testing.T) {
+	// Keep a stale mutable workflow selector as a legacy fixture; migrated defaults
+	// must continue to fail closed for mutable workflow selectors.
 	legacy := &model.CustomBuild{
 		Version:         "1.2.3",
 		BuildRef:        strings.Repeat("a", 40),
@@ -509,7 +511,7 @@ func TestLegacyMutableWorkflowRefFailsClosed(t *testing.T) {
 		AssetsRelease:   "offline-assets-1.2.3",
 		AssetsReleaseID: 12,
 		GithubRepo:      "owner/repo",
-		GithubRef:       "refs/heads/rustqs/min-test",
+		GithubRef:       "refs/heads/rustqs/workflows",
 	}
 	if _, err := VersionIdentityFromRecord(legacy); err == nil {
 		t.Fatal("VersionIdentityFromRecord() error = nil, want mutable workflow ref rejection")

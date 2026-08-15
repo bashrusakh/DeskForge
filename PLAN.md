@@ -56,7 +56,7 @@ GitHub-first because:
 bashrusakh/
 ├── DeskForge              ← this repo (server, api, admin, docker)
 ├── rustdesk               ← owned RustDesk fork and active workflow source
-│   └── .github/workflows/ ← rustqs-windows-min-test.yml, rustqs-linux.yml, rustqs-android.yml
+│   └── .github/workflows/ ← rustqs-windows.yml, rustqs-linux.yml, rustqs-android.yml
 └── libs/hbb_common        ← tracked shared source in DeskForge; not a submodule here
 ```
 
@@ -273,7 +273,7 @@ gh release create offline-assets-1.5.0 --repo bashrusakh/rustdesk \
 
 ### 7.6. Adapt workflow
 
-Compare upstream `build-for-windows-flutter` with `rustqs-windows-min-test.yml`:
+Compare upstream `build-for-windows-flutter` with `rustqs-windows.yml`:
 - New system dependencies?
 - Changed `build.py` flags?
 - Changed `config.rs` / `custom_.txt` format?

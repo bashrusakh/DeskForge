@@ -18,12 +18,12 @@ import (
 )
 
 const (
-	windowsWorkflowFilename = "rustqs-windows-min-test.yml"
+	windowsWorkflowFilename = "rustqs-windows.yml"
 	linuxWorkflowFilename   = "rustqs-linux.yml"
 	androidWorkflowFilename = "rustqs-android.yml"
 	// This is retained only for read-only catalog/version health compatibility.
 	// Production approval and dispatch never accept this mutable branch.
-	defaultWorkflowExecutionRef = "rustqs/min-test"
+	defaultWorkflowExecutionRef = "rustqs/workflows"
 )
 
 // normalizeKnownWorkflowExecutionRef translates only representations that were

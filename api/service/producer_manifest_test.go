@@ -45,9 +45,9 @@ func TestParseProducerManifestExactSchemaAndBuildIdentity(t *testing.T) {
 }
 
 func TestParseProducerManifestRejectsSchemaTamperMissingExtraAndDuplicateKeys(t *testing.T) {
-	valid := `{"schema":"deskforge.client-artifact","schema_version":1,"platform":"windows","app_name":"rustqs","output_filenames":["rustqs.exe"],"source_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","workflow_sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","workflow_ref":"rustqs/min-test","version":"1.2.3","digest_scope":"sha256 covers delivered output files; manifest.txt is excluded","files":[{"name":"rustqs.exe","sha256":"` + strings.Repeat("c", 64) + `"}]}`
+	valid := `{"schema":"deskforge.client-artifact","schema_version":1,"platform":"windows","app_name":"rustqs","output_filenames":["rustqs.exe"],"source_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","workflow_sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","workflow_ref":"rustqs/workflows","version":"1.2.3","digest_scope":"sha256 covers delivered output files; manifest.txt is excluded","files":[{"name":"rustqs.exe","sha256":"` + strings.Repeat("c", 64) + `"}]}`
 	cases := map[string]string{
-		"missing field":  strings.Replace(valid, `"workflow_ref":"rustqs/min-test",`, "", 1),
+		"missing field":  strings.Replace(valid, `"workflow_ref":"rustqs/workflows",`, "", 1),
 		"unknown field":  strings.Replace(valid, `"schema_version":1,`, `"schema_version":1,"extra":"unsafe",`, 1),
 		"duplicate key":  strings.Replace(valid, `"schema_version":1,`, `"schema_version":1,"schema_version":1,`, 1),
 		"wrong hash":     strings.Replace(valid, strings.Repeat("c", 64), strings.Repeat("g", 64), 1),
@@ -408,7 +408,7 @@ func producerManifestBuild() *model.CustomBuild {
 		AppName:          "rustqs",
 		Version:          "1.2.3",
 		BuildRef:         strings.Repeat("a", 40),
-		WorkflowSelector: "rustqs/min-test",
+		WorkflowSelector: "rustqs/workflows",
 		GithubRef:        strings.Repeat("b", 40),
 		GithubSourceSha:  strings.Repeat("b", 40),
 		GithubRunId:      77,

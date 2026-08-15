@@ -22,7 +22,7 @@ The operator chooses a known version/capability. The catalog and immutable build
 - Remove `rdgen/.github/workflows/sync-workflows.yml`; no workflow-file or PAT synchronization path remains. ✅
 - Keep `rdgen/.github/workflows/bridge.yml` because vendored rdgen generator workflows reference it as their manual/reference workflow. ✅ deferred duplicate cleanup.
 - Preserve the upstream-compatible bridge contract: no guessed `inputs.version` requirement and no checkout of the wrong repository.
-- Verify `master` discovery, `rustqs/min-test` execution, and `rustqs/master-workflows` mirror ownership before changing defaults. ⏳ live provider validation deferred.
+- Historical/deferred note (superseded by `plans/deskforge-workflow-migration`): prior verification targeted `master` discovery, `rustqs/min-test` execution, and `rustqs/master-workflows` mirror ownership; live provider validation remains deferred.
 - Keep provider payloads encrypted and keep workflow logs free of secrets.
 - Do not re-enable Linux/Android UI choices merely because YAML exists; real CI runs and artifact paths are a later gate.
 

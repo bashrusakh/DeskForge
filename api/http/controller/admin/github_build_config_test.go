@@ -121,7 +121,7 @@ func TestGithubProviderErrorsUseTypedSafeResponses(t *testing.T) {
 		want   string
 	}{
 		{name: "missing provider config", err: &service.GithubProviderConfigurationError{Cause: errors.New("payload key is not configured")}, status: http.StatusServiceUnavailable, want: "GitHub build provider is not configured"},
-		{name: "workflow approval", err: &service.WorkflowRefApprovalError{Reason: "selector rustqs/min-test is not approved"}, status: http.StatusPreconditionFailed, want: "workflow reference approval is required"},
+		{name: "workflow approval", err: &service.WorkflowRefApprovalError{Reason: "selector rustqs/workflows is not approved"}, status: http.StatusPreconditionFailed, want: "workflow reference approval is required"},
 		{name: "provider response", err: &service.GithubContractError{Operation: "dispatch", Cause: errors.New("invalid response")}, status: http.StatusBadGateway, want: "GitHub provider response was invalid"},
 		{name: "malformed provider response with sensitive details", err: &service.GithubContractError{Operation: "dispatch refs/tags/workflow-v1", Cause: errors.New(`response body https://api.github.com/repos/owner/repo?token=github_pat_secret enc_payload=ciphertext`)}, status: http.StatusBadGateway, want: "GitHub provider response was invalid"},
 		{name: "provider permission with sensitive body", err: &service.GithubAPIError{StatusCode: http.StatusForbidden, Terminal: true, Body: `{"message":"token=github_pat_secret enc_payload=ciphertext"}`}, status: http.StatusBadGateway, want: "GitHub provider request failed"},
@@ -267,7 +267,7 @@ func TestWorkflowRefApprovalEndpointRequiresAdminAndReturnsSafeStatus(t *testing
 			body = `{"sha":"` + strings.Repeat("b", 40) + `","object":{"sha":"` + strings.Repeat("a", 40) + `","type":"commit"},"verification":{"verified":true,"reason":"valid"}}`
 		} else if strings.Contains(req.URL.Path, "/contents/.github/workflows/") {
 			status = http.StatusOK
-			body = `{"type":"file","path":".github/workflows/rustqs-windows-min-test.yml","sha":"` + strings.Repeat("c", 40) + `","encoding":"base64","content":"b246CiAgd29ya2Zsb3dfZGlzcGF0Y2g6Cg=="}`
+			body = `{"type":"file","path":".github/workflows/rustqs-windows.yml","sha":"` + strings.Repeat("c", 40) + `","encoding":"base64","content":"b246CiAgd29ya2Zsb3dfZGlzcGF0Y2g6Cg=="}`
 		} else if strings.Contains(req.URL.Path, "/actions/workflows/") {
 			status = http.StatusOK
 			body = `{"state":"active"}`

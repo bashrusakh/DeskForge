@@ -214,7 +214,7 @@ func newCompleteBuildHandoffFixture(t *testing.T) *model.CustomBuild {
 	}
 	t.Cleanup(func() { BuildOutputDir = previousOutputDir })
 
-	provenance := testBuildProvenance(91, "owner/repo", "windows-min-test.yml", "refs/heads/rustqs/min-test", "rustdesk-min-test-windows")
+	provenance := testBuildProvenance(91, "owner/repo", "rustqs-windows.yml", "refs/heads/rustqs/workflows", "rustqs-windows")
 	provenance.GithubArtifactID = 901
 	provenance.GithubSourceSHA = provenance.WorkflowSHA
 	assets := append([]ReleaseAsset(nil), provenance.AssetsReleaseAssets...)

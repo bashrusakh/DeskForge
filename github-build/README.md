@@ -15,19 +15,19 @@ correlation. Local fake-transport/static checks cover this contract; no normal G
 dispatch, poll, or download operation is verified.
 
 The API's current application-owned execution selector defaults to
-`rustqs/min-test`; the configured provider repository resolves the selector and
-workflow SHA. The following branch labels are historical context, not a claim
-that synchronized copies or a live provider run currently exist:
+`rustqs/workflows`; the configured provider repository resolves the selector and
+workflow SHA. The following branch labels describe the configured fork's roles;
+they are not a claim that synchronized copies or a live provider run currently exist:
 
 | Branch                | Purpose                                                          |
 | --------------------- | ---------------------------------------------------------------- |
 | `master`                | Fork default branch                                             |
-| `rustqs/min-test`       | Current default workflow execution ref                          |
+| `rustqs/workflows`      | Current default workflow execution ref                          |
 | `rustqs/master-workflows` | Fork-maintained workflow mirror/reference ref                  |
 
 | Platform | Executable workflow in fork                           | Status    |
 | -------- | ----------------------------------------------------- | --------- |
-| Windows  | `.github/workflows/rustqs-windows-min-test.yml`       | 🟡 API-enabled; live evidence pending |
+| Windows  | `.github/workflows/rustqs-windows.yml`               | 🟡 API-enabled; live evidence pending |
 | Linux    | `.github/workflows/rustqs-linux.yml`                  | 🟡 API capability-gated |
 | Android  | `.github/workflows/rustqs-android.yml`                | 🟡 API capability-gated |
 

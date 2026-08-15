@@ -32,7 +32,7 @@ func prepareAdminBuildProvenance(build *model.CustomBuild) {
 		return
 	}
 	if build.WorkflowSelector == "" {
-		build.WorkflowSelector = "rustqs/min-test"
+		build.WorkflowSelector = "rustqs/workflows"
 	}
 	if build.AssetsReleaseAssets == "" {
 		build.AssetsReleaseAssets = `[{"id":101,"name":"windows-x64-release.zip","digest":"sha256:1111111111111111111111111111111111111111111111111111111111111111"},{"id":102,"name":"usbmmidd_v2.zip","digest":"sha256:2222222222222222222222222222222222222222222222222222222222222222"},{"id":103,"name":"rustdesk_printer_driver_v4-1.4.zip","digest":"sha256:3333333333333333333333333333333333333333333333333333333333333333"},{"id":104,"name":"printer_driver_adapter.zip","digest":"sha256:4444444444444444444444444444444444444444444444444444444444444444"}]`
@@ -227,8 +227,8 @@ func TestGithubPollRejectsRunHeadSHAMismatchWithStoredWorkflowSHA(t *testing.T) 
 		GithubRunId:        902,
 		GithubProvider:     "github",
 		GithubRepo:         "owner/repo",
-		GithubWorkflow:     "rustqs-windows-min-test.yml",
-		WorkflowSelector:   "rustqs/min-test",
+		GithubWorkflow:     "rustqs-windows.yml",
+		WorkflowSelector:   "rustqs/workflows",
 		GithubRef:          workflowSHA,
 		GithubArtifactName: "artifact",
 		GithubRunUrl:       "https://api.github.com/repos/owner/repo/actions/runs/902",
@@ -451,7 +451,7 @@ func TestResumePendingPollsUsesStoredProvenanceAndGuardsIncompleteRows(t *testin
 		GithubProvider:      "github",
 		GithubRepo:          "owner/repo-a",
 		GithubWorkflow:      "workflow-a.yml",
-		WorkflowSelector:    "rustqs/min-test",
+		WorkflowSelector:    "rustqs/workflows",
 		GithubRef:           strings.Repeat("a", 40),
 		BuildRef:            strings.Repeat("a", 40),
 		SourceTag:           "1.2.3",
@@ -566,9 +566,9 @@ func TestPollConfigCredentialExhaustionPersistsGuardedFailure(t *testing.T) {
 		GithubRunId:        900,
 		GithubProvider:     "github",
 		GithubRepo:         "owner/repo",
-		GithubWorkflow:     "rustqs-windows-min-test.yml",
+		GithubWorkflow:     "rustqs-windows.yml",
 		GithubRef:          strings.Repeat("a", 40),
-		GithubArtifactName: "rustdesk-min-test-windows",
+		GithubArtifactName: "rustqs-windows",
 		BuildLog:           strings.Repeat("old log ", 1000),
 		GithubRunUrl:       "https://api.github.com/repos/owner/repo/actions/runs/900",
 		GithubHtmlUrl:      "https://github.com/owner/repo/actions/runs/900",

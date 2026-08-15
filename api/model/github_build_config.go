@@ -24,7 +24,7 @@ type GithubBuildConfig struct {
 	Repo string `json:"repo" gorm:"size:128;default:'';not null;"` // configured owner/name
 	// WorkflowFilename is retained as an unread legacy column for migration
 	// safety. Branch is retained as a storage-compatibility slot; the service
-	// normalizes only known legacy owned values to rustqs/min-test. Workflow
+	// normalizes only known legacy owned values to rustqs/workflows. Workflow
 	// selectors are branch/tag names; resolved commit SHAs are stored on builds.
 	WorkflowFilename    string `json:"-" gorm:"size:128;default:'';not null;"`
 	Branch              string `json:"-" gorm:"size:128;default:'';not null;"`

@@ -68,8 +68,8 @@ func TestVersionCatalogFollowsPaginationAndResolvesConfiguredRepo(t *testing.T) 
 		paths = append(paths, req.URL.RequestURI())
 		pathsMu.Unlock()
 		switch {
-		case req.URL.Path == "/repos/owner/repo-a/git/ref/heads/rustqs/min-test":
-			return githubResponse(http.StatusOK, `{"ref":"refs/heads/rustqs/min-test","object":{"sha":"`+sha+`","type":"commit"}}`, nil), nil
+		case req.URL.Path == "/repos/owner/repo-a/git/ref/heads/rustqs/workflows":
+			return githubResponse(http.StatusOK, `{"ref":"refs/heads/rustqs/workflows","object":{"sha":"`+sha+`","type":"commit"}}`, nil), nil
 		case req.URL.Path == "/repos/owner/repo-a/releases" && req.URL.Query().Get("page") == "":
 			return githubResponse(http.StatusOK, `[{"id":7,"tag_name":"offline-assets-1.4.7"},{"id":8,"tag_name":"not-an-assets-release"}]`, http.Header{
 				"Link": []string{`<https://api.github.com/repos/owner/repo-a/releases?per_page=100&page=2>; rel="next"`},
@@ -116,8 +116,8 @@ func TestVersionCatalogCacheInvalidatesWhenConfiguredRepoChanges(t *testing.T) {
 	sha := strings.Repeat("b", 40)
 	var releaseRequests int32
 	withGithubTransport(t, githubRoundTripFunc(func(req *http.Request) (*http.Response, error) {
-		if strings.HasSuffix(req.URL.Path, "/git/ref/heads/rustqs/min-test") {
-			return githubResponse(http.StatusOK, `{"ref":"refs/heads/rustqs/min-test","object":{"sha":"`+sha+`","type":"commit"}}`, nil), nil
+		if strings.HasSuffix(req.URL.Path, "/git/ref/heads/rustqs/workflows") {
+			return githubResponse(http.StatusOK, `{"ref":"refs/heads/rustqs/workflows","object":{"sha":"`+sha+`","type":"commit"}}`, nil), nil
 		}
 		if strings.HasSuffix(req.URL.Path, "/releases") {
 			atomic.AddInt32(&releaseRequests, 1)
@@ -225,8 +225,8 @@ func TestVersionCatalogConcurrentCallsShareOneRefresh(t *testing.T) {
 	var releases, refs int32
 	withGithubTransport(t, githubRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		switch {
-		case strings.HasSuffix(req.URL.Path, "/git/ref/heads/rustqs/min-test"):
-			return githubResponse(http.StatusOK, `{"ref":"refs/heads/rustqs/min-test","object":{"sha":"`+strings.Repeat("e", 40)+`","type":"commit"}}`, nil), nil
+		case strings.HasSuffix(req.URL.Path, "/git/ref/heads/rustqs/workflows"):
+			return githubResponse(http.StatusOK, `{"ref":"refs/heads/rustqs/workflows","object":{"sha":"`+strings.Repeat("e", 40)+`","type":"commit"}}`, nil), nil
 		case strings.HasSuffix(req.URL.Path, "/releases"):
 			atomic.AddInt32(&releases, 1)
 			time.Sleep(20 * time.Millisecond)

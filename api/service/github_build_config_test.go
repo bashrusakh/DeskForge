@@ -117,7 +117,7 @@ func testWorkflowFileResponseWithContent(workflow, content string) string {
 func testWorkflowStateResponse() string { return `{"state":"active"}` }
 
 func testWorkflowBranchRefResponse(sha string) string {
-	return `{"ref":"refs/heads/rustqs/min-test","object":{"sha":"` + sha + `","type":"commit"}}`
+	return `{"ref":"refs/heads/rustqs/workflows","object":{"sha":"` + sha + `","type":"commit"}}`
 }
 
 // TestCompareSemver проверяет упорядочивание compareSemver для стабильных
@@ -279,16 +279,16 @@ func TestDispatchBuildUsesExactRunDetailsWithoutPolling(t *testing.T) {
 		if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/git/ref/heads/workflow-v1") {
 			return githubResponse(http.StatusNotFound, `{"message":"branch not found"}`, nil), nil
 		}
-		if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/contents/.github/workflows/rustqs-windows-min-test.yml") {
+		if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/contents/.github/workflows/rustqs-windows.yml") {
 			if req.URL.Query().Get("ref") != identity.WorkflowSHA {
 				return githubResponse(http.StatusBadRequest, `{"message":"workflow readiness did not use exact SHA"}`, nil), nil
 			}
-			return githubResponse(http.StatusOK, testWorkflowFileResponse("rustqs-windows-min-test.yml"), nil), nil
+			return githubResponse(http.StatusOK, testWorkflowFileResponse("rustqs-windows.yml"), nil), nil
 		}
-		if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/actions/workflows/rustqs-windows-min-test.yml") {
+		if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/actions/workflows/rustqs-windows.yml") {
 			return githubResponse(http.StatusOK, testWorkflowStateResponse(), nil), nil
 		}
-		if req.Method != http.MethodPost || !strings.HasSuffix(req.URL.Path, "/actions/workflows/rustqs-windows-min-test.yml/dispatches") {
+		if req.Method != http.MethodPost || !strings.HasSuffix(req.URL.Path, "/actions/workflows/rustqs-windows.yml/dispatches") {
 			return githubResponse(http.StatusNotFound, `{"message":"unexpected endpoint"}`, nil), nil
 		}
 		var payload map[string]any
@@ -339,13 +339,13 @@ func TestDispatchBuildBindsEncryptedSourceSHAAndImmutableWorkflowSHA(t *testing.
 		if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/git/ref/heads/workflow-v1") {
 			return githubResponse(http.StatusNotFound, `{"message":"branch not found"}`, nil), nil
 		}
-		if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/contents/.github/workflows/rustqs-windows-min-test.yml") {
+		if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/contents/.github/workflows/rustqs-windows.yml") {
 			if req.URL.Query().Get("ref") != identity.WorkflowSHA {
 				return githubResponse(http.StatusBadRequest, `{"message":"workflow readiness did not use exact SHA"}`, nil), nil
 			}
-			return githubResponse(http.StatusOK, testWorkflowFileResponse("rustqs-windows-min-test.yml"), nil), nil
+			return githubResponse(http.StatusOK, testWorkflowFileResponse("rustqs-windows.yml"), nil), nil
 		}
-		if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/actions/workflows/rustqs-windows-min-test.yml") {
+		if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/actions/workflows/rustqs-windows.yml") {
 			return githubResponse(http.StatusOK, testWorkflowStateResponse(), nil), nil
 		}
 		var payload map[string]any
@@ -550,10 +550,10 @@ func TestDispatchBuildRejectsMissingMalformedZeroAnd204(t *testing.T) {
 				if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/git/ref/heads/workflow-v1") {
 					return githubResponse(http.StatusNotFound, `{"message":"branch not found"}`, nil), nil
 				}
-				if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/contents/.github/workflows/rustqs-windows-min-test.yml") {
-					return githubResponse(http.StatusOK, testWorkflowFileResponse("rustqs-windows-min-test.yml"), nil), nil
+				if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/contents/.github/workflows/rustqs-windows.yml") {
+					return githubResponse(http.StatusOK, testWorkflowFileResponse("rustqs-windows.yml"), nil), nil
 				}
-				if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/actions/workflows/rustqs-windows-min-test.yml") {
+				if req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/actions/workflows/rustqs-windows.yml") {
 					return githubResponse(http.StatusOK, testWorkflowStateResponse(), nil), nil
 				}
 				return githubResponse(tc.status, tc.body, nil), nil

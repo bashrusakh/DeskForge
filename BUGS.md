@@ -4,7 +4,7 @@
 > Backend: `api/http/controller/admin/custom_build.go`, `api/service/custom_build.go`,
 > `api/service/github_build_config.go`. Frontend: `admin-ui/src/views/custom-client/index.vue`,
 > `admin-ui/src/views/server/github-build.vue`. Active workflow source: the configured
-> RustDesk fork's `.github/workflows/rustqs-windows-min-test.yml`; local `github-build/`
+> RustDesk fork's `.github/workflows/rustqs-windows.yml`; local `github-build/`
 > workflow files are reference material only.
 >
 > Status legend: `[ ]` open · `[x]` fixed · `[~]` partial · `[skip]` won't fix (owner decision).

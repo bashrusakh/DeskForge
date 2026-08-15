@@ -77,7 +77,7 @@ func TestWorkflowFilenameForPlatformUsesFixedApplicationMapping(t *testing.T) {
 		platform string
 		workflow string
 	}{
-		{platform: string(PlatformWindows), workflow: "rustqs-windows-min-test.yml"},
+		{platform: string(PlatformWindows), workflow: "rustqs-windows.yml"},
 		{platform: string(PlatformLinux), workflow: "rustqs-linux.yml"},
 		{platform: string(PlatformAndroid), workflow: "rustqs-android.yml"},
 	} {
@@ -279,10 +279,10 @@ func TestRulesetTagNamePatternOperatorsDoNotControlRefProtection(t *testing.T) {
 func TestResolveWorkflowExecutionResolvesOwnedDefaultRef(t *testing.T) {
 	workflowSHA := strings.Repeat("a", 40)
 	withGithubTransport(t, githubRoundTripFunc(func(req *http.Request) (*http.Response, error) {
-		if req.URL.Path != "/repos/owner/repo/git/ref/heads/rustqs/min-test" {
+		if req.URL.Path != "/repos/owner/repo/git/ref/heads/rustqs/workflows" {
 			return githubResponse(http.StatusNotFound, `{"message":"unexpected endpoint"}`, nil), nil
 		}
-		return githubResponse(http.StatusOK, `{"ref":"refs/heads/rustqs/min-test","object":{"sha":"`+workflowSHA+`","type":"commit"}}`, nil), nil
+		return githubResponse(http.StatusOK, `{"ref":"refs/heads/rustqs/workflows","object":{"sha":"`+workflowSHA+`","type":"commit"}}`, nil), nil
 	}))
 
 	identity, err := (&GithubBuildConfigService{}).resolveWorkflowExecution(context.Background(), &model.GithubBuildConfig{Repo: "owner/repo"})
@@ -1018,9 +1018,9 @@ func TestDispatchBuildRejectsBranchCollisionBeforeProviderPayloadPost(t *testing
 			return githubResponse(http.StatusOK, `{"sha":"`+strings.Repeat("e", 40)+`","object":{"sha":"`+identity.WorkflowSHA+`","type":"commit"},"verification":{"verified":true,"reason":"valid"}}`, nil), nil
 		case "/repos/owner/repo/git/ref/heads/workflow-v1":
 			return githubResponse(http.StatusOK, `{"ref":"refs/heads/workflow-v1","object":{"sha":"`+strings.Repeat("d", 40)+`","type":"commit"}}`, nil), nil
-		case "/repos/owner/repo/contents/.github/workflows/rustqs-windows-min-test.yml":
+		case "/repos/owner/repo/contents/.github/workflows/rustqs-windows.yml":
 			return githubResponse(http.StatusOK, testWorkflowFileResponse(windowsWorkflowFilename), nil), nil
-		case "/repos/owner/repo/actions/workflows/rustqs-windows-min-test.yml":
+		case "/repos/owner/repo/actions/workflows/rustqs-windows.yml":
 			return githubResponse(http.StatusOK, testWorkflowStateResponse(), nil), nil
 		default:
 			if req.Method == http.MethodPost {
@@ -1111,9 +1111,9 @@ func TestDispatchBuildRejectsMovedWorkflowBeforeDFP1Payload(t *testing.T) {
 			return githubResponse(http.StatusOK, `{"ref":"refs/tags/workflow-v1","object":{"sha":"`+strings.Repeat("e", 40)+`","type":"tag"}}`, nil), nil
 		case strings.HasSuffix(req.URL.Path, "/git/tags/"+strings.Repeat("e", 40)):
 			return githubResponse(http.StatusOK, `{"sha":"`+strings.Repeat("e", 40)+`","object":{"sha":"`+strings.Repeat("e", 40)+`","type":"commit"},"verification":{"verified":true,"reason":"valid"}}`, nil), nil
-		case strings.HasSuffix(req.URL.Path, "/contents/.github/workflows/rustqs-windows-min-test.yml"):
+		case strings.HasSuffix(req.URL.Path, "/contents/.github/workflows/rustqs-windows.yml"):
 			return githubResponse(http.StatusOK, testWorkflowFileResponse(windowsWorkflowFilename), nil), nil
-		case strings.HasSuffix(req.URL.Path, "/actions/workflows/rustqs-windows-min-test.yml"):
+		case strings.HasSuffix(req.URL.Path, "/actions/workflows/rustqs-windows.yml"):
 			return githubResponse(http.StatusOK, testWorkflowStateResponse(), nil), nil
 		case req.Method == http.MethodPost:
 			payloadRequests++
@@ -1133,7 +1133,7 @@ func TestVerifyWorkflowAvailableRequiresWorkflowDispatch(t *testing.T) {
 	workflowSHA := strings.Repeat("a", 40)
 	withGithubTransport(t, githubRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		if strings.Contains(req.URL.Path, "/contents/.github/workflows/") {
-			return githubResponse(http.StatusOK, testWorkflowFileResponseWithContent("rustqs-windows-min-test.yml", "name: missing trigger\non:\n  push:\n"), nil), nil
+			return githubResponse(http.StatusOK, testWorkflowFileResponseWithContent("rustqs-windows.yml", "name: missing trigger\non:\n  push:\n"), nil), nil
 		}
 		t.Fatalf("unexpected readiness request after missing trigger: %s %s", req.Method, req.URL.Path)
 		return nil, nil
@@ -1165,7 +1165,7 @@ func TestVerifyWorkflowAvailableAcceptsWorkflowDispatchForms(t *testing.T) {
 					if req.URL.Query().Get("ref") != workflowSHA {
 						t.Fatalf("contents ref = %q, want exact workflow SHA", req.URL.Query().Get("ref"))
 					}
-					return githubResponse(http.StatusOK, testWorkflowFileResponseWithContent("rustqs-windows-min-test.yml", test.content), nil), nil
+					return githubResponse(http.StatusOK, testWorkflowFileResponseWithContent("rustqs-windows.yml", test.content), nil), nil
 				}
 				if strings.Contains(req.URL.Path, "/actions/workflows/") {
 					return githubResponse(http.StatusOK, testWorkflowStateResponse(), nil), nil
@@ -1750,7 +1750,7 @@ func TestPrepareBuildRejectsUnavailableWorkflowBeforeBuildPersistence(t *testing
 			}
 			expectedPaths := []string{"GET /repos/owner/repo/rulesets", "GET /repos/owner/repo/rulesets/1", "GET /repos/owner/repo/git/ref/tags/workflow-v1"}
 			if tc.expectType == "contract" {
-				expectedPaths = append(expectedPaths, "GET /repos/owner/repo/git/tags/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "GET /repos/owner/repo/git/ref/heads/workflow-v1", "GET /repos/owner/repo/contents/.github/workflows/rustqs-windows-min-test.yml")
+				expectedPaths = append(expectedPaths, "GET /repos/owner/repo/git/tags/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "GET /repos/owner/repo/git/ref/heads/workflow-v1", "GET /repos/owner/repo/contents/.github/workflows/rustqs-windows.yml")
 			}
 			if len(paths) != len(expectedPaths) {
 				t.Fatalf("readiness requests = %v, want %v", paths, expectedPaths)
@@ -1820,12 +1820,12 @@ func TestPrepareBuildAcceptsActiveMappedWorkflowAndPreservesCatalogIdentity(t *t
 			return githubResponse(http.StatusOK, `{"ref":"refs/tags/workflow-v1","object":{"sha":"`+strings.Repeat("a", 40)+`","type":"tag"}}`, nil), nil
 		case "/repos/owner/repo/git/tags/" + strings.Repeat("a", 40):
 			return githubResponse(http.StatusOK, `{"sha":"`+strings.Repeat("a", 40)+`","object":{"sha":"`+strings.Repeat("b", 40)+`","type":"commit"},"verification":{"verified":true,"reason":"valid"}}`, nil), nil
-		case "/repos/owner/repo/contents/.github/workflows/rustqs-windows-min-test.yml":
+		case "/repos/owner/repo/contents/.github/workflows/rustqs-windows.yml":
 			if req.URL.Query().Get("ref") != strings.Repeat("b", 40) {
 				t.Fatalf("workflow readiness ref = %q, want immutable workflow SHA", req.URL.Query().Get("ref"))
 			}
-			return githubResponse(http.StatusOK, testWorkflowFileResponse("rustqs-windows-min-test.yml"), nil), nil
-		case "/repos/owner/repo/actions/workflows/rustqs-windows-min-test.yml":
+			return githubResponse(http.StatusOK, testWorkflowFileResponse("rustqs-windows.yml"), nil), nil
+		case "/repos/owner/repo/actions/workflows/rustqs-windows.yml":
 			return githubResponse(http.StatusOK, testWorkflowStateResponse(), nil), nil
 		case "/repos/owner/repo/releases":
 			return githubResponse(http.StatusOK, `[{"id":12,"tag_name":"offline-assets-1.2.3"}]`, nil), nil
@@ -1880,12 +1880,12 @@ func TestPreparedConfigSnapshotSurvivesGlobalConfigMutationBeforeDispatch(t *tes
 			return githubResponse(http.StatusOK, `{"ref":"refs/tags/workflow-v1","object":{"sha":"`+strings.Repeat("a", 40)+`","type":"tag"}}`, nil), nil
 		case "/repos/owner/repo-a/git/tags/" + strings.Repeat("a", 40):
 			return githubResponse(http.StatusOK, `{"sha":"`+strings.Repeat("a", 40)+`","object":{"sha":"`+strings.Repeat("b", 40)+`","type":"commit"},"verification":{"verified":true,"reason":"valid"}}`, nil), nil
-		case "/repos/owner/repo-a/contents/.github/workflows/rustqs-windows-min-test.yml":
+		case "/repos/owner/repo-a/contents/.github/workflows/rustqs-windows.yml":
 			if req.URL.Query().Get("ref") != strings.Repeat("b", 40) {
 				t.Fatalf("workflow readiness ref = %q, want immutable workflow SHA", req.URL.Query().Get("ref"))
 			}
-			return githubResponse(http.StatusOK, testWorkflowFileResponse("rustqs-windows-min-test.yml"), nil), nil
-		case "/repos/owner/repo-a/actions/workflows/rustqs-windows-min-test.yml":
+			return githubResponse(http.StatusOK, testWorkflowFileResponse("rustqs-windows.yml"), nil), nil
+		case "/repos/owner/repo-a/actions/workflows/rustqs-windows.yml":
 			return githubResponse(http.StatusOK, testWorkflowStateResponse(), nil), nil
 		case "/repos/owner/repo-a/releases":
 			return githubResponse(http.StatusOK, `[{"id":12,"tag_name":"offline-assets-1.2.3"}]`, nil), nil
@@ -1893,7 +1893,7 @@ func TestPreparedConfigSnapshotSurvivesGlobalConfigMutationBeforeDispatch(t *tes
 			return githubResponse(http.StatusOK, testReleaseDetails(12, "offline-assets-1.2.3"), nil), nil
 		case "/repos/owner/repo-a/git/ref/tags/1.2.3":
 			return githubResponse(http.StatusOK, `{"ref":"refs/tags/1.2.3","object":{"sha":"`+buildRef+`","type":"commit"}}`, nil), nil
-		case "/repos/owner/repo-a/actions/workflows/rustqs-windows-min-test.yml/dispatches":
+		case "/repos/owner/repo-a/actions/workflows/rustqs-windows.yml/dispatches":
 			if req.Header.Get("Authorization") != "Bearer token-a" {
 				return githubResponse(http.StatusBadRequest, `{"message":"dispatch used mutated token"}`, nil), nil
 			}
