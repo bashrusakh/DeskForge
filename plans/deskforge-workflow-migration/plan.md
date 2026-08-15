@@ -1,26 +1,28 @@
 # DeskForge Workflow Migration Plan
 
 **Date:** 2026-08-16
-**Status:** Workflow migration verified; signing, ruleset, and PR publication remain pending
-**Scope:** Local DeskForge contract reconciliation plus recorded external workflow migration. Only these plan artifacts are being updated; no source, workflow, secret, or Git-history changes are authorized here.
+**Status:** Local and external migration verified; signing, tag, ruleset, and provider verification remain pending
+**Scope:** Local DeskForge contract reconciliation plus recorded external workflow migration. Only these plan artifacts are being updated; no source, workflow, secret, or external-repository changes are authorized here.
 
 ## Verified current facts
 
-- Workflow files existed on `bashrusakh/rustdesk` branch `rustqs/min-test` after merged PR #4; the branch rename to `rustqs/workflows` has now succeeded.
-- External workflow filename/artifact migration was committed through the GitHub Contents API in commits `4b77b40` and `b11be6a`; the renamed branch now heads at `b11be6a`.
+- External branch rename `rustqs/min-test` → `rustqs/workflows` and workflow filename/artifact migration are verified at branch head `b11be6a`.
+- The external migration was committed through the GitHub Contents API in commits `4b77b40` and `b11be6a`.
 - Accepted workflow filename: `rustqs-windows.yml`.
-- Open PR #5 automatically updated its base to `rustqs/workflows` and remains open; mergeability is currently recalculating.
+- PR #5 was automatically retargeted to `rustqs/workflows` and remains open.
 - Local DeskForge references, tests, and current documentation are migrated.
+- Local commit `460b424` was pushed to DeskForge PR #59, and its PR body is synchronized.
+- Fresh PR Build run `31888415635`, analyzer run `31888414373`, and CodeQL run `95021027686` passed.
 - The admin GUI’s provider-derived workflow-tag display and approval flow are verified; no new GUI architecture is needed.
 - No `workflow-v*` tags or repository rulesets currently exist.
-- No local GPG secret key or `signingkey` is configured. The GitHub GPG API requires the `admin:gpg_key` scope.
+- The local GPG key has no secret key. The current GitHub token lacks the `admin:gpg_key` scope.
 
 ## Remaining publication assumptions and gates
 
-- Create an independent `workflow-v1.0.0` tag on the exact post-PR#4 workflow migration commit at branch head `b11be6a`; do not infer the target from an unrelated ref.
-- The tag must be signed and annotated. GitHub key verification is required before acceptance or push.
-- Establish a repository ruleset for `refs/tags/workflow-v*` with tag update and deletion blocked and no bypass actors. This is a required target state, not current evidence.
-- Keep PR #5 open until mergeability recalculates and publication/coordination gates are explicitly cleared.
+- Create an independent `workflow-v1.0.0` tag on exact post-PR#4 workflow migration commit `b11be6a`.
+- The tag must be signed and annotated, with GitHub key verification completed before acceptance or push.
+- Establish a repository ruleset for `refs/tags/workflow-v*` with tag update and deletion blocked and no bypass actors.
+- Complete final provider/tag verification; no tag, ruleset, or provider acceptance claim is made yet.
 
 ## Behavioral contract
 
@@ -31,14 +33,14 @@
 
 ## Follow-up work packages
 
-1. **Record completed migration**
-   - Preserve the verified branch rename, Contents API commits, branch head, local references/tests/docs, and existing GUI behavior as the current baseline.
+1. **Completed migration and validation**
+   - Preserve the verified local references/tests/docs, external branch/file migration, commit `460b424` push, PR #59 body sync, and passed validation runs as the current baseline.
 2. **Establish immutable tag policy**
-   - Obtain an approved GPG signing key with the required GitHub access, then create and verify the signed annotated `workflow-v1.0.0` tag on `b11be6a`.
+   - Configure an approved signing key with the required GitHub access, then create and verify signed annotated `workflow-v1.0.0` on `b11be6a`.
    - Establish and verify the `refs/tags/workflow-v*` ruleset with update/deletion blocked and no bypass actors.
-3. **Synchronize PR state and validate**
-   - Re-check PR #5 after mergeability recalculates; keep its title/body aligned with actual commits, files, scope, and validation before publication.
-   - Run focused reference/static checks, relevant DeskForge checks, documentation consistency checks, and `git diff --check`.
+3. **Final provider and PR state**
+   - Complete final provider/tag verification while keeping PR #5 open and accurately represented.
+   - Do not claim release readiness or provider/tag acceptance before the pending gates pass.
 
 ## Explicit exclusion
 
@@ -46,8 +48,9 @@ The workflow-dispatch selector TOCTOU remains excluded. The provider’s branch/
 
 ## Gates and blockers
 
-- **Signed tag:** pending an approved signing key and GitHub verification; no `workflow-v*` tag exists.
-- **Ruleset:** pending creation and verification; no repository ruleset exists.
-- **GPG access:** no local key is configured, and GitHub’s GPG API requires `admin:gpg_key` scope.
-- **PR #5:** remains open while mergeability recalculates; PR publication/merge coordination is pending.
+- **GPG/signing key:** the local GPG configuration has no secret key, and the current GitHub token lacks `admin:gpg_key`; signed-tag work is blocked.
+- **Signed tag:** no `workflow-v*` tag exists; signed annotated tag creation and GitHub verification remain pending.
+- **Ruleset:** no repository ruleset exists; protected `refs/tags/workflow-v*` policy remains pending.
+- **Provider verification:** final provider/tag verification remains pending.
+- **PR #5:** remains open after automatic retargeting to `rustqs/workflows`.
 - **Publication:** tag creation, ruleset mutation, push, or PR updates require credentials and explicit user approval.
