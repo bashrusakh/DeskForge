@@ -1,7 +1,7 @@
 # DeskForge Workflow Migration Plan
 
 **Date:** 2026-08-16
-**Status:** Local and external migration verified; signing, tag, ruleset, and provider verification remain pending
+**Status:** Migration and ruleset verified; signing, tag, and final provider verification remain pending
 **Scope:** Local DeskForge contract reconciliation plus recorded external workflow migration. Only these plan artifacts are being updated; no source, workflow, secret, or external-repository changes are authorized here.
 
 ## Verified current facts
@@ -14,15 +14,16 @@
 - Local commit `460b424` was pushed to DeskForge PR #59, and its PR body is synchronized.
 - Fresh PR Build run `31888415635`, analyzer run `31888414373`, and CodeQL run `95021027686` passed.
 - The admin GUI’s provider-derived workflow-tag display and approval flow are verified; no new GUI architecture is needed.
-- No `workflow-v*` tags or repository rulesets currently exist.
+- No `workflow-v*` tags currently exist.
+- Repository Ruleset ID `20889185`, named `DeskForge workflow tags`, is active for target `tag` with condition `refs/tags/workflow-*`.
+- The ruleset contains `deletion` and `update` rules, with `update_allows_fetch_and_merge=false`, `bypass_actors=[]`, and `current_user_can_bypass=never`.
 - The local GPG key has no secret key. The current GitHub token lacks the `admin:gpg_key` scope.
 
 ## Remaining publication assumptions and gates
 
 - Create an independent `workflow-v1.0.0` tag on exact post-PR#4 workflow migration commit `b11be6a`.
 - The tag must be signed and annotated, with GitHub key verification completed before acceptance or push.
-- Establish a repository ruleset for `refs/tags/workflow-v*` with tag update and deletion blocked and no bypass actors.
-- Complete final provider/tag verification; no tag, ruleset, or provider acceptance claim is made yet.
+- Complete final tag/provider verification; no tag acceptance claim is made yet.
 
 ## Behavioral contract
 
@@ -33,14 +34,13 @@
 
 ## Follow-up work packages
 
-1. **Completed migration and validation**
-   - Preserve the verified local references/tests/docs, external branch/file migration, commit `460b424` push, PR #59 body sync, and passed validation runs as the current baseline.
-2. **Establish immutable tag policy**
+1. **Completed migration, validation, and ruleset**
+   - Preserve the verified local references/tests/docs, external branch/file migration, commit `460b424` push, PR #59 body sync, passed validation runs, and Ruleset `20889185` as the current baseline.
+2. **Establish signed workflow tag**
    - Configure an approved signing key with the required GitHub access, then create and verify signed annotated `workflow-v1.0.0` on `b11be6a`.
-   - Establish and verify the `refs/tags/workflow-v*` ruleset with update/deletion blocked and no bypass actors.
 3. **Final provider and PR state**
-   - Complete final provider/tag verification while keeping PR #5 open and accurately represented.
-   - Do not claim release readiness or provider/tag acceptance before the pending gates pass.
+   - Complete final tag/provider verification while keeping PR #5 open and accurately represented.
+   - Do not claim release readiness or tag acceptance before the pending gates pass.
 
 ## Explicit exclusion
 
@@ -50,7 +50,6 @@ The workflow-dispatch selector TOCTOU remains excluded. The provider’s branch/
 
 - **GPG/signing key:** the local GPG configuration has no secret key, and the current GitHub token lacks `admin:gpg_key`; signed-tag work is blocked.
 - **Signed tag:** no `workflow-v*` tag exists; signed annotated tag creation and GitHub verification remain pending.
-- **Ruleset:** no repository ruleset exists; protected `refs/tags/workflow-v*` policy remains pending.
-- **Provider verification:** final provider/tag verification remains pending.
+- **Final provider verification:** tag/provider verification remains pending.
 - **PR #5:** remains open after automatic retargeting to `rustqs/workflows`.
-- **Publication:** tag creation, ruleset mutation, push, or PR updates require credentials and explicit user approval.
+- **Publication:** tag creation, push, or PR updates require credentials and explicit user approval.
