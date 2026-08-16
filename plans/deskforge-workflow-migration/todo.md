@@ -1,7 +1,7 @@
 # DeskForge Workflow Migration — Todo
 
 **Plan:** `plans/deskforge-workflow-migration/plan.md`
-**Status:** Workflow migration and external verification complete; final PR #59 body update pending.
+**Status:** Workflow migration, external verification, and final PR #59 body synchronization complete.
 
 ## Current state
 
@@ -17,7 +17,7 @@
 
 - [x] Current passing runs: Build `31889460990`, analyzer `31889459181`, and CodeQL `95023538774`.
 - [x] Credentials/approval and publication gates were verified before tag publication and final external verification.
-- [ ] Update the PR #59 body with the final commits, files, behavior, scope, and validation after this documentation commit.
+- [x] PR #59 body updated with the final commits, files, behavior, scope, and validation.
 
 ## Explicit unresolved TOCTOU
 
