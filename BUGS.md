@@ -3,9 +3,9 @@
 > Tracker for issues found in the build-custom-agent end-to-end flow.
 > Backend: `api/http/controller/admin/custom_build.go`, `api/service/custom_build.go`,
 > `api/service/github_build_config.go`. Frontend: `admin-ui/src/views/custom-client/index.vue`,
-> `admin-ui/src/views/server/github-build.vue`. Active workflow source: the configured
-> RustDesk fork's `.github/workflows/rustqs-windows.yml`; local `github-build/`
-> workflow files are reference material only.
+> `admin-ui/src/views/server/github-build.vue`. Active Windows workflow source: branch
+> `rustqs/workflows`, workflow `.github/workflows/rustqs-windows.yml`, artifact
+> `rustqs-windows`; local `github-build/` workflow files are reference material only.
 >
 > Status legend: `[ ]` open · `[x]` fixed · `[~]` partial · `[skip]` won't fix (owner decision).
 >
@@ -14,7 +14,8 @@
 > changelog history.
 > Current-state reconciliation: 2026-08-10. Historical findings below are labeled
 > where the current provider-only path supersedes the old queue behavior; no live
-> provider or clean-build evidence is implied.
+> provider or clean-build evidence is implied. Older branch and workflow names below
+> are retained as historical records and do not describe the current executable path.
 
 ---
 
