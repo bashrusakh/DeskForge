@@ -154,6 +154,9 @@
           <el-button @click="onDispatchTest" :loading="dispatching">Trigger test build</el-button>
         </el-form-item>
 
+        <el-alert v-if="saveError" type="error" :closable="false" show-icon role="alert" aria-live="assertive">
+          {{ saveError }}
+        </el-alert>
         <el-alert v-if="testResult" :type="testResult.ok ? 'success' : 'error'" :closable="false">
           {{ testResult.message }}
         </el-alert>
@@ -208,6 +211,7 @@ const form = reactive({
 const generatedKey = ref('')
 const testResult = ref(null)
 const dispatchResult = ref(null)
+const saveError = ref('')
 
 async function load () {
   loading.value = true
@@ -300,18 +304,33 @@ const workflowRefStatusType = computed(() => {
 
 async function onSave () {
   saving.value = true
+  saveError.value = ''
   try {
     await api.save({
       repo: form.repo,
       token: form.token,
       payload_key: form.payload_key,
     })
-    form.token = ''
-    form.payload_key = ''
-    await load()
+  } catch (e) {
+    saveError.value = extractSaveError(e)
+    return
   } finally {
     saving.value = false
   }
+  form.token = ''
+  form.payload_key = ''
+  await load()
+}
+
+function extractSaveError (error) {
+  const envelopes = [error, error?.response?.data]
+  for (const envelope of envelopes) {
+    if (Number.isInteger(envelope?.code) && envelope.code !== 0
+      && typeof envelope.message === 'string' && envelope.message.trim()) {
+      return envelope.message.trim()
+    }
+  }
+  return T('GithubBuildSaveError')
 }
 
 async function onGenerate () {

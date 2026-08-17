@@ -5,7 +5,7 @@ export function get () {
 }
 
 export function save (data) {
-  return request({ url: '/github_build_config/save', method: 'post', data })
+  return request({ url: '/github_build_config/save', method: 'post', data, skipErrorMessage: true })
 }
 
 export function getWorkflowTags () {

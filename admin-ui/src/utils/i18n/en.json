@@ -125,6 +125,9 @@
   "WorkflowApprovalRequestFailed": {
     "One": "Approval was not recorded. Try again after reviewing the provider status."
   },
+  "GithubBuildSaveError": {
+    "One": "GitHub build settings could not be saved. Check the configuration and try again."
+  },
   "Status": {
     "One": "Status"
   },

@@ -125,6 +125,9 @@
   "WorkflowApprovalRequestFailed": {
     "One": "审批未记录。请查看服务商状态后重试。"
   },
+  "GithubBuildSaveError": {
+    "One": "无法保存 GitHub 构建设置。请检查配置后重试。"
+  },
   "Status": {
     "One": "状态"
   },
