@@ -147,9 +147,13 @@ frozen reference/documentation material only, and `rdgen/` is frozen vendored
 historical/reference material; neither is an active workflow source.
 
 The published RustDesk client source/ref is 1.4.8 and the published DeskForge API
-schema is `DatabaseVersion` 272. The local uncommitted corrective worktree targets
-API schema 282; that local schema target is not published. Live provider execution and
-MySQL/PostgreSQL migration/read/write coverage remain unverified.
+schema is `DatabaseVersion` 272. The current local corrective candidate targets API
+schema 283, which is not published. Schema 283 adds
+`idx_custom_presets_user_id_name` on `(user_id, name)` and fails migration preflight
+on existing duplicate groups without auto-selecting a row or deleting data. Schema 282 remains
+the earlier workflow-approval migration. Live provider execution remains unverified.
+Migration evidence is SQLite-only; MySQL/PostgreSQL migration/read/write coverage
+remains unverified.
 
 ## What goes where
 

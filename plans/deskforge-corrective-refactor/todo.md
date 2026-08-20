@@ -1,7 +1,8 @@
 # DeskForge Corrective Refactor — Todo
 
 **Plan:** `plans/deskforge-corrective-refactor/plan.md`
-**Boundary:** cumulative PR1–PR12 DeskForge candidate plus a separate RustDesk candidate.
+**Boundary:** cumulative PR1–PR12 DeskForge candidate plus a local-only Phase 13 PR59
+review-remediation record and a separate RustDesk candidate.
 The DeskForge candidate includes API/UI/Docker/server/offline-kit/Swagger/docs/tests;
 the RustDesk candidate separately includes active workflow/Android/portable/helper/tests.
 `rdgen` deletion and dirty submodule content are excluded. Follow-up commit `68e7f30`
@@ -79,7 +80,7 @@ release-readiness, or sovereignty claim is made.
       an accepted verification reason, a matching protected-tag pattern, explicit update and
       deletion protections, no bypass actors, and tag/branch collision rejection before approval
       and again before DFP1 dispatch; live fork/provider execution remains unverified.
-    - [x] Approval persists the provider-resolved tag SHA and policy state through additive
+    - [x] Approval persists the provider-resolved tag SHA and policy state through historical
       migration evidence at `DatabaseVersion 282`; legacy compatibility remains preserved.
     - [x] Build preparation and the dispatch primitive revalidate the selector, protected policy,
       workflow contents, and resolved SHA immediately before secret-bearing DFP1 payload creation;
@@ -131,6 +132,25 @@ release-readiness, or sovereignty claim is made.
   - [x] Source Swagger annotations and regenerated `api/docs/api` plus `api/docs/admin` use module-pinned `swag v1.16.3`; JSON/YAML/`docs.go` outputs are deterministic, and route/auth/schema/redaction parity checks pass.
   - [x] Swagger metadata remains sparse for legacy operations; this is recorded as a low-usability issue, not a correctness, support, or publication claim.
 
+  - [ ] **Phase 13 — in-progress: PR59 review remediation (local-only)**
+    - [x] Record current local `DatabaseVersion 283`: composite index
+      `idx_custom_presets_user_id_name` on `(user_id, name)` with duplicate-group
+      preflight before `AutoMigrate`, without auto-selecting a row or deleting data.
+    - [x] Preserve `DatabaseVersion 282` as the earlier workflow-approval migration,
+      not the current local schema target.
+    - [x] Record the exact provider-owned
+      `# deskforge-workflow-identity-guard: v1` requirement at the resolved workflow
+      SHA before approval, preparation, or secret-bearing dispatch; legacy unguarded
+      tags fail closed without claiming atomic selector/SHA binding or live readiness.
+    - [x] Record RustDesk local `fix/workflow-sha-guard` commit `6ef1cd7fe` as
+      unpushed/unmerged/untagged, with remote still at `8ad23a826` at the last check.
+    - [x] Record PR #59 as open/dirty remotely, with local-only `2c38c87` merge
+      resolution and unpushed `da42521`/`9a1ee5e` remediation commits.
+    - [ ] Before production dispatch, obtain a newly signed provider-verified immutable
+      protected tag and perform live reapproval/reverification. MySQL/PostgreSQL and
+      live-provider evidence remain separate unverified gates. See
+      [`phase-13.md`](phases/phase-13.md).
+
 ### PR12 audited-doc and remaining-gate checklist
 
 - [x] Audited `PLAN.md`, `README.md`, `CHANGELOG.md`, `BUGS.md`,
@@ -154,7 +174,8 @@ release-readiness, or sovereignty claim is made.
 ## Current local verification boundary
 
 - PR1–PR9 and the security-hardening work are `verified-with-notes`; PR10 and PR11 remain
-  `in-progress`, while PR12 is `verified-with-notes` for documentation/tracker reconciliation.
+  `in-progress`, PR12 is `verified-with-notes` for documentation/tracker reconciliation,
+  and Phase 13 records local-only PR59 remediation.
 - Packages A–C implementation and focused checks pass: strict offline fixtures/stage checks; v2 producer/API manifests including private `custom_.txt`; deterministic handoff/archive hashes; TOCTOU/snapshot cleanup; retention-days/`if-no-files-found: error`; and public `custom_.txt` redaction. PR12 source Swagger annotations and regenerated `api/docs/api` plus `api/docs/admin` use module-pinned `swag v1.16.3`; JSON/YAML/`docs.go` outputs are deterministic, and route/auth/schema/redaction parity checks pass.
 - Real offline-kit verify/freeze fails closed on secret-bearing artifact presence, legacy manifest, missing engine, empty printer digest, and incomplete license evidence. Full `GOWORK=off go vet ./...`, `GOWORK=off go test ./...`, and `GOWORK=off go test -race ./...` pass after test-only cache diagnostics, opt-in Redis test changes, and test-only lock-test race fixes; production lock code is unchanged. Redis integration/benchmarks remain opt-in through `DESKFORGE_TEST_REDIS_ADDR`, with no live Redis run recorded.
 - Full `GOWORK=off go vet ./...`, `GOWORK=off go test ./...`, and `GOWORK=off go test -race ./...` pass after the test-only cache diagnostics, opt-in Redis changes, and lock-test race fixes; production lock code is unchanged. API build, UI build, deterministic Swagger regeneration/parity, Compose checks, and `git diff --check` pass. Redis integration/benchmarks remain opt-in through `DESKFORGE_TEST_REDIS_ADDR`, with no live Redis run recorded. Default OpenSSL/FindBin compatibility, native `actionlint`/`shellcheck`/`pwsh`, live provider/runner execution, clean/repeat builds, cross-DB coverage, and Windows/Linux/Android execution remain unverified. Swagger metadata remains sparse for legacy operations as a low-usability issue.
@@ -191,19 +212,25 @@ release-readiness, or sovereignty claim is made.
   Tag `update` may omit parameters; present parameters remain strict and branch `update` still
   requires boolean `update_allows_fetch_and_merge`. The workflow-dispatch selector TOCTOU,
   live-provider, PR10/PR11, cross-DB, and offline limitations remain unchanged.
+- Current Phase 13 state: schema 283 is local-only and adds the CustomPreset owner/name
+  unique index with a fail-closed duplicate preflight; schema 282 remains historical.
+  The exact workflow identity marker is locally required, but PR #59 remains open/dirty
+  remotely because `2c38c87`, `da42521`, and `9a1ee5e` are not pushed.
 
 ## Immediate next action
 
-PR9 is `verified-with-notes`; PR10 and PR11 remain `in-progress`, while PR12 is
-`verified-with-notes` for documentation/tracker reconciliation. Do not mark PR10 or PR11 complete
-without their phase-specific evidence. Do not mark the PR ready or claim live evidence. No live
-provider execution, clean build, or release publication is implied by the PR9 notes. The exact
-scope, gates, and dependencies are maintained in the corresponding phase documents.
+PR9 is `verified-with-notes`; PR10 and PR11 remain `in-progress`, PR12 is
+`verified-with-notes` for documentation/tracker reconciliation, and Phase 13 remains
+local-only. Do not mark PR10 or PR11 complete without their phase-specific evidence.
+Do not mark PR #59 ready or claim live evidence while its local remediation commits are
+unpushed. No live provider execution, clean build, or release publication is implied by
+the PR9 notes. The exact scope, gates, and dependencies are maintained in the
+corresponding phase documents.
 
 ## Final restoration checks
 
 - [x] `git diff --check`
-- [x] Verify exactly 14 canonical files: `plan.md`, `todo.md`, and `phases/phase-1.md` through `phases/phase-12.md`.
+- [x] Verify exactly 15 canonical files: `plan.md`, `todo.md`, and `phases/phase-1.md` through `phases/phase-13.md`.
 - [x] Historical restoration check (2026-08-09): that restoration changed no product/UI/
       Docker/workflow/RustDesk/external-doc files; it is not the scope of the current
       cumulative publication candidate.

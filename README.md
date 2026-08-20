@@ -38,8 +38,11 @@ file currently publishes 21114–21118; expose 21119 separately when that public
 WebSocket path is required.
 
 The published RustDesk client source/ref is 1.4.8 and the published DeskForge API
-schema is `DatabaseVersion` 272. The local uncommitted corrective worktree targets
-API schema 282; that local schema target is not published or live-provider evidence.
+schema is `DatabaseVersion` 272. The current local corrective candidate targets API
+schema 283; it is not published or live-provider evidence. Schema 283 adds
+`idx_custom_presets_user_id_name` on `(user_id, name)`. Before `AutoMigrate`, its
+preflight fails on an existing duplicate group without auto-selecting a row or deleting
+data. Schema 282 remains the earlier workflow-approval migration.
 
 ---
 
@@ -88,16 +91,22 @@ Shared UI: DataTable, AppDialog, AppDrawer, FilterBar, ActionsToolbar.
 
 **Custom client:** the API dispatches an owned workflow in the configured RustDesk
 fork and retrieves the exact provider artifact for local validation/publication.
-The published client source/ref is **1.4.8**. The local uncommitted corrective
-worktree targets API schema `DatabaseVersion 282`; the published DeskForge schema
-remains 272.
+The published client source/ref is **1.4.8**. The current local corrective candidate
+targets API schema `DatabaseVersion 283`; the published DeskForge schema remains 272.
+Schema 283 adds `idx_custom_presets_user_id_name` on `(user_id, name)` and fails
+preflight on existing duplicate groups rather than auto-selecting a row or deleting data.
+The earlier schema-282 workflow-approval migration remains historical context.
 Windows is the only capability admitted today;
 Linux and Android mappings remain gated pending PR11 evidence. No live provider
 run or clean-environment build is claimed. Local workflow manifests, bridge/helper
 source, Android app-ID/runtime-path checks, and package assertions are static evidence
 only; no APK/package/install/runtime evidence exists.
-The local schema target is `DatabaseVersion 282`; the published DeskForge schema is
-272, and SQLite-only checks do not establish cross-database verification.
+Before approval, preparation, or secret-bearing dispatch, the API requires the exact
+provider-owned marker `# deskforge-workflow-identity-guard: v1` in workflow content
+resolved at the immutable workflow SHA. Legacy unguarded tags fail closed. This does
+not make GitHub's selector/SHA binding atomic or establish live provider readiness.
+Schema-283 migration checks are SQLite-only; MySQL/PostgreSQL migration and read/write
+coverage remain unverified.
 
 ### GitHub Actions PAT permissions
 
@@ -177,7 +186,7 @@ unverified.
 
 ## Forks (for custom client builds)
 
-- [`bashrusakh/rustdesk`](https://github.com/bashrusakh/rustdesk) — owned RustDesk fork at published client source/ref 1.4.8; local corrective API schema target is 282
+- [`bashrusakh/rustdesk`](https://github.com/bashrusakh/rustdesk) — owned RustDesk fork at published client source/ref 1.4.8; current local corrective API schema target is 283
 - [`bashrusakh/hbb_common`](https://github.com/bashrusakh/hbb_common) — intended fork of
   `rustdesk/hbb_common`; the configured RustDesk fork currently records the upstream
   `rustdesk/hbb_common` submodule, and its local checkout is dirty/unpublished, so clean

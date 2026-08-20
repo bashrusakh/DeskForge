@@ -65,9 +65,13 @@ are the sole executable source for active client-build workflows; `github-build/
 `rdgen/` are reference/frozen material only. No current repository `vendor/` tree,
 `rustdesk-deps/` archive, or client-release directory is tracked here.
 The published RustDesk client source/ref is 1.4.8 and the published DeskForge API
-schema is `DatabaseVersion` 272. The local uncommitted corrective worktree targets
-API schema 282; that local schema target is not published or live-provider evidence.
-MySQL/PostgreSQL migration and read/write coverage remain unverified.
+schema is `DatabaseVersion` 272. The current local corrective candidate targets API
+schema 283, which is not published or live-provider evidence. Schema 283 adds
+`idx_custom_presets_user_id_name` on `(user_id, name)`; before `AutoMigrate`, its
+preflight fails on existing duplicate groups without auto-selecting a row or deleting
+data. The earlier schema-282 workflow-approval migration remains historical
+context. SQLite is the only recorded migration evidence; MySQL/PostgreSQL migration
+and read/write coverage remain unverified.
 
 ## Build / dev commands
 

@@ -276,7 +276,8 @@ verified only with its own evidence; otherwise record `blocked` or
   and deletion rules, an empty bypass-actor list, and rejection of a same-label branch collision.
   Missing, conflicting, malformed, or bypassable protection is not evidence of immutability.
 - Approval and migration evidence records the selected tag, provider-resolved SHA, and policy
-  state through additive `DatabaseVersion 282` fields while retaining required legacy compatibility.
+  state through the historical additive `DatabaseVersion 282` fields while retaining required
+  legacy compatibility. The later current local schema-283 candidate is recorded in Phase 13.
   Preparation and dispatch revalidate the selector, workflow contents, policy, and SHA before
   secret-bearing DFP1 payload creation; typed provider/approval/validation/contract failures use
   bounded safe errors and do not expose credentials, provider bodies/URLs, selectors, or payloads.

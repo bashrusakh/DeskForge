@@ -38,7 +38,8 @@ The full repository checks pass independently of live platform capability: `GOWO
 - The local API contract now records provider-derived verified annotated commit tags, accepted
   verification reasons, active matching protection with explicit update/deletion rules, no bypass
   actors, and same-label tag/branch collision rejection. Approval/migration checks cover the
-  additive fields at `DatabaseVersion 282`; safe typed errors keep provider bodies, selectors,
+  historical additive fields at `DatabaseVersion 282`; the later current local schema-283
+  candidate is recorded in Phase 13. Safe typed errors keep provider bodies, selectors,
   credentials, and encrypted payloads out of normal responses and diagnostics.
 - Preparation and dispatch revalidate the approved selector, protected policy, exact workflow
   contents, and resolved SHA immediately before DFP1 encryption. This is local focused evidence,

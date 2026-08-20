@@ -1,8 +1,9 @@
 # DeskForge Corrective Refactor
 
 **Date:** 2026-08-10
-**Scope:** cumulative PR1–PR12 DeskForge candidate publication package plus a separately
-scoped RustDesk candidate. The DeskForge candidate includes API, UI, Docker, server,
+**Scope:** cumulative PR1–PR12 DeskForge candidate publication package, a local-only
+Phase 13 PR59 review-remediation record, plus a separately scoped RustDesk candidate.
+The DeskForge candidate includes API, UI, Docker, server,
 offline-kit, Swagger, documentation, and tests. The separate RustDesk candidate includes
 active workflows, Android, portable, helper, and tests. `rdgen` deletion and dirty
 RustDesk submodule content are excluded from both candidates.
@@ -11,9 +12,9 @@ handling`) was pushed to `refactor/deskforge-corrective-pr`, and PR #59 remains 
 GitHub run `31785951197` passed Go, Rust, Admin UI, and CodeQL/analyzer checks; CodeRabbit
 was skipped because the PR has 191 files. This publication status does not make the PR
 ready, close PR10/PR11, or close their preserved evidence gates.
-**Current next action:** keep
-PR10 and PR11 `in-progress`, not verified, and PR12 `verified-with-notes`. This plan
-does not make live-provider, full-offline-build, signature/attestation, cross-DB,
+**Current next action:** keep PR10 and PR11 `in-progress`, retain PR12 as
+`verified-with-notes`, and record Phase 13 as local-only rather than published. This
+plan does not make live-provider, full-offline-build, signature/attestation, cross-DB,
 protected-ref, release-readiness, or sovereignty claims.
 **Candidate provenance:** the DeskForge and RustDesk candidates are intentionally
 separate publication units; this plan records their boundaries without treating staged
@@ -35,6 +36,7 @@ files, local implementation checks, or dirty submodule state as publication evid
 | PR10 | offline-kit/release evidence | 🟡 `in-progress` | [`phase-10.md`](phases/phase-10.md); Packages A–C implementation/focused checks pass, offline-kit and release gates remain blocked |
 | PR11 | Linux/Android capability | 🟡 `in-progress` | [`phase-11.md`](phases/phase-11.md); local implementation evidence recorded, live capability evidence blocked |
 | PR12 | docs/tracker | ✅ `verified-with-notes` | [`phase-12.md`](phases/phase-12.md); reconciliation included in the cumulative candidate, with PR10/PR11 evidence gates retained |
+| Phase 13 | PR59 review remediation | 🟡 `in-progress` | [`phase-13.md`](phases/phase-13.md); schema-283 and workflow-guard remediation are local only, not published/provider evidence |
 
 ## Preserved completed facts
 
@@ -109,7 +111,7 @@ files, local implementation checks, or dirty submodule state as publication evid
   conflicting or ambiguous protection fails closed. This is focused fake-transport/provider-
   contract evidence, not live GitHub evidence.
 - Approval persists the selected tag, provider-resolved commit SHA, provider-verification state,
-  and approval state. Additive migration/model checks cover the approval and provider-policy
+  and approval state. Historical migration/model checks cover the approval and provider-policy
   fields through `DatabaseVersion 282`; legacy compatibility remains readable where required.
 - Build preparation revalidates the approved selector and resolved SHA before persistence. The
   dispatch primitive revalidates mapped workflow contents and the tag policy immediately before
@@ -159,6 +161,25 @@ files, local implementation checks, or dirty submodule state as publication evid
   documentation update does not mark PR #59 ready or claim live approval, dispatch, runner,
   release, or completion evidence. The workflow-dispatch selector TOCTOU, PR10/PR11, cross-DB,
   and offline limitations remain preserved.
+
+## Phase 13 local PR59 review remediation — 2026-08-20
+
+- Published DeskForge schema remains `DatabaseVersion` 272. The current local candidate is
+  schema 283, adding `idx_custom_presets_user_id_name` on `(user_id, name)`. Before
+  `AutoMigrate`, it fails preflight on existing duplicate groups without auto-selecting a row or
+  deleting data. Schema 282 remains the earlier workflow-approval migration.
+- The local API requires the exact provider-owned
+  `# deskforge-workflow-identity-guard: v1` marker at the resolved workflow SHA before
+  approval, preparation, or secret-bearing dispatch; legacy unguarded tags fail closed. This
+  does not establish atomic GitHub selector/SHA binding or live-provider readiness.
+- RustDesk local `fix/workflow-sha-guard` commit `6ef1cd7fe` is not pushed, merged, or tagged.
+  It adds the marker, requires outer and inner SHA checks in bridge, and gates draft
+  Linux/Android before secret-bearing jobs. At the last check, its remote still had prior
+  `8ad23a826`.
+- PR #59 remains open and dirty remotely. Merge resolution is local `2c38c87`; later local
+  `da42521` and `9a1ee5e` are not pushed. A newly signed provider-verified immutable protected
+  tag and live reapproval/reverification remain required before production dispatch. See
+  [`phase-13.md`](phases/phase-13.md) for the SQLite-only validation boundary and full gates.
 
 ## PR10 blueprint — `in-progress`
 
@@ -413,7 +434,8 @@ implementation notes are not release, sovereignty, or platform-support evidence.
       Swagger metadata remains sparse for legacy operations, recorded as a low-usability
       issue rather than a correctness or release-readiness blocker.
 - [x] `PLAN.md` — provider-only path, published client 1.4.8 / DeskForge schema 272,
-      local corrective API schema 282 target, ports, Windows-only admitted capability,
+      current local API schema 283 candidate and historical schema-282 approval migration,
+      ports, Windows-only admitted capability,
       active/frozen boundaries, DFP1 payload, and no live-provider/clean-build proof
       are recorded.
 - [x] `README.md` — published/local version labels, key path, ports, combined-work
@@ -475,12 +497,15 @@ attestation, cross-DB, or publication/release blockers. PR10 and PR11 remain
 
 This directory is the durable plan memory for the intended two-repository publication
 package. PR1–PR9 evidence and limitations are preserved above; PR10 and PR11 remain
-`in-progress`, while PR12 is `verified-with-notes`. The DeskForge candidate contains
-API/UI/Docker/server/offline-kit/Swagger/docs/tests; the separate RustDesk candidate
-contains active workflow/Android/portable/helper/tests. `rdgen` deletion and dirty
-submodule content are excluded. Follow-up commit `68e7f30` (`workflow: harden ruleset
-failure handling`) was pushed to `refactor/deskforge-corrective-pr`, and PR #59 remains
-open. GitHub run `31785951197` passed Go, Rust, Admin UI, and CodeQL/analyzer checks;
-CodeRabbit was skipped because the PR has 191 files. PR10 and PR11 remain `in-progress`;
-their live-provider, TOCTOU, cross-DB, offline, and other preserved limitations are
-unchanged. The PR is not marked ready and no live evidence is claimed.
+`in-progress`, PR12 is `verified-with-notes`, and Phase 13 records local-only review
+remediation. The DeskForge candidate contains API/UI/Docker/server/offline-kit/Swagger/
+docs/tests; the separate RustDesk candidate contains active workflow/Android/portable/
+helper/tests. `rdgen` deletion and dirty submodule content are excluded. Follow-up commit
+`68e7f30` (`workflow: harden ruleset failure handling`) was pushed to
+`refactor/deskforge-corrective-pr`, and PR #59 remains open. GitHub run `31785951197`
+passed Go, Rust, Admin UI, and CodeQL/analyzer checks; CodeRabbit was skipped because the
+PR has 191 files. The later local merge resolution `2c38c87` and local remediation commits
+`da42521`/`9a1ee5e` are not pushed, so PR #59 remains open and dirty remotely. PR10 and
+PR11 remain `in-progress`; their live-provider, TOCTOU, cross-DB, offline, and other
+preserved limitations are unchanged. The PR is not marked ready and no live evidence is
+claimed.

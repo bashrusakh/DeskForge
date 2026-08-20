@@ -1,12 +1,15 @@
 # PLAN.md — DeskForge: Single Source of Truth
 
-> Last updated: 2026-08-11
+> Last updated: 2026-08-20
 > Related: [CHANGELOG.md](CHANGELOG.md) · [BUGS.md](BUGS.md) · [CONTRIBUTING.md](CONTRIBUTING.md)
 
-> **Evidence labels (2026-08-10):** The published RustDesk client source/ref is
-> 1.4.8 and the published DeskForge API schema is `DatabaseVersion` 272. The local
-> uncommitted corrective worktree targets API schema 282; that local schema target is
-> not a public current-schema or release claim.
+> **Evidence labels (2026-08-20):** The published RustDesk client source/ref is
+> 1.4.8 and the published DeskForge API schema is `DatabaseVersion` 272. The current
+> local corrective candidate targets API schema 283; it is not a public current-schema
+> or release claim. Schema 283 adds `idx_custom_presets_user_id_name` on
+> `(user_id, name)` and fails preflight on existing duplicate groups before
+> `AutoMigrate`, without auto-selecting a row or deleting data. Schema 282 is the earlier
+> workflow-approval migration preserved as history.
 > The current API path is provider dispatch → exact run/artifact retrieval → local
 > validation and publication. Runner callbacks, local file-queue fallback, and
 > sole-artifact selection are not current production behavior. Windows is the only
@@ -21,7 +24,10 @@
 > Workflow approval requires a provider-derived verified annotated tag, the
 > aggregate of all applicable active protected-tag rulesets with effective update
 > and deletion protections, no bypass actors, and rejection of tag/branch label
-> collisions. The local gate is not
+> collisions. At the resolved immutable workflow SHA, the exact provider-owned
+> `# deskforge-workflow-identity-guard: v1` marker is required before approval,
+> preparation, or secret-bearing dispatch; legacy unguarded tags fail closed. The
+> local gate is not
 > live-provider evidence. Its pending → building identity write is atomic, but
 > provider dispatch and that database write are not an end-to-end atomic
 > transaction: there is no durable outbox or distributed lease for the
@@ -61,8 +67,11 @@ bashrusakh/
 ```
 
 **Published client source/ref:** 1.4.8, aligned with `offline-kit/versions.env`. The
-local uncommitted corrective worktree targets API schema 282; the published DeskForge
-schema remains `DatabaseVersion` 272.
+current local corrective candidate targets API schema 283; the published DeskForge
+schema remains `DatabaseVersion` 272. Schema 283 adds
+`idx_custom_presets_user_id_name` on `(user_id, name)` and fails preflight on existing
+duplicate groups before `AutoMigrate`, without auto-selecting a row or deleting data. Schema 282
+remains the earlier workflow-approval migration.
 The configured RustDesk fork's `libs/hbb_common` is a separate git submodule currently
 recorded against upstream `rustdesk/hbb_common`; its local checkout is dirty and
 unpublished. Active RustDesk and DeskForge manifests also reference third-party upstream
@@ -100,13 +109,16 @@ Go API validates/extracts/publishes locally → admin-ui Download
 ```
 
 **Security:** password never published — `enc_payload`, decrypted inside runner via
-GitHub Secret `WORKFLOW_PAYLOAD_KEY`. The provider-derived outer `workflow_sha` is
-checked against `github.sha` before secret-bearing jobs; the same authenticated inner
-payload field is checked again before exports, checkout, or build use. This is defense
-in depth, not an atomic defense against a malicious workflow file; the verified tag
-and active no-bypass ruleset remain required controls. The runner does not callback to
-the API; the API retrieves the artifact through the provider API and publishes it
-locally, not to a public release.
+GitHub Secret `WORKFLOW_PAYLOAD_KEY`. Before approval, preparation, or secret-bearing
+dispatch, the API requires the exact provider-owned
+`# deskforge-workflow-identity-guard: v1` marker in workflow content resolved at the
+immutable workflow SHA; legacy unguarded tags fail closed. The provider-derived outer
+`workflow_sha` is checked against `github.sha` before secret-bearing jobs; the same
+authenticated inner payload field is checked again before exports, checkout, or build
+use. This is defense in depth, not an atomic defense against a malicious workflow file
+or GitHub's selector/SHA binding; the verified tag and active no-bypass ruleset remain
+required controls. The runner does not callback to the API; the API retrieves the
+artifact through the provider API and publishes it locally, not to a public release.
 
 ### Workflow approval and schema evidence
 
@@ -114,21 +126,24 @@ Before a provider-backed build can run, the API accepts only a provider-derived
 verified annotated tag. The provider must report an accepted verification reason,
 the aggregate of all applicable active protected tag rulesets for that label with
 effective update and deletion protections, and no bypass actors. A tag/branch
-collision with the same label is
-rejected. The API rechecks the provider policy and exact workflow contents at the
-resolved immutable commit before dispatch; raw refs, SHAs, credentials, and
-workflow internals are not normal UI inputs.
+collision with the same label is rejected. At the resolved immutable workflow SHA,
+the exact provider-owned `# deskforge-workflow-identity-guard: v1` marker is also
+required before approval, preparation, or secret-bearing dispatch; legacy unguarded
+tags fail closed. Raw refs, SHAs, credentials, and workflow internals are not normal
+UI inputs.
 
-The published DeskForge schema is `DatabaseVersion` **272**. This uncommitted
-corrective worktree targets local schema **282**, which is not published or live-
-provider evidence. The additive fields are **280**
+The published DeskForge schema is `DatabaseVersion` **272**. The current local
+corrective candidate targets schema **283**, which is not published or live-provider
+evidence. The historical workflow-approval additive fields are **280**
 (`workflow_ref_approved`, approval status), **281**
 (`workflow_ref_provider_verified`, provider-policy status), and **282**
-(`workflow_ref_approval_sha`, the provider-resolved approval commit). Legacy
-metadata-only configuration saves remain compatible with plaintext secret rows:
-they can preserve legacy values without `SECRET_ENCRYPTION_KEY`; new or replaced
-non-empty secret writes require the key, and a resave with the key encrypts legacy
-plaintext values.
+(`workflow_ref_approval_sha`, the provider-resolved approval commit). Schema **283**
+adds the `idx_custom_presets_user_id_name` composite index on `(user_id, name)`.
+Before `AutoMigrate`, migration preflight fails if it finds an existing duplicate
+group; it does not automatically select or delete a row. Legacy metadata-only
+configuration saves remain compatible with plaintext secret rows: they can preserve
+legacy values without `SECRET_ENCRYPTION_KEY`; new or replaced non-empty secret writes
+require the key, and a resave with the key encrypts legacy plaintext values.
 
 Focused fake-transport and SQLite checks do not prove live GitHub/provider
 approval, dispatch, polling, or artifact delivery. Dispatch requires the exact
@@ -183,8 +198,8 @@ It is not the executable workflow source and must not be copied into the fork.
 
 ## 5. ✅ Completed milestones
 
-- [x] Published RustDesk client source/ref is 1.4.8; local corrective API schema target is
-      `DatabaseVersion 282`, while the published DeskForge schema remains 272
+- [x] Published RustDesk client source/ref is 1.4.8; current local corrective API schema target is
+      `DatabaseVersion 283`, while the published DeskForge schema remains 272
 - [x] Offline-kit freeze/verify tooling and local artifact set retained; real-kit
       verification remains blocked under PR10
 - [x] GitHub min-test Windows: historical green run, ~33 min, single-binary rustqs.exe
@@ -193,8 +208,9 @@ It is not the executable workflow source and must not be copied into the fork.
 - [x] Admin UI redesign: design tokens, DataTable, AppDialog, FilterBar, 16 pages
 - [x] Security: encrypted-at-rest (AES-GCM), OAuth delete guard, audit, TTL
 - [x] Rust server: atomic blocklist, aur-fix, JWT
-- [x] Local schema target: `DatabaseVersion 282`; SQLite exercised locally,
-      MySQL/PostgreSQL configured but migration/read-write support remains unverified
+- [x] Current local schema target: `DatabaseVersion 283`; its composite-index migration
+      is exercised only on SQLite, while MySQL/PostgreSQL migration/read/write support
+      remains unverified
 
 ---
 

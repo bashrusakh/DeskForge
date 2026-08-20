@@ -122,10 +122,15 @@ Approval requires all of the following at the provider boundary:
   verification reason;
 - positive protection evidence for that exact tag from the supported modern
   ruleset surface, with no bypass actor and no tag/branch collision;
-- the owned Windows workflow is present and ready at the provider-resolved
+- the owned mapped workflow is present and ready at the provider-resolved
   immutable commit, declares `workflow_dispatch`, and contains the exact
   `# deskforge-workflow-identity-guard: v1` marker. Legacy tags without that
   guard are rejected.
+
+The same marker check uses workflow content resolved at the immutable workflow SHA
+before approval, preparation, and secret-bearing dispatch. It fails legacy unguarded
+tags closed; it does not make GitHub's selector-based dispatch atomically bound to that
+SHA or establish live-provider readiness.
 
 The successful response is `response.Response` with `data` as the secret-free
 `model.GithubBuildConfigSafe`. Invalid selectors or approval requests return
@@ -269,15 +274,20 @@ atomic-dispatch claim is made.
 
 ## Schema and secret compatibility evidence
 
-The published DeskForge API schema is `DatabaseVersion` **272**. The current
-uncommitted corrective worktree targets local schema **282** and is not published
-or live-provider evidence. The additive workflow-approval fields are:
+The published DeskForge API schema is `DatabaseVersion` **272**. The current local
+corrective candidate targets schema **283** and is not published or live-provider
+evidence. The historical workflow-approval fields are:
 
 - **280** — `workflow_ref_approved`, the persisted approval status;
 - **281** — `workflow_ref_provider_verified`, the persisted provider-policy
   verification status;
 - **282** — `workflow_ref_approval_sha`, the provider-resolved commit recorded
   for the approved tag.
+
+Schema **283** adds `idx_custom_presets_user_id_name` on `(user_id, name)`. Before
+`AutoMigrate`, migration preflight fails on an existing duplicate group; it does not
+automatically choose or delete a duplicate row. The migration tests are SQLite-only;
+MySQL/PostgreSQL migration and read/write coverage remain unverified.
 
 `AutoMigrate` keeps legacy rows readable. Legacy plaintext PAT/payload-key
 metadata remains readable, and metadata-only configuration saves preserve those

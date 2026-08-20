@@ -6,10 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Local PR #59 review remediation — 2026-08-20
+- The current local corrective candidate is `DatabaseVersion` **283**; the published
+  DeskForge schema remains **272**. Schema 283 adds
+  `idx_custom_presets_user_id_name` on `(user_id, name)`. Its migration preflight
+  stops on existing duplicate groups before `AutoMigrate` without auto-selecting a
+  row or deleting data. The earlier schema-282 workflow-approval migration
+  remains historical context.
+- DeskForge locally requires the exact provider-owned
+  `# deskforge-workflow-identity-guard: v1` marker in workflow content resolved at
+  the immutable workflow SHA before approval, preparation, or secret-bearing
+  dispatch. Legacy unguarded tags fail closed. This is not an atomic GitHub
+  selector/SHA binding or live-provider-readiness claim.
+- RustDesk local follow-up branch `fix/workflow-sha-guard` contains `6ef1cd7fe` and
+  is not pushed, merged, or tagged. It adds the marker, requires outer and inner SHA
+  checks in the bridge, and gates draft Linux/Android before secret-bearing jobs. At
+  the last check, its remote still had prior `8ad23a826`.
+- DeskForge PR #59 remains open and dirty remotely. The merge conflict is resolved
+  only in local `2c38c87`; later local `da42521` and `9a1ee5e` are not pushed. A new
+  signed provider-verified immutable protected tag plus live reapproval and
+  reverification remain required before production dispatch.
+- Prior local remediation results record passing focused migration/custom-preset
+  coverage, a focused race check, `go vet`, `gofmt`, and `git diff --check`.
+  Migration evidence is SQLite-only; MySQL/PostgreSQL migration and read/write
+  coverage remain unverified.
+
 ### Current-state reconciliation — 2026-08-10
 - The published RustDesk client source/ref is **1.4.8** and the published DeskForge API
-  schema is `DatabaseVersion` **272**. The local uncommitted corrective worktree targets
-  API schema 282; that local schema target is not a current published-schema claim.
+  schema is `DatabaseVersion` **272**. At that reconciliation, the then-current
+  local workflow-approval migration was schema 282; it is not a current
+  published-schema claim.
   Older 1.4.7/272 references in the dated entries below remain historical release/schema notes.
 - The current custom-client path is owned-fork dispatch, provider polling, exact artifact
   retrieval, and local validation/publication. Runner callbacks, local file-queue fallback,

@@ -14,11 +14,13 @@ The normal user action remains typed configuration/selection or an operator veri
 ## Audited-document checklist
 
 - [x] `PLAN.md` — confirms the provider-only path, published client 1.4.8 / DeskForge
-      schema 272, local corrective API schema 282 target, Windows-only admitted capability,
+      schema 272, current local API schema 283 candidate, and the earlier schema-282
+      workflow-approval migration, plus Windows-only admitted capability,
       Linux/Android gating, current ports, DFP1 payload, and absence of live-provider/
       clean-build proof.
 - [x] `README.md` — records Linux/Android as in development and labels the published
-      client 1.4.8 / DeskForge schema 272 against the local API schema 282 target, key path,
+      client 1.4.8 / DeskForge schema 272 against the current local API schema 283 candidate
+      and historical schema-282 workflow-approval migration, key path,
       port 21119, fork ownership,
       and no support/readiness claim.
 - [x] `CHANGELOG.md` — preserves the current provider-only/no-live-run boundary,
@@ -41,8 +43,9 @@ The normal user action remains typed configuration/selection or an operator veri
 - [x] Canonical `phase-10.md` and `phase-11.md` — confirm focused local evidence
       and the exact PR10/PR11 blockers used by this reconciliation.
 - [x] Canonical implementation evidence records protected verified annotated tags, active
-      update/deletion protections, no bypass actors, tag/branch collision rejection, approval
-      migration through `DatabaseVersion 282`, pre-payload revalidation, and bounded safe errors.
+      update/deletion protections, no bypass actors, tag/branch collision rejection, historical
+      approval migration through `DatabaseVersion 282`, pre-payload revalidation, and bounded
+      safe errors.
 - [x] Source Swagger annotations and regenerated `api/docs/api` plus `api/docs/admin` use
       module-pinned `swag v1.16.3`; JSON/YAML/`docs.go` outputs are deterministic, and
       route/auth/schema/redaction parity checks pass.
@@ -98,11 +101,13 @@ between final validation and POST can expose DFP1.
       manifest, missing engine, empty printer digest, and incomplete license evidence.
 - [ ] **Protected workflow identity:** the local API now requires a provider-derived
       verified annotated tag, active protected-tag evidence with explicit update and
-      deletion protections, no bypass actors, no tag/branch label collision, and exact
-      workflow contents at resolved `WorkflowSHA`, distinct from GitHub's required
-      dispatch branch/tag selector; approval/migration fields are at local schema 282 and
-      the dispatch primitive revalidates policy/SHA immediately before DFP1 creation. Live
-      provider proof remains unverified.
+      deletion protections, no bypass actors, no tag/branch label collision, exact
+      workflow contents at resolved `WorkflowSHA`, and the exact
+      `# deskforge-workflow-identity-guard: v1` marker, distinct from GitHub's required
+      dispatch branch/tag selector. Approval history is schema 280–282; the current local
+      schema-283 candidate adds the CustomPreset composite index. The dispatch primitive
+      revalidates policy/SHA immediately before DFP1 creation. Live provider proof remains
+      unverified.
 - [ ] **Atomic dispatch boundary:** the pending → building identity write and local final
       policy revalidation are atomic/ordered locally, but GitHub `workflow_dispatch` requires
       a branch/tag selector and provides no atomic SHA binding. A theoretical selector move

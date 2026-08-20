@@ -17,8 +17,8 @@ dispatch, poll, or download operation is verified.
 The legacy compatibility ref `rustqs/workflows` is retained for read-only
 compatibility; it is not the production workflow tag. Production approval and
 dispatch require a guarded, provider-verified immutable `refs/tags/*` workflow
-tag. At the provider-resolved immutable commit, the mapped Windows workflow must
-declare `workflow_dispatch` and contain the exact
+tag. At the provider-resolved immutable commit, the mapped workflow must declare
+`workflow_dispatch` and contain the exact
 `# deskforge-workflow-identity-guard: v1` marker. The configured provider
 repository resolves the selected tag and workflow identity.
 The following ref labels describe the configured fork's roles; they are not a claim
@@ -42,6 +42,13 @@ that synchronized copies, protected tags, or a live provider run currently exist
 > Workflow manifests, bridge/helper source, Android app-ID/runtime-path checks, and
 > package assertions are static implementation evidence only; capabilities remain disabled.
 > No live provider run or clean-environment build proof is recorded here.
+>
+> **Local follow-up only (2026-08-20):** RustDesk branch
+> `fix/workflow-sha-guard` has local commit `6ef1cd7fe`, which is not pushed,
+> merged, or tagged. It adds the marker, requires outer and authenticated inner SHA
+> checks in the bridge, and gates draft Linux/Android before secret-bearing jobs. At
+> the last check, the remote branch still had prior `8ad23a826`. This is not provider
+> deployment, tag protection, or live workflow evidence.
 
 ---
 
