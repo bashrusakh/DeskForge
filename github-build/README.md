@@ -43,12 +43,15 @@ that synchronized copies, protected tags, or a live provider run currently exist
 > package assertions are static implementation evidence only; capabilities remain disabled.
 > No live provider run or clean-environment build proof is recorded here.
 >
-> **Local follow-up only (2026-08-20):** RustDesk branch
-> `fix/workflow-sha-guard` has local commit `6ef1cd7fe`, which is not pushed,
-> merged, or tagged. It adds the marker, requires outer and authenticated inner SHA
-> checks in the bridge, and gates draft Linux/Android before secret-bearing jobs. At
-> the last check, the remote branch still had prior `8ad23a826`. This is not provider
-> deployment, tag protection, or live workflow evidence.
+> **RustDesk guard PR (2026-08-20):** `fix/workflow-sha-guard` is pushed at
+> `6ef1cd7fe`; [RustDesk PR #7](https://github.com/bashrusakh/rustdesk/pull/7) is
+> open against `rustqs/workflows`. It is not merged or tagged. It adds the marker,
+> requires outer and authenticated inner SHA checks in the bridge, and gates draft
+> Linux/Android before secret-bearing jobs. No newly signed provider-verified
+> immutable workflow tag exists yet. This is not provider deployment, tag protection,
+> or live workflow evidence.
+> DeskForge PR #59 local remediation remains unpushed; its remote PR remains open and
+> dirty.
 
 ---
 

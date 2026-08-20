@@ -1,7 +1,8 @@
 # Phase 13 — PR59 Review Remediation
 
-**Status:** 🟡 `in-progress` — local remediation is complete in local commits, but no
-publication, merge, tag, or live-provider completion is recorded.
+**Status:** 🟡 `in-progress` — DeskForge local remediation is complete in local commits,
+but remains unpushed to open/dirty DeskForge PR #59; no merge, tag, or live-provider
+completion is recorded.
 **Scope:** durable record of the local source/test changes in commits `da42521` and
 `9a1ee5e` and of their publication and provider gates, including the current DeskForge
 candidate, provider-workflow guard, and unresolved PR #59 publication boundary.
@@ -41,10 +42,11 @@ guard is absent.
   Legacy unguarded tags fail closed.
 - This guard does not atomically bind GitHub's selector-based `workflow_dispatch` to
   the resolved SHA and does not establish live-provider readiness.
-- RustDesk local follow-up branch `fix/workflow-sha-guard` has commit `6ef1cd7fe`.
-  It is not pushed, merged, or tagged. It adds the marker, requires outer and inner
-  SHA checks in the bridge, and gates draft Linux/Android before secret-bearing jobs.
-  At the last check, its remote still had prior `8ad23a826`.
+- RustDesk branch `fix/workflow-sha-guard` is pushed at `6ef1cd7fe`; [RustDesk PR
+  #7](https://github.com/bashrusakh/rustdesk/pull/7) is open against
+  `rustqs/workflows`. It is not merged or tagged. It adds the marker, requires outer
+  and inner SHA checks in the bridge, and gates draft Linux/Android before
+  secret-bearing jobs.
 
 ## PR #59 publication boundary
 
@@ -55,6 +57,7 @@ guard is absent.
 
 ## Remaining gates
 
+- No newly signed provider-verified immutable workflow tag exists yet.
 - A newly signed, provider-verified immutable protected tag is still required.
 - Reapproval and reverification against the live provider are still required before
   any production secret-bearing dispatch.

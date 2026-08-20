@@ -1,7 +1,7 @@
 # DeskForge Workflow Migration — Todo
 
 **Plan:** `plans/deskforge-workflow-migration/plan.md`
-**Status:** Prior workflow migration and local two-layer workflow SHA-guard implementation are complete. Two live branch runs validate guard sequencing, while a later local-only review remediation is recorded below; production artifact output and readiness remain unverified.
+**Status:** Prior workflow migration and local two-layer workflow SHA-guard implementation are complete. Two live branch runs validate guard sequencing, while a later DeskForge-local PR59 review remediation is recorded below; production artifact output and readiness remain unverified.
 
 ## Current state
 
@@ -12,9 +12,10 @@
 - [x] Approved GPG key is registered; signed annotated `workflow-v1.0.0` targets `b11be6aef84aa110884bec8fa5fe827663b8ff01` and GitHub reports `verification=true`/`reason=valid`.
 - [x] Active restored Ruleset `20901403` protects `refs/tags/workflow-*` with deletion and update protection; fetch/merge updates are disallowed and there are no bypass actors.
 - [x] Provider-derived workflow-tag display and approval are verified; no new GUI architecture is needed. Production use still requires live tag/ruleset re-verification.
-- [x] At the last remote check, published RustDesk branch `fix/workflow-sha-guard` was
-      at `8ad23a826d5df1e311a727e507861c0c6bc35c76`. Later local commit `6ef1cd7fe`
-      is not pushed, merged, or tagged.
+- [x] RustDesk branch `fix/workflow-sha-guard` is pushed at `6ef1cd7fe`; [RustDesk
+      PR #7](https://github.com/bashrusakh/rustdesk/pull/7) is open against
+      `rustqs/workflows`. It is not merged or tagged, and no newly signed
+      provider-verified immutable workflow tag exists yet.
 
 ## In-progress two-layer workflow SHA guard
 
@@ -25,15 +26,16 @@
 - [x] Live matching run [32334155671](https://github.com/bashrusakh/rustdesk/actions/runs/32334155671) passed the outer guard and reached the intentional post-inner validation `encrypted payload is missing source_sha`; bridge checkout, build, and topmost were skipped.
 - [x] These branch runs prove outer/inner guard sequencing only, not production artifact output.
 
-## Later local review remediation — 2026-08-20
+## Later DeskForge PR59 review remediation — 2026-08-20
 
 - [x] DeskForge locally requires the exact provider-owned
       `# deskforge-workflow-identity-guard: v1` marker at the resolved workflow SHA
       before approval, preparation, or secret-bearing dispatch; legacy unguarded tags
       fail closed.
-- [x] Local RustDesk `6ef1cd7fe` adds the marker, requires outer/inner bridge SHA
-      checks, and gates draft Linux/Android before secret-bearing jobs. It is not
-      pushed, merged, or tagged.
+- [x] Pushed RustDesk `fix/workflow-sha-guard` at `6ef1cd7fe` adds the marker,
+      requires outer/inner bridge SHA checks, and gates draft Linux/Android before
+      secret-bearing jobs. [RustDesk PR #7](https://github.com/bashrusakh/rustdesk/pull/7)
+      is open against `rustqs/workflows`; the branch is not merged or tagged.
 - [ ] Obtain a newly signed provider-verified immutable protected tag and perform live
       reapproval/reverification before production dispatch. Do not claim atomic
       selector/SHA binding or live-provider readiness.

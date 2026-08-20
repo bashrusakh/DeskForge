@@ -18,14 +18,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   the immutable workflow SHA before approval, preparation, or secret-bearing
   dispatch. Legacy unguarded tags fail closed. This is not an atomic GitHub
   selector/SHA binding or live-provider-readiness claim.
-- RustDesk local follow-up branch `fix/workflow-sha-guard` contains `6ef1cd7fe` and
-  is not pushed, merged, or tagged. It adds the marker, requires outer and inner SHA
-  checks in the bridge, and gates draft Linux/Android before secret-bearing jobs. At
-  the last check, its remote still had prior `8ad23a826`.
+- RustDesk branch `fix/workflow-sha-guard` is pushed at `6ef1cd7fe`; [RustDesk PR
+  #7](https://github.com/bashrusakh/rustdesk/pull/7) is open against
+  `rustqs/workflows`. It is not merged or tagged. It adds the marker, requires outer
+  and inner SHA checks in the bridge, and gates draft Linux/Android before
+  secret-bearing jobs.
 - DeskForge PR #59 remains open and dirty remotely. The merge conflict is resolved
-  only in local `2c38c87`; later local `da42521` and `9a1ee5e` are not pushed. A new
-  signed provider-verified immutable protected tag plus live reapproval and
-  reverification remain required before production dispatch.
+  only in local `2c38c87`; later local `da42521` and `9a1ee5e` are not pushed. No
+  newly signed provider-verified immutable workflow tag exists yet; live tag
+  protection verification, reapproval, and reverification remain required before
+  production dispatch.
 - Prior local remediation results record passing focused migration/custom-preset
   coverage, a focused race check, `go vet`, `gofmt`, and `git diff --check`.
   Migration evidence is SQLite-only; MySQL/PostgreSQL migration and read/write

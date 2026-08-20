@@ -132,7 +132,7 @@ release-readiness, or sovereignty claim is made.
   - [x] Source Swagger annotations and regenerated `api/docs/api` plus `api/docs/admin` use module-pinned `swag v1.16.3`; JSON/YAML/`docs.go` outputs are deterministic, and route/auth/schema/redaction parity checks pass.
   - [x] Swagger metadata remains sparse for legacy operations; this is recorded as a low-usability issue, not a correctness, support, or publication claim.
 
-  - [ ] **Phase 13 — in-progress: PR59 review remediation (local-only)**
+  - [ ] **Phase 13 — in-progress: DeskForge-local PR59 review remediation**
     - [x] Record current local `DatabaseVersion 283`: composite index
       `idx_custom_presets_user_id_name` on `(user_id, name)` with duplicate-group
       preflight before `AutoMigrate`, without auto-selecting a row or deleting data.
@@ -142,8 +142,10 @@ release-readiness, or sovereignty claim is made.
       `# deskforge-workflow-identity-guard: v1` requirement at the resolved workflow
       SHA before approval, preparation, or secret-bearing dispatch; legacy unguarded
       tags fail closed without claiming atomic selector/SHA binding or live readiness.
-    - [x] Record RustDesk local `fix/workflow-sha-guard` commit `6ef1cd7fe` as
-      unpushed/unmerged/untagged, with remote still at `8ad23a826` at the last check.
+    - [x] Record RustDesk `fix/workflow-sha-guard` as pushed at `6ef1cd7fe`, with
+      [RustDesk PR #7](https://github.com/bashrusakh/rustdesk/pull/7) open against
+      `rustqs/workflows`; it is not merged or tagged, and no newly signed
+      provider-verified immutable workflow tag exists yet.
     - [x] Record PR #59 as open/dirty remotely, with local-only `2c38c87` merge
       resolution and unpushed `da42521`/`9a1ee5e` remediation commits.
     - [ ] Before production dispatch, obtain a newly signed provider-verified immutable
@@ -175,7 +177,7 @@ release-readiness, or sovereignty claim is made.
 
 - PR1–PR9 and the security-hardening work are `verified-with-notes`; PR10 and PR11 remain
   `in-progress`, PR12 is `verified-with-notes` for documentation/tracker reconciliation,
-  and Phase 13 records local-only PR59 remediation.
+  and Phase 13 records DeskForge-local PR59 remediation.
 - Packages A–C implementation and focused checks pass: strict offline fixtures/stage checks; v2 producer/API manifests including private `custom_.txt`; deterministic handoff/archive hashes; TOCTOU/snapshot cleanup; retention-days/`if-no-files-found: error`; and public `custom_.txt` redaction. PR12 source Swagger annotations and regenerated `api/docs/api` plus `api/docs/admin` use module-pinned `swag v1.16.3`; JSON/YAML/`docs.go` outputs are deterministic, and route/auth/schema/redaction parity checks pass.
 - Real offline-kit verify/freeze fails closed on secret-bearing artifact presence, legacy manifest, missing engine, empty printer digest, and incomplete license evidence. Full `GOWORK=off go vet ./...`, `GOWORK=off go test ./...`, and `GOWORK=off go test -race ./...` pass after test-only cache diagnostics, opt-in Redis test changes, and test-only lock-test race fixes; production lock code is unchanged. Redis integration/benchmarks remain opt-in through `DESKFORGE_TEST_REDIS_ADDR`, with no live Redis run recorded.
 - Full `GOWORK=off go vet ./...`, `GOWORK=off go test ./...`, and `GOWORK=off go test -race ./...` pass after the test-only cache diagnostics, opt-in Redis changes, and lock-test race fixes; production lock code is unchanged. API build, UI build, deterministic Swagger regeneration/parity, Compose checks, and `git diff --check` pass. Redis integration/benchmarks remain opt-in through `DESKFORGE_TEST_REDIS_ADDR`, with no live Redis run recorded. Default OpenSSL/FindBin compatibility, native `actionlint`/`shellcheck`/`pwsh`, live provider/runner execution, clean/repeat builds, cross-DB coverage, and Windows/Linux/Android execution remain unverified. Swagger metadata remains sparse for legacy operations as a low-usability issue.
@@ -220,7 +222,7 @@ release-readiness, or sovereignty claim is made.
 ## Immediate next action
 
 PR9 is `verified-with-notes`; PR10 and PR11 remain `in-progress`, PR12 is
-`verified-with-notes` for documentation/tracker reconciliation, and Phase 13 remains
+`verified-with-notes` for documentation/tracker reconciliation, and DeskForge Phase 13 remains
 local-only. Do not mark PR10 or PR11 complete without their phase-specific evidence.
 Do not mark PR #59 ready or claim live evidence while its local remediation commits are
 unpushed. No live provider execution, clean build, or release publication is implied by
