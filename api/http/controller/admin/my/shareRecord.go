@@ -1,26 +1,26 @@
-﻿package my
+package my
 
 import (
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 	"rustdesk-server/api/global"
 	"rustdesk-server/api/http/request/admin"
 	"rustdesk-server/api/http/response"
 	"rustdesk-server/api/service"
-	"gorm.io/gorm"
 )
 
 type ShareRecord struct {
 }
 
-// List 
-// @Tags 
-// @Summary 
-// @Description 
+// List
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param page query int false ""
-// @Param page_size query int false ""
-// @Success 200 {object} response.Response
+// @Param page query int false "Page number for personal share records"
+// @Param page_size query int false "Number of personal share records per page"
+// @Success 200 {object} response.Response{data=model.ShareRecordSafeList} "Redacted personal share-record list envelope"
 // @Failure 500 {object} response.Response
 // @Router /admin/my/share_record/list [get]
 // @Security token
@@ -34,16 +34,16 @@ func (sr *ShareRecord) List(c *gin.Context) {
 	res := service.AllService.ShareRecordService.List(query.Page, query.PageSize, func(tx *gorm.DB) {
 		tx.Where("user_id = ?", u.Id)
 	})
-	response.Success(c, res)
+	response.Success(c, res.Safe())
 }
 
-// Delete 
-// @Tags 
-// @Summary 
-// @Description 
+// Delete
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param body body admin.ShareRecordForm true ""
+// @Param body body admin.ShareRecordForm true "Personal share record deletion form payload"
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/my/share_record/delete [post]
@@ -78,10 +78,10 @@ func (sr *ShareRecord) Delete(c *gin.Context) {
 	response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
 }
 
-// BatchDelete 
-// @Tags 
-// @Summary 
-// @Description 
+// BatchDelete
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
 // @Param body body admin.PeerShareRecordBatchDeleteForm true "id"

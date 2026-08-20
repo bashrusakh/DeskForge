@@ -1,11 +1,11 @@
-# SERVER-SETUP — ❄️ FROZEN / FALLBACK
+# SERVER-SETUP — ❄️ FROZEN / MANUAL-HISTORICAL ONLY
 
 > **Not active.** Active path is GitHub Actions.
-> Kept as reference in case a standalone Windows builder is ever needed.
+> Kept as manual/historical reference only; it is not a current production fallback.
 
 ---
 
-## Activation checklist
+## Historical/manual reference checklist
 
 - [ ] Windows Server 2022 or Win 11 Pro
 - [ ] 8+ vCPU, 32 GB RAM, 250 GB NVMe
@@ -29,5 +29,5 @@
 ## Security
 
 - Private network only. No public RDP/SMB.
-- Internet can be disabled after setup (`cargo build --offline`).
+- A network-denied full build is not verified by this historical checklist.
 - SMB user `builder` — minimum rights on the share.

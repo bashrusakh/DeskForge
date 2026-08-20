@@ -18,6 +18,15 @@ type Dashboard struct{}
 
 const onlinePeerWindow = 5 * time.Minute
 
+// Stats returns aggregate counters for the authenticated admin dashboard.
+// @Tags Dashboard
+// @Summary Get dashboard statistics
+// @Description Authenticated dashboard counters for users, peers, groups, and logins.
+// @Produce json
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/dashboard/stats [get]
+// @Security token
 func (ct *Dashboard) Stats(c *gin.Context) {
 	var totalUsers int64
 	var totalPeers int64
@@ -65,6 +74,15 @@ type usageRow struct {
 	Speed   float64 `json:"speed"`
 }
 
+// Health returns the current RustDesk server health and bandwidth summary.
+// @Tags Dashboard
+// @Summary Get server health
+// @Description Authenticated server health and bandwidth data for the admin dashboard.
+// @Produce json
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/dashboard/health [get]
+// @Security token
 func (ct *Dashboard) Health(c *gin.Context) {
 	idPort := global.Config.Admin.IdServerPort - 1
 	relayPort := global.Config.Admin.RelayServerPort

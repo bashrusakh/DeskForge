@@ -41,7 +41,7 @@ func (ct *DeviceGroup) Detail(c *gin.Context) {
 // @Description 
 // @Accept  json
 // @Produce  json
-// @Param body body admin.DeviceGroupForm true ""
+// @Param body body admin.DeviceGroupForm true "Device group form payload"
 // @Success 200 {object} response.Response{data=model.DeviceGroup}
 // @Failure 500 {object} response.Response
 // @Router /admin/device_group/create [post]
@@ -72,8 +72,8 @@ func (ct *DeviceGroup) Create(c *gin.Context) {
 // @Description 
 // @Accept  json
 // @Produce  json
-// @Param page query int false ""
-// @Param page_size query int false ""
+// @Param page query int false "Page number for the device-group list"
+// @Param page_size query int false "Number of device groups per page"
 // @Success 200 {object} response.Response{data=model.GroupList}
 // @Failure 500 {object} response.Response
 // @Router /admin/device_group/list [get]
@@ -94,7 +94,7 @@ func (ct *DeviceGroup) List(c *gin.Context) {
 // @Description 
 // @Accept  json
 // @Produce  json
-// @Param body body admin.DeviceGroupForm true ""
+// @Param body body admin.DeviceGroupForm true "Device group update form payload"
 // @Success 200 {object} response.Response{data=model.Group}
 // @Failure 500 {object} response.Response
 // @Router /admin/device_group/update [post]
@@ -129,7 +129,7 @@ func (ct *DeviceGroup) Update(c *gin.Context) {
 // @Description 
 // @Accept  json
 // @Produce  json
-// @Param body body admin.DeviceGroupForm true ""
+// @Param body body admin.DeviceGroupForm true "Device group deletion form payload"
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/device_group/delete [post]

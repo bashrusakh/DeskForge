@@ -1,4 +1,4 @@
-﻿package admin
+package admin
 
 import (
 	"fmt"
@@ -15,7 +15,16 @@ import (
 type Oauth struct {
 }
 
-// Info
+// Info returns the cached OAuth handoff identified by its short-lived code.
+// @Tags Oauth
+// @Summary Get cached OAuth handoff data
+// @Description Authenticated OAuth handoff lookup by short-lived code.
+// @Produce json
+// @Param code query string true "OAuth handoff code"
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/oauth/info [get]
+// @Security token
 func (o *Oauth) Info(c *gin.Context) {
 	code := c.Query("code")
 	if code == "" {
@@ -30,6 +39,17 @@ func (o *Oauth) Info(c *gin.Context) {
 	response.Success(c, v)
 }
 
+// ToBind starts an OAuth provider binding flow for the current user.
+// @Tags Oauth
+// @Summary Start OAuth binding
+// @Description Authenticated users receive a short-lived binding code and provider URL.
+// @Accept json
+// @Produce json
+// @Param body body admin.BindOauthForm true "OAuth provider binding payload"
+// @Success 200 {object} response.Response{data=map[string]string}
+// @Failure 500 {object} response.Response
+// @Router /admin/oauth/bind [post]
+// @Security token
 func (o *Oauth) ToBind(c *gin.Context) {
 	f := &adminReq.BindOauthForm{}
 	err := c.ShouldBindJSON(f)
@@ -65,7 +85,17 @@ func (o *Oauth) ToBind(c *gin.Context) {
 	})
 }
 
-// Confirm 
+// Confirm prepares the cached OAuth identity for binding to the current user.
+// @Tags Oauth
+// @Summary Confirm OAuth binding
+// @Description Authenticated users confirm a short-lived OAuth handoff before binding.
+// @Accept json
+// @Produce json
+// @Param body body admin.OauthConfirmForm true "OAuth confirmation payload"
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/oauth/confirm [post]
+// @Security token
 func (o *Oauth) Confirm(c *gin.Context) {
 	j := &adminReq.OauthConfirmForm{}
 	err := c.ShouldBindJSON(j)
@@ -88,6 +118,17 @@ func (o *Oauth) Confirm(c *gin.Context) {
 	response.Success(c, v)
 }
 
+// BindConfirm completes OAuth binding for the current user.
+// @Tags Oauth
+// @Summary Complete OAuth binding
+// @Description Authenticated users attach the confirmed OAuth identity to their account.
+// @Accept json
+// @Produce json
+// @Param body body admin.OauthConfirmForm true "OAuth confirmation payload"
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/oauth/bindConfirm [post]
+// @Security token
 func (o *Oauth) BindConfirm(c *gin.Context) {
 	j := &adminReq.OauthConfirmForm{}
 	err := c.ShouldBindJSON(j)
@@ -118,6 +159,17 @@ func (o *Oauth) BindConfirm(c *gin.Context) {
 	response.Success(c, oauthCache)
 }
 
+// Unbind removes the current user's OAuth provider binding.
+// @Tags Oauth
+// @Summary Unbind OAuth provider
+// @Description Authenticated users remove one OAuth provider binding from their account.
+// @Accept json
+// @Produce json
+// @Param body body admin.UnBindOauthForm true "OAuth provider unbinding payload"
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/oauth/unbind [post]
+// @Security token
 func (o *Oauth) Unbind(c *gin.Context) {
 	f := &adminReq.UnBindOauthForm{}
 	err := c.ShouldBindJSON(f)
@@ -203,14 +255,14 @@ func (o *Oauth) Create(c *gin.Context) {
 	response.Success(c, nil)
 }
 
-// List 
+// List
 // @Tags Oauth
 // @Summary Oauth
 // @Description Oauth
 // @Accept  json
 // @Produce  json
-// @Param page query int false ""
-// @Param page_size query int false ""
+// @Param page query int false "Page number for the OAuth provider list"
+// @Param page_size query int false "Number of OAuth providers per page"
 // @Success 200 {object} response.Response{data=model.OauthList}
 // @Failure 500 {object} response.Response
 // @Router /admin/oauth/list [get]
@@ -225,7 +277,7 @@ func (o *Oauth) List(c *gin.Context) {
 	response.Success(c, res)
 }
 
-// Update 
+// Update
 // @Tags Oauth
 // @Summary Oauth
 // @Description Oauth
@@ -260,7 +312,7 @@ func (o *Oauth) Update(c *gin.Context) {
 	response.Success(c, nil)
 }
 
-// Delete 
+// Delete
 // @Tags Oauth
 // @Summary Oauth
 // @Description Oauth

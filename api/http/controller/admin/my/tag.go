@@ -17,9 +17,9 @@ type Tag struct{}
 // @Description 
 // @Accept  json
 // @Produce  json
-// @Param page query int false ""
-// @Param page_size query int false ""
-// @Param is_my query int false ""
+// @Param page query int false "Page number for the personal tag list"
+// @Param page_size query int false "Number of personal tags per page"
+// @Param is_my query int false "Filter for tags owned by the current user"
 // @Param user_id query int false "id"
 // @Success 200 {object} response.Response{data=model.TagList}
 // @Failure 500 {object} response.Response
@@ -51,7 +51,7 @@ func (ct *Tag) List(c *gin.Context) {
 // @Description 
 // @Accept  json
 // @Produce  json
-// @Param body body admin.TagForm true ""
+// @Param body body admin.TagForm true "Personal tag form payload"
 // @Success 200 {object} response.Response{data=model.Tag}
 // @Failure 500 {object} response.Response
 // @Router /admin/my/tag/create [post]
@@ -84,7 +84,7 @@ func (ct *Tag) Create(c *gin.Context) {
 // @Description 
 // @Accept  json
 // @Produce  json
-// @Param body body admin.TagForm true ""
+// @Param body body admin.TagForm true "Personal tag update form payload"
 // @Success 200 {object} response.Response{data=model.Tag}
 // @Failure 500 {object} response.Response
 // @Router /admin/my/tag/update [post]
@@ -139,7 +139,7 @@ func (ct *Tag) Update(c *gin.Context) {
 // @Description 
 // @Accept  json
 // @Produce  json
-// @Param body body admin.TagForm true ""
+// @Param body body admin.TagForm true "Personal tag deletion form payload"
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/my/tag/delete [post]

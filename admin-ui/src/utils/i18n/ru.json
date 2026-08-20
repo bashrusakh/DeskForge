@@ -5,6 +5,9 @@
   "Logout": {
     "One": "Выход"
   },
+  "LogoutFailed": {
+    "One": "Не удалось отозвать сессию; локальный выход выполнен."
+  },
   "Register": {
     "One": "Регистрация"
   },
@@ -16,6 +19,21 @@
   },
   "Password": {
     "One": "Пароль"
+  },
+  "ShowPassword": {
+    "One": "Показать пароль"
+  },
+  "HidePassword": {
+    "One": "Скрыть пароль"
+  },
+  "GeneratedKeyLabel": {
+    "One": "Созданный ключ шифрования"
+  },
+  "GeneratedKeyWarning": {
+    "One": "Скопируйте этот ключ сейчас — повторно он показан не будет."
+  },
+  "GeneratedKeyCreated": {
+    "One": "Создан новый ключ шифрования."
   },
   "LoginSuccess": {
     "One": "Успешный вход"
@@ -34,6 +52,33 @@
   },
   "ParamRequired": {
     "One": "Поле {param} обязательно"
+  },
+  "CustomClientPlatformRequired": {
+    "One": "Выберите поддерживаемую платформу сборки (Windows)."
+  },
+  "CustomClientVersionRequired": {
+    "One": "Выберите версию клиента для сборки."
+  },
+  "CustomClientAppNameRequired": {
+    "One": "Введите имя приложения для артефакта."
+  },
+  "CustomClientHostRequired": {
+    "One": "Укажите адрес ID-сервера (имя хоста/IP и необязательный порт)."
+  },
+  "CustomClientKeyRequired": {
+    "One": "Укажите публичный ключ."
+  },
+  "CustomClientApiServerRequired": {
+    "One": "Укажите URL API-сервера."
+  },
+  "CustomClientRelayServerRequired": {
+    "One": "Укажите адрес relay-сервера (имя хоста/IP и необязательный порт)."
+  },
+  "CustomClientPermanentPasswordRequired": {
+    "One": "Если управление подключением скрыто, укажите постоянный пароль."
+  },
+  "ClearSavedPassword": {
+    "One": "Очистить сохранённый пароль"
   },
   "HasBind": {
     "One": "Связано"
@@ -55,6 +100,111 @@
   },
   "Platform": {
     "One": "Платформа"
+  },
+  "PlatformWindows": {
+    "One": "Windows 64-bit"
+  },
+  "PlatformLinuxUnavailable": {
+    "One": "Linux x64 — экспериментальная / недоступна (PR11)"
+  },
+  "PlatformAndroidUnavailable": {
+    "One": "Android arm64 — экспериментальная / недоступна (PR11)"
+  },
+  "ProductionPlatformUnavailable": {
+    "One": "Эта платформа экспериментальна и недоступна для production-сборок до подтверждения в PR11."
+  },
+  "WorkflowApprovalTitle": {
+    "One": "Подтверждение workflow"
+  },
+  "WorkflowApprovalDescription": {
+    "One": "Для одобрения workflow требуется полученный от провайдера проверенный аннотированный тег и актуальное подтверждение от провайдера."
+  },
+  "WorkflowApprovalProtectedExplanation": {
+    "One": "Провайдер должен подтвердить действующую политику защиты тега для этой метки: обновление и удаление явно запрещены, обходных участников нет, а ветка с такой же меткой отсутствует. Он также должен проверить аннотированный тег и точный workflow на разрешённом коммите. Выбирается только метка тега; refs, SHA, учётные данные и внутренние данные workflow здесь не вводятся. Одних локальных проверок недостаточно для одобрения."
+  },
+  "WorkflowApprovalState": {
+    "One": "Состояние подтверждения"
+  },
+  "WorkflowApprovalStatusApprovalRequired": {
+    "One": "Требуется подтверждение"
+  },
+  "WorkflowApprovalStatusProviderPolicyUnverified": {
+    "One": "Политика провайдера не подтверждена"
+  },
+  "WorkflowApprovalStatusApproved": {
+    "One": "Подтверждено"
+  },
+  "WorkflowApprovalTagLabel": {
+    "One": "Подтверждённый workflow-тег"
+  },
+  "WorkflowApprovalTagPlaceholder": {
+    "One": "Выберите подтверждённый провайдером тег"
+  },
+  "WorkflowApprovalCurrentTag": {
+    "One": "Текущий подтверждённый тег: {param}"
+  },
+  "WorkflowApprovalLoading": {
+    "One": "Загрузка подтверждённых провайдером тегов..."
+  },
+  "WorkflowApprovalLoadError": {
+    "One": "Не удалось загрузить подтверждённые провайдером workflow-теги."
+  },
+  "WorkflowApprovalConfigError": {
+    "One": "Не удалось загрузить состояние подтверждения workflow."
+  },
+  "WorkflowApprovalEmpty": {
+    "One": "Нет доступных подтверждённых провайдером workflow-тегов."
+  },
+  "WorkflowApprovalRetry": {
+    "One": "Повторить"
+  },
+  "WorkflowApprovalApprove": {
+    "One": "Подтвердить выбранный тег"
+  },
+  "WorkflowApprovalApproving": {
+    "One": "Подтверждение..."
+  },
+  "WorkflowApprovalRequestFailed": {
+    "One": "Подтверждение не записано. Проверьте состояние провайдера и повторите попытку."
+  },
+  "GithubPatPermissionsIntro": {
+    "One": "Необходимые разрешения репозитория для fine-grained PAT:"
+  },
+  "GithubPatPermissionMetadata": {
+    "One": "Metadata — Read"
+  },
+  "GithubPatPermissionContents": {
+    "One": "Contents — Read"
+  },
+  "GithubPatPermissionActions": {
+    "One": "Actions — Read and write"
+  },
+  "GithubPatPermissionAdministration": {
+    "One": "Administration — Read and write"
+  },
+  "GithubPatPermissionSecrets": {
+    "One": "Secrets — Read and write"
+  },
+  "GithubPatPermissionsNote": {
+    "One": "Для dispatch требуется Actions write; для метаданных обхода защиты workflow требуется Administration write; для синхронизации секретов требуется Secrets write. Пустое значение сохраняет текущий токен."
+  },
+  "GithubBuildSaveError": {
+    "One": "Не удалось сохранить настройки GitHub Build. Проверьте конфигурацию и повторите попытку."
+  },
+  "GithubBuildSaveSaving": {
+    "One": "Сохранение настроек GitHub Build..."
+  },
+  "GithubBuildSaveSuccess": {
+    "One": "Настройки GitHub Build сохранены."
+  },
+  "GithubBuildRepositoryRequired": {
+    "One": "Перед продолжением укажите репозиторий в формате owner/name."
+  },
+  "ViewBuildLog": {
+    "One": "Просмотреть журнал сборки"
+  },
+  "BuildHistoryStatusChanged": {
+    "One": "Статус сборки обновлён: {param}."
   },
   "Status": {
     "One": "Статус"
@@ -571,6 +721,12 @@
   "StartBuild": {
     "One": "Запустить сборку"
   },
+  "Downloading": {
+    "One": "Загрузка артефакта"
+  },
+  "Extracting": {
+    "One": "Распаковка артефакта"
+  },
   "VersionListLoading": {
     "One": "Список версий загружается, подождите..."
   },
@@ -606,5 +762,17 @@
   },
   "Upload": {
     "One": "Загрузить"
+  },
+  "HostEndpointHint": {
+    "One": "Укажите адрес ID-сервера: имя хоста или IP-адрес с необязательным портом. RustDesk использует порт 21116, если порт не указан."
+  },
+  "HostEndpointPlaceholder": {
+    "One": "например, your-server.com или your-server.com:21116 (по умолчанию, если порт не указан)"
+  },
+  "RelayEndpointHint": {
+    "One": "Укажите адрес relay-сервера: имя хоста или IP-адрес с необязательным портом. RustDesk использует порт 21117, если порт не указан."
+  },
+  "RelayEndpointPlaceholder": {
+    "One": "например, your-server.com или your-server.com:21117 (по умолчанию, если порт не указан)"
   }
 }

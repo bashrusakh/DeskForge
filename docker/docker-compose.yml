@@ -11,6 +11,10 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+      args:
+        # Pass a trusted commit timestamp for deterministic Rust metadata;
+        # empty keeps the build deterministic with BUILD_DATE=unknown.
+        SOURCE_DATE_EPOCH: ${SOURCE_DATE_EPOCH:-}
     ports:
       - 21114:21114
       - 21115:21115
@@ -29,6 +33,7 @@ services:
       - RUSTDESK_API_RUSTDESK_WS_HOST=ws://localhost:21118
       - RUSTDESK_API_KEY_FILE=/data/id_ed25519.pub
       - RUSTDESK_API_JWT_KEY=your-secret-jwt-key-change-this
+      - SECRET_ENCRYPTION_KEY=${SECRET_ENCRYPTION_KEY:-}
     volumes:
       - ../data/server:/data
       - ../data/api:/app/data
@@ -37,12 +42,11 @@ services:
       - rustdesk-net
     restart: unless-stopped
 
-  # Сборочные агенты — frozen fallback (PLAN.md §3, §8.7). Активный путь сейчас
-  # GitHub Actions (Windows x64) через github_build_config. Эти контейнеры
-  # стартуют только с `--profile fallback`, обычный `docker compose up` их
-  # не поднимает. Linux/Android агент будет вытеснен GitHub-воркфлоу (§8.14).
-  # MinGW build-win — абандон (§9), оставлен как историческая ссылка до §8.7
-  # cleanup.
+  # Manual/historical builders only (PLAN.md §3). The active path is provider-backed
+  # workflow dispatch for the admitted Windows capability. These containers require
+  # `--profile fallback` and are not started by ordinary `docker compose up`.
+  # Linux/Android workflow mappings remain disabled until PR11 live evidence closes.
+  # MinGW build-win is legacy material retained for historical reference.
   build-linux:
     profiles: ["fallback"]
     build:

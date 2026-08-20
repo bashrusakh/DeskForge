@@ -1,161 +1,199 @@
-# github-build — active build path via GitHub Actions
+# github-build — reference/docs for fork workflows
 
-All platforms (Windows, Linux, Android) are built through GitHub Actions in the
-`bashrusakh/rustdesk` fork. DeskForge workflow files are deployed to three
-branches:
+All executable client-build workflows live in the configured RustDesk fork.
+This directory is reference and documentation only; it is not an executable
+workflow source and does not contain deployable workflow copies.
 
-| Branch                | Purpose                                                          |
-| --------------------- | ---------------------------------------------------------------- |
-| `master`                | Default branch — API discovery (workflow must exist here)        |
-| `rustqs/min-test`       | Execution — all dispatches go here                               |
-| `rustqs/master-workflows` | Mirror — backup copy of workflow files, kept in sync with `master` |
+The API dispatches the application-owned platform workflow in the configured
+RustDesk fork. The fork's branch/ref and workflow files are provider-side
+execution details; this directory does not define or deploy them.
 
-Each local workflow file in this directory has the same filename as its target
-in the fork's `.github/workflows/` (identical names, no rename needed).
+The dispatch contract under test sends `return_run_details=true` and accepts only
+an exact HTTP 200 run-details response containing the provider run identity. Standard
+204 is intentionally unsupported because it does not provide an accepted exact run
+correlation. Local fake-transport/static checks cover this contract; no normal GitHub
+dispatch, poll, or download operation is verified.
 
-| Platform | File                                    | Target in fork                                    | Status          |
-| -------- | --------------------------------------- | ------------------------------------------------- | --------------- |
-| Windows  | `github-build/rustqs-windows-min-test.yml` | `.github/workflows/rustqs-windows-min-test.yml`   | ✅ active       |
-| Linux    | `github-build/rustqs-linux.yml`            | `.github/workflows/rustqs-linux.yml`              | ✅ active       |
-| Android  | `github-build/rustqs-android.yml`          | `.github/workflows/rustqs-android.yml`            | ✅ active       |
+The legacy compatibility ref `rustqs/workflows` is retained for read-only
+compatibility; it is not the production workflow tag. Production approval and
+dispatch require a guarded, provider-verified immutable `refs/tags/*` workflow
+tag. At the provider-resolved immutable commit, the mapped workflow must declare
+`workflow_dispatch` and contain the exact
+`# deskforge-workflow-identity-guard: v1` marker. The configured provider
+repository resolves the selected tag and workflow identity.
+The following ref labels describe the configured fork's roles; they are not a claim
+that synchronized copies, protected tags, or a live provider run currently exist:
+
+| Ref                       | Purpose                                                        |
+| ------------------------- | -------------------------------------------------------------- |
+| `master`                  | Fork default branch; not a dispatch selector                  |
+| `rustqs/workflows`        | Legacy/read-only compatibility ref; not a production selector |
+| `rustqs/master-workflows` | Fork-maintained workflow mirror/reference ref; not a selector |
+
+| Platform | Executable workflow in fork                           | Status    |
+| -------- | ----------------------------------------------------- | --------- |
+| Windows  | `.github/workflows/rustqs-windows.yml`               | 🟡 API-enabled; live evidence pending |
+| Linux    | `.github/workflows/rustqs-linux.yml`                  | 🟡 API capability-gated |
+| Android  | `.github/workflows/rustqs-android.yml`                | 🟡 API capability-gated |
+
+> **Current-state note (2026-08-10):** Windows is the only platform admitted by the
+> API production capability gate. Linux and Android mappings exist but remain gated
+> until PR11 records end-to-end provider, artifact, embedding, and download evidence.
+> Workflow manifests, bridge/helper source, Android app-ID/runtime-path checks, and
+> package assertions are static implementation evidence only; capabilities remain disabled.
+> No live provider run or clean-environment build proof is recorded here.
+>
+> **RustDesk guard PR (2026-08-20):** [RustDesk PR
+> #7](https://github.com/bashrusakh/rustdesk/pull/7) is merged into
+> `rustqs/workflows` at merge commit `ced31ae07f69c20119b88212b10d2eb2df651c97`,
+> which contains prior source commit `6ef1cd7fe`. It adds the marker, requires outer
+> and authenticated inner SHA checks in the bridge, and gates draft Linux/Android
+> before secret-bearing jobs. The merge does not deploy a guard tag:
+> `workflow-v1.2.0` does not exist, and no newly signed provider-verified immutable
+> protected workflow tag exists yet; live reapproval/reverification remains pending.
+> This is not provider deployment, tag protection,
+> live workflow, or live artifact evidence.
+> DeskForge local remediation includes `da42521`, `9a1ee5e`, and `d67b6e7`; the last
+> requires a stored v2 producer-manifest and exact canonical-output proof across
+> publication, recovery, detail, download, reuse, and handoff boundaries. These local
+> commits remain unpushed; DeskForge PR #59 remains open and dirty remotely.
 
 ---
 
 ## Architecture
 
-All dispatches go to the `rustqs/min-test` branch of the fork (the Go code
-forces this branch in `tryGithubDispatch` regardless of per-install config).
+The API maps the selected platform to an owned workflow in the configured
+RustDesk fork and dispatches it with an encrypted payload. The provider returns
+the exact run identity, which the API stores and uses for subsequent polling.
+The stored run and artifact identities are required; the API does not select a sole
+artifact or infer a path from a provider response.
 
 ```text
-admin-ui → Go API → workflow_dispatch (encrypted payload, ref=rustqs/min-test) →
-  GitHub Actions [rustdesk fork, rustqs/min-test branch] →
+admin-ui → Go API → workflow_dispatch (encrypted payload, owned fork workflow) →
+  GitHub Actions [configured RustDesk fork] →
     L1 config.rs (server+key) → L2 custom_.txt (permanent password) → L3 branding →
-    artifact → POST /api/save_custom_client → your server → admin-ui Download
+    provider run ← Go API polls provider status →
+    provider artifact API → Go API validates/extracts/publishes locally → admin-ui Download
 ```
 
 ### Version flow
 
-The `version` field in the admin UI is **not just metadata** — it is passed
-in the encrypted payload to the workflow and used as `VERSION` env var for
-downloading offline build assets (flutter engine, usbmmidd, printer drivers).
+The `version` field in the admin UI is **not just metadata** — it is resolved
+from the configured provider repository, passed in the encrypted payload, and
+used by the owned workflow for its matching build assets.
 
 - Admin UI loads available versions from `GET /api/admin/custom_build/versions`
-- This endpoint queries GitHub releases of `bashrusakh/rustdesk` for tags
-  `offline-assets-*` and returns only versions that have assets published
-- If GitHub API is unavailable, falls back to `['1.4.8', '1.4.7']`
+- The API queries the configured repository for matching `offline-assets-*`
+  releases, checks the provider-reported matching source tag and required asset metadata,
+  and exposes only the resulting display versions. Independent source/asset provenance
+  verification remains a separate gate.
+- If the provider catalog is unavailable, the API returns an empty/error state;
+  there is no hardcoded repository or obsolete version fallback
 - The version list is cached for ~5 minutes; a newly published release may
   take a few minutes to appear in the dropdown
-- The workflow decrypts `version` from `enc_payload` and overrides `VERSION`
-  env (takes precedence over the workflow-level default `'1.4.8'`)
+- The workflow receives the resolved version in `enc_payload`; the API does not
+  accept a separate raw/manual version identity from the normal build flow
+- The active Windows dispatch path receives two provider-set transport inputs: the
+  public outer `workflow_sha` and the authenticated `DFP1` `enc_payload`. The
+  admin never authors a SHA. A no-secret outer job validates the outer SHA against
+  `github.sha` before bridge/build jobs can run; after MAC/decryption, each
+  secret-bearing path requires the authenticated inner SHA to match both values
+  before exporting payload values, checkout, or build use. Direct/manual runs
+  without a valid payload fail closed; they are non-build diagnostics, not a
+  public-debug or fixed-asset fallback.
+- The authenticated payload binds the configured workflow repository to
+  `github.repository`, so self-hosted forks remain supported without a hardcoded
+  owner/name. GitHub receives the required tag selector; exact workflow contents
+  readiness and run `head_sha` checks use the resolved SHA. `workflow_dispatch` does
+  not provide atomic SHA binding between that selector and the executed workflow;
+  verified annotated tags under an active immutable no-bypass ruleset are a
+  compensating control, not an atomic guarantee. The two-layer SHA guard is
+  defense in depth, not an atomic defense against a malicious workflow file;
+  the verified tag and no-bypass ruleset remain required controls.
 
-### bridge.yml
+### Provider identity and asset contract
 
-`bridge.yml` follows the upstream pattern:
-- **No `inputs.version`** — bridge and build work from the same fork code
-- Checkout is **without `repository:`** — uses the current repo (fork)
-- Matrix has 2 jobs: default (Flutter 3.22.3) and Windows arm64 (Flutter 3.44)
+The provider supplies the source-tree/ref/commit identity, recursive submodule commits,
+workflow identity, release identity, and asset metadata. This directory reports those
+values; it does not independently verify them unless a separately trusted source proves
+the expected value. A URL, provider-reported digest, local presence, or first-seen hash is
+not by itself authenticity or release evidence. The listed asset names and digest fields
+are a provider/project contract under test, not evidence that normal GitHub operation has
+been verified.
 
-Binary is NOT published to public releases — only to your server.
+The authenticated handoff must carry the exact required asset names and their expected
+SHA-256 digests. The current required asset-name contract is:
+
+- `windows-x64-release.zip`
+- `usbmmidd_v2.zip`
+- `rustdesk_printer_driver_v4-1.4.zip`
+- `printer_driver_adapter.zip`
+
+Missing names, missing digests, changed content, or unavailable source/submodule identity
+must fail closed rather than being inferred from a provider listing.
+
+### Reusable workflow details
+
+Reusable workflow behavior, including any bridge workflow, is defined in the
+RustDesk fork. The `rdgen` copy is reference material only and is not copied or
+deployed by the current DeskForge path.
+
+The provider artifact is downloaded through the provider API, then validated,
+extracted, and published in local API storage. It is not sent to the API by a
+runner callback and is not published to a public release. Frozen local file-queue
+builders are manual/historical-only material, not a production fallback for this path.
+
+Active fork uploads use the focused workflow retention contract (`retention-days: 7`
+and fail-closed missing-file handling). That provider retention is not a completed
+output TTL, release-retention policy, or release publication claim. The service-owned
+handoff records exact source/workflow/run/artifact identity, output names, sizes,
+hashes, and its publication digest; private `custom_.txt` content is not exported. A public
+download may contain only a redacted `custom_.txt`; raw/private handoff contents, payload keys,
+PATs, and other internal secret-bearing values are excluded.
+These records are integrity/provenance metadata, not signatures or attestations.
+
 Credentials — encrypted payload, decrypted inside the runner via GitHub Secret.
 
 ---
 
-## Workflow layers
+## Workflow ownership
 
-| Layer | Path (in rustdesk fork)                                        | Role                                          |
-| ----- | --------------------------------------------------------------- | --------------------------------------------- |
-| 1a    | `rustqs/min-test/.github/workflows/rustqs-windows-min-test.yml` | ✅ Windows x64 (active)                       |
-| 1b    | `rustqs/min-test/.github/workflows/rustqs-linux.yml`            | ✅ Linux x64 (active)                        |
-| 1c    | `rustqs/min-test/.github/workflows/rustqs-android.yml`          | ✅ Android arm64 (active)                      |
-| 2     | `rustqs/min-test/.github/workflows/bridge.yml`                  | reusable workflow (from upstream 1.4.7)       |
-| 3     | `rustqs/min-test/.github/workflows/third-party-RustDeskTempTopMostWindow.yml` | TopMost build   |
-| 4     | `DeskForge/github-build/`                                       | local copies for code review                  |
-| 5     | `DeskForge/rdgen/.github/workflows/*.yml`                       | vendored upstream rdgen reference             |
-
-**Rule:** change build logic → edit in fork (layer 1), then update local copy (layer 4).
-
----
-
-## Workflow deployment — pushing to the fork
-
-Workflow files are deployed to all three branches of `bashrusakh/rustdesk`:
-
-- `master` — API discovery (must exist on default branch)
-- `rustqs/min-test` — execution (all dispatches go here)
-- `rustqs/master-workflows` — mirror of `master`
-
-> **NOTE:** `rustqs-linux.yml` and `rustqs-android.yml` will not be found by
-> the workflow_dispatch API unless they exist on the default branch (`master`).
-
-```bash
-cd /path/to/rustdesk-fork
-# 1) Push to master first (API discovery)
-git checkout master
-cp /path/to/DeskForge/github-build/rustqs-*.yml .github/workflows/
-cp /path/to/DeskForge/rdgen/.github/workflows/bridge.yml .github/workflows/
-git add .github/workflows/
-git commit -m "feat: update rustqs-* workflows"
-git push origin master
-
-# 2) Then push to rustqs/master-workflows (mirror)
-git checkout rustqs/master-workflows
-cp /path/to/DeskForge/github-build/rustqs-*.yml .github/workflows/
-cp /path/to/DeskForge/rdgen/.github/workflows/bridge.yml .github/workflows/
-git add .github/workflows/
-git commit -m "feat: update rustqs-* workflows"
-git push origin rustqs/master-workflows
-
-# 3) Then push to rustqs/min-test (execution)
-git checkout rustqs/min-test
-cp /path/to/DeskForge/github-build/rustqs-*.yml .github/workflows/
-cp /path/to/DeskForge/rdgen/.github/workflows/bridge.yml .github/workflows/
-git add .github/workflows/
-git commit -m "feat: update rustqs-* workflows"
-git push origin rustqs/min-test
-```
-
-If a workflow file is missing from the fork, dispatch immediately fails with HTTP 404.
-`bridge.yml` is required by all three `rustqs-*.yml` files — without it the workflow
-run fails with a parse error (422).
-
-> DeskForge workflow files live on all three branches: `master`, `rustqs/master-workflows`, and `rustqs/min-test`.
+- The rustdesk fork's `.github/workflows/` files are the sole executable source.
+- `github-build/` contains reference/documentation material only; it is not a
+  second workflow source or a deployment copy.
+- The vendored `rdgen` workflows are historical/reference material and must not
+  be copied into the active fork workflows.
+- Change active build logic in the rustdesk fork. Keep this README aligned with
+  the fork's actual workflow ownership and behavior.
+- Active dispatch is tag-only and requires a guarded, provider-verified immutable
+  workflow tag.
+- An active immutable no-bypass ruleset protects that tag; mutable branch selectors
+  are not an allowed fallback.
+- Secret-bearing production dispatch remains gated until live provider evidence
+  includes tag protection and ruleset administration.
+- GitHub `workflow_dispatch` does not provide atomic SHA binding; the verified tag
+  and ruleset are compensating controls rather than an atomic guarantee.
+- Workflow-file presence and local focused checks do not prove provider behavior;
+  live provider verification remains required.
 
 ---
 
 ## Security (REQUIRED for a public fork)
 
-- `enc_payload` — AES-256-CBC + PBKDF2, key `WORKFLOW_PAYLOAD_KEY` in GitHub Secrets.
-- `GENURL` — your server URL (where to send the binary).
-- `ZIP_PASSWORD` — password to encrypt config inside the workflow.
+- `enc_payload` — authenticated `DFP1` AES-256-CBC + PBKDF2 + HMAC envelope, with
+  `WORKFLOW_PAYLOAD_KEY` in GitHub Secrets.
 - `RS_PUB_KEY` is a public key, not a secret.
 - `SetWorkflowSecret` — button in admin UI (`Push to GitHub Secrets`) via `nacl/box.SealAnonymous`.
 
 ---
 
-## When a new upstream version ships
+## Upstream updates
 
-Workflow files live on `rustqs/min-test` (execution), `master` (API discovery),
-and `rustqs/master-workflows` (mirror). `master` is synced with upstream
-except for the workflow manifests that must exist there for API discovery.
+Follow
+[PLAN.md §7](../PLAN.md#7-historical-fork-maintenance-notes-for-a-new-upstream-rustdesk-client-release)
+for the upstream release process. Active workflow changes belong in the rustdesk
+fork; this directory remains reference/documentation only.
 
-1. **Fork sync** → `git fetch upstream --tags && git push origin v1.5.0`
-2. **Repoint submodule** → `.gitmodules` → `bashrusakh/hbb_common`
-3. **Vendor** → `cargo vendor && git add vendor`
-4. **Update `rustqs/min-test` branch** → `git checkout rustqs/min-test && git rebase v1.5.0`
-5. **Update workflows:** diff upstream with `rustqs-*.yml`
-6. **Test** → `gh workflow run rustqs-windows-min-test.yml --ref rustqs/min-test`
-
-Detailed: [PLAN.md §7](../PLAN.md#7-workflow-new-upstream-rustdesk-client-release).
-
----
-
-## Sync rules
-
-1. **Build logic changes go to the fork first** (layer 1), then copy to `github-build/` (layer 4).
-2. `rdgen/.github/workflows/*` (layer 5) — vendored reference, **do not edit by hand**.
-3. Action version bumps (`@v4 → @v7`) — independently per layer. In fork — SHA-pinned.
-4. When min-test is stable → switch to full `generator-windows.yml` (msi, signing).
-
-### Fork bump log
+### Historical fork bump log
 
 - 2026-06-13: `setup-msbuild` v2→v3, `upload-artifact` → SHA-pinned v7.

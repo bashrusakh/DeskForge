@@ -12,6 +12,7 @@ export function create (data) {
     url: '/custom_build/create',
     method: 'post',
     data,
+    useServerErrorMessage: true,
   })
 }
 
@@ -23,14 +24,18 @@ export function remove (data) {
   })
 }
 
-export function detailByKey (key) {
+export function download (id) {
   return request({
-    url: '/custom_build/public/detailByKey/' + key,
+    url: `/custom_build/download/${id}`,
+    responseType: 'blob',
+    useServerErrorMessage: true,
   })
 }
 
 export function getVersions () {
   return request({
     url: '/custom_build/versions',
+    skipErrorMessage: true,
+    useServerErrorMessage: true,
   })
 }

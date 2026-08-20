@@ -3,54 +3,64 @@
 > Tracker for issues found in the build-custom-agent end-to-end flow.
 > Backend: `api/http/controller/admin/custom_build.go`, `api/service/custom_build.go`,
 > `api/service/github_build_config.go`. Frontend: `admin-ui/src/views/custom-client/index.vue`,
-> `admin-ui/src/views/server/github-build.vue`. Workflow: `github-build/rustqs-windows-min-test.yml`.
+> `admin-ui/src/views/server/github-build.vue`. Active Windows workflow source: branch
+> `rustqs/workflows`, workflow `.github/workflows/rustqs-windows.yml`, artifact
+> `rustqs-windows`; local `github-build/` workflow files are reference material only.
 >
 > Status legend: `[ ]` open · `[x]` fixed · `[~]` partial · `[skip]` won't fix (owner decision).
 >
-> Last audit: 2026-06-23 (fixed items removed; tracker lists only open work).
+> Last audit: 2026-06-23. Current file contents are a bounded tracker snapshot:
+> 1 fixed, 4 partial, and 1 open entry; older aggregate counts remain in dated
+> changelog history.
+> Current-state reconciliation: 2026-08-10. Historical findings below are labeled
+> where the current provider-only path supersedes the old queue behavior; no live
+> provider or clean-build evidence is implied. Older branch and workflow names below
+> are retained as historical records and do not describe the current executable path.
 
 ---
 
-## Architectural mismatch with PLAN.md §3
+## Historical architectural mismatch with PLAN.md §3
 
-PLAN.md declares the standalone / Docker build agents **frozen as fallback** (§8.3, §8.4).
-Reality: `custom_build.go::submitBuild` still routes every non-Windows platform — and even
-`windows-x86` and Windows when GitHub config is absent — into the file queue
-(`/rdgen-data/jobs/{id}.json`). Owner decision (2026-06-20):
+The original audit recorded a mismatch with the standalone / Docker build agents marked
+**frozen as fallback** (§8.3, §8.4). The current source now checks provider readiness
+before persistence and does not route production submissions into the file queue. The
+queue scripts remain frozen historical material. Owner decision (2026-06-20):
 
-1. Treat Docker `build-linux` and `build-win` containers as **frozen manual fallback**, not the
+1. Treat Docker `build-linux` and `build-win` containers as **frozen manual/historical-only** material, not the
    default route. They stay on disk but should not be started by `docker compose up`.
 2. Remove `windows-x86` (32-bit) as a build target everywhere — UI option, form defaults,
    any router branches. 2026; not worth maintaining.
-3. Build a **GitHub Actions workflow for Linux + Android** mirroring the windows-min-test
-   pipeline, and re-route `submitBuild` accordingly. Until those workflows ship, non-Windows
-   platforms should be hidden in the UI to stop users from creating phantom builds.
+3. Keep the fork-owned Linux + Android workflow mappings, but do not re-expose those
+   platforms until PR11 has real end-to-end evidence. Until then, non-Windows platforms
+   remain gated in the UI/API to prevent phantom builds.
 
 The bugs below are grouped by where they leak into user-visible breakage.
 
 ---
 
-## CRITICAL — workflow is silently broken end-to-end
+## Historical critical finding — workflow was silently broken end-to-end
 
-### [~] B-001 · File-queue jobs never propagate `done` status back to the DB
-**Deferred on branch `fix/build-custom-agent` (2026-06-20):** UI now restricts platforms to
-Windows-via-GitHub (B-013), so the file-queue path is unreachable from the default flow
-even though `submitBuild` still has the branch. `docker/docker-compose.yml` moved
-`build-linux` and `build-win` services behind a `fallback` profile so they don't start by
-default. Full fix (status mirror) only matters once Linux/Android workflows land (B-012),
-at which point we'd rather route them through GitHub too.
+### [~] B-001 · Historical file-queue jobs do not propagate `done` status back to the DB
+**Current state:** provider readiness is checked before a production build row is persisted,
+so the file-queue path is not a production fallback. `docker/docker-compose.yml` keeps
+`build-linux` and `build-win` behind a `fallback` profile. The frozen scripts still have
+the status-mirror limitation if an operator runs them manually; no live provider evidence
+is implied by this closure boundary.
 
-**Where:** `api/http/controller/admin/custom_build.go:172-201` (writes job),
-`docker/entrypoint-linux.sh:37,49,76,...` and `docker/entrypoint-win.sh:33,45,210` (write `output_dir/status`).
-**Symptom:** Linux/Android (and Windows when GitHub config is missing) builds sit at
-`Status=pending` forever. `DownloadByKey` returns HTTP 409. The Download button never appears
-in the UI (`v-if="row.status === 'done'"`, `custom-client/index.vue:306`).
+**Current path:** `api/http/controller/admin/custom_build.go:1246-1261` dispatches
+production builds through the configured provider; the old queue references remain
+only in the frozen scripts below. **Historical queue locations:**
+`docker/entrypoint-linux.sh:37,49,76,...` and `docker/entrypoint-win.sh:33,45,210`
+write `output_dir/status`.
+**Historical symptom:** Linux/Android (and Windows when GitHub config was missing) builds
+sat at `Status=pending` forever. `DownloadByKey` returned HTTP 409. The Download button
+did not appear in the UI (`v-if="row.status === 'done'"`, `custom-client/index.vue:306`).
 **Root cause:** no Go-side watcher reads `/rdgen-data/output/{id}/status`. The build agent's
 status file is dead-letter.
 **Fix path (per owner direction):**
-- Short term: hide all non-Windows-via-GitHub options in the UI (B-002, B-013).
-- Long term: replace the file queue for the supported platforms with GitHub Actions dispatch
-  (linux/android workflows, B-012).
+- Current: keep all non-Windows-via-GitHub options gated in the UI/API (B-002, B-013).
+- Future: enable Linux/Android only after fork workflow, artifact, embedding, and download
+  evidence is recorded under B-012/PR11.
 
 ## LOW — dead code / cleanup
 
@@ -80,6 +90,12 @@ Left in place because it's a documented capability URL and may have third-party 
 ## STRUCTURAL — to enable B-001/B-002/B-013 fixes
 
 ### [~] B-012 · Build Linux + Android GitHub Actions workflows
+**Current state:** the API has fork-owned filename mappings, but its production capability
+gate rejects Linux and Android until PR11 validates the complete workflow and artifact path.
+No live provider/workflow run or clean build is recorded in the current canonical plan.
+
+**Historical audit record:**
+
 **Backend:** merged (PR #44 backend routing: `submitBuild` dispatches `platform=linux`/`android`
 by workflow constant; `tryGithubDispatch` picks `rustqs-linux.yml`/`rustqs-android.yml`;
 `pollAndDownload` selects artifact by platform).
@@ -88,6 +104,8 @@ by workflow constant; `tryGithubDispatch` picks `rustqs-linux.yml`/`rustqs-andro
 and `rustqs/min-test` (execution) — all three are indexed (HTTP 200):
 `rustqs-windows-min-test.yml`, `rustqs-linux.yml`, `rustqs-android.yml`.
 Filenames in Go constants match fork filenames exactly.
+These deployment observations are historical; they are not current provider-run,
+artifact, package, or support evidence.
 
 **Critical dependency:** `bridge.yml` must also exist on both branches — all three
 `rustqs-*.yml` reference it as a reusable workflow. Without it, dispatch succeeds
@@ -96,11 +114,15 @@ but the run fails with a parse error (422).
 Still open:
 - validate `rustqs-linux.yml` and `rustqs-android.yml` on real Actions runs (build steps:
   vcpkg/flutter/build.py/packaging/artifact paths — need CI iteration like windows-min-test did)
-- Android `custom_.txt` embedding is best-effort, needs verification
+- Android `custom_.txt` runtime-path and fail-closed packaging checks have local static
+  evidence; no live APK/package/install/runtime evidence exists
 - re-expose Linux/Android in the UI (B-013) behind a feature flag once runs are green
 
-**Where:** `github-build/rustqs-linux.yml`, `github-build/rustqs-android.yml`. Reference templates:
+**Where (active source):** the configured RustDesk fork's
+`.github/workflows/rustqs-linux.yml` and `.github/workflows/rustqs-android.yml`.
+**Historical/reference templates:** former local `github-build/` workflow references and
 `rdgen/.github/workflows/generator-linux.yml`, `rdgen/.github/workflows/generator-android.yml`.
+The `github-build/` and `rdgen/` workflow material is not the executable source.
 **Symptoms (historical):** before the push, dispatch returned HTTP 404 because workflow files
 were not on `master` (default branch); submit went to the deprecated file queue (B-001).
 Resolved by pushing workflow files to both `master` and `rustqs/min-test`.
@@ -119,7 +141,10 @@ can create/alter peers and inject audit entries. `/api/shared-peer` also does an
 `(*j)["share_token"].(string)` assertion (`webClient.go:57`) → 500 on missing token.
 **Fix:** needs RustDesk protocol design confirmation (the PC client hits these before auth).
 
-### [ ] AU-L-010 · Hardcoded version list in Custom Client UI
+### [x] AU-L-010 · Hardcoded version list in Custom Client UI
+Resolved in the current source by the provider-derived version catalog; unavailable
+provider catalog data returns an empty/error state rather than an obsolete hardcoded
+version fallback. Live provider catalog evidence remains unverified.
 
 ## rdgen generator — open findings (consolidated from the removed `AUDIT.md`)
 

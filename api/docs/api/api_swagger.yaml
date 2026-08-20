@@ -146,8 +146,7 @@ definitions:
       collection_id:
         type: integer
       color:
-        description: color 是flutter的颜色值,从0x00000000 到 0xFFFFFFFF; 前两位表示透明度，后面6位表示颜色,
-          可以转成rgba
+        description: color flutter,0x00000000  0xFFFFFFFF; ，6, rgba
         type: integer
       created_at:
         type: string
@@ -194,15 +193,13 @@ definitions:
     type: object
 info:
   contact: {}
-  description: 接口
-  title: 管理系统API
+  title: API
   version: "1.0"
 paths:
   /:
     get:
       consumes:
       - application/json
-      description: 首页
       produces:
       - application/json
       responses:
@@ -214,14 +211,12 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Response'
-      summary: 首页
       tags:
-      - 首页
+      - ""
   /ab:
     get:
       consumes:
       - application/json
-      description: 地址列表
       produces:
       - application/json
       responses:
@@ -235,15 +230,13 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: 地址列表
       tags:
-      - 地址
+      - ""
     post:
       consumes:
       - application/json
-      description: 地址更新
       parameters:
-      - description: 地址表单
+      - description: Address book request form payload
         in: body
         name: body
         required: true
@@ -262,14 +255,12 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: 地址更新
       tags:
-      - 地址
-  /ab/peer/add/{guid}:
+      - ""
+  /ab/peer/{guid}:
     delete:
       consumes:
       - application/json
-      description: 删除地址
       parameters:
       - description: guid
         in: path
@@ -289,13 +280,12 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: 删除地址
       tags:
-      - 地址[Personal]
+      - '[Personal]'
+  /ab/peer/add/{guid}:
     post:
       consumes:
       - application/json
-      description: 添加地址
       parameters:
       - description: guid
         in: path
@@ -315,14 +305,12 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: 添加地址
       tags:
-      - 地址[Personal]
+      - '[Personal]'
   /ab/peer/update/{guid}:
     put:
       consumes:
       - application/json
-      description: 更新地址
       parameters:
       - description: guid
         in: path
@@ -342,20 +330,18 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: 更新地址
       tags:
-      - 地址[Personal]
+      - '[Personal]'
   /ab/peers:
     post:
       consumes:
       - application/json
-      description: 地址
       parameters:
-      - description: 页码
+      - description: Current page number for address book peers
         in: query
         name: current
         type: integer
-      - description: 每页数量
+      - description: Page size for address book peers
         in: query
         name: pageSize
         type: integer
@@ -376,14 +362,12 @@ paths:
             $ref: '#/definitions/response.Response'
       security:
       - BearerAuth: []
-      summary: 地址列表
       tags:
-      - 地址[Personal]
+      - '[Personal]'
   /ab/personal:
     post:
       consumes:
       - application/json
-      description: 个人地址
       parameters:
       - description: string valid
         in: body
@@ -403,14 +387,12 @@ paths:
             $ref: '#/definitions/response.Response'
       security:
       - BearerAuth: []
-      summary: 个人地址
       tags:
-      - 地址[Personal]
+      - '[Personal]'
   /ab/settings:
     post:
       consumes:
       - application/json
-      description: 设置
       parameters:
       - description: string valid
         in: body
@@ -430,20 +412,18 @@ paths:
             $ref: '#/definitions/response.Response'
       security:
       - BearerAuth: []
-      summary: 设置
       tags:
-      - 地址[Personal]
+      - '[Personal]'
   /ab/shared/profiles:
     post:
       consumes:
       - application/json
-      description: 共享
       parameters:
-      - description: 页码
+      - description: Current page number for shared profiles
         in: query
         name: current
         type: integer
-      - description: 每页数量
+      - description: Page size for shared profiles
         in: query
         name: pageSize
         type: integer
@@ -460,14 +440,12 @@ paths:
             $ref: '#/definitions/response.Response'
       security:
       - BearerAuth: []
-      summary: 共享地址簿
       tags:
-      - 地址[Personal]
+      - '[Personal]'
   /ab/tag/{guid}:
     delete:
       consumes:
       - application/json
-      description: 标签
       parameters:
       - description: guid
         in: path
@@ -487,14 +465,12 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: 标签删除
       tags:
-      - 地址[Personal]
+      - '[Personal]'
   /ab/tag/add/{guid}:
     post:
       consumes:
       - application/json
-      description: 标签
       parameters:
       - description: guid
         in: path
@@ -514,14 +490,12 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: 标签添加
       tags:
-      - 地址[Personal]
+      - '[Personal]'
   /ab/tag/rename/{guid}:
     put:
       consumes:
       - application/json
-      description: 标签
       parameters:
       - description: guid
         in: path
@@ -541,14 +515,12 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: 标签重命名
       tags:
-      - 地址[Personal]
+      - '[Personal]'
   /ab/tag/update/{guid}:
     put:
       consumes:
       - application/json
-      description: 标签
       parameters:
       - description: guid
         in: path
@@ -568,14 +540,12 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: 标签修改颜色
       tags:
-      - 地址[Personal]
+      - '[Personal]'
   /ab/tags/{guid}:
     post:
       consumes:
       - application/json
-      description: 标签
       parameters:
       - description: guid
         in: path
@@ -595,16 +565,14 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: 标签
       tags:
-      - 地址[Personal]
+      - '[Personal]'
   /audit/conn:
     post:
       consumes:
       - application/json
-      description: 审计连接
       parameters:
-      - description: 审计连接
+      - description: Audit connection form payload
         in: body
         name: body
         required: true
@@ -621,16 +589,14 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Response'
-      summary: 审计连接
       tags:
-      - 审计
+      - ""
   /audit/file:
     post:
       consumes:
       - application/json
-      description: 审计文件
       parameters:
-      - description: 审计文件
+      - description: Audit file form payload
         in: body
         name: body
         required: true
@@ -647,14 +613,13 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Response'
-      summary: 审计文件
       tags:
-      - 审计
+      - ""
   /currentUser:
-    get:
+    post:
       consumes:
       - application/json
-      description: 用户信息
+      description: Returns the authenticated user for Rust client API requests.
       produces:
       - application/json
       responses:
@@ -667,25 +632,24 @@ paths:
           schema:
             $ref: '#/definitions/response.Response'
       security:
-      - token: []
-      summary: 用户信息
+      - BearerAuth: []
+      summary: Get the current Rust client user
       tags:
-      - 用户
+      - User
   /device-group/accessible:
     get:
       consumes:
       - application/json
-      description: 机器
       parameters:
-      - description: 页码
+      - description: Page number for the group list
         in: query
         name: page
         type: integer
-      - description: 每页数量
+      - description: Number of groups per page
         in: query
         name: pageSize
         type: integer
-      - description: 状态
+      - description: Group status filter
         in: query
         name: status
         type: integer
@@ -706,14 +670,12 @@ paths:
             $ref: '#/definitions/response.Response'
       security:
       - BearerAuth: []
-      summary: 设备
       tags:
-      - 群组
+      - ""
   /heartbeat:
     post:
       consumes:
       - application/json
-      description: 心跳
       produces:
       - application/json
       responses:
@@ -723,16 +685,14 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Response'
-      summary: 心跳
       tags:
-      - 首页
+      - ""
   /login:
     post:
       consumes:
       - application/json
-      description: 登录
       parameters:
-      - description: 登录表单
+      - description: Login credentials payload
         in: body
         name: body
         required: true
@@ -749,14 +709,12 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.ErrorResponse'
-      summary: 登录
       tags:
-      - 登录
+      - ""
   /login-options:
     get:
       consumes:
       - application/json
-      description: 登录选项
       produces:
       - application/json
       responses:
@@ -770,14 +728,12 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.ErrorResponse'
-      summary: 登录选项
       tags:
-      - 登录
+      - ""
   /logout:
     post:
       consumes:
       - application/json
-      description: 登出
       produces:
       - application/json
       responses:
@@ -789,33 +745,109 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.ErrorResponse'
-      summary: 登出
+      security:
+      - BearerAuth: []
       tags:
-      - 登录
+      - ""
+  /oauth/callback:
+    get:
+      description: Renders the success/failure HTML result pages or redirects to the
+        admin OAuth binding/app route. The same handler is registered for all four
+        callback aliases below.
+      produces:
+      - text/html
+      responses:
+        "200":
+          description: Rendered OAuth success or failure HTML page
+          schema:
+            type: string
+        "302":
+          description: Redirect to the admin OAuth binding or app route
+          headers:
+            Location:
+              description: Admin OAuth binding or app redirect target
+              type: string
+          schema:
+            type: string
+      summary: Handle the OIDC provider callback
+      tags:
+      - Oauth
+  /oauth/login:
+    get:
+      description: Renders the success/failure HTML result pages or redirects to the
+        admin OAuth binding/app route. The same handler is registered for all four
+        callback aliases below.
+      produces:
+      - text/html
+      responses:
+        "200":
+          description: Rendered OAuth success or failure HTML page
+          schema:
+            type: string
+        "302":
+          description: Redirect to the admin OAuth binding or app route
+          headers:
+            Location:
+              description: Admin OAuth binding or app redirect target
+              type: string
+          schema:
+            type: string
+      summary: Handle the OIDC provider callback
+      tags:
+      - Oauth
+  /oauth/msg:
+    get:
+      description: Returns JavaScript with localized title and message assignments
+        when the corresponding query parameters are supplied.
+      parameters:
+      - description: Localization language
+        in: query
+        name: lang
+        type: string
+      - description: Localized title message ID
+        in: query
+        name: title
+        type: string
+      - description: Localized body message ID
+        in: query
+        name: msg
+        type: string
+      produces:
+      - application/javascript
+      responses:
+        "200":
+          description: JavaScript response
+          schema:
+            type: string
+      summary: Get localized OAuth message script
+      tags:
+      - Oauth
   /oidc/auth:
     post:
       consumes:
       - application/json
-      description: OidcAuth
+      description: Starts OIDC authorization and returns the provider URL with the
+        state code used by the follow-up query.
       produces:
       - application/json
       responses:
         "200":
-          description: OK
+          description: Authorization state code and provider URL
           schema:
-            $ref: '#/definitions/api.LoginRes'
-        "500":
-          description: Internal Server Error
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: OIDC authorization could not be started
           schema:
             $ref: '#/definitions/response.ErrorResponse'
-      summary: OidcAuth
+      summary: Start OIDC authorization
       tags:
       - Oauth
   /oidc/auth-query:
     get:
-      consumes:
-      - application/json
-      description: OidcAuthQuery
+      description: Exchanges the OIDC state code and provider callback values for
+        the Rust client login response.
       produces:
       - application/json
       responses:
@@ -823,47 +855,100 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/api.LoginRes'
-        "500":
-          description: Internal Server Error
+        "400":
+          description: OIDC authorization query failed
           schema:
             $ref: '#/definitions/response.ErrorResponse'
-      summary: OidcAuthQuery
+      summary: Complete OIDC authorization
       tags:
       - Oauth
   /oidc/callback:
     get:
-      consumes:
-      - application/json
-      description: OauthCallback
+      description: Renders the success/failure HTML result pages or redirects to the
+        admin OAuth binding/app route. The same handler is registered for all four
+        callback aliases below.
       produces:
-      - application/json
+      - text/html
       responses:
         "200":
-          description: OK
+          description: Rendered OAuth success or failure HTML page
           schema:
-            $ref: '#/definitions/api.LoginRes'
-        "500":
-          description: Internal Server Error
+            type: string
+        "302":
+          description: Redirect to the admin OAuth binding or app route
+          headers:
+            Location:
+              description: Admin OAuth binding or app redirect target
+              type: string
           schema:
-            $ref: '#/definitions/response.ErrorResponse'
-      summary: OauthCallback
+            type: string
+      summary: Handle the OIDC provider callback
+      tags:
+      - Oauth
+  /oidc/login:
+    get:
+      description: Renders the success/failure HTML result pages or redirects to the
+        admin OAuth binding/app route. The same handler is registered for all four
+        callback aliases below.
+      produces:
+      - text/html
+      responses:
+        "200":
+          description: Rendered OAuth success or failure HTML page
+          schema:
+            type: string
+        "302":
+          description: Redirect to the admin OAuth binding or app route
+          headers:
+            Location:
+              description: Admin OAuth binding or app redirect target
+              type: string
+          schema:
+            type: string
+      summary: Handle the OIDC provider callback
+      tags:
+      - Oauth
+  /oidc/msg:
+    get:
+      description: Returns JavaScript with localized title and message assignments
+        when the corresponding query parameters are supplied.
+      parameters:
+      - description: Localization language
+        in: query
+        name: lang
+        type: string
+      - description: Localized title message ID
+        in: query
+        name: title
+        type: string
+      - description: Localized body message ID
+        in: query
+        name: msg
+        type: string
+      produces:
+      - application/javascript
+      responses:
+        "200":
+          description: JavaScript response
+          schema:
+            type: string
+      summary: Get localized OAuth message script
       tags:
       - Oauth
   /peers:
     get:
       consumes:
       - application/json
-      description: 机器
       parameters:
-      - description: 页码
+      - description: Page number for the peer list
         in: query
         name: page
         type: integer
-      - description: 每页数量
+      - description: Number of peers per page
         in: query
         name: pageSize
         type: integer
-      - description: 状态
+      - description: Peer status filter
         in: query
         name: status
         type: integer
@@ -884,14 +969,14 @@ paths:
             $ref: '#/definitions/response.Response'
       security:
       - BearerAuth: []
-      summary: 机器
       tags:
-      - 群组
+      - ""
   /server-config:
-    get:
+    post:
       consumes:
       - application/json
-      description: 服务配置,给webclient提供api-server
+      description: Returns the ID server, public key, and the current user's web-client
+        peers.
       produces:
       - application/json
       responses:
@@ -904,15 +989,16 @@ paths:
           schema:
             $ref: '#/definitions/response.Response'
       security:
-      - token: []
-      summary: 服务配置
+      - BearerAuth: []
+      summary: Get web-client server configuration
       tags:
       - WEBCLIENT
   /server-config-v2:
-    get:
+    post:
       consumes:
       - application/json
-      description: 服务配置,给webclient提供api-server
+      description: Returns the ID server and public key for the authenticated web-client
+        request.
       produces:
       - application/json
       responses:
@@ -925,15 +1011,15 @@ paths:
           schema:
             $ref: '#/definitions/response.Response'
       security:
-      - token: []
-      summary: 服务配置
+      - BearerAuth: []
+      summary: Get web-client server configuration v2
       tags:
       - WEBCLIENT_V2
   /shared-peer:
     post:
       consumes:
       - application/json
-      description: 分享的peer
+      description: peer
       produces:
       - application/json
       responses:
@@ -945,16 +1031,15 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Response'
-      summary: 分享的peer
+      summary: peer
       tags:
       - WEBCLIENT
   /sysinfo:
     post:
       consumes:
       - application/json
-      description: 提交系统信息
       parameters:
-      - description: 系统信息表单
+      - description: Peer request form payload
         in: body
         name: body
         required: true
@@ -971,14 +1056,12 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.ErrorResponse'
-      summary: 提交系统信息
       tags:
       - System
   /sysinfo_ver:
     post:
       consumes:
       - application/json
-      description: 获取系统版本信息
       produces:
       - application/json
       responses:
@@ -990,24 +1073,43 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.ErrorResponse'
-      summary: 获取系统版本信息
       tags:
       - System
+  /user/info:
+    get:
+      consumes:
+      - application/json
+      description: Returns the authenticated user for Rust client API requests.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.UserPayload'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Get the current Rust client user
+      tags:
+      - User
   /users:
     get:
       consumes:
       - application/json
-      description: 用户列表
       parameters:
-      - description: 页码
+      - description: Page number for the user list
         in: query
         name: page
         type: integer
-      - description: 每页数量
+      - description: Number of users per page
         in: query
         name: pageSize
         type: integer
-      - description: 状态
+      - description: User status filter
         in: query
         name: status
         type: integer
@@ -1035,14 +1137,12 @@ paths:
             $ref: '#/definitions/response.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: 用户列表
       tags:
-      - 群组
+      - ""
   /version:
     get:
       consumes:
       - application/json
-      description: 版本
       produces:
       - application/json
       responses:
@@ -1054,9 +1154,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Response'
-      summary: 版本
       tags:
-      - 首页
+      - ""
 securityDefinitions:
   BearerAuth:
     in: header

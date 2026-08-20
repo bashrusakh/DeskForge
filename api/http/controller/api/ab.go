@@ -1,9 +1,10 @@
-﻿package api
+package api
 
 import (
 	"encoding/json"
 	"errors"
 	"github.com/gin-gonic/gin"
+	"net/http"
 	"rustdesk-server/api/global"
 	requstform "rustdesk-server/api/http/request/api"
 	"rustdesk-server/api/http/response"
@@ -11,7 +12,6 @@ import (
 	"rustdesk-server/api/model"
 	"rustdesk-server/api/service"
 	"rustdesk-server/api/utils"
-	"net/http"
 	"strconv"
 	"strings"
 )
@@ -20,9 +20,9 @@ type Ab struct {
 }
 
 // Ab
-// @Tags 
-// @Summary 
-// @Description 
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
 // @Success 200 {object} response.Response
@@ -44,7 +44,7 @@ func (a *Ab) Ab(c *gin.Context) {
 	}
 	tgc, _ := json.Marshal(tagColors)
 	res := &api.AbList{
-		Peers:     al.AddressBooks,
+		Peers:     al.Safe().AddressBooks,
 		Tags:      tagNames,
 		TagColors: string(tgc),
 	}
@@ -56,12 +56,12 @@ func (a *Ab) Ab(c *gin.Context) {
 }
 
 // UpAb
-// @Tags 
-// @Summary 
-// @Description 
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param body body requstform.AddressBookForm true ""
+// @Param body body requstform.AddressBookForm true "Address book request form payload"
 // @Success 200 {string} string "null"
 // @Failure 500 {object} response.ErrorResponse
 // @Router /ab [post]
@@ -79,6 +79,10 @@ func (a *Ab) UpAb(c *gin.Context) {
 		response.Error(c, response.TranslateMsg(c, "ParamsError")+err.Error())
 		return
 	}
+	peers := make([]*model.AddressBook, 0, len(abd.Peers))
+	for _, peer := range abd.Peers {
+		peers = append(peers, peer.ToAddressBook())
+	}
 	tc := map[string]uint{}
 	err = json.Unmarshal([]byte(abd.TagColors), &tc)
 	if err != nil {
@@ -87,7 +91,7 @@ func (a *Ab) UpAb(c *gin.Context) {
 	}
 	user := service.AllService.UserService.CurUser(c)
 
-	err = service.AllService.AddressBookService.UpdateAddressBook(abd.Peers, user.Id)
+	err = service.AllService.AddressBookService.UpdateAddressBook(peers, user.Id)
 	if err != nil {
 		response.Error(c, response.TranslateMsg(c, "OperationFailed")+err.Error())
 		return
@@ -100,8 +104,8 @@ func (a *Ab) UpAb(c *gin.Context) {
 
 // PTags
 // @Tags [Personal]
-// @Summary 
-// @Description 
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
 // @Param guid path string true "guid"
@@ -129,8 +133,8 @@ func (a *Ab) PTags(c *gin.Context) {
 
 // TagAdd
 // @Tags [Personal]
-// @Summary 
-// @Description 
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
 // @Param guid path string true "guid"
@@ -178,8 +182,8 @@ func (a *Ab) TagAdd(c *gin.Context) {
 
 // TagRename
 // @Tags [Personal]
-// @Summary 
-// @Description 
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
 // @Param guid path string true "guid"
@@ -230,8 +234,8 @@ func (a *Ab) TagRename(c *gin.Context) {
 
 // TagUpdate
 // @Tags [Personal]
-// @Summary 
-// @Description 
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
 // @Param guid path string true "guid"
@@ -276,8 +280,8 @@ func (a *Ab) TagUpdate(c *gin.Context) {
 
 // TagDel
 // @Tags [Personal]
-// @Summary 
-// @Description 
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
 // @Param guid path string true "guid"
@@ -325,8 +329,8 @@ func (a *Ab) TagDel(c *gin.Context) {
 
 // Personal
 // @Tags [Personal]
-// @Summary 
-// @Description 
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
 // @Param string body string false  "string valid"
@@ -359,8 +363,8 @@ func (a *Ab) Personal(c *gin.Context) {
 
 // Settings
 // @Tags [Personal]
-// @Summary 
-// @Description 
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
 // @Param string body string false  "string valid"
@@ -376,12 +380,12 @@ func (a *Ab) Settings(c *gin.Context) {
 
 // SharedProfiles
 // @Tags [Personal]
-// @Summary 
-// @Description 
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param current query int false ""
-// @Param pageSize query int false ""
+// @Param current query int false "Current page number for shared profiles"
+// @Param pageSize query int false "Page size for shared profiles"
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /ab/shared/profiles [post]
@@ -522,12 +526,12 @@ func (a *Ab) CheckGuid(cu *model.User, guid string) (gid, uid, cid uint, err err
 
 // Peers
 // @Tags [Personal]
-// @Summary 
-// @Description 
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param current query int false ""
-// @Param pageSize query int false ""
+// @Param current query int false "Current page number for address book peers"
+// @Param pageSize query int false "Page size for address book peers"
 // @Param ab query string false "guid"
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
@@ -551,15 +555,15 @@ func (a *Ab) Peers(c *gin.Context) {
 	al := service.AllService.AddressBookService.ListByUserIdAndCollectionId(uid, cid, 1, 1000)
 	c.JSON(http.StatusOK, gin.H{
 		"total":            al.Total,
-		"data":             al.AddressBooks,
+		"data":             al.Safe().AddressBooks,
 		"licensed_devices": 99999,
 	})
 }
 
 // PeerAdd
 // @Tags [Personal]
-// @Summary 
-// @Description 
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
 // @Param guid path string true "guid"
@@ -614,14 +618,14 @@ func (a *Ab) PeerAdd(c *gin.Context) {
 
 // PeerDel
 // @Tags [Personal]
-// @Summary 
-// @Description 
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
 // @Param guid path string true "guid"
 // @Success 200 {string} string
 // @Failure 500 {object} response.ErrorResponse
-// @Router /ab/peer/add/{guid} [delete]
+// @Router /ab/peer/{guid} [delete]
 // @Security BearerAuth
 func (a *Ab) PeerDel(c *gin.Context) {
 	f := &[]string{}
@@ -662,8 +666,8 @@ func (a *Ab) PeerDel(c *gin.Context) {
 
 // PeerUpdate
 // @Tags [Personal]
-// @Summary 
-// @Description 
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
 // @Param guid path string true "guid"

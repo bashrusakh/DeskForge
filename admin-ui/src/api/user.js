@@ -8,6 +8,16 @@ export function login (data) {
   })
 }
 
+export function logout () {
+  return request({
+    url: '/logout',
+    method: 'post',
+    timeout: 5000,
+    skipErrorMessage: true,
+    skipAuthRedirect: true,
+  })
+}
+
 export function current () {
   return request({
     url: '/user/current',

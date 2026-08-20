@@ -1,11 +1,11 @@
-﻿package response
+package response
 
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"rustdesk-server/api/global"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"net/http"
+	"rustdesk-server/api/global"
 )
 
 type Response struct {
@@ -40,6 +40,16 @@ func Success(c *gin.Context, data interface{}) {
 
 func Fail(c *gin.Context, code int, message string) {
 	SendResponse(c, code, message, nil)
+}
+
+// FailStatus keeps the standard response envelope while allowing callers to
+// return an HTTP status other than the legacy 200 used by Fail.
+func FailStatus(c *gin.Context, status, code int, message string) {
+	c.JSON(status, Response{
+		Code:    code,
+		Message: message,
+		Data:    nil,
+	})
 }
 
 func Error(c *gin.Context, message string) {

@@ -2,7 +2,7 @@
 
 ## Problem
 
-In `docker/Dockerfile:62`:
+The previous implementation in `docker/Dockerfile` used:
 ```dockerfile
 FROM rustdesk/rustdesk-server-s6:latest AS s6-source
 ```
@@ -75,7 +75,7 @@ Without it: 3 separate containers or custom bash supervisor.
 **New Stage 4 (s6-stage) — as implemented in `docker/Dockerfile`:**
 ```dockerfile
 # Stage 4: Install s6-overlay from official GitHub release (no upstream dependency)
-FROM alpine:latest AS s6-stage
+FROM alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b AS s6-stage
 
 ARG S6_OVERLAY_VERSION=3.2.3.0
 # s6-overlay arch differs from Docker TARGETARCH naming (x86_64 vs amd64)
@@ -186,15 +186,16 @@ Add `# DEPRECATED` comment or delete.
 
 ## Pinned Versions
 
-Only the s6-overlay release is pinned (by version tag and SHA-256 checksums).
-The base images (`rust:bookworm`, `alpine:latest`) are mutable tags and are
-**not** pinned — they can resolve to different images on later builds.
+Production base images are pinned by both version and digest. The s6-overlay
+release is pinned by version tag and SHA-256 checksums.
 
 | Component | Version | Where |
 |-----------|---------|-------|
 | s6-overlay | 3.2.3.0 | `ARG S6_OVERLAY_VERSION=3.2.3.0` + `S6_*_SHA256` checksums in Dockerfile |
-| rust (base image) | bookworm (mutable tag, not pinned) | Stage 1 base image |
-| alpine (base image) | latest (mutable tag, not pinned) | Stage 4/5 base images |
+| rust (base image) | `1.92.0-bookworm@sha256:e90e846de4124376164ddfbaab4b0774c7bdeef5e738866295e5a90a34a307a2` | Stage 1 base image |
+| golang (base image) | `1.25.0-alpine@sha256:f18a072054848d87a8077455f0ac8a25886f2397f88bfdd222d6fafbb5bba440` | Stage 2 base image |
+| node (base image) | `20.20.2-bookworm@sha256:8f693eaa7e0a8e71560c9a82b55fd54c2ae920a2ba5d2cde28bac7d1c01c9ba5` | Stage 3 base image |
+| alpine (base image) | `3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b` | Stage 4/5 base images |
 
 ---
 
@@ -261,4 +262,4 @@ docker compose logs -f
 1. **Remove `rustdesk/rustdesk-server-s6` locally**: `docker rmi rustdesk/rustdesk-server-s6:latest`
 2. **Delete `api/Dockerfile_full_s6`** entirely (currently commented)
 3. **Update `.env.example`** — remove any upstream references
-4. **Add to CI** — verify build doesn't pull upstream
+4. **CI coverage** — the production Dockerfile is now covered by CI

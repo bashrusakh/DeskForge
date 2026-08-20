@@ -18,11 +18,11 @@ type Peer struct {
 // @Description 
 // @Accept  json
 // @Produce  json
-// @Param page query int false ""
-// @Param page_size query int false ""
-// @Param time_ago query int false ""
+// @Param page query int false "Page number for the personal peer list"
+// @Param page_size query int false "Number of personal peers per page"
+// @Param time_ago query int false "Last-online time offset filter"
 // @Param id query string false "ID"
-// @Param hostname query string false ""
+// @Param hostname query string false "Hostname filter"
 // @Param uuids query string false "uuids "
 // @Success 200 {object} response.Response{data=model.PeerList}
 // @Failure 500 {object} response.Response
@@ -68,7 +68,7 @@ func (ct *Peer) List(c *gin.Context) {
 // @Description
 // @Accept  json
 // @Produce  json
-// @Param body body admin.PeerForm true ""
+// @Param body body admin.PeerForm true "Personal peer deletion form payload"
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/my/peer/delete [post]
@@ -102,7 +102,7 @@ func (ct *Peer) Delete(c *gin.Context) {
 // @Description
 // @Accept  json
 // @Produce  json
-// @Param body body admin.PeerBatchDeleteForm true ""
+// @Param body body admin.PeerBatchDeleteForm true "Personal peer ID batch deletion payload"
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/my/peer/batchDelete [post]

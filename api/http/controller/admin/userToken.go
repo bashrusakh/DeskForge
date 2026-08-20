@@ -1,28 +1,28 @@
-﻿package admin
+package admin
 
 import (
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 	"rustdesk-server/api/global"
 	"rustdesk-server/api/http/request/admin"
 	"rustdesk-server/api/http/response"
 	"rustdesk-server/api/model"
 	"rustdesk-server/api/service"
-	"gorm.io/gorm"
 )
 
 type UserToken struct {
 }
 
-// List 
-// @Tags 
-// @Summary 
-// @Description 
+// List
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param page query int false ""
-// @Param page_size query int false ""
+// @Param page query int false "Page number for the user-token list"
+// @Param page_size query int false "Number of user tokens per page"
 // @Param user_id query int false "ID"
-// @Success 200 {object} response.Response{data=model.UserTokenList}
+// @Success 200 {object} response.Response{data=model.UserTokenSafeList} "Redacted user-token list envelope"
 // @Failure 500 {object} response.Response
 // @Router /admin/user_token/list [get]
 // @Security token
@@ -38,16 +38,16 @@ func (ct *UserToken) List(c *gin.Context) {
 		}
 		tx.Order("id desc")
 	})
-	response.Success(c, res)
+	response.Success(c, res.Safe())
 }
 
-// Delete 
-// @Tags 
-// @Summary 
-// @Description 
+// Delete
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param body body model.UserToken true ""
+// @Param body body model.UserToken true "User-token deletion form payload"
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/user_token/delete [post]
@@ -82,13 +82,13 @@ func (ct *UserToken) Delete(c *gin.Context) {
 	response.Fail(c, 101, response.TranslateMsg(c, "ItemNotFound"))
 }
 
-// BatchDelete 
-// @Tags 
-// @Summary 
-// @Description 
+// BatchDelete
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param body body admin.UserTokenBatchDeleteForm true ""
+// @Param body body admin.UserTokenBatchDeleteForm true "User-token ID batch deletion payload"
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/user_token/batchDelete [post]

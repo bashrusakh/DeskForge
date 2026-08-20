@@ -579,10 +579,7 @@ mod tests {
             "turn:example.com:3478"
         );
         assert_eq!(WebRTCStream::get_ice_servers().len(), 2);
-        config::Config::set_option(
-            "ice-servers".to_string(),
-            "".to_string(),
-        );
+        config::Config::set_option("ice-servers".to_string(), "".to_string());
     }
 
     #[test]

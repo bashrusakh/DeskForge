@@ -46,7 +46,7 @@ func TestFileGetJson(t *testing.T) {
 	err2 := fc.Get("123", res)
 	fmt.Println("res", res)
 	if err2 != nil {
-		t.Fatalf("" + err2.Error())
+		t.Fatalf("%s", err2.Error())
 	}
 }
 func TestFileSetGetJson(t *testing.T) {
@@ -68,7 +68,7 @@ func TestFileSetGetJson(t *testing.T) {
 	err2 := fc.Get("123", res)
 	fmt.Println("res", res)
 	if err2 != nil {
-		t.Fatalf("" + err2.Error())
+		t.Fatalf("%s", err2.Error())
 	}
 	if !reflect.DeepEqual(res, old) {
 		t.Fatalf("")

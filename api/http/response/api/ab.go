@@ -1,11 +1,11 @@
-﻿package api
+package api
 
 import "rustdesk-server/api/model"
 
 type AbList struct {
-	Peers     []*model.AddressBook `json:"peers,omitempty"`
-	Tags      []string             `json:"tags,omitempty"`
-	TagColors string               `json:"tag_colors,omitempty"`
+	Peers     []*model.AddressBookSafe `json:"peers,omitempty"`
+	Tags      []string                 `json:"tags,omitempty"`
+	TagColors string                   `json:"tag_colors,omitempty"`
 }
 
 type SharedProfilesPayload struct {

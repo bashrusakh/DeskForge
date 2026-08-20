@@ -1,6 +1,7 @@
 #!/bin/sh
 
 set -e
+export GOTOOLCHAIN=local
 # Automatically get the current environment's GOARCH; if not defined, use the detected system architecture
 GOARCH=${GOARCH:-$(go env GOARCH)}
 DOCS="true"
@@ -20,7 +21,7 @@ if [ -n "${DOCS}" ]; then
     # Check if swag is installed
     if ! command -v swag &> /dev/null; then
         echo "swag command not found. Please install it using:"
-        echo "go install github.com/swaggo/swag/cmd/swag@latest"
+        echo "go install github.com/swaggo/swag/cmd/swag@v1.16.3"
         echo "Skipping Swagger documentation generation due to missing swag tool."
     else
         echo "Generating Swagger documentation..."

@@ -22,7 +22,7 @@ func TestMemoryGet(t *testing.T) {
 	err := mc.Get("123", &res)
 	fmt.Println("res", res)
 	if err != nil {
-		t.Fatalf(" " + err.Error())
+		t.Fatalf(" %s", err.Error())
 	}
 	if res != "44567" {
 		t.Fatalf("")
@@ -43,24 +43,24 @@ func TestMemorySetExpGet(t *testing.T) {
 	res := ""
 	err = mc.Get("3", &res)
 	if err != nil {
-		t.Fatalf("" + err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 	fmt.Println("res 3", res)
 	time.Sleep(4 * time.Second)
 	//res = ""
 	err = mc.Get("3", &res)
 	if err != nil {
-		t.Fatalf("" + err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 	fmt.Println("res 3", res)
 	err = mc.Get("2", &res)
 	if err != nil {
-		t.Fatalf("" + err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 	fmt.Println("res 2", res)
 	err = mc.Get("1", &res)
 	if err != nil {
-		t.Fatalf("" + err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 	fmt.Println("res 1", res)
 
@@ -79,19 +79,19 @@ func TestMemoryLru(t *testing.T) {
 	res := ""
 	err = mc.Get("3", &res)
 	if err != nil {
-		t.Fatalf("" + err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 	fmt.Println("res3", res)
 	res = ""
 	err = mc.Get("2", &res)
 	if err != nil {
-		t.Fatalf("" + err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 	fmt.Println("res2", res)
 	res = ""
 	err = mc.Get("1", &res)
 	if err != nil {
-		t.Fatalf("" + err.Error())
+		t.Fatalf("%s", err.Error())
 	}
 	fmt.Println("res1", res)
 

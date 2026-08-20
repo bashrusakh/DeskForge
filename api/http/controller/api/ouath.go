@@ -1,4 +1,4 @@
-﻿package api
+package api
 
 import (
 	"encoding/json"
@@ -6,26 +6,26 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"rustdesk-server/api/global"
 	"rustdesk-server/api/http/request/api"
 	"rustdesk-server/api/http/response"
 	apiResp "rustdesk-server/api/http/response/api"
 	"rustdesk-server/api/model"
 	"rustdesk-server/api/service"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
 type Oauth struct {
 }
 
-// OidcAuth
+// OidcAuth starts an OIDC authorization flow and returns its state code and URL.
 // @Tags Oauth
-// @Summary OidcAuth
-// @Description OidcAuth
+// @Summary Start OIDC authorization
+// @Description Starts OIDC authorization and returns the provider URL with the state code used by the follow-up query.
 // @Accept  json
 // @Produce  json
-// @Success 200 {object} apiResp.LoginRes
-// @Failure 500 {object} response.ErrorResponse
+// @Success 200 {object} map[string]string "Authorization state code and provider URL"
+// @Failure 400 {object} response.ErrorResponse "OIDC authorization could not be started"
 // @Router /oidc/auth [post]
 func (o *Oauth) OidcAuth(c *gin.Context) {
 	f := &api.OidcAuthRequest{}
@@ -71,7 +71,7 @@ func (o *Oauth) OidcAuthQueryPre(c *gin.Context) (*model.User, *model.UserToken)
 		return nil, nil
 	}
 
-	//  OAuth 
+	//  OAuth
 	v := service.AllService.OauthService.GetOauthCache(q.Code)
 	if v == nil {
 		response.Error(c, response.TranslateMsg(c, "OauthExpired"))
@@ -91,7 +91,7 @@ func (o *Oauth) OidcAuthQueryPre(c *gin.Context) (*model.User, *model.UserToken)
 		return nil, nil
 	}
 
-	//  OAuth 
+	//  OAuth
 	service.AllService.OauthService.DeleteOauthCache(q.Code)
 
 	ut = service.AllService.UserService.Login(u, &model.LoginLog{
@@ -112,14 +112,13 @@ func (o *Oauth) OidcAuthQueryPre(c *gin.Context) (*model.User, *model.UserToken)
 	return u, ut
 }
 
-// OidcAuthQuery
+// OidcAuthQuery exchanges a completed OIDC authorization state for a login token.
 // @Tags Oauth
-// @Summary OidcAuthQuery
-// @Description OidcAuthQuery
-// @Accept  json
+// @Summary Complete OIDC authorization
+// @Description Exchanges the OIDC state code and provider callback values for the Rust client login response.
 // @Produce  json
 // @Success 200 {object} apiResp.LoginRes
-// @Failure 500 {object} response.ErrorResponse
+// @Failure 400 {object} response.ErrorResponse "OIDC authorization query failed"
 // @Router /oidc/auth-query [get]
 func (o *Oauth) OidcAuthQuery(c *gin.Context) {
 	u, ut := o.OidcAuthQueryPre(c)
@@ -133,15 +132,18 @@ func (o *Oauth) OidcAuthQuery(c *gin.Context) {
 	})
 }
 
-// OauthCallback 
+// OauthCallback handles the provider callback for every registered OIDC/OAuth alias.
 // @Tags Oauth
-// @Summary OauthCallback
-// @Description OauthCallback
-// @Accept  json
-// @Produce  json
-// @Success 200 {object} apiResp.LoginRes
-// @Failure 500 {object} response.ErrorResponse
+// @Summary Handle the OIDC provider callback
+// @Description Renders the success/failure HTML result pages or redirects to the admin OAuth binding/app route. The same handler is registered for all four callback aliases below.
+// @Produce text/html
+// @Success 200 {string} string "Rendered OAuth success or failure HTML page"
+// @Success 302 {string} string "Redirect to the admin OAuth binding or app route"
+// @Header 302 {string} Location "Admin OAuth binding or app redirect target"
+// @Router /oauth/callback [get]
+// @Router /oauth/login [get]
 // @Router /oidc/callback [get]
+// @Router /oidc/login [get]
 func (o *Oauth) OauthCallback(c *gin.Context) {
 	state := c.Query("state")
 	if state == "" {
@@ -270,6 +272,17 @@ type MessageParams struct {
 	Msg   string `json:"msg" form:"msg"`
 }
 
+// Message returns localized JavaScript assignments for OAuth/OIDC pages.
+// @Tags Oauth
+// @Summary Get localized OAuth message script
+// @Description Returns JavaScript with localized title and message assignments when the corresponding query parameters are supplied.
+// @Produce application/javascript
+// @Param lang query string false "Localization language"
+// @Param title query string false "Localized title message ID"
+// @Param msg query string false "Localized body message ID"
+// @Success 200 {string} string "JavaScript response"
+// @Router /oauth/msg [get]
+// @Router /oidc/msg [get]
 func (o *Oauth) Message(c *gin.Context) {
 	mp := &MessageParams{}
 	if err := c.ShouldBindQuery(mp); err != nil {

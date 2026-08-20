@@ -1,10 +1,13 @@
 # Use build arguments for Go version and architecture
-ARG GO_VERSION=1.22
+ARG GO_VERSION=1.25.0
 ARG BUILDARCH=amd64
 
 # Stage 1: Builder Stage
-# FROM golang:${GO_VERSION}-alpine AS builder
-FROM crazymax/xgo:${GO_VERSION} AS builder-backend
+FROM golang:${GO_VERSION}-alpine AS builder-backend
+
+ENV GOTOOLCHAIN=local
+
+RUN apk add --no-cache gcc musl-dev
 
 # Set up working directory
 WORKDIR /app
@@ -15,7 +18,8 @@ COPY . .
 # use --mount=type=cache,target=/go/pkg/mod to cache the go mod
 # Step 2: Download dependencies
 RUN --mount=type=cache,target=/go/pkg/mod \
-    go mod tidy && go mod download && go install github.com/swaggo/swag/cmd/swag@latest
+    go mod download && \
+    go build -mod=readonly -o /usr/local/bin/swag github.com/swaggo/swag/cmd/swag
 
 # Step 3: Run swag build script
 RUN --mount=type=cache,target=/go/pkg/mod \

@@ -9,17 +9,55 @@ import (
 	"regexp"
 	"runtime/debug"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // VersionRegex ограничивает версию безопасным форматом перед передачей
 // в GitHub Actions dispatch — защита от command injection в shell-командах
 // workflow (echo "VERSION=$RQS_VERSION", download URL и т.п.).
-// Допускает: digits.dots.digits + optional pre-release (например "1.4.8", "1.4.8-beta.1").
-var VersionRegex = regexp.MustCompile(`^[0-9]+\.[0-9]+(\.[0-9]+)?(-[a-zA-Z0-9.]+)?$`)
+// Допускает строгий SemVer core и optional pre-release (например "1.4.8",
+// "1.4.8-beta.1"). Numeric prerelease identifiers may not contain leading
+// zeroes. Build metadata is intentionally excluded because the workflow
+// release/tag contract names assets by the exact version string. The 32-byte
+// limit preserves the existing CustomBuild/CustomPreset storage contract.
+var VersionRegex = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$`)
 
 // ValidateBuildVersion проверяет, что версия подходит для dispatch.
 func ValidateBuildVersion(v string) bool {
-	return VersionRegex.MatchString(v)
+	if v == "" || len(v) > 32 || !utf8.ValidString(v) {
+		return false
+	}
+	for _, char := range v {
+		if unicode.IsControl(char) {
+			return false
+		}
+	}
+	if !VersionRegex.MatchString(v) {
+		return false
+	}
+	_, prerelease, hasPrerelease := strings.Cut(v, "-")
+	if !hasPrerelease {
+		return true
+	}
+	for _, identifier := range strings.Split(prerelease, ".") {
+		if len(identifier) > 1 && identifier[0] == '0' && isASCIIDigits(identifier) {
+			return false
+		}
+	}
+	return true
+}
+
+func isASCIIDigits(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, char := range value {
+		if char < '0' || char > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func Md5(str string) string {
@@ -76,7 +114,7 @@ func SafeGo(f interface{}, params ...interface{}) {
 	}()
 }
 
-// RandomString 
+// RandomString
 func RandomString(n int) string {
 	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	length := len(letterBytes)
@@ -91,7 +129,7 @@ func RandomString(n int) string {
 	return string(b)
 }
 
-// Keys ，K ，V 
+// Keys ，K ，V
 func Keys[K comparable, V any](m map[K]V) []K {
 	keys := make([]K, 0, len(m))
 	for k := range m {
@@ -100,7 +138,7 @@ func Keys[K comparable, V any](m map[K]V) []K {
 	return keys
 }
 
-// Values ，K ，V 
+// Values ，K ，V
 func Values[K comparable, V any](m map[K]V) []V {
 	values := make([]V, 0, len(m))
 	for _, v := range m {

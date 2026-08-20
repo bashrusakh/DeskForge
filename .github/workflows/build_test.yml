@@ -1,0 +1,77 @@
+name: Build Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  focused:
+    name: Focused monorepo validation
+    runs-on: ubuntu-24.04
+    env:
+      DATABASE_URL: sqlite:///tmp/deskforge-sqlx.sqlite3
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: api/go.mod
+          cache: true
+          cache-dependency-path: |
+            api/go.sum
+            go.work.sum
+      - name: Go tests and vet
+        working-directory: api
+        run: |
+          go test ./...
+          go vet ./...
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 20
+      - name: Admin UI build
+        working-directory: admin-ui
+        run: |
+          npm ci
+          npm run build
+      - run: rustup toolchain install 1.92.0 --profile minimal --component rustfmt
+      - name: Rust format check
+        working-directory: server
+        run: cargo +1.92.0 fmt --all -- --check
+      - name: Shared Rust format check
+        working-directory: libs/hbb_common
+        run: cargo +1.92.0 fmt --all -- --check
+      - name: Prepare SQLx SQLite schema
+        run: |
+          python3 - <<'PY'
+          import sqlite3
+
+          with sqlite3.connect("/tmp/deskforge-sqlx.sqlite3") as connection:
+              connection.executescript(
+                  """
+                  create table if not exists peer (
+                      guid blob primary key not null,
+                      id varchar(100) not null,
+                      uuid blob not null,
+                      pk blob not null,
+                      created_at datetime not null default(current_timestamp),
+                      user blob,
+                      status tinyint,
+                      note varchar(300),
+                      info text not null
+                  ) without rowid;
+                  create unique index if not exists index_peer_id on peer (id);
+                  create index if not exists index_peer_user on peer (user);
+                  create index if not exists index_peer_created_at on peer (created_at);
+                  create index if not exists index_peer_status on peer (status);
+                  """
+              )
+          PY
+      - name: Rust check
+        working-directory: server
+        run: cargo +1.92.0 check --locked
+      - name: Rust tests
+        working-directory: server
+        run: cargo +1.92.0 test --locked

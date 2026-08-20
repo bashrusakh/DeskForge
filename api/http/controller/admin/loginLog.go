@@ -1,30 +1,19 @@
-﻿package admin
+package admin
 
 import (
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 	"rustdesk-server/api/global"
 	"rustdesk-server/api/http/request/admin"
 	"rustdesk-server/api/http/response"
 	"rustdesk-server/api/model"
 	"rustdesk-server/api/service"
-	"gorm.io/gorm"
 	"strconv"
 )
 
 type LoginLog struct {
 }
 
-// Detail 
-// @Tags 
-// @Summary 
-// @Description 
-// @Accept  json
-// @Produce  json
-// @Param id path int true "ID"
-// @Success 200 {object} response.Response{data=model.LoginLog}
-// @Failure 500 {object} response.Response
-// @Router /admin/login_log/detail/{id} [get]
-// @Security token
 func (ct *LoginLog) Detail(c *gin.Context) {
 	id := c.Param("id")
 	iid, _ := strconv.Atoi(id)
@@ -37,14 +26,14 @@ func (ct *LoginLog) Detail(c *gin.Context) {
 	return
 }
 
-// List 
-// @Tags 
-// @Summary 
-// @Description 
+// List
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param page query int false ""
-// @Param page_size query int false ""
+// @Param page query int false "Page number for the login-log list"
+// @Param page_size query int false "Number of login-log records per page"
 // @Param user_id query int false "ID"
 // @Success 200 {object} response.Response{data=model.LoginLogList}
 // @Failure 500 {object} response.Response
@@ -66,13 +55,13 @@ func (ct *LoginLog) List(c *gin.Context) {
 	response.Success(c, res)
 }
 
-// Delete 
-// @Tags 
-// @Summary 
-// @Description 
+// Delete
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param body body model.LoginLog true ""
+// @Param body body model.LoginLog true "Login log deletion form payload"
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/login_log/delete [post]
@@ -102,13 +91,13 @@ func (ct *LoginLog) Delete(c *gin.Context) {
 	response.Fail(c, 101, err.Error())
 }
 
-// BatchDelete 
-// @Tags 
-// @Summary 
-// @Description 
+// BatchDelete
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param body body admin.LoginLogIds true ""
+// @Param body body admin.LoginLogIds true "Login log ID batch deletion payload"
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/login_log/batchDelete [post]

@@ -7,93 +7,259 @@
         pulse="warning"
     />
 
-    <page-section title="Workflow settings" subtitle="Repository, workflow, branch, PAT, and encrypted payload key.">
+    <page-section title="GitHub provider settings" subtitle="Configured repository, PAT, and encrypted payload key.">
+
+      <section
+        class="workflow-approval"
+        :aria-busy="loading || workflowTagsState === 'loading' || approving"
+        aria-labelledby="workflow-approval-title"
+      >
+        <div class="workflow-approval__header">
+          <div>
+            <h2 id="workflow-approval-title" class="workflow-approval__title">{{ T('WorkflowApprovalTitle') }}</h2>
+            <p class="workflow-approval__description">{{ T('WorkflowApprovalDescription') }}</p>
+          </div>
+          <div class="workflow-approval__status" aria-live="polite">
+            <span class="workflow-approval__status-label">{{ T('WorkflowApprovalState') }}</span>
+            <el-tag
+              :class="['workflow-status-tag', `workflow-status-tag--${info.workflow_ref_status}`]"
+              :type="workflowRefStatusType"
+              role="status"
+            >{{ workflowRefStatusLabel }}</el-tag>
+          </div>
+        </div>
+
+        <el-alert
+          id="workflow-approval-protection"
+          type="info"
+          :closable="false"
+          show-icon
+        >
+          {{ T('WorkflowApprovalProtectedExplanation') }}
+        </el-alert>
+
+        <el-alert v-if="configError" type="error" :closable="false" show-icon>
+          <span>{{ configErrorMessage || T('WorkflowApprovalConfigError') }}</span>
+          <el-button ref="workflowRetryRef" class="workflow-approval__retry" size="small" @click="retryWorkflowLoad">
+            {{ T('WorkflowApprovalRetry') }}
+          </el-button>
+        </el-alert>
+
+        <div v-else-if="workflowTagsState === 'loading'" role="status" aria-live="polite" aria-atomic="true">
+          <loading-state :title="T('WorkflowApprovalLoading')" />
+          <el-button ref="workflowRetryRef" class="workflow-approval__retry" size="small" @click="retryWorkflowLoad">
+            {{ T('WorkflowApprovalRetry') }}
+          </el-button>
+        </div>
+
+        <el-alert v-else-if="workflowTagsState === 'error'" type="error" :closable="false" show-icon>
+          <span>{{ workflowTagsError || T('WorkflowApprovalLoadError') }}</span>
+          <el-button ref="workflowRetryRef" class="workflow-approval__retry" size="small" @click="retryWorkflowLoad">
+            {{ T('WorkflowApprovalRetry') }}
+          </el-button>
+        </el-alert>
+
+        <div v-else-if="workflowTagsState === 'empty'" role="status" aria-live="polite" aria-atomic="true">
+          <empty-state :title="T('WorkflowApprovalEmpty')">
+            <template #actions>
+              <el-button ref="workflowRetryRef" size="small" @click="retryWorkflowLoad">
+                {{ T('WorkflowApprovalRetry') }}
+              </el-button>
+            </template>
+          </empty-state>
+        </div>
+
+        <div v-else class="workflow-approval__controls">
+          <label id="workflow-tag-select-label" class="workflow-approval__label" for="workflow-tag-select-input">
+            {{ T('WorkflowApprovalTagLabel') }}
+          </label>
+          <el-select
+            ref="workflowTagSelectRef"
+            v-model="selectedWorkflowTag"
+            class="workflow-approval__select"
+            :placeholder="T('WorkflowApprovalTagPlaceholder')"
+            :disabled="approving"
+          >
+            <el-option
+              v-for="option in workflowTags"
+              :key="option.tag"
+              :label="option.label"
+              :value="option.tag"
+            />
+          </el-select>
+          <p v-if="currentWorkflowTag" class="workflow-approval__current">
+            {{ T('WorkflowApprovalCurrentTag', { param: currentWorkflowTag }) }}
+          </p>
+          <el-alert v-if="approvalError" class="workflow-approval__feedback" type="error" :closable="false" show-icon>
+            {{ approvalError }}
+          </el-alert>
+          <el-button
+            class="workflow-approval__action"
+            type="primary"
+            :loading="approving"
+            :disabled="!selectedWorkflowTag"
+            @click="onApproveWorkflowRef"
+          >
+            {{ approving ? T('WorkflowApprovalApproving') : T('WorkflowApprovalApprove') }}
+          </el-button>
+        </div>
+      </section>
 
       <el-form ref="formRef" :model="form" label-position="top" v-loading="loading">
-        <el-form-item label="Repository (owner/name)">
-          <el-input v-model="form.repo" placeholder="bashrusakh/DeskForge" />
-        </el-form-item>
-
-        <el-form-item label="Workflow filename">
-          <el-input v-model="form.workflow_filename" placeholder="rustqs-windows-min-test.yml" />
-        </el-form-item>
-
-        <el-form-item label="Branch">
-          <el-input v-model="form.branch" placeholder="master or rustqs/min-test" />
+        <el-form-item
+          ref="repoFormItemRef"
+          prop="repo"
+          label="Repository (owner/name)"
+          :error="repoError || undefined"
+        >
+          <el-input
+            ref="repoInputRef"
+            id="github-repository-input"
+            v-model="form.repo"
+            placeholder="owner/rustdesk-fork"
+            aria-required="true"
+            :aria-invalid="Boolean(repoError)"
+            :aria-describedby="repoError ? 'github-repository-error' : undefined"
+            @input="clearRepositoryError"
+          />
+          <template #error>
+            <span id="github-repository-error" role="alert" aria-live="assertive">{{ repoError }}</span>
+          </template>
         </el-form-item>
 
         <el-form-item label="GitHub Token (PAT)">
           <el-input
+            id="github-pat-input"
             v-model="form.token"
-            type="password"
-            show-password
+            :type="showToken ? 'text' : 'password'"
+            aria-describedby="github-pat-permissions"
             :placeholder="info.has_token ? '(already saved — empty = keep current)' : 'github_pat_...'"
-          />
-          <div class="hint-text">
-            Fine-grained PAT, scope: <code>Actions: Read &amp; Write</code> on the repo above.
-            Empty value keeps the existing token.
+          >
+            <template #append>
+              <button
+                type="button"
+                class="secret-toggle"
+                :aria-label="T(showToken ? 'HidePassword' : 'ShowPassword')"
+                :aria-pressed="showToken"
+                @click="showToken = !showToken"
+              >
+                {{ T(showToken ? 'HidePassword' : 'ShowPassword') }}
+              </button>
+            </template>
+          </el-input>
+          <div id="github-pat-permissions" class="hint-text github-pat-permissions">
+            <p>{{ T('GithubPatPermissionsIntro') }}</p>
+            <ul>
+              <li>{{ T('GithubPatPermissionMetadata') }}</li>
+              <li>{{ T('GithubPatPermissionContents') }}</li>
+              <li>{{ T('GithubPatPermissionActions') }}</li>
+              <li>{{ T('GithubPatPermissionAdministration') }}</li>
+              <li>{{ T('GithubPatPermissionSecrets') }}</li>
+            </ul>
+            <p>{{ T('GithubPatPermissionsNote') }}</p>
           </div>
         </el-form-item>
 
-        <el-form-item label="Encryption key (WORKFLOW_PAYLOAD_KEY)">
+        <el-form-item>
+          <template #label>
+            <span id="payload-key-label">Encryption key (WORKFLOW_PAYLOAD_KEY)</span>
+          </template>
           <el-input
+            id="payload-key-input"
             v-model="form.payload_key"
-            type="password"
-            show-password
+            :type="showPayloadKey ? 'text' : 'password'"
+            aria-labelledby="payload-key-label"
+            aria-describedby="payload-key-hint"
             :placeholder="info.has_payload_key ? '(already saved — empty = keep current)' : 'paste or click Generate'"
-          />
-          <div class="hint-text">
+          >
+            <template #append>
+              <button
+                type="button"
+                class="secret-toggle"
+                :aria-label="T(showPayloadKey ? 'HidePassword' : 'ShowPassword')"
+                :aria-pressed="showPayloadKey"
+                @click="showPayloadKey = !showPayloadKey"
+              >
+                {{ T(showPayloadKey ? 'HidePassword' : 'ShowPassword') }}
+              </button>
+            </template>
+          </el-input>
+          <div id="payload-key-hint" class="hint-text">
             Must match the GitHub Secret <code>WORKFLOW_PAYLOAD_KEY</code> in the fork.
             Click Generate to create a fresh key — you'll need to copy it to
             github.com/&lt;repo&gt;/settings/secrets/actions.
           </div>
           <el-button size="small" @click="onGenerate" :loading="generating">Generate new key</el-button>
           <el-button size="small" @click="onSyncSecret" :loading="syncing">Push to GitHub Secrets</el-button>
-          <el-button size="small" @click="onSyncPat" :loading="syncingPat">Sync PAT to CI</el-button>
+          <el-alert v-if="generateError" :closable="false" type="error" show-icon>
+            {{ generateError }}
+          </el-alert>
           <div v-if="generatedKey" class="generated-key">
-            <strong>New key (will be auto-pushed to GitHub Secrets if you click "Push" above, or copy manually):</strong>
-            <el-input v-model="generatedKey" readonly>
+            <label id="generated-key-label" class="generated-key__label" for="generated-key-input">
+              {{ T('GeneratedKeyLabel') }}
+            </label>
+            <el-input
+              ref="generatedKeyInputRef"
+              id="generated-key-input"
+              v-model="generatedKey"
+              type="password"
+              readonly
+              aria-labelledby="generated-key-label"
+              aria-describedby="generated-key-warning"
+            >
               <template #append>
                 <el-button @click="copyKey">Copy</el-button>
               </template>
             </el-input>
-            <p class="warn">This is the only time the key is shown. Save it now.</p>
+            <p id="generated-key-warning" class="warn">{{ T('GeneratedKeyWarning') }}</p>
           </div>
+          <p class="generated-key-status" role="status" aria-live="polite" aria-atomic="true">{{ generatedKeyStatus }}</p>
           <el-alert v-if="syncResult" :type="syncResult.ok ? 'success' : 'error'" :closable="true">
             {{ syncResult.message }}
           </el-alert>
         </el-form-item>
 
-        <el-form-item>
-          <el-button type="primary" @click="onSave" :loading="saving">Save</el-button>
-          <el-button @click="onTest" :loading="testing">Test connection</el-button>
-          <el-button @click="onDispatchTest" :loading="dispatching">Trigger test build</el-button>
-        </el-form-item>
-
-        <el-alert v-if="testResult" :type="testResult.ok ? 'success' : 'error'" :closable="false">
-          {{ testResult.message }}
-        </el-alert>
-        <el-alert
-          v-if="dispatchResult"
-          :type="dispatchResult.run_id ? 'success' : 'error'"
-          :closable="false"
-        >
-          <div v-if="dispatchResult.message">{{ dispatchResult.message }}</div>
-          <div v-if="dispatchResult.run_id">
-            Run id={{ dispatchResult.run_id }}
-            · <a :href="runUrl(dispatchResult.run_id)" target="_blank">Open in GitHub</a>
+        <div class="github-build-save-region" :aria-busy="saving || testing || dispatching">
+          <div class="github-build-action-bar" role="group" :aria-label="T('Actions')">
+            <el-button type="primary" @click="onSave" :loading="saving">Save</el-button>
+            <el-button @click="onTest" :loading="testing">Test connection</el-button>
+            <el-button @click="onDispatchTest" :loading="dispatching">Trigger test build</el-button>
           </div>
-        </el-alert>
+          <p id="github-build-save-status" class="github-build-save-status" role="status" aria-live="polite" aria-atomic="true">{{ saveStatus }}</p>
+
+          <el-alert v-if="saveError" type="error" :closable="false" show-icon role="alert" aria-live="assertive">
+            {{ saveError }}
+          </el-alert>
+          <el-alert v-if="testResult" :type="testResult.ok ? 'success' : 'error'" :closable="false">
+            {{ testResult.message }}
+          </el-alert>
+          <el-alert
+            v-if="dispatchResult"
+            :type="dispatchResult.run_id ? 'success' : 'error'"
+            :closable="false"
+          >
+            <div v-if="dispatchResult.message">{{ dispatchResult.message }}</div>
+            <div v-if="dispatchResult.run_id">
+              Run id={{ dispatchResult.run_id }}
+              <template v-if="dispatchResult.html_url">
+                · <a :href="dispatchResult.html_url" target="_blank">Open in GitHub</a>
+              </template>
+            </div>
+          </el-alert>
+        </div>
       </el-form>
     </page-section>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, reactive } from 'vue'
+import { ref, onMounted, reactive, computed, nextTick } from 'vue'
 import * as api from '@/api/github_build_config'
+import { T } from '@/utils/i18n'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import PageSection from '@/components/ui/PageSection.vue'
+import LoadingState from '@/components/ui/LoadingState.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -101,72 +267,249 @@ const testing = ref(false)
 const dispatching = ref(false)
 const generating = ref(false)
 const syncing = ref(false)
-const syncingPat = ref(false)
+const approving = ref(false)
+const showToken = ref(false)
+const showPayloadKey = ref(false)
+const generateError = ref('')
+const generatedKeyStatus = ref('')
 const syncResult = ref(null)
+const workflowTags = ref([])
+const workflowTagsState = ref('loading')
+const workflowTagsError = ref('')
+const configError = ref(false)
+const configErrorMessage = ref('')
+const approvalError = ref('')
+const selectedWorkflowTag = ref('')
+const currentWorkflowTag = ref('')
+const workflowTagSelectRef = ref(null)
+const workflowRetryRef = ref(null)
+const repoInputRef = ref(null)
+const repoFormItemRef = ref(null)
+const generatedKeyInputRef = ref(null)
+const restoreWorkflowFocus = ref(false)
+const workflowTagInputId = 'workflow-tag-select-input'
 
-const info = reactive({ has_token: false, has_payload_key: false })
+const syncWorkflowTagSelectAria = async () => {
+  await nextTick()
+  const selectRoot = workflowTagSelectRef.value?.$el
+  const input = selectRoot?.querySelector('input[role="combobox"], input')
+  if (!input) return
+  input.id = workflowTagInputId
+  input.setAttribute('aria-labelledby', 'workflow-tag-select-label')
+  input.setAttribute('aria-describedby', 'workflow-approval-protection')
+}
+
+const info = reactive({ has_token: false, has_payload_key: false, workflow_ref: '', workflow_ref_approved: false, workflow_ref_status: 'approval-required' })
 const form = reactive({
   repo: '',
-  workflow_filename: '',
-  branch: '',
   token: '',
   payload_key: '',
 })
 const generatedKey = ref('')
 const testResult = ref(null)
 const dispatchResult = ref(null)
+const saveError = ref('')
+const saveStatus = ref('')
+const repoError = ref('')
 
-function runUrl (runId) {
-  return form.repo ? `https://github.com/${form.repo}/actions/runs/${runId}` : '#'
+function clearRepositoryError () {
+  if (repoError.value) repoError.value = ''
+}
+
+async function validateRepository () {
+  const repo = String(form.repo || '').trim()
+  if (repo) {
+    form.repo = repo
+    repoError.value = ''
+    return true
+  }
+
+  repoError.value = T('GithubBuildRepositoryRequired')
+  await nextTick()
+  const formItem = repoFormItemRef.value?.$el || repoFormItemRef.value
+  formItem?.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
+  repoInputRef.value?.focus?.({ preventScroll: true })
+  return false
 }
 
 async function load () {
   loading.value = true
+  configError.value = false
+  configErrorMessage.value = ''
+  approvalError.value = ''
+  workflowTagsState.value = 'loading'
+  workflowTagsError.value = ''
+  workflowTags.value = []
+  selectedWorkflowTag.value = ''
+  currentWorkflowTag.value = ''
+  info.workflow_ref = ''
+  info.workflow_ref_approved = false
+  info.workflow_ref_status = 'approval-required'
+  let configLoaded = false
   try {
     const res = await api.get()
     const d = res.data || res
-    form.repo = d.repo || 'bashrusakh/DeskForge'
-    form.workflow_filename = d.workflow_filename || 'rustqs-windows-min-test.yml'
-    form.branch = d.branch || 'rustqs/min-test'
+    form.repo = d.repo || ''
     info.has_token = !!d.has_token
     info.has_payload_key = !!d.has_payload_key
+    applyApprovalState(d)
+    configLoaded = true
+
+    const tagsRes = await api.getWorkflowTags()
+    const tagsData = tagsRes.data || tagsRes
+    workflowTags.value = Array.isArray(tagsData.tags)
+      ? tagsData.tags.filter(option => option && typeof option.tag === 'string' && typeof option.label === 'string')
+      : []
+    workflowTagsState.value = workflowTags.value.length > 0 ? 'ready' : 'empty'
+    selectCurrentWorkflowTag()
+    syncWorkflowTagSelectAria()
+  } catch (e) {
+    workflowTagsState.value = 'error'
+    configError.value = !configLoaded
+    if (configLoaded) {
+      workflowTagsError.value = extractApiError(e, 'WorkflowApprovalLoadError')
+    } else {
+      configErrorMessage.value = extractApiError(e, 'WorkflowApprovalConfigError')
+    }
   } finally {
     loading.value = false
   }
 }
 
+async function retryWorkflowLoad () {
+  const retryButton = workflowRetryRef.value?.$el || workflowRetryRef.value
+  restoreWorkflowFocus.value = Boolean(retryButton?.contains?.(document.activeElement))
+  await load()
+  if (!restoreWorkflowFocus.value) return
+  restoreWorkflowFocus.value = false
+  await nextTick()
+  if (workflowTagsState.value === 'ready') {
+    workflowTagSelectRef.value?.focus?.()
+  } else {
+    const nextRetryButton = workflowRetryRef.value?.$el || workflowRetryRef.value
+    nextRetryButton?.focus?.()
+  }
+}
+
+function applyApprovalState (data) {
+  info.workflow_ref = data.workflow_ref || ''
+  info.workflow_ref_approved = !!data.workflow_ref_approved
+  info.workflow_ref_status = ['approval-required', 'provider-policy-unverified', 'approved'].includes(data.workflow_ref_status)
+    ? data.workflow_ref_status
+    : (info.workflow_ref_approved ? 'provider-policy-unverified' : 'approval-required')
+  currentWorkflowTag.value = info.workflow_ref
+}
+
+function selectCurrentWorkflowTag () {
+  selectedWorkflowTag.value = workflowTags.value.some(option => option.tag === currentWorkflowTag.value)
+    ? currentWorkflowTag.value
+    : ''
+}
+
+async function onApproveWorkflowRef () {
+  if (!selectedWorkflowTag.value) return
+  approving.value = true
+  approvalError.value = ''
+  try {
+    const res = await api.approveWorkflowRef(selectedWorkflowTag.value)
+    const d = res.data || res
+    applyApprovalState(d)
+    selectCurrentWorkflowTag()
+  } catch (e) {
+    approvalError.value = extractApiError(e, 'WorkflowApprovalRequestFailed')
+  } finally {
+    approving.value = false
+  }
+}
+
+const workflowRefStatusLabel = computed(() => {
+  switch (info.workflow_ref_status) {
+    case 'approved':
+      return T('WorkflowApprovalStatusApproved')
+    case 'provider-policy-unverified':
+      return T('WorkflowApprovalStatusProviderPolicyUnverified')
+    default:
+      return T('WorkflowApprovalStatusApprovalRequired')
+  }
+})
+
+const workflowRefStatusType = computed(() => {
+  switch (info.workflow_ref_status) {
+    case 'approved':
+      return 'success'
+    case 'provider-policy-unverified':
+      return 'warning'
+    default:
+      return 'info'
+  }
+})
+
 async function onSave () {
+  if (!await validateRepository()) return
   saving.value = true
+  saveError.value = ''
+  saveStatus.value = T('GithubBuildSaveSaving')
+  let saved = false
   try {
     await api.save({
-      repo: form.repo,
-      workflow_filename: form.workflow_filename,
-      branch: form.branch,
+      repo: form.repo.trim(),
       token: form.token,
       payload_key: form.payload_key,
     })
-    form.token = ''
-    form.payload_key = ''
-    await load()
+    saved = true
+  } catch (e) {
+    saveError.value = extractApiError(e, 'GithubBuildSaveError')
   } finally {
     saving.value = false
   }
+  saveStatus.value = saved ? T('GithubBuildSaveSuccess') : saveError.value
+  if (!saved) return
+  form.token = ''
+  form.payload_key = ''
+  showToken.value = false
+  showPayloadKey.value = false
+  await load()
+}
+
+function extractApiError (error, fallbackKey) {
+  const envelopes = [error?.response?.data, Number.isInteger(error?.code) ? error : null]
+  for (const envelope of envelopes) {
+    const messages = [envelope?.message, envelope?.data?.message]
+    const message = messages.find(value => typeof value === 'string' && value.trim())
+    if (message) {
+      return message.trim()
+    }
+  }
+  return T(fallbackKey)
 }
 
 async function onGenerate () {
   generating.value = true
+  generateError.value = ''
+  generatedKeyStatus.value = ''
   try {
     const res = await api.generateKey()
     const d = res.data || res
     generatedKey.value = d.payload_key
     info.has_payload_key = true
+    generatedKeyStatus.value = T('GeneratedKeyCreated')
+    await nextTick()
+    generatedKeyInputRef.value?.focus?.({ preventScroll: true })
+  } catch (e) {
+    generateError.value = extractApiError(e, 'GithubBuildSaveError')
   } finally {
     generating.value = false
   }
 }
 
-function copyKey () {
-  if (generatedKey.value) navigator.clipboard.writeText(generatedKey.value)
+async function copyKey () {
+  if (!generatedKey.value) return
+  try {
+    await navigator.clipboard.writeText(generatedKey.value)
+    generatedKeyStatus.value = T('CopySuccess')
+  } catch (e) {
+    generatedKeyStatus.value = T('CopyFailed')
+  }
 }
 
 async function onSyncSecret () {
@@ -176,37 +519,28 @@ async function onSyncSecret () {
     const res = await api.syncSecret()
     syncResult.value = res.data || res
   } catch (e) {
-    syncResult.value = { ok: false, message: e.message || String(e) }
+    syncResult.value = { ok: false, message: extractApiError(e, 'GithubBuildSaveError') }
   } finally {
     syncing.value = false
   }
 }
 
-async function onSyncPat () {
-  syncingPat.value = true
-  syncResult.value = null
-  try {
-    const res = await api.syncPat()
-    syncResult.value = res.data || res
-  } catch (e) {
-    syncResult.value = { ok: false, message: e.message || String(e) }
-  } finally {
-    syncingPat.value = false
-  }
-}
-
 async function onTest () {
+  if (!await validateRepository()) return
   testing.value = true
   testResult.value = null
   try {
     const res = await api.test()
     testResult.value = res.data || res
+  } catch (e) {
+    testResult.value = { ok: false, message: extractApiError(e, 'GithubBuildSaveError') }
   } finally {
     testing.value = false
   }
 }
 
 async function onDispatchTest () {
+  if (!await validateRepository()) return
   // B-009: это реальная сборка на GitHub Actions (тратит минуты) — подтверждаем.
   if (!window.confirm('This triggers a REAL build on GitHub Actions and consumes Actions minutes. Continue?')) return
   dispatching.value = true
@@ -215,7 +549,7 @@ async function onDispatchTest () {
     const res = await api.dispatchTest()
     dispatchResult.value = res.data || res
   } catch (e) {
-    dispatchResult.value = { message: e.message || String(e) }
+    dispatchResult.value = { message: extractApiError(e, 'GithubBuildSaveError') }
   } finally {
     dispatching.value = false
   }
@@ -226,8 +560,91 @@ onMounted(load)
 
 <style scoped>
 .hint { color: var(--color-muted); font-size: 0.9em; }
+.workflow-approval { margin-bottom: 24px; }
+.workflow-approval__header { display: flex; gap: 20px; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
+.workflow-approval__title { margin: 0; color: var(--color-text); font-size: 18px; }
+.workflow-approval__description, .workflow-approval__current { color: var(--color-muted); font-size: 0.9em; line-height: 1.5; }
+.workflow-approval__description { margin: 4px 0 0; }
+.workflow-approval__status { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+.workflow-approval__status-label, .workflow-approval__label { color: var(--color-muted); font-size: 0.85em; font-weight: 600; }
+:deep(.workflow-status-tag.el-tag) {
+  color: var(--color-text);
+  font-weight: 600;
+}
+:deep(.workflow-status-tag.workflow-status-tag--approval-required) {
+  background-color: var(--color-surface-2);
+  border-color: var(--color-border);
+}
+:deep(.workflow-status-tag.workflow-status-tag--approved) {
+  background-color: var(--color-success-soft);
+  border-color: var(--color-success);
+}
+:deep(.workflow-status-tag.workflow-status-tag--provider-policy-unverified) {
+  background-color: var(--color-warning-soft);
+  border-color: var(--color-warning);
+}
+.workflow-approval__controls { margin-top: 18px; }
+.workflow-approval__label { display: block; margin-bottom: 6px; }
+.workflow-approval__select { width: min(100%, 420px); }
+.workflow-approval__current { margin: 8px 0 0; }
+.workflow-approval__feedback { margin-top: 16px; }
+.workflow-approval__retry { margin-left: 12px; }
+.workflow-approval__action { display: block; margin-top: 16px; }
+.github-build-action-bar {
+  position: sticky;
+  bottom: 12px;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 16px 0 8px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  box-shadow: 0 8px 24px rgb(15 23 42 / 12%);
+}
+.github-build-action-bar .el-button + .el-button { margin-left: 0; }
+.github-build-save-status { min-height: 1.25em; margin: 0 0 12px; color: var(--color-muted); font-size: 0.85em; }
 .hint-text { color: var(--color-muted); font-size: 0.85em; margin-top: 4px; }
+.github-pat-permissions p { margin: 4px 0; }
+.github-pat-permissions ul { margin: 6px 0; padding-left: 20px; }
 .generated-key { margin-top: 12px; padding: 12px; background: var(--color-code-bg); border-radius: 12px; }
-.warn { color: var(--color-danger); margin-top: 4px; font-size: 0.85em; }
+.generated-key__label { display: block; margin-bottom: 6px; color: var(--color-text); font-weight: 600; line-height: 1.4; }
+.generated-key-status { min-height: 1.25em; margin: 8px 0 0; color: var(--color-muted); font-size: 0.85em; }
+.warn {
+  color: var(--color-text);
+  margin-top: 4px;
+  padding: 6px 8px;
+  border-left: 3px solid var(--color-danger);
+  border-radius: 4px;
+  background-color: var(--color-danger-soft);
+  font-size: 0.85em;
+  font-weight: 600;
+}
 code { background: var(--color-code-bg); padding: 1px 4px; border-radius: 6px; }
+
+.secret-toggle {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+.secret-toggle:focus-visible { outline: 2px solid var(--el-color-primary); outline-offset: 2px; }
+
+@media (max-width: 640px) {
+  .workflow-approval__header { flex-direction: column; gap: 12px; }
+  .workflow-approval__status { align-items: flex-start; }
+  .workflow-approval__select { width: 100%; }
+  .workflow-approval__retry { display: block; margin: 10px 0 0; }
+  .github-build-action-bar { bottom: 8px; align-items: stretch; flex-direction: column; }
+  .github-build-action-bar .el-button { width: 100%; margin-left: 0; }
+}
 </style>

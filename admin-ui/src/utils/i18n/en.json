@@ -5,6 +5,9 @@
   "Logout": {
     "One": "Logout"
   },
+  "LogoutFailed": {
+    "One": "Session revocation failed; you were signed out locally."
+  },
   "Register": {
     "One": "Register"
   },
@@ -16,6 +19,21 @@
   },
   "Password": {
     "One": "Password"
+  },
+  "ShowPassword": {
+    "One": "Show password"
+  },
+  "HidePassword": {
+    "One": "Hide password"
+  },
+  "GeneratedKeyLabel": {
+    "One": "Generated encryption key"
+  },
+  "GeneratedKeyWarning": {
+    "One": "Copy this key now; it will not be shown again."
+  },
+  "GeneratedKeyCreated": {
+    "One": "A new encryption key was generated."
   },
   "LoginSuccess": {
     "One": "Login Success"
@@ -34,6 +52,33 @@
   },
   "ParamRequired": {
     "One": "{param} is required"
+  },
+  "CustomClientPlatformRequired": {
+    "One": "Choose Windows as the supported build platform."
+  },
+  "CustomClientVersionRequired": {
+    "One": "Choose the client version to build."
+  },
+  "CustomClientAppNameRequired": {
+    "One": "Enter the artifact application name."
+  },
+  "CustomClientHostRequired": {
+    "One": "Provide the ID server endpoint (hostname/IP and optional port)."
+  },
+  "CustomClientKeyRequired": {
+    "One": "Provide the public key."
+  },
+  "CustomClientApiServerRequired": {
+    "One": "Provide the API server URL."
+  },
+  "CustomClientRelayServerRequired": {
+    "One": "Provide the relay endpoint (hostname/IP and optional port)."
+  },
+  "CustomClientPermanentPasswordRequired": {
+    "One": "Provide a permanent password when connection management is hidden."
+  },
+  "ClearSavedPassword": {
+    "One": "Clear saved password"
   },
   "HasBind": {
     "One": "Has bind"
@@ -55,6 +100,108 @@
   },
   "Platform": {
     "One": "Platform"
+  },
+  "PlatformWindows": {
+    "One": "Windows 64-bit"
+  },
+  "PlatformLinuxUnavailable": {
+    "One": "Linux x64 — experimental / unavailable (PR11)"
+  },
+  "PlatformAndroidUnavailable": {
+    "One": "Android arm64 — experimental / unavailable (PR11)"
+  },
+  "ProductionPlatformUnavailable": {
+    "One": "This platform is experimental and unavailable for production builds until PR11 evidence is complete."
+  },
+  "WorkflowApprovalTitle": {
+    "One": "Workflow approval"
+  },
+  "WorkflowApprovalDescription": {
+    "One": "Build workflows require a provider-derived, verified annotated tag and current live-provider evidence before approval."
+  },
+  "WorkflowApprovalProtectedExplanation": {
+    "One": "The provider must confirm an active protected-tag policy for this label: updates and deletions are explicitly blocked, no bypass actors are present, and no branch has the same label. The provider must also verify the annotated tag and exact workflow at its resolved commit. Only the tag label is selectable; refs, SHAs, credentials, and workflow internals are never entered here. Local checks alone do not prove approval."
+  },
+  "WorkflowApprovalState": {
+    "One": "Approval state"
+  },
+  "WorkflowApprovalStatusApprovalRequired": {
+    "One": "Approval required"
+  },
+  "WorkflowApprovalStatusProviderPolicyUnverified": {
+    "One": "Provider policy unverified"
+  },
+  "WorkflowApprovalStatusApproved": {
+    "One": "Approved"
+  },
+  "WorkflowApprovalTagLabel": {
+    "One": "Verified workflow tag"
+  },
+  "WorkflowApprovalTagPlaceholder": {
+    "One": "Choose a provider-verified tag"
+  },
+  "WorkflowApprovalCurrentTag": {
+    "One": "Current approved tag: {param}"
+  },
+  "WorkflowApprovalLoading": {
+    "One": "Loading provider-verified tags..."
+  },
+  "WorkflowApprovalLoadError": {
+    "One": "Provider-verified workflow tags could not be loaded."
+  },
+  "WorkflowApprovalConfigError": {
+    "One": "Workflow approval state could not be loaded."
+  },
+  "WorkflowApprovalEmpty": {
+    "One": "No provider-verified workflow tags are available."
+  },
+  "WorkflowApprovalRetry": {
+    "One": "Retry"
+  },
+  "WorkflowApprovalApprove": {
+    "One": "Approve selected tag"
+  },
+  "WorkflowApprovalApproving": {
+    "One": "Approving..."
+  },
+  "WorkflowApprovalRequestFailed": {
+    "One": "Approval was not recorded. Try again after reviewing the provider status."
+  },
+  "GithubPatPermissionsIntro": {
+    "One": "Required fine-grained PAT repository permissions:"
+  },
+  "GithubPatPermissionMetadata": {
+    "One": "Metadata — Read"
+  },
+  "GithubPatPermissionContents": {
+    "One": "Contents — Read"
+  },
+  "GithubPatPermissionActions": {
+    "One": "Actions — Read and write"
+  },
+  "GithubPatPermissionAdministration": {
+    "One": "Administration — Read and write"
+  },
+  "GithubPatPermissionSecrets": {
+    "One": "Secrets — Read and write"
+  },
+  "GithubPatPermissionsNote": {
+    "One": "Actions write is required for dispatch; Administration write is required for ruleset bypass metadata; Secrets write is required for secret synchronization. Empty value keeps the existing token."
+  },
+  "GithubBuildSaveError": {
+    "One": "GitHub build settings could not be saved. Check the configuration and try again."
+  },
+  "GithubBuildSaveSaving": {
+    "One": "Saving GitHub build settings..."
+  },
+  "GithubBuildSaveSuccess": {
+    "One": "GitHub build settings saved."
+  },
+  "GithubBuildRepositoryRequired": {
+    "One": "Enter a repository in owner/name format before continuing."
+  },
+  "ViewBuildLog": {
+    "One": "View build log"
   },
   "Status": {
     "One": "Status"
@@ -736,14 +883,23 @@
   "Host": {
     "One": "Host"
   },
-  "HostnameOnlyHint": {
-    "One": "Hostname only, no port. Client appends the default port automatically."
+  "HostEndpointHint": {
+    "One": "Provide the ID server endpoint: a hostname or IP address with an optional port. RustDesk uses port 21116 when omitted."
+  },
+  "HostEndpointPlaceholder": {
+    "One": "e.g. your-server.com or your-server.com:21116 (default when omitted)"
   },
   "ApiServer": {
     "One": "API Server"
   },
   "RelayServer": {
     "One": "Relay Server"
+  },
+  "RelayEndpointHint": {
+    "One": "Provide the relay endpoint: a hostname or IP address with an optional port. RustDesk uses port 21117 when omitted."
+  },
+  "RelayEndpointPlaceholder": {
+    "One": "e.g. your-server.com or your-server.com:21117 (default when omitted)"
   },
   "Key": {
     "One": "Key"
@@ -865,11 +1021,20 @@
   "BuildStatus": {
     "One": "Status"
   },
+  "BuildHistoryStatusChanged": {
+    "One": "Build status updated: {param}."
+  },
   "Pending": {
     "One": "Pending"
   },
   "Building": {
     "One": "Building"
+  },
+  "Downloading": {
+    "One": "Downloading"
+  },
+  "Extracting": {
+    "One": "Extracting"
   },
   "Done": {
     "One": "Done"

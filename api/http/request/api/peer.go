@@ -1,11 +1,30 @@
-﻿package api
+package api
 
 import "rustdesk-server/api/model"
 
 type AddressBookFormData struct {
-	Tags      []string             `json:"tags"`
-	Peers     []*model.AddressBook `json:"peers"`
-	TagColors string               `json:"tag_colors"`
+	Tags      []string               `json:"tags"`
+	Peers     []*AddressBookPeerForm `json:"peers"`
+	TagColors string                 `json:"tag_colors"`
+}
+
+// AddressBookPeerForm is the typed request representation used by address
+// book synchronization. Credentials remain accepted as input while the
+// storage model keeps them out of raw JSON responses.
+type AddressBookPeerForm struct {
+	model.AddressBook
+	Password string `json:"password"`
+	Hash     string `json:"hash"`
+}
+
+func (f *AddressBookPeerForm) ToAddressBook() *model.AddressBook {
+	if f == nil {
+		return nil
+	}
+	ab := f.AddressBook
+	ab.Password = f.Password
+	ab.Hash = f.Hash
+	return &ab
 }
 
 type AddressBookForm struct {
@@ -36,10 +55,12 @@ func (pf *PeerForm) ToPeer() *model.Peer {
 	}
 }
 
-// PersonalAddressBookForm 
+// PersonalAddressBookForm
 type PersonalAddressBookForm struct {
 	model.AddressBook
 	ForceAlwaysRelay string `json:"forceAlwaysRelay"`
+	Password         string `json:"password"`
+	Hash             string `json:"hash"`
 }
 
 func (pabf *PersonalAddressBookForm) ToAddressBook() *model.AddressBook {

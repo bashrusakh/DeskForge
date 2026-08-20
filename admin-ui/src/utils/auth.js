@@ -12,7 +12,8 @@ export function setToken (token) {
 }
 
 export function removeToken () {
-  return localStorage.removeItem(TokenKey)
+  localStorage.removeItem(TokenKey)
+  return localStorage.removeItem('wc-option:local:access_token')
 }
 
 // 设置 code，并存储当前时间戳（单位：毫秒）

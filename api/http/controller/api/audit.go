@@ -19,7 +19,7 @@ type Audit struct {
 // @Description 
 // @Accept  json
 // @Produce  json
-// @Param body body request.AuditConnForm true ""
+// @Param body body request.AuditConnForm true "Audit connection form payload"
 // @Success 200 {string} string ""
 // @Failure 500 {object} response.Response
 // @Router /audit/conn [post]
@@ -64,7 +64,7 @@ func (a *Audit) AuditConn(c *gin.Context) {
 // @Description 
 // @Accept  json
 // @Produce  json
-// @Param body body request.AuditFileForm true ""
+// @Param body body request.AuditFileForm true "Audit file form payload"
 // @Success 200 {string} string ""
 // @Failure 500 {object} response.Response
 // @Router /audit/file [post]

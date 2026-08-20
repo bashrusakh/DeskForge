@@ -1,51 +1,41 @@
-﻿package admin
+package admin
 
 import (
 	"encoding/json"
 	_ "encoding/json"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 	"rustdesk-server/api/global"
 	"rustdesk-server/api/http/request/admin"
 	"rustdesk-server/api/http/response"
 	"rustdesk-server/api/service"
-	"gorm.io/gorm"
 	"strconv"
 )
 
 type AddressBook struct {
 }
 
-// Detail 
-// @Tags 
-// @Summary 
-// @Description 
-// @Accept  json
-// @Produce  json
-// @Param id path int true "ID"
-// @Success 200 {object} response.Response{data=model.AddressBook}
-// @Failure 500 {object} response.Response
-// @Router /admin/address_book/detail/{id} [get]
-// @Security token
+// Detail is retained for internal callers but is not registered by the router.
 func (ct *AddressBook) Detail(c *gin.Context) {
 	id := c.Param("id")
 	iid, _ := strconv.Atoi(id)
 	t := service.AllService.AddressBookService.InfoByRowId(uint(iid))
 	if t.RowId > 0 {
-		response.Success(c, t)
+		response.Success(c, t.Safe())
 		return
 	}
 	response.Fail(c, 101, response.TranslateMsg(c, "ItemNotFound"))
 	return
 }
 
-// Create 
-// @Tags 
-// @Summary 
-// @Description 
+// Create
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param body body admin.AddressBookForm true ""
-// @Success 200 {object} response.Response{data=model.AddressBook}
+// @Param body body admin.AddressBookForm true "Address book entry form payload"
+// @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/address_book/create [post]
 // @Security token
@@ -84,14 +74,14 @@ func (ct *AddressBook) Create(c *gin.Context) {
 	response.Success(c, nil)
 }
 
-// BatchCreate 
-// @Tags 
-// @Summary 
-// @Description 
+// BatchCreate
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param body body admin.AddressBookForm true ""
-// @Success 200 {object} response.Response{data=model.AddressBook}
+// @Param body body admin.AddressBookForm true "Address book batch-create form payload"
+// @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/address_book/batchCreate [post]
 // @Security token
@@ -147,17 +137,17 @@ func (ct *AddressBook) BatchCreate(c *gin.Context) {
 	response.Success(c, nil)
 }
 
-// List 
-// @Tags 
-// @Summary 
-// @Description 
+// List
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param page query int false ""
-// @Param page_size query int false ""
+// @Param page query int false "Page number for the address book list"
+// @Param page_size query int false "Number of entries per address book page"
 // @Param user_id query int false "id"
-// @Param is_my query int false ""
-// @Success 200 {object} response.Response{data=model.AddressBookList}
+// @Param is_my query int false "Filter for address books owned by the current user"
+// @Success 200 {object} response.Response{data=model.AddressBookSafeList} "Redacted address-book list envelope"
 // @Failure 500 {object} response.Response
 // @Router /admin/address_book/list [get]
 // @Security token
@@ -192,17 +182,17 @@ func (ct *AddressBook) List(c *gin.Context) {
 	for _, ab := range res.AddressBooks {
 		abCIds = append(abCIds, ab.CollectionId)
 	}
-	response.Success(c, res)
+	response.Success(c, res.Safe())
 }
 
-// Update 
-// @Tags 
-// @Summary 
-// @Description 
+// Update
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param body body admin.AddressBookForm true ""
-// @Success 200 {object} response.Response{data=model.AddressBook}
+// @Param body body admin.AddressBookForm true "Address book entry update form payload"
+// @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/address_book/update [post]
 // @Security token
@@ -239,13 +229,13 @@ func (ct *AddressBook) Update(c *gin.Context) {
 	response.Success(c, nil)
 }
 
-// Delete 
-// @Tags 
-// @Summary 
-// @Description 
+// Delete
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param body body admin.AddressBookForm true ""
+// @Param body body admin.AddressBookForm true "Address book entry deletion form payload"
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/address_book/delete [post]
@@ -276,15 +266,15 @@ func (ct *AddressBook) Delete(c *gin.Context) {
 }
 
 // ShareByWebClient
-// @Tags 
-// @Summary 
-// @Description 
+// @Tags
+// @Summary
+// @Description Authenticated web-client share route; requires the admin API token but not AdminPrivilege.
 // @Accept  json
 // @Produce  json
-// @Param body body admin.ShareByWebClientForm true ""
+// @Param body body admin.ShareByWebClientForm true "Web client address book sharing form payload"
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
-// @Router /admin/address_book/share [post]
+// @Router /admin/address_book/shareByWebClient [post]
 // @Security token
 func (ct *AddressBook) ShareByWebClient(c *gin.Context) {
 	f := &admin.ShareByWebClientForm{}
@@ -316,6 +306,17 @@ func (ct *AddressBook) ShareByWebClient(c *gin.Context) {
 	})
 }
 
+// BatchCreateFromPeers
+// @Tags
+// @Summary
+// @Description Admin-only batch creation of address-book entries from existing peers.
+// @Accept  json
+// @Produce  json
+// @Param body body admin.BatchCreateFromPeersForm true "Peer IDs and address-book destination payload"
+// @Success 200 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /admin/address_book/batchCreateFromPeers [post]
+// @Security token
 func (ct *AddressBook) BatchCreateFromPeers(c *gin.Context) {
 	f := &admin.BatchCreateFromPeersForm{}
 	if err := c.ShouldBindJSON(f); err != nil {

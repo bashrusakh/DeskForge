@@ -1,28 +1,28 @@
-﻿package api
+package api
 
 import (
 	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"net/http"
 	"rustdesk-server/api/global"
 	"rustdesk-server/api/http/request/api"
 	"rustdesk-server/api/http/response"
 	apiResp "rustdesk-server/api/http/response/api"
 	"rustdesk-server/api/model"
 	"rustdesk-server/api/service"
-	"net/http"
 )
 
 type Login struct {
 }
 
-// Login 
-// @Tags 
-// @Summary 
-// @Description 
+// Login
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
-// @Param body body api.LoginForm true ""
+// @Param body body api.LoginForm true "Login credentials payload"
 // @Success 200 {object} apiResp.LoginRes
 // @Failure 500 {object} response.ErrorResponse
 // @Router /login [post]
@@ -91,9 +91,9 @@ func (l *Login) Login(c *gin.Context) {
 }
 
 // LoginOptions
-// @Tags 
-// @Summary 
-// @Description 
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
 // @Success 200 {object} []string
@@ -122,19 +122,23 @@ func (l *Login) LoginOptions(c *gin.Context) {
 }
 
 // Logout
-// @Tags 
-// @Summary 
-// @Description 
+// @Tags
+// @Summary
+// @Description
 // @Accept  json
 // @Produce  json
 // @Success 200 {string} string
 // @Failure 500 {object} response.ErrorResponse
 // @Router /logout [post]
+// @Security BearerAuth
 func (l *Login) Logout(c *gin.Context) {
 	u := service.AllService.UserService.CurUser(c)
 	token, ok := c.Get("token")
 	if ok {
-		service.AllService.UserService.Logout(u, token.(string))
+		if err := service.AllService.UserService.Logout(u, token.(string)); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "logout failed"})
+			return
+		}
 	}
 	c.JSON(http.StatusOK, nil)
 

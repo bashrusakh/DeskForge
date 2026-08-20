@@ -19,8 +19,8 @@ type LoginLog struct {
 // @Description 
 // @Accept  json
 // @Produce  json
-// @Param page query int false ""
-// @Param page_size query int false ""
+// @Param page query int false "Page number for the personal login-log list"
+// @Param page_size query int false "Number of personal login-log records per page"
 // @Param user_id query int false "ID"
 // @Success 200 {object} response.Response{data=model.LoginLogList}
 // @Failure 500 {object} response.Response
@@ -46,7 +46,7 @@ func (ct *LoginLog) List(c *gin.Context) {
 // @Description 
 // @Accept  json
 // @Produce  json
-// @Param body body model.LoginLog true ""
+// @Param body body model.LoginLog true "Personal login-log deletion form payload"
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/my/login_log/delete [post]
@@ -87,7 +87,7 @@ func (ct *LoginLog) Delete(c *gin.Context) {
 // @Description 
 // @Accept  json
 // @Produce  json
-// @Param body body admin.LoginLogIds true ""
+// @Param body body admin.LoginLogIds true "Personal login-log ID batch deletion payload"
 // @Success 200 {object} response.Response
 // @Failure 500 {object} response.Response
 // @Router /admin/my/login_log/batchDelete [post]

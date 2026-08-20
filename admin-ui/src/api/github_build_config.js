@@ -1,30 +1,46 @@
 import request from '@/utils/request'
 
 export function get () {
-  return request({ url: '/github_build_config/get' })
+  return request({ url: '/github_build_config/get', skipErrorMessage: true, useServerErrorMessage: true })
 }
 
 export function save (data) {
-  return request({ url: '/github_build_config/save', method: 'post', data })
+  return request({ url: '/github_build_config/save', method: 'post', data, skipErrorMessage: true, useServerErrorMessage: true })
+}
+
+export function getWorkflowTags () {
+  return request({ url: '/github_build_config/workflow_tags', skipErrorMessage: true, useServerErrorMessage: true })
+}
+
+export function approveWorkflowRef (workflowTag) {
+  return request({
+    url: '/github_build_config/approve_workflow_ref',
+    method: 'post',
+    data: { confirm: true, workflow_tag: workflowTag },
+    skipErrorMessage: true,
+    useServerErrorMessage: true,
+  })
 }
 
 export function generateKey () {
-  return request({ url: '/github_build_config/generate_key', method: 'post' })
+  return request({ url: '/github_build_config/generate_key', method: 'post', skipErrorMessage: true, useServerErrorMessage: true })
 }
 
 export function test () {
-  return request({ url: '/github_build_config/test', method: 'post' })
+  return request({ url: '/github_build_config/test', method: 'post', skipErrorMessage: true, useServerErrorMessage: true })
 }
 
 export function syncSecret () {
-  return request({ url: '/github_build_config/sync_secret', method: 'post' })
-}
-
-export function syncPat () {
-  return request({ url: '/github_build_config/sync_pat', method: 'post' })
+  return request({ url: '/github_build_config/sync_secret', method: 'post', skipErrorMessage: true, useServerErrorMessage: true })
 }
 
 export function dispatchTest () {
   // B-009: confirm=true — это реальный билд (тратит минуты Actions), не дешёвый чек.
-  return request({ url: '/github_build_config/dispatch_test', method: 'post', data: { confirm: true } })
+  return request({
+    url: '/github_build_config/dispatch_test',
+    method: 'post',
+    data: { confirm: true },
+    skipErrorMessage: true,
+    useServerErrorMessage: true,
+  })
 }

@@ -1,14 +1,14 @@
-﻿package router
+package router
 
 import (
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	_ "rustdesk-server/api/docs/admin"
 	"rustdesk-server/api/global"
 	"rustdesk-server/api/http/controller/admin"
 	"rustdesk-server/api/http/controller/admin/my"
 	"rustdesk-server/api/http/middleware"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 func Init(g *gin.Engine) {
@@ -82,7 +82,11 @@ func LoginBind(rg *gin.RouterGroup) {
 	cont := &admin.Login{}
 	rg.POST("/login", cont.Login)
 	rg.GET("/captcha", cont.Captcha)
-	rg.POST("/logout", cont.Logout)
+	// Logout needs BackendUserAuth here because LoginBind is registered before
+	// the authenticated admin group middleware. This keeps login public while
+	// ensuring the supplied api-token is placed in the request context for
+	// revocation.
+	rg.POST("/logout", middleware.BackendUserAuth(), cont.Logout)
 	rg.GET("/login-options", cont.LoginOptions)
 	rg.POST("/oidc/auth", cont.OidcAuth)
 	rg.GET("/oidc/auth-query", cont.OidcAuthQuery)
@@ -376,6 +380,8 @@ func CustomBuildBind(rg *gin.RouterGroup) {
 	cont := &admin.CustomBuild{}
 	aR := rg.Group("/custom_build").Use(middleware.AdminPrivilege())
 	aR.GET("/list", cont.List)
+	aR.GET("/manifest/:id", cont.Manifest)
+	aR.GET("/download/:id", cont.DownloadByID)
 	// /detail/:id intentionally not exposed: never had a UI consumer (BUGS.md B-014).
 	aR.POST("/create", cont.Create)
 	aR.POST("/delete", cont.Delete)
@@ -397,9 +403,10 @@ func GithubBuildConfigBind(rg *gin.RouterGroup) {
 	aR := rg.Group("/github_build_config").Use(middleware.AdminPrivilege())
 	aR.GET("/get", cont.Get)
 	aR.POST("/save", cont.Save)
+	aR.GET("/workflow_tags", cont.WorkflowTags)
+	aR.POST("/approve_workflow_ref", cont.ApproveWorkflowRef)
 	aR.POST("/generate_key", cont.GenerateKey)
 	aR.POST("/test", cont.Test)
 	aR.POST("/sync_secret", cont.SyncSecret)
-	aR.POST("/sync_pat", cont.SyncPat)
 	aR.POST("/dispatch_test", cont.DispatchTest)
 }

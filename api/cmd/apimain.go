@@ -1,12 +1,15 @@
-﻿package main
+package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
 	"time"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/spf13/cobra"
+	"gorm.io/gorm"
 	"rustdesk-server/api/config"
 	"rustdesk-server/api/global"
 	"rustdesk-server/api/http"
@@ -20,20 +23,40 @@ import (
 	"rustdesk-server/api/model"
 	"rustdesk-server/api/service"
 	"rustdesk-server/api/utils"
-	"github.com/spf13/cobra"
 )
 
-// DatabaseVersion bumped to 272 in 2026-06-21 to add the `server_cmd_states`
-// table for persisting admin server-command state across restarts (BUGS.md
-// AU-C-001). Earlier bumps: 271 `server_cmd_audits` (AU-S-001), 270
+// DatabaseVersion bumped to 283 to enforce one CustomPreset per (user_id,
+// name) after an explicit duplicate-data preflight. Earlier bump: 282 in
+// 2026-08-11 to persist the exact provider
+// resolved SHA captured by immutable workflow-tag approval. Earlier bump: 281
+// persisted workflow-ref provider
+// policy status alongside the operator approval attestation. Earlier bump: 280
+// persisted workflow-ref approval
+// status. Earlier bump: 279 in 2026-08-10 to persist validated producer
+// manifest provenance for deterministic handoff exports. Earlier bump: 278
+// persisted the exact workflow
+// dispatch selector separately from the resolved execution SHA. Earlier bump:
+// 277 added release asset provenance.
+// Earlier bump: 276 added the service-generated
+// publication digest on custom builds. Earlier bump: 275 added the publication
+// marker. Earlier bump: 274 added immutable
+// version/build-ref identity fields on `custom_builds` (PR5 / Phase 5). Earlier bump: 273 added
+// immutable GitHub build provenance fields (PR4 / Phase 4). Earlier bumps: 272
+// `server_cmd_states` for persisting admin server-command state across
+// restarts (BUGS.md AU-C-001), 271 `server_cmd_audits`, 270
 // `download_key_expires_at` on `custom_builds` for capability-URL expiry
 // (B-006), 269 `github_run_id` for restart-safe GitHub Actions polling (B-003).
 // AutoMigrate is idempotent so all tables/columns are still created.
-const DatabaseVersion = 272
+const (
+	DatabaseVersion                         = 283
+	customPresetUniqueIndexMigrationVersion = 283
+)
+
+var errDuplicateCustomPresetNames = errors.New("duplicate custom preset owner/name rows")
 
 // @title API
 // @version 1.0
-// @description 
+// @description
 // @basePath /api
 // @securityDefinitions.apikey token
 // @in header
@@ -45,8 +68,8 @@ const DatabaseVersion = 272
 var rootCmd = &cobra.Command{
 	Use:   "apimain",
 	Short: "RUSTDESK API SERVER",
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		InitGlobal()
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		return InitGlobal()
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		global.Logger.Info("API SERVER START")
@@ -116,7 +139,7 @@ func main() {
 	}
 }
 
-func InitGlobal() {
+func InitGlobal() error {
 
 	global.Viper = config.Init(&global.Config, global.ConfigPath)
 
@@ -215,7 +238,9 @@ func InitGlobal() {
 		BanDuration:      30 * time.Minute,
 	})
 	global.LoginLimiter.RegisterProvider(utils.B64StringCaptchaProvider{})
-	DatabaseAutoUpdate()
+	if err := DatabaseAutoUpdate(); err != nil {
+		return err
+	}
 
 	// Возобновить поллинг in-flight GitHub-сборок после рестарта (BUGS.md B-003).
 	// Запускается ПОСЛЕ AutoMigrate — иначе колонки github_run_id может ещё не быть.
@@ -223,9 +248,10 @@ func InitGlobal() {
 	// AU-C-001: переприменяем сохранённые server-команды (relay/aur/ml/blocklist),
 	// иначе они откатываются к env/файлам при рестарте.
 	admin.ReplayServerCmds()
+	return nil
 }
 
-func DatabaseAutoUpdate() {
+func DatabaseAutoUpdate() error {
 	version := DatabaseVersion
 
 	db := global.DB
@@ -250,7 +276,7 @@ func DatabaseAutoUpdate() {
 			sqlDBWithoutDB, err := dbWithoutDB.DB()
 			if err != nil {
 				global.Logger.Errorf(" *sql.DB : %v", err)
-				return
+				return err
 			}
 			defer func() {
 				if err := sqlDBWithoutDB.Close(); err != nil {
@@ -261,19 +287,23 @@ func DatabaseAutoUpdate() {
 			err = dbWithoutDB.Exec("CREATE DATABASE IF NOT EXISTS " + dbName + " DEFAULT CHARSET utf8mb4").Error
 			if err != nil {
 				global.Logger.Error(err)
-				return
+				return err
 			}
 		}
 	}
 
 	if !db.Migrator().HasTable(&model.Version{}) {
-		Migrate(uint(version))
+		if err := Migrate(uint(version)); err != nil {
+			return err
+		}
 	} else {
 		//version
 		var v model.Version
 		db.Last(&v)
 		if v.Version < uint(version) {
-			Migrate(uint(version))
+			if err := Migrate(uint(version)); err != nil {
+				return err
+			}
 		}
 
 		// 245
@@ -295,38 +325,79 @@ func DatabaseAutoUpdate() {
 			db.Exec("update oauths set issuer = 'https://accounts.google.com' where op = 'google' and issuer is null")
 		}
 	}
-
+	return nil
 }
-func Migrate(version uint) {
+
+func migrateSchemaAndRecordVersion(db *gorm.DB, version uint, migrate func(*gorm.DB) error) error {
+	if err := preflightCustomPresetUniqueIndex(db, version); err != nil {
+		return fmt.Errorf("custom preset unique index preflight: %w", err)
+	}
+	if err := migrate(db); err != nil {
+		return fmt.Errorf("auto migrate: %w", err)
+	}
+	if err := db.Create(&model.Version{Version: version}).Error; err != nil {
+		return fmt.Errorf("record database version %d: %w", version, err)
+	}
+	return nil
+}
+
+func preflightCustomPresetUniqueIndex(db *gorm.DB, version uint) error {
+	if version < customPresetUniqueIndexMigrationVersion ||
+		!db.Migrator().HasTable(&model.CustomPreset{}) ||
+		db.Migrator().HasIndex(&model.CustomPreset{}, model.CustomPresetUserNameUniqueIndex) {
+		return nil
+	}
+
+	type duplicateGroup struct {
+		Count int64 `gorm:"column:count"`
+	}
+	var duplicateGroups []duplicateGroup
+	if err := db.Model(&model.CustomPreset{}).
+		Select("COUNT(*) AS count").
+		Group("user_id, name").
+		Having("COUNT(*) > ?", 1).
+		Limit(1).
+		Find(&duplicateGroups).Error; err != nil {
+		return fmt.Errorf("query duplicate custom preset owner/name groups: %w", err)
+	}
+	if len(duplicateGroups) > 0 {
+		return fmt.Errorf("%w: a group contains %d rows", errDuplicateCustomPresetNames, duplicateGroups[0].Count)
+	}
+	return nil
+}
+
+func Migrate(version uint) error {
 	global.Logger.Info("Migrating....", version)
-	err := global.DB.AutoMigrate(
-		&model.Version{},
-		&model.User{},
-		&model.UserToken{},
-		&model.Tag{},
-		&model.AddressBook{},
-		&model.Peer{},
-		&model.Group{},
-		&model.UserThird{},
-		&model.Oauth{},
-		&model.LoginLog{},
-		&model.ShareRecord{},
-		&model.AuditConn{},
-		&model.AuditFile{},
-		&model.AddressBookCollection{},
-		&model.AddressBookCollectionRule{},
-		&model.ServerCmd{},
-		&model.DeviceGroup{},
-		&model.CustomBuild{},
-		&model.CustomPreset{},
-		&model.GithubBuildConfig{},
-		&model.ServerCmdAudit{},
-		&model.ServerCmdState{},
-	)
+	err := migrateSchemaAndRecordVersion(global.DB, version, func(db *gorm.DB) error {
+		return db.AutoMigrate(
+			&model.Version{},
+			&model.User{},
+			&model.UserToken{},
+			&model.Tag{},
+			&model.AddressBook{},
+			&model.Peer{},
+			&model.Group{},
+			&model.UserThird{},
+			&model.Oauth{},
+			&model.LoginLog{},
+			&model.ShareRecord{},
+			&model.AuditConn{},
+			&model.AuditFile{},
+			&model.AddressBookCollection{},
+			&model.AddressBookCollectionRule{},
+			&model.ServerCmd{},
+			&model.DeviceGroup{},
+			&model.CustomBuild{},
+			&model.CustomPreset{},
+			&model.GithubBuildConfig{},
+			&model.ServerCmdAudit{},
+			&model.ServerCmdState{},
+		)
+	})
 	if err != nil {
 		global.Logger.Error("migrate err :=>", err)
+		return err
 	}
-	global.DB.Create(&model.Version{Version: version})
 
 	var vc int64
 	global.DB.Model(&model.Version{}).Count(&vc)
@@ -361,5 +432,5 @@ func Migrate(version uint) {
 		}
 		global.DB.Create(admin)
 	}
-
+	return nil
 }

@@ -87,7 +87,7 @@ func TestSimpleCache_GetStruct(t *testing.T) {
 	err2 := s.Get("key", res)
 	fmt.Println("res", res)
 	if err2 != nil {
-		t.Fatalf("" + err2.Error())
+		t.Fatalf("%s", err2.Error())
 
 	}
 
@@ -99,7 +99,7 @@ func TestSimpleCache_GetStruct(t *testing.T) {
 	err3 := s.Get("key", res2)
 	fmt.Println("res2", res2, res2.R.AA, res2.R.BB)
 	if err3 != nil {
-		t.Fatalf("" + err3.Error())
+		t.Fatalf("%s", err3.Error())
 
 	}
 	//if reflect.DeepEqual(res, old) {

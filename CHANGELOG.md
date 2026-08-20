@@ -6,6 +6,61 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Local PR #59 review remediation — 2026-08-20
+- The current local corrective candidate is `DatabaseVersion` **283**; the published
+  DeskForge schema remains **272**. Schema 283 adds
+  `idx_custom_presets_user_id_name` on `(user_id, name)`. Its migration preflight
+  stops on existing duplicate groups before `AutoMigrate` without auto-selecting a
+  row or deleting data. The earlier schema-282 workflow-approval migration
+  remains historical context.
+- DeskForge locally requires the exact provider-owned
+  `# deskforge-workflow-identity-guard: v1` marker in workflow content resolved at
+  the immutable workflow SHA before approval, preparation, or secret-bearing
+  dispatch. Legacy unguarded tags fail closed. This is not an atomic GitHub
+  selector/SHA binding or live-provider-readiness claim.
+- [RustDesk PR #7](https://github.com/bashrusakh/rustdesk/pull/7) is merged into
+  `rustqs/workflows` at merge commit
+  `ced31ae07f69c20119b88212b10d2eb2df651c97`, containing prior source commit
+  `6ef1cd7fe`. It adds the marker, requires outer and inner SHA checks in the bridge,
+  and gates draft Linux/Android before secret-bearing jobs.
+- DeskForge local source remediation also includes `d67b6e7`, which requires a stored
+  v2 producer-manifest and exact canonical-output proof across publication, recovery,
+  detail, download, reuse, and handoff boundaries. This is not live provider artifact
+  or production-output proof.
+- DeskForge PR #59 remains open and dirty remotely. The merge conflict is resolved
+  only in local `2c38c87`; later local `da42521`, `9a1ee5e`, and `d67b6e7` are not
+  pushed. `workflow-v1.2.0` does not exist, and no newly signed provider-verified
+  immutable protected workflow tag exists yet; live tag protection verification,
+  reapproval, and reverification remain required before production dispatch.
+- Prior local remediation results record passing focused migration/custom-preset
+  coverage, a focused race check, `go vet`, `gofmt`, and `git diff --check`.
+  Migration evidence is SQLite-only; MySQL/PostgreSQL migration and read/write
+  coverage remain unverified.
+
+### Current-state reconciliation — 2026-08-10
+- The published RustDesk client source/ref is **1.4.8** and the published DeskForge API
+  schema is `DatabaseVersion` **272**. At that reconciliation, the then-current
+  local workflow-approval migration was schema 282; it is not a current
+  published-schema claim.
+  Older 1.4.7/272 references in the dated entries below remain historical release/schema notes.
+- The current custom-client path is owned-fork dispatch, provider polling, exact artifact
+  retrieval, and local validation/publication. Runner callbacks, local file-queue fallback,
+  and sole-artifact selection are not current production behavior.
+- Dispatch `return_run_details=true` plus an exact HTTP 200 run-details response is the
+  project/provider contract under test. Standard 204 is intentionally unsupported because
+  it does not provide an accepted exact run correlation; normal GitHub operation is not verified.
+- Windows is the only production capability admitted by the API gate. Linux/Android
+  workflow mappings exist but remain gated pending PR11 evidence; no live provider run or
+  clean-environment build proof is claimed.
+- Canonical plan state: PR9 is `verified-with-notes`; PR10 and PR11 remain
+  `in-progress`, while PR12 is `verified-with-notes` for docs only. This does not claim
+  live provider execution, clean builds, platform support, sovereignty, or release publication.
+- Follow-up verification on 2026-08-11: `GOWORK=off go vet ./...` and
+  `GOWORK=off go test ./...` pass after test-only cache diagnostics and opt-in Redis
+  test changes. Redis integration tests and benchmarks run only when
+  `DESKFORGE_TEST_REDIS_ADDR` is configured; no live Redis run is recorded.
+  MySQL/PostgreSQL, live provider, and the other release/build gates remain unverified.
+
 ### Fixed (custom-client: relay_server port stripping + api-server key)
 - **custom-client: relay_server port stripped on blur, submit, and prefill** — now consistent
   with `host`: hostname only, no port. The client appends default relay port (21117) automatically.
@@ -40,7 +95,11 @@ across three migration steps; `AutoMigrate` is idempotent so all schema addition
   37 Rust test-code alerts dismissed as test-only. (PRs #24, #25, #26, #28, #29)
 - **api + admin-ui: encrypted secrets at rest** — `CustomBuild`, `CustomPreset`,
   `GithubBuildConfig` now store sensitive fields wrapped with AES-GCM via
-  `api/utils/secretcrypt`. Key from `SECRET_CRYPT_KEY` env var; absence fails closed at boot.
+  `api/utils/secretcrypt`. Uses the canonical `SECRET_ENCRYPTION_KEY` env var.
+  Without it, new non-empty secret writes and secret-bearing Custom Builder operations
+  are rejected rather than stored as plaintext. Legacy plaintext remains readable, and
+  re-saving encrypts it when the key exists. Existing ciphertext requires the same key;
+  key rotation is unsupported.
 - **api: OAuth delete guard** — last-enabled OAuth provider cannot be deleted while
   `oauth-only` registration is on (would lock the system out).
 - **rdgen: production startup guard** — refuses to boot with default `SECRET_KEY` /
@@ -52,13 +111,13 @@ across three migration steps; `AutoMigrate` is idempotent so all schema addition
 - **api: capability-URL TTL** — public download links (`/build/k/{key}` and
   `/build/dl/{key}`) now return 410 Gone after expiry; check centralized in
   `findBuildByDownloadKey`. (B-006)
-- **api: GitHub artifact name fallback** — `DownloadArtifact` falls back to the sole
-  artifact of the run if the expected name doesn't match, so renaming the workflow no
-  longer breaks `tryGithubDownload`. (AU-L-011)
-- **api: Linux + Android via GitHub Actions** — `submitBuild` routes `platform=linux` and
-  `platform=android` to `rustqs-linux.yml` / `rustqs-android.yml` workflow_dispatch when
-  GitHub config is present, matching the Windows path (B-012). Artifact name is now
-  dynamic (`rustdesk-min-test-{windows,linux,android}`).
+- **Historical implementation note (superseded): api: GitHub artifact name fallback** —
+  the former `DownloadArtifact` behavior fell back to the sole artifact of the run when
+  the expected name did not match. The current path requires exact artifact identity.
+  (AU-L-011)
+- **Historical implementation note (superseded): api: Linux + Android via GitHub Actions** —
+  routing and platform-specific artifact naming were added, but current production
+  capability remains gated until PR11 evidence validates the complete path. (B-012)
 - **admin-ui: build history auto-refresh** — the custom-client list polls every 5 s while
   any row is in `pending`/`running`, stops when all are terminal — no manual reload.
 - **admin-ui: dispatch test payload** — `Test dispatch` button on `github-build.vue` now
@@ -108,7 +167,8 @@ across three migration steps; `AutoMigrate` is idempotent so all schema addition
   AU-M-022, AU-L-007/010/011/015 carried forward).
 
 ### Reference
-- See `BUGS.md` for the current tracker (25 fixed, 4 partial, 2 open).
+- Historical tracker snapshot (2026-06-22): 25 fixed, 4 partial, 2 open. The
+  current bounded `BUGS.md` snapshot contains 1 fixed, 4 partial, and 1 open entry.
 - See PR #30 for the batch-merge detail and the DatabaseVersion conflict resolution.
 
 ---
@@ -323,12 +383,13 @@ The work surfaced four real bugs that would have broken the actual GUI build flo
   succeeded in about 33 minutes. Final artifact: **one file `rustqs.exe`, 23.2 MB**
   instead of a small launcher plus a DLL folder. Exe metadata is `rustqs` and `custom_.txt`
   is packed inside the self-extracting exe.
-- First attempt [27462157839](https://github.com/bashrusakh/rustdesk/actions/runs/27462157839)
+- **Historical implementation note (superseded):** First attempt
+  [27462157839](https://github.com/bashrusakh/rustdesk/actions/runs/27462157839)
   failed almost immediately with `bad decrypt` in `Resolve build config` because
   `WORKFLOW_PAYLOAD_KEY` in the fork had diverged from local
   `offline-kit/artifacts/workflow-payload.key`. Open inputs were used as a temporary bypass to
-  validate §8.10. Remaining TODO: resync the key, either from the UI (`Push to GitHub Secrets`) or
-  by replacing the local file.
+  validate §8.10; the active workflow no longer permits that fallback. Remaining TODO at the
+  time: resync the key, either from the UI (`Push to GitHub Secrets`) or by replacing the local file.
 
 ### Fixed (Docker build)
 - Added root **`.dockerignore`** to exclude `node_modules/`, `.git/`, `data/`, `rdgen-data/`,
@@ -360,9 +421,10 @@ The work surfaced four real bugs that would have broken the actual GUI build flo
   Axios request with a 95-minute timeout and shows `Build running...` -> success/failure.
 
 ### Fixed (GitHub fork cleanup)
-- Removed **10 upstream workflows** from `bashrusakh/rustdesk@master`:
+- Historical cleanup removed **10 upstream workflows** from `bashrusakh/rustdesk@master`:
   `bridge.yml`, `ci.yml`, `clear-cache.yml`, `fdroid.yml`, `flutter-build.yml`, `flutter-ci.yml`,
   `flutter-nightly.yml`, `flutter-tag.yml`, `playground.yml`, `wf-cliprdr-ci.yml`.
+  These are deleted legacy references, not active workflow evidence.
   Kept only the needed ones: `rustqs-windows-min-test.yml` and `third-party-RustDeskTempTopMostWindow.yml`.
 - Restored **`bridge.yml`** after cleanup because `rustqs-windows-min-test.yml` uses it as a reusable workflow.
   Without it, dispatch failed with HTTP 422 / workflow parse error. Restored from upstream `rustdesk/rustdesk@1.4.7`.
@@ -374,6 +436,11 @@ The work surfaced four real bugs that would have broken the actual GUI build flo
   artifact with an upstream-style single binary and verify `custom_.txt` ends up inside the packed exe.
 
 ## [0.4.0] - 2026-06-11
+
+> **Historical/superseded release entry (2026-06-11):** The offline-kit, SMB
+> builder, and L1 sovereignty statements below describe that dated state only.
+> They are not current proof of offline completeness, active SMB operation,
+> upstream independence, or sovereignty; see the current-state reconciliation above.
 
 ### Changed (Architecture - Sovereign Build Strategy)
 - Fully rewrote **`PLAN.md`** as the single source of truth. It now documents the sovereign build model
@@ -400,7 +467,9 @@ The work surfaced four real bugs that would have broken the actual GUI build flo
 - Captured the full list of Windows `vcpkg` dependencies from `vcpkg.json`: `aom`, `libjpeg-turbo`,
   `opus`, `libvpx`, `libyuv`, `mfx-dispatch`, **`ffmpeg`** (`amf`/`nvcodec`/`qsv` for `hwcodec`).
 
-### Done (Offline kit frozen)
+### Done (Offline kit frozen — historical/superseded, 2026-06-11)
+> This dated offline-kit record is historical/superseded and is not current proof of
+> offline completeness, release readiness, upstream independence, or sovereignty.
 - Ran `freeze.sh` on 2026-06-11 in `docker-build-linux-1`. Frozen into `rustdesk-cache` volume:
   1.4.7 bundle, `vendor` (2.7G, all `rustdesk-org/*` + `hbb_common`), Flutter engine,
   Flutter SDK for win+linux, `vcpkg` at baseline, Rust 1.75.0 MSI. Manifest with sha256 stored in `artifacts/MANIFEST.txt`.
@@ -423,7 +492,9 @@ The work surfaced four real bugs that would have broken the actual GUI build flo
 - Added `.gitignore` to exclude secrets (private key `id_ed25519`, DB, `data/`, `.env`), build output,
   `node_modules`, `offline-kit/artifacts`, `.claude/`. Secret scan found no leaks in source.
 
-### Changed (Windows builder: container -> native, owner decision)
+### Changed (Windows builder: container -> native, owner decision — historical/superseded, 2026-06-11)
+> The SMB queue and standalone builder described here are historical/frozen material,
+> not the current provider-backed API workflow.
 - Final decision: build the Windows client **natively** on a separate Windows Server, no Docker.
 - API <-> agent channel is an **SMB job queue folder**. Linux hosts Samba, Windows mounts it.
 - Added `win-builder/setup.ps1` (toolchain, `-KitPath` support), `win-builder/agent.ps1`
@@ -443,10 +514,13 @@ The work surfaced four real bugs that would have broken the actual GUI build flo
 - Generated 43-char `WORKFLOW_PAYLOAD_KEY` and stored it in fork GitHub Secrets.
   Important pitfall: `gh secret set ... --body -` via pipe adds a trailing newline under PowerShell,
   causing `bad decrypt` on the runner. Fix: use `--body $secret` without a pipe.
-- Refactored the workflow to take `enc_payload` and resolve it through `Resolve build config`
-  (OpenSSL AES-256-CBC + PBKDF2 + `jq` -> env vars), while still supporting open inputs as fallback.
+- **Historical implementation note (superseded):** Refactored the workflow to take
+  `enc_payload` and resolve it through `Resolve build config` (OpenSSL AES-256-CBC + PBKDF2 +
+  `jq` -> env vars), while the then-current version still supported open inputs as a fallback.
+  The active workflow now accepts only authenticated `DFP1` payloads.
 - Migrated L1/L2/L3 steps from `inputs.X` to `RQS_*` env vars and masked sensitive values with `::add-mask::`.
-- Verified with successful runs for both open-inputs and encrypted payload.
+- **Historical validation note (superseded):** Verified successful runs for both open-inputs
+  and encrypted payload. This does not validate the current DFP1-only path.
 
 **§8.8.5 Go API - SCAFFOLD**
 - Added `model/github_build_config.go`: singleton with `Token`, `PayloadKey`, and safe view.
@@ -468,7 +542,8 @@ The work surfaced four real bugs that would have broken the actual GUI build flo
   `pollAndDownload` loop (30-second poll, 90-minute timeout).
 - On success it downloads `rustdesk-min-test-windows.zip`, unpacks it, stores `{appname}.exe` + DLLs +
   `custom_.txt` into `/rdgen-data/output/{id}/`, and updates `CustomBuild.Status`.
-- Falls back to file-queue mode for Linux/Android.
+- **Historical implementation note (superseded):** the earlier API fell back to
+  file-queue mode for Linux/Android; the current production path fails closed instead.
 
 **Self review §8.8.5**
 - Prevented panic in background goroutine `pollAndDownload` via `defer recover()`.
@@ -519,10 +594,11 @@ The work surfaced four real bugs that would have broken the actual GUI build flo
   (Hyper-V VM / physical / cloud), long paths, antivirus exclusions, SMB, service agent,
   first end-to-end test, and security.
 
-### Verified / Fixed (offline-kit)
-- Proved **L1 sovereignty**: `cargo metadata --offline` on the vendored tree resolves all 1049 crates
+### Verified / Fixed (offline-kit — historical/superseded; not current proof)
+- **Historical L1 claim (superseded):** `cargo metadata --offline` on the vendored tree resolved all 1049 crates
   from `vendor` with no network access.
-- Rebuilt and verified the **bundle** on full history (70M). Clone-back on tag 1.4.7 succeeded.
+- **Historical bundle check (superseded):** rebuilt and verified the **bundle** on full history (70M).
+  Clone-back on the dated 1.4.7 tag succeeded.
   Fixed the earlier shallow-clone defect (`remote did not send all necessary objects`).
 
 ### Notes

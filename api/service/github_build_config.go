@@ -1,10 +1,12 @@
 package service
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -13,18 +15,16 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"sort"
+	"net/url"
+	"os"
+	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
-
-	"golang.org/x/sync/singleflight"
 
 	"rustdesk-server/api/model"
 	"rustdesk-server/api/utils"
 
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/nacl/box"
 	"golang.org/x/crypto/pbkdf2"
 	"gorm.io/gorm"
@@ -43,27 +43,49 @@ func (s *GithubBuildConfigService) Get() (*model.GithubBuildConfig, error) {
 		if err := DB.Create(c).Error; err != nil {
 			return nil, err
 		}
+		normalizePersistedWorkflowExecutionRef(c)
 		return c, nil
+	}
+	if err == nil {
+		// Existing installations may still contain the old default "master".
+		// Normalize only known owned representations in memory; unknown/mutable
+		// values remain intact and are rejected by workflowExecutionRef.
+		normalizePersistedWorkflowExecutionRef(c)
 	}
 	return c, err
 }
 
-// Save обновляет настройки.
-//   - Repo / WorkflowFilename: всегда копируем (включая пустое значение — это
-//     валидный способ очистить настройку).
-//   - Branch / Token / PayloadKey: пустая строка означает «оставить как есть».
-//     Это удобство UI: показывать секреты нельзя, а Branch имеет осмысленный
-//     default (`master`), и обнулять его пустым полем формы — почти всегда
-//     случайность (см. BUGS.md B-010).
+// Save обновляет только глобальную конфигурацию, разрешённую оператору:
+// repository, PAT и payload key. Legacy workflow/ref columns remain untouched;
+// Branch is read only as the pre-existing execution-ref configuration.
 func (s *GithubBuildConfigService) Save(in *model.GithubBuildConfig) error {
+	if in == nil {
+		return errors.New("GitHub build config is missing")
+	}
+	// Check before Get(): Get creates the singleton row when absent, but a
+	// secret-bearing save without the at-rest key must not leave even an
+	// incidental row behind.
+	if (in.Token != "" && !utils.IsEncryptedSecret(in.Token)) ||
+		(in.PayloadKey != "" && !utils.IsEncryptedSecret(in.PayloadKey)) {
+		if err := utils.RequireSecretEncryptionKey(); err != nil {
+			return err
+		}
+	}
+	if in.Repo != "" {
+		if err := validateGithubRepo(in.Repo); err != nil {
+			return err
+		}
+	}
 	cur, err := s.Get()
 	if err != nil {
 		return err
 	}
+	repoChanged := cur.Repo != in.Repo
 	cur.Repo = in.Repo
-	cur.WorkflowFilename = in.WorkflowFilename
-	if in.Branch != "" {
-		cur.Branch = in.Branch
+	if repoChanged {
+		cur.WorkflowRefApproved = false
+		cur.WorkflowRefProviderVerified = false
+		cur.WorkflowRefApprovalSHA = ""
 	}
 	if in.Token != "" {
 		cur.Token = in.Token
@@ -71,7 +93,44 @@ func (s *GithubBuildConfigService) Save(in *model.GithubBuildConfig) error {
 	if in.PayloadKey != "" {
 		cur.PayloadKey = in.PayloadKey
 	}
+	if in.Token == "" && in.PayloadKey == "" {
+		if utils.HasSecretEncryptionKey() {
+			// Preserve the existing resave behavior when the key is available:
+			// legacy plaintext secrets are migrated to encrypted storage.
+			return DB.Save(cur).Error
+		}
+		updates := map[string]any{"repo": in.Repo, "branch": cur.Branch}
+		if repoChanged {
+			updates["workflow_ref_approved"] = false
+			updates["workflow_ref_provider_verified"] = false
+			updates["workflow_ref_approval_sha"] = ""
+		}
+		if err := updateGithubBuildConfigMetadata(cur.Id, "", updates); err != nil {
+			return err
+		}
+		return nil
+	}
 	return DB.Save(cur).Error
+}
+
+// updateGithubBuildConfigMetadata changes only non-secret singleton metadata.
+// UpdateColumns deliberately skips GithubBuildConfig's secret hooks so legacy
+// plaintext PATs and payload keys are not reserialized during metadata changes.
+// An expected repository, when supplied, prevents an approval read from being
+// applied after a concurrent repository change.
+func updateGithubBuildConfigMetadata(id uint, expectedRepo string, updates map[string]any) error {
+	query := DB.Model(&model.GithubBuildConfig{}).Where("id = ?", id)
+	if expectedRepo != "" {
+		query = query.Where("repo = ?", expectedRepo)
+	}
+	result := query.UpdateColumns(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return fmt.Errorf("GitHub build config metadata update affected %d rows: %w", result.RowsAffected, gorm.ErrRecordNotFound)
+	}
+	return nil
 }
 
 // GeneratePayloadKey — 32 случайных байта → base64-URL без padding (≈43 char).
@@ -81,22 +140,22 @@ func (s *GithubBuildConfigService) GeneratePayloadKey() (string, error) {
 	if _, err := rand.Read(buf); err != nil {
 		return "", err
 	}
-	// убираем +/= для удобства (как в PS-скрипте)
-	out := base64.StdEncoding.EncodeToString(buf)
-	clean := make([]byte, 0, len(out))
-	for i := 0; i < len(out); i++ {
-		c := out[i]
-		if c == '+' || c == '/' || c == '=' {
-			continue
-		}
-		clean = append(clean, c)
-	}
-	return string(clean), nil
+	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
 
-// EncryptPayload шифрует JSON-карту в base64-блоб, совместимый с
-// `openssl enc -aes-256-cbc -pbkdf2 -pass pass:<key>` (формат: "Salted__"+salt(8)+ct).
-// Используется для workflow input enc_payload (шаг 5 PLAN §8.8.3b).
+const (
+	payloadEnvelopeMagic     = "DFP1"
+	payloadSaltSize          = 16
+	payloadMACSize           = sha256.Size
+	payloadPBKDF2Iterations  = 100000
+	payloadDerivedKeySize    = 32 + aes.BlockSize + sha256.Size
+	legacyPayloadSaltSize    = 8
+	legacyPayloadPBKDF2Iters = 10000
+)
+
+// EncryptPayload emits a versioned encrypt-then-MAC envelope. The AES-CBC
+// ciphertext remains easy for the active shell workflows to decrypt, while a
+// separate HMAC is verified before any new ciphertext is decrypted.
 func (s *GithubBuildConfigService) EncryptPayload(passphrase string, data map[string]any) (string, error) {
 	if passphrase == "" {
 		return "", errors.New("encryption passphrase is empty")
@@ -106,16 +165,16 @@ func (s *GithubBuildConfigService) EncryptPayload(passphrase string, data map[st
 		return "", err
 	}
 
-	// salt 8 байт (как у openssl)
-	salt := make([]byte, 8)
+	salt := make([]byte, payloadSaltSize)
 	if _, err := rand.Read(salt); err != nil {
 		return "", err
 	}
 
-	// PBKDF2-HMAC-SHA256 iter=10000, length=48 → 32 ключ + 16 IV
-	derived := pbkdf2.Key([]byte(passphrase), salt, 10000, 48, sha256.New)
+	// PBKDF2-HMAC-SHA256 derives AES key, IV, and an independent MAC key.
+	derived := pbkdf2.Key([]byte(passphrase), salt, payloadPBKDF2Iterations, payloadDerivedKeySize, sha256.New)
 	key := derived[:32]
 	iv := derived[32:48]
+	macKey := derived[48:]
 
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -130,21 +189,385 @@ func (s *GithubBuildConfigService) EncryptPayload(passphrase string, data map[st
 	ct := make([]byte, len(padded))
 	cipher.NewCBCEncrypter(block, iv).CryptBlocks(ct, padded)
 
+	var signed bytes.Buffer
+	signed.WriteString(payloadEnvelopeMagic)
+	signed.Write(salt)
+	signed.Write(ct)
+	tag := hmac.New(sha256.New, macKey)
+	_, _ = tag.Write(signed.Bytes())
+
 	var out bytes.Buffer
-	out.WriteString("Salted__")
-	out.Write(salt)
-	out.Write(ct)
+	out.Write(signed.Bytes())
+	out.Write(tag.Sum(nil))
 	return base64.StdEncoding.EncodeToString(out.Bytes()), nil
+}
+
+// DecryptPayload verifies and decrypts a new DFP1 envelope. Salted__ payloads
+// are retained only as a clearly distinguishable legacy compatibility path;
+// new payloads never fall back to unauthenticated CBC after a MAC failure.
+func (s *GithubBuildConfigService) DecryptPayload(passphrase, encoded string) (map[string]any, error) {
+	if passphrase == "" {
+		return nil, errors.New("encryption passphrase is empty")
+	}
+	raw, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, errors.New("encrypted payload has invalid base64")
+	}
+	var plain []byte
+	switch {
+	case len(raw) >= len(payloadEnvelopeMagic) && string(raw[:len(payloadEnvelopeMagic)]) == payloadEnvelopeMagic:
+		if len(raw) <= len(payloadEnvelopeMagic)+payloadSaltSize+payloadMACSize {
+			return nil, errors.New("encrypted payload envelope is truncated")
+		}
+		ciphertextEnd := len(raw) - payloadMACSize
+		ciphertext := raw[len(payloadEnvelopeMagic)+payloadSaltSize : ciphertextEnd]
+		if len(ciphertext) == 0 || len(ciphertext)%aes.BlockSize != 0 {
+			return nil, errors.New("encrypted payload ciphertext is invalid")
+		}
+		derived := pbkdf2.Key([]byte(passphrase), raw[len(payloadEnvelopeMagic):len(payloadEnvelopeMagic)+payloadSaltSize], payloadPBKDF2Iterations, payloadDerivedKeySize, sha256.New)
+		mac := hmac.New(sha256.New, derived[48:])
+		_, _ = mac.Write(raw[:ciphertextEnd])
+		if !hmac.Equal(mac.Sum(nil), raw[ciphertextEnd:]) {
+			return nil, errors.New("encrypted payload authentication failed")
+		}
+		plain, err = decryptPayloadCBC(derived[:32], derived[32:48], ciphertext)
+	case len(raw) >= len("Salted__")+legacyPayloadSaltSize && string(raw[:len("Salted__")]) == "Salted__":
+		derived := pbkdf2.Key([]byte(passphrase), raw[len("Salted__"):len("Salted__")+legacyPayloadSaltSize], legacyPayloadPBKDF2Iters, 48, sha256.New)
+		plain, err = decryptPayloadCBC(derived[:32], derived[32:48], raw[len("Salted__")+legacyPayloadSaltSize:])
+	default:
+		return nil, errors.New("encrypted payload envelope version is unsupported")
+	}
+	if err != nil {
+		return nil, err
+	}
+	var data map[string]any
+	if err := json.Unmarshal(plain, &data); err != nil {
+		return nil, fmt.Errorf("decode encrypted payload JSON: %w", err)
+	}
+	return data, nil
+}
+
+func decryptPayloadCBC(key, iv, ciphertext []byte) ([]byte, error) {
+	if len(ciphertext) == 0 || len(ciphertext)%aes.BlockSize != 0 {
+		return nil, errors.New("encrypted payload ciphertext is invalid")
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	plain := make([]byte, len(ciphertext))
+	cipher.NewCBCDecrypter(block, iv).CryptBlocks(plain, ciphertext)
+	padding := int(plain[len(plain)-1])
+	if padding == 0 || padding > aes.BlockSize || padding > len(plain) {
+		return nil, errors.New("encrypted payload padding is invalid")
+	}
+	for _, value := range plain[len(plain)-padding:] {
+		if int(value) != padding {
+			return nil, errors.New("encrypted payload padding is invalid")
+		}
+	}
+	return plain[:len(plain)-padding], nil
 }
 
 // --- GitHub REST API helpers ---
 
 const githubAPI = "https://api.github.com"
 
+const (
+	githubErrorBodyLimit = 4 << 10
+	githubJSONBodyLimit  = 4 << 20
+)
+
+// githubArtifactBodyLimit bounds the compressed artifact written to the
+// temporary archive. It is a variable rather than a second caller-provided
+// limit so every artifact download shares the same fail-closed boundary and
+// hermetic tests can exercise the oversized path without allocating 256 MiB.
+var githubArtifactBodyLimit int64 = 256 << 20
+
+// Empty uses the process temp directory in production. Tests may inject a
+// hermetic directory without changing the public service contract.
+var githubArtifactTempDir string
+
+// GithubAPIError describes a non-successful GitHub REST response without
+// retaining an unbounded or sensitive response body.
+type GithubAPIError struct {
+	StatusCode         int
+	Retryable          bool
+	Terminal           bool
+	Body               string
+	RetryAfter         string
+	RateLimitRemaining string
+	RateLimitReset     string
+}
+
+func (e *GithubAPIError) Error() string {
+	message := fmt.Sprintf("GitHub API HTTP %d", e.StatusCode)
+	if e.Retryable {
+		message += " (retryable)"
+	}
+	if e.Body != "" {
+		message += ": " + e.Body
+	}
+	return message
+}
+
+// GithubTransportError wraps a request/response-body transport failure.
+// Transport failures and context timeouts are retryable by default.
+type GithubTransportError struct {
+	Operation string
+	Cause     error
+}
+
+func (e *GithubTransportError) Error() string {
+	return fmt.Sprintf("GitHub %s failed: %v", e.Operation, e.Cause)
+}
+
+func (e *GithubTransportError) Unwrap() error { return e.Cause }
+
+// GithubContractError means GitHub returned an otherwise successful response
+// that does not satisfy the endpoint contract. It must never be guessed from.
+type GithubContractError struct {
+	Operation string
+	Cause     error
+}
+
+func (e *GithubContractError) Error() string {
+	if e.Cause == nil {
+		return fmt.Sprintf("GitHub %s response contract invalid", e.Operation)
+	}
+	return fmt.Sprintf("GitHub %s response contract invalid: %v", e.Operation, e.Cause)
+}
+
+func (e *GithubContractError) Unwrap() error { return e.Cause }
+
+// GithubArtifactUnavailableError means the requested artifact name was not
+// present in the completed run. It is terminal: selecting another artifact
+// would violate the workflow's exact artifact contract.
+type GithubArtifactUnavailableError struct {
+	RunID        int64
+	ArtifactName string
+	Available    []string
+}
+
+type githubArtifactMetadata struct {
+	ID      int64  `json:"id"`
+	Name    string `json:"name"`
+	Expired bool   `json:"expired"`
+}
+
+func (e *GithubArtifactUnavailableError) Error() string {
+	return fmt.Sprintf("artifact %q not found in run %d (available: %v)", e.ArtifactName, e.RunID, e.Available)
+}
+
+// IsGithubRetryable reports whether a GitHub failure may be retried.
+func IsGithubRetryable(err error) bool {
+	var apiErr *GithubAPIError
+	if errors.As(err, &apiErr) {
+		return apiErr.Retryable
+	}
+	var transportErr *GithubTransportError
+	return errors.As(err, &transportErr)
+}
+
+// IsGithubTerminal reports whether a GitHub failure must fail the operation
+// instead of being silently retried.
+func IsGithubTerminal(err error) bool {
+	var apiErr *GithubAPIError
+	if errors.As(err, &apiErr) {
+		return apiErr.Terminal
+	}
+	var contractErr *GithubContractError
+	if errors.As(err, &contractErr) {
+		return true
+	}
+	var artifactErr *GithubArtifactUnavailableError
+	return errors.As(err, &artifactErr)
+}
+
+func classifyGithubStatus(status int, headers http.Header) (retryable, terminal bool) {
+	switch {
+	case status == http.StatusRequestTimeout,
+		status == http.StatusTooEarly,
+		status == http.StatusTooManyRequests,
+		status >= http.StatusInternalServerError:
+		return true, false
+	case status == http.StatusForbidden:
+		if headers.Get("X-RateLimit-Remaining") == "0" || headers.Get("Retry-After") != "" {
+			return true, false
+		}
+		return false, true
+	default:
+		return false, true
+	}
+}
+
+var (
+	githubBearerPattern = regexp.MustCompile(`(?i)bearer\s+[A-Za-z0-9._~+/=-]+`)
+	githubTokenPattern  = regexp.MustCompile(`(?:gh[pousr]_[A-Za-z0-9_]*|github_pat_[A-Za-z0-9_]*)`)
+)
+
+func redactGithubBody(body []byte) string {
+	if len(body) == 0 {
+		return ""
+	}
+	if len(body) > githubErrorBodyLimit+1 {
+		body = body[:githubErrorBodyLimit+1]
+	}
+	// The input has already been bounded to limit+1 by readGithubBody. Scan the
+	// extra byte before truncating so a sensitive value cut at the limit cannot
+	// leak its prefix.
+	sanitized := redactGithubSensitiveFields(body)
+	message := githubBearerPattern.ReplaceAllString(string(sanitized), "Bearer [REDACTED]")
+	message = githubTokenPattern.ReplaceAllString(message, "[REDACTED]")
+	if len(message) > githubErrorBodyLimit {
+		message = message[:githubErrorBodyLimit] + "…"
+	}
+	return strings.TrimSpace(message)
+}
+
+func isGithubSensitiveKey(key string) bool {
+	switch strings.ToLower(strings.TrimSpace(key)) {
+	case "token", "access_token", "authorization", "payload", "payload_key", "payload-key", "payloadkey", "pat", "github_pat", "secret", "password", "encrypted_value", "enc_payload":
+		return true
+	default:
+		return false
+	}
+}
+
+func githubFieldKey(body []byte, start int) (end int, key string, ok bool) {
+	if start >= len(body) {
+		return 0, "", false
+	}
+	if body[start] == '"' || body[start] == '\'' {
+		quote := body[start]
+		for i := start + 1; i < len(body); i++ {
+			if body[i] == '\\' {
+				i++
+				continue
+			}
+			if body[i] == quote {
+				return i + 1, string(body[start+1 : i]), true
+			}
+		}
+		return 0, "", false
+	}
+	if !((body[start] >= 'a' && body[start] <= 'z') || (body[start] >= 'A' && body[start] <= 'Z') || body[start] == '_') {
+		return 0, "", false
+	}
+	end = start + 1
+	for end < len(body) {
+		c := body[end]
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-') {
+			break
+		}
+		end++
+	}
+	return end, string(body[start:end]), true
+}
+
+func redactGithubSensitiveFields(body []byte) []byte {
+	var sanitized bytes.Buffer
+	sanitized.Grow(len(body))
+	for i := 0; i < len(body); {
+		keyEnd, key, ok := githubFieldKey(body, i)
+		if !ok || !isGithubSensitiveKey(key) {
+			sanitized.WriteByte(body[i])
+			i++
+			continue
+		}
+		valueStart := keyEnd
+		for valueStart < len(body) && (body[valueStart] == ' ' || body[valueStart] == '\t' || body[valueStart] == '\r' || body[valueStart] == '\n') {
+			valueStart++
+		}
+		if valueStart >= len(body) || (body[valueStart] != ':' && body[valueStart] != '=') {
+			sanitized.WriteByte(body[i])
+			i++
+			continue
+		}
+		valueStart++
+		for valueStart < len(body) && (body[valueStart] == ' ' || body[valueStart] == '\t' || body[valueStart] == '\r' || body[valueStart] == '\n') {
+			valueStart++
+		}
+		sanitized.Write(body[i:valueStart])
+		if valueStart == len(body) {
+			sanitized.WriteString("[REDACTED]")
+			i = valueStart
+			continue
+		}
+		if body[valueStart] == '"' || body[valueStart] == '\'' {
+			quote := body[valueStart]
+			sanitized.WriteByte(quote)
+			sanitized.WriteString("[REDACTED]")
+			i = valueStart + 1
+			for i < len(body) {
+				if body[i] == '\\' {
+					i += 2
+					continue
+				}
+				if body[i] == quote {
+					sanitized.WriteByte(quote)
+					i++
+					break
+				}
+				i++
+			}
+			// An unterminated value is intentionally consumed through the bounded
+			// input, including the limit+1 byte.
+			continue
+		}
+		sanitized.WriteString("[REDACTED]")
+		i = valueStart
+		for i < len(body) && body[i] != ',' && body[i] != '}' && body[i] != ']' && body[i] != '\r' && body[i] != '\n' {
+			i++
+		}
+	}
+	return sanitized.Bytes()
+}
+
+func readGithubBody(body io.Reader, limit int) ([]byte, bool, error) {
+	data, err := io.ReadAll(io.LimitReader(body, int64(limit)+1))
+	if err != nil {
+		return nil, false, err
+	}
+	if len(data) > limit {
+		return data, true, nil
+	}
+	return data, false, nil
+}
+
+func decodeGithubJSON(resp *http.Response, operation string, dst any) error {
+	body, truncated, err := readGithubBody(resp.Body, githubJSONBodyLimit)
+	if err != nil {
+		return &GithubTransportError{Operation: operation + " response body", Cause: err}
+	}
+	if truncated {
+		return &GithubContractError{Operation: operation, Cause: errors.New("response body exceeds limit")}
+	}
+	if err := json.Unmarshal(body, dst); err != nil {
+		return &GithubContractError{Operation: operation, Cause: err}
+	}
+	return nil
+}
+
+func safeGithubURL(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "https" || u.User != nil || u.Hostname() == "" {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	return host == "github.com" || host == "api.github.com"
+}
+
 // ghReq — общий helper для запросов к GitHub REST API с авторизацией из
 // конфига. Если body == nil — GET; иначе — JSON-кодируется и Content-Type
 // выставляется автоматически. Таймаут контролируется через ctx вызывающего.
-func (s *GithubBuildConfigService) ghReq(ctx context.Context, c *model.GithubBuildConfig, method, path string, body any) (*http.Response, error) {
+func (s *GithubBuildConfigService) ghReq(ctx context.Context, c *model.GithubBuildConfig, method, path string, body any, expected ...int) (*http.Response, error) {
+	if c == nil {
+		return nil, errors.New("GitHub build config is missing")
+	}
+	if err := validateGithubRepo(c.Repo); err != nil {
+		return nil, err
+	}
 	var br io.Reader
 	if body != nil {
 		j, err := json.Marshal(body)
@@ -157,7 +580,9 @@ func (s *GithubBuildConfigService) ghReq(ctx context.Context, c *model.GithubBui
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", "Bearer "+c.Token)
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 	if br != nil {
@@ -165,161 +590,33 @@ func (s *GithubBuildConfigService) ghReq(ctx context.Context, c *model.GithubBui
 	}
 	// Без жёсткого Timeout — таймаут контролируется через ctx у каждого вызова
 	// (иначе скачивание большого артефакта обрезалось бы на 30s).
-	return ghClient.Do(req)
+	resp, err := ghClient.Do(req)
+	if err != nil {
+		return nil, &GithubTransportError{Operation: method + " " + path, Cause: err}
+	}
+	for _, status := range expected {
+		if resp.StatusCode == status {
+			return resp, nil
+		}
+	}
+	responseBody, _, readErr := readGithubBody(resp.Body, githubErrorBodyLimit)
+	resp.Body.Close()
+	if readErr != nil {
+		return nil, &GithubTransportError{Operation: method + " " + path + " error response", Cause: readErr}
+	}
+	retryable, terminal := classifyGithubStatus(resp.StatusCode, resp.Header)
+	return nil, &GithubAPIError{
+		StatusCode:         resp.StatusCode,
+		Retryable:          retryable,
+		Terminal:           terminal,
+		Body:               redactGithubBody(responseBody),
+		RetryAfter:         resp.Header.Get("Retry-After"),
+		RateLimitRemaining: resp.Header.Get("X-RateLimit-Remaining"),
+		RateLimitReset:     resp.Header.Get("X-RateLimit-Reset"),
+	}
 }
 
 var ghClient = &http.Client{}
-
-// --- Available versions cache (offline-assets releases) ---
-
-type ghVersionsCache struct {
-	versions []string
-	cachedAt time.Time
-	mu       sync.Mutex
-}
-
-var (
-	releasesCache    ghVersionsCache
-	releasesCacheTTL = 5 * time.Minute
-	versionsFlight   singleflight.Group
-)
-
-// GetAvailableVersions возвращает список версий RustDesk, доступных для сборки
-// custom-клиента. Версии извлекаются из GitHub-релизов форка bashrusakh/rustdesk
-// с тегами "offline-assets-*". Результат кешируется на 5 минут.
-//
-// singleflight защищает от stampede при одновременных запросах: пока один
-// goroutine обновляет кеш, остальные ждут того же результата.
-// Если GitHub API недоступен или нет релизов, возвращается пустой слайс
-// и ошибка — нет смысла предлагать версии, ассеты для которых не существуют.
-//
-// Ожидание результата cancellation-aware: используется DoChan + select на
-// ctx.Done() — caller с отменённым/протухшим контекстом выходит сразу,
-// не дожидаясь detached shared refresh, которая продолжается для остальных.
-func (s *GithubBuildConfigService) GetAvailableVersions(ctx context.Context) ([]string, error) {
-	// 1) Проверить кеш
-	releasesCache.mu.Lock()
-	if releasesCache.versions != nil && time.Since(releasesCache.cachedAt) < releasesCacheTTL {
-		versions := releasesCache.versions
-		releasesCache.mu.Unlock()
-		return versions, nil
-	}
-	releasesCache.mu.Unlock()
-
-	// 2) Если caller уже отвалился — вернуть ошибку моментально, не заводя
-	// singleflight shared goroutine (иначе теряем герметичность тестов и
-	// тратим ресурсы на запрос, результат которого никто не ждёт).
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	default:
-	}
-
-	// 3) Один запрос к GitHub API на concurrent batch.
-	// Используем detached bounded context, чтобы таймаут/отмена одного caller
-	// не убила shared refresh для всех остальных waiter'ов.
-	// Создаём контекст внутри замыкания: singleflight выполняет closure только
-	// для первого caller'а, так что утечки для non-executing callers нет.
-	// DoChan возвращает канал, по которому результат придёт даже если наш ctx
-	// уже отменён. Это и есть cancellation-aware ожидание:
-	//   - ctx живой → блокируемся на ch
-	//   - ctx отменён/протух → возвращаемся с ctx.Err(), не дожидаясь fetch
-	// shared goroutine при этом продолжает работу для остальных waiter'ов.
-	ch := versionsFlight.DoChan("versions", func() (interface{}, error) {
-		fetchCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		versions, fetchErr := s.fetchReleases(fetchCtx)
-		if fetchErr != nil {
-			log.Warnf("fetchReleases failed: %v", fetchErr)
-			return []string{}, fetchErr
-		}
-		// Don't cache empty results — a transient API blip or zero-matching tags
-		// would poison the cache for the full TTL, hiding real releases from all users.
-		if len(versions) > 0 {
-			releasesCache.mu.Lock()
-			releasesCache.versions = versions
-			releasesCache.cachedAt = time.Now()
-			releasesCache.mu.Unlock()
-		}
-		return versions, nil
-	})
-	select {
-	case r := <-ch:
-		if r.Err != nil {
-			return []string{}, r.Err
-		}
-		return r.Val.([]string), nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
-}
-
-// fetchReleases делает HTTP-запрос к GitHub API и возвращает отсортированные
-// по semver (по убыванию) версии из тегов "offline-assets-*".
-func (s *GithubBuildConfigService) fetchReleases(ctx context.Context) ([]string, error) {
-	gcfg, err := s.Get()
-	if err != nil {
-		// Только ErrRecordNotFound допустим (конфиг ещё не задан — используем public API).
-		// Любая другая ошибка — реальная проблема (DB unavailable и т.п.),
-		// её надо увидеть, а не тихо провалиться на public rate limit.
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("get config: %w", err)
-		}
-	}
-
-	// TODO: handle pagination via Link header if releases exceed 100. Реальных релизов <10,
-	// но при росте выше 100 будут silently omitted. Нужен fetcher с follow Link header.
-	path := "/repos/bashrusakh/rustdesk/releases?per_page=100"
-	var resp *http.Response
-
-	if gcfg != nil && gcfg.Token != "" {
-		resp, err = s.ghReq(ctx, gcfg, "GET", path, nil)
-	} else {
-		// Без PAT — публичный запрос (ниже rate limit, но работает)
-		var req *http.Request
-		req, err = http.NewRequestWithContext(ctx, "GET", githubAPI+path, nil)
-		if err == nil {
-			req.Header.Set("Accept", "application/vnd.github+json")
-			req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
-			resp, err = ghClient.Do(req)
-		}
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, fmt.Errorf("GitHub API returned HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-
-	var releases []struct {
-		TagName string `json:"tag_name"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
-		return nil, err
-	}
-
-	// Фильтр: только offline-assets-* и строгий semver
-	prefix := "offline-assets-"
-	var versions []string
-	for _, r := range releases {
-		if strings.HasPrefix(r.TagName, prefix) {
-			v := strings.TrimPrefix(r.TagName, prefix)
-			if v != "" && utils.VersionRegex.MatchString(v) {
-				versions = append(versions, v)
-			}
-		}
-	}
-
-	// Сортировка semver по убыванию
-	sort.Slice(versions, func(i, j int) bool {
-		return compareSemver(versions[i], versions[j]) > 0
-	})
-
-	return versions, nil
-}
 
 // compareSemver сравнивает две semver-подобные строки: сначала numeric core,
 // затем prerelease-сегменты. Release всегда старше prerelease, а
@@ -422,24 +719,176 @@ func prereleaseIdentifier(v string) (int, bool) {
 // TestConnection — read-only вызов GET /repos/{repo}: проверяет PAT, scope, доступ к репо.
 // Возвращает (ok, message).
 func (s *GithubBuildConfigService) TestConnection(c *model.GithubBuildConfig) (bool, string) {
+	if err := s.TestConnectionError(c); err != nil {
+		return false, githubErrorMessage(err)
+	}
+	return true, "ok"
+}
+
+// TestConnectionError is the typed-error variant used by callers that need to
+// distinguish a retryable GitHub outage from a terminal configuration error.
+func (s *GithubBuildConfigService) TestConnectionError(c *model.GithubBuildConfig) error {
 	if c.Token == "" {
-		return false, "token not set"
+		return errors.New("token not set")
 	}
 	if c.Repo == "" {
-		return false, "repo not set (expected owner/name)"
+		return errors.New("repo not set (expected owner/name)")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	resp, err := s.ghReq(ctx, c, "GET", "/repos/"+c.Repo, nil)
+	path, err := githubRepoPath(c.Repo, "")
 	if err != nil {
-		return false, "request failed: " + err.Error()
+		return err
+	}
+	resp, err := s.ghReq(ctx, c, "GET", path, nil, http.StatusOK)
+	if err != nil {
+		return err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode == 200 {
-		return true, "ok"
+	return nil
+}
+
+func githubErrorMessage(err error) string {
+	return GithubSafeErrorMessage(err)
+}
+
+// GithubErrorHTTPStatus returns the safe HTTP classification for a known
+// provider/workflow error. Nested errors are checked before the provider
+// configuration wrapper so a policy, capability, validation, transport, or
+// provider-response failure cannot be flattened into "not configured".
+func GithubErrorHTTPStatus(err error) (int, bool) {
+	if err == nil {
+		return 0, false
 	}
-	b, _ := io.ReadAll(resp.Body)
-	return false, fmt.Sprintf("HTTP %d: %s", resp.StatusCode, string(b))
+	if IsSecretEncryptionConfigurationError(err) {
+		return http.StatusServiceUnavailable, true
+	}
+	var validationErr *ClientValidationError
+	if errors.As(err, &validationErr) {
+		return http.StatusBadRequest, true
+	}
+	var approvalErr *WorkflowRefApprovalError
+	if errors.As(err, &approvalErr) {
+		return http.StatusPreconditionFailed, true
+	}
+	var capabilityErr *ProductionCapabilityUnavailableError
+	if errors.As(err, &capabilityErr) {
+		return http.StatusServiceUnavailable, true
+	}
+	var apiErr *GithubAPIError
+	if errors.As(err, &apiErr) {
+		return http.StatusBadGateway, true
+	}
+	var artifactErr *GithubArtifactUnavailableError
+	if errors.As(err, &artifactErr) {
+		return http.StatusBadGateway, true
+	}
+	var transportErr *GithubTransportError
+	if errors.As(err, &transportErr) {
+		return http.StatusServiceUnavailable, true
+	}
+	var contractErr *GithubContractError
+	if errors.As(err, &contractErr) {
+		return http.StatusBadGateway, true
+	}
+	var providerErr *GithubProviderConfigurationError
+	if errors.As(err, &providerErr) {
+		return http.StatusServiceUnavailable, true
+	}
+	return 0, false
+}
+
+const githubDiagnosticLimit = 512
+
+const githubRulesetBypassMetadataUnavailableCause = "ruleset bypass metadata is missing or not visible"
+
+func isGithubRulesetBypassMetadataUnavailable(err *GithubContractError) bool {
+	return err != nil &&
+		err.Operation == "verify repository ruleset detail" &&
+		err.Cause != nil &&
+		strings.Contains(err.Cause.Error(), githubRulesetBypassMetadataUnavailableCause)
+}
+
+// GithubErrorDetail returns a bounded, log-oriented diagnostic. It is
+// deliberately reconstructed from typed classifications instead of formatting
+// err.Error(): provider URLs, refs, response bodies, credentials, payloads,
+// and nested implementation details therefore cannot enter logs or build logs.
+func GithubErrorDetail(err error) string {
+	if err == nil {
+		return ""
+	}
+	detail := GithubSafeErrorMessage(err)
+	var apiErr *GithubAPIError
+	if errors.As(err, &apiErr) {
+		detail = fmt.Sprintf("%s (status=%d, retryable=%t, terminal=%t)", detail, apiErr.StatusCode, apiErr.Retryable, apiErr.Terminal)
+	}
+	if len(detail) > githubDiagnosticLimit {
+		return detail[:githubDiagnosticLimit] + "…"
+	}
+	return detail
+}
+
+// GithubSafeErrorMessage maps GitHub workflow/provider failures to a bounded
+// user-facing message. Provider URLs, selectors, response bodies, credentials,
+// encrypted payloads, and internal causes remain outside the API response.
+func GithubSafeErrorMessage(err error) string {
+	if err == nil {
+		return "GitHub build operation failed"
+	}
+	if IsSecretEncryptionConfigurationError(err) {
+		return "secret encryption is not configured"
+	}
+	var validationErr *ClientValidationError
+	if errors.As(err, &validationErr) {
+		return "custom build request is invalid"
+	}
+	var approvalErr *WorkflowRefApprovalError
+	if errors.As(err, &approvalErr) {
+		return "workflow reference approval is required"
+	}
+	var capabilityErr *ProductionCapabilityUnavailableError
+	if errors.As(err, &capabilityErr) {
+		return "production build capability is unavailable"
+	}
+	var artifactErr *GithubArtifactUnavailableError
+	if errors.As(err, &artifactErr) {
+		return "requested GitHub artifact is unavailable"
+	}
+	var apiErr *GithubAPIError
+	if errors.As(err, &apiErr) {
+		switch apiErr.StatusCode {
+		case http.StatusUnauthorized:
+			return "GitHub authentication failed; verify the configured PAT"
+		case http.StatusForbidden:
+			if apiErr.Retryable {
+				return "GitHub rate limit reached; retry later"
+			}
+			return "GitHub access was denied; verify the PAT permissions and repository access"
+		case http.StatusNotFound:
+			return "GitHub repository or workflow resource was not found; verify the repository name and PAT access"
+		default:
+			if apiErr.Retryable {
+				return "GitHub provider is temporarily unavailable or rate-limited; retry shortly"
+			}
+			return "GitHub provider rejected the request; verify the repository and PAT permissions"
+		}
+	}
+	var transportErr *GithubTransportError
+	if errors.As(err, &transportErr) {
+		return "GitHub provider is unavailable"
+	}
+	var contractErr *GithubContractError
+	if errors.As(err, &contractErr) {
+		if isGithubRulesetBypassMetadataUnavailable(contractErr) {
+			return "GitHub workflow tag verification requires a PAT with Administration: write and repository access"
+		}
+		return "GitHub provider response was invalid"
+	}
+	var providerErr *GithubProviderConfigurationError
+	if errors.As(err, &providerErr) {
+		return "GitHub build provider is not configured"
+	}
+	return "GitHub build operation failed"
 }
 
 // SetWorkflowSecret — кладёт/обновляет PayloadKey в GitHub Secrets форка как
@@ -453,20 +902,7 @@ func (s *GithubBuildConfigService) SetWorkflowSecret(c *model.GithubBuildConfig)
 	if c.PayloadKey == "" {
 		return errors.New("payload_key is empty (Generate or paste one first)")
 	}
-	return s.putGithubSecret(c, "/repos/"+c.Repo, "WORKFLOW_PAYLOAD_KEY", c.PayloadKey)
-}
-
-// SetSyncPatSecret кладёт/обновляет PAT в GitHub Secrets текущего настроенного
-// репозитория как GH_PAT. Используется sync-workflows.yml для доступа к форку
-// из CI. Тот же sealed box механизм, что и SetWorkflowSecret.
-func (s *GithubBuildConfigService) SetSyncPatSecret(c *model.GithubBuildConfig) error {
-	if c.Token == "" {
-		return errors.New("token is empty — save a PAT first")
-	}
-	if c.Repo == "" {
-		return errors.New("repo is not set")
-	}
-	return s.putGithubSecret(c, "/repos/"+c.Repo, "GH_PAT", c.Token)
+	return s.putGithubSecret(c, "WORKFLOW_PAYLOAD_KEY", c.PayloadKey)
 }
 
 // putGithubSecret — общая логика encrypt-and-PUT секрета в GitHub Actions Secrets.
@@ -474,25 +910,25 @@ func (s *GithubBuildConfigService) SetSyncPatSecret(c *model.GithubBuildConfig) 
 //
 //	GET  {repoPath}/actions/secrets/public-key  → {key_id, key (base64 32B)}
 //	PUT  {repoPath}/actions/secrets/{secretName}  body {encrypted_value, key_id}
-func (s *GithubBuildConfigService) putGithubSecret(c *model.GithubBuildConfig, repoPath, secretName, plaintext string) error {
+func (s *GithubBuildConfigService) putGithubSecret(c *model.GithubBuildConfig, secretName, plaintext string) error {
+	repoPath, err := githubRepoPath(c.Repo, "")
+	if err != nil {
+		return err
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
 	// 1) забрать публичный ключ репо
-	resp, err := s.ghReq(ctx, c, "GET", repoPath+"/actions/secrets/public-key", nil)
+	resp, err := s.ghReq(ctx, c, "GET", repoPath+"/actions/secrets/public-key", nil, http.StatusOK)
 	if err != nil {
 		return fmt.Errorf("get public-key: %w", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		b, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("get public-key HTTP %d: %s", resp.StatusCode, string(b))
-	}
 	var pk struct {
 		KeyId string `json:"key_id"`
 		Key   string `json:"key"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&pk); err != nil {
+	if err := decodeGithubJSON(resp, "get public-key", &pk); err != nil {
 		return fmt.Errorf("decode public-key: %w", err)
 	}
 	keyBytes, err := base64.StdEncoding.DecodeString(pk.Key)
@@ -518,150 +954,501 @@ func (s *GithubBuildConfigService) putGithubSecret(c *model.GithubBuildConfig, r
 		"key_id":          pk.KeyId,
 	}
 	putResp, err := s.ghReq(ctx, c, "PUT",
-		repoPath+"/actions/secrets/"+secretName, body)
+		repoPath+"/actions/secrets/"+secretName, body, http.StatusCreated, http.StatusNoContent)
 	if err != nil {
 		return fmt.Errorf("put secret: %w", err)
 	}
 	defer putResp.Body.Close()
-	if putResp.StatusCode != http.StatusCreated && putResp.StatusCode != http.StatusNoContent {
-		b, _ := io.ReadAll(putResp.Body)
-		return fmt.Errorf("put secret HTTP %d: %s", putResp.StatusCode, string(b))
-	}
+	// Both accepted statuses have no response contract to decode.
 	return nil
 }
 
-// DispatchBuild — workflow_dispatch с зашифрованным payload.
-// params — {server, key, app_name, custom_txt}. Возвращает (runId, error).
-// runId получается отдельным запросом /actions/runs?per_page=1 после dispatch (GitHub
-// не возвращает id напрямую — приходится поллить).
-func (s *GithubBuildConfigService) DispatchBuild(ctx context.Context, c *model.GithubBuildConfig, params map[string]any) (int64, error) {
-	if c.Token == "" || c.Repo == "" || c.WorkflowFilename == "" {
-		return 0, errors.New("GithubBuildConfig: token/repo/workflow_filename required")
-	}
-	enc, err := s.EncryptPayload(c.PayloadKey, params)
-	if err != nil {
-		return 0, fmt.Errorf("encrypt: %w", err)
-	}
-	ref := c.Branch
-	if ref == "" {
-		ref = "rustqs/min-test"
-	}
-	body := map[string]any{
-		"ref": ref,
-		"inputs": map[string]string{
-			"enc_payload": enc,
-		},
-	}
-	path := fmt.Sprintf("/repos/%s/actions/workflows/%s/dispatches", c.Repo, c.WorkflowFilename)
-	resp, err := s.ghReq(ctx, c, "POST", path, body)
-	if err != nil {
-		return 0, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 204 {
-		b, _ := io.ReadAll(resp.Body)
-		return 0, fmt.Errorf("dispatch HTTP %d: %s", resp.StatusCode, string(b))
-	}
-	// найти id свежезапущенного рана (GitHub индексирует не моментально).
-	// ВАЖНО: принимаем только ран, созданный не раньше момента dispatch (минус
-	// небольшой допуск на рассинхрон часов сервера и GitHub). Иначе per_page=1
-	// вернёт ПРЕДЫДУЩИЙ ран этого воркфлоу, пока новый не проиндексирован, и UI
-	// покажет ссылку на чужую сборку.
-	dispatchedAt := time.Now().UTC().Add(-10 * time.Second)
-	for i := 0; i < 10; i++ {
-		time.Sleep(2 * time.Second)
-		listPath := fmt.Sprintf("/repos/%s/actions/workflows/%s/runs?per_page=1&branch=%s",
-			c.Repo, c.WorkflowFilename, ref)
-		rr, err := s.ghReq(ctx, c, "GET", listPath, nil)
-		if err != nil {
-			continue
-		}
-		var data struct {
-			WorkflowRuns []struct {
-				Id        int64  `json:"id"`
-				Status    string `json:"status"`
-				CreatedAt string `json:"created_at"`
-			} `json:"workflow_runs"`
-		}
-		_ = json.NewDecoder(rr.Body).Decode(&data)
-		rr.Body.Close()
-		if len(data.WorkflowRuns) > 0 {
-			run := data.WorkflowRuns[0]
-			created, perr := time.Parse(time.RFC3339, run.CreatedAt)
-			// если created_at непарсится — не блокируемся, берём как есть;
-			// иначе ждём появления именно нового рана.
-			if perr != nil || !created.Before(dispatchedAt) {
-				return run.Id, nil
-			}
-		}
-	}
-	return 0, errors.New("dispatch ok but run id not found after polling")
+// GithubDispatchResult is the exact identity returned by GitHub for a
+// workflow_dispatch request. The run ID is provider-derived; callers must not
+// accept or manufacture it from user input.
+type GithubDispatchResult struct {
+	WorkflowRunID int64  `json:"workflow_run_id"`
+	RunURL        string `json:"run_url"`
+	HTMLURL       string `json:"html_url"`
 }
 
-// RunStatus — GET /actions/runs/{id}: возвращает (status, conclusion).
-func (s *GithubBuildConfigService) RunStatus(ctx context.Context, c *model.GithubBuildConfig, runId int64) (status, conclusion string, err error) {
-	resp, err := s.ghReq(ctx, c, "GET", fmt.Sprintf("/repos/%s/actions/runs/%d", c.Repo, runId), nil)
+// releaseAssetDispatchPayload is the typed, provider-derived portion of the
+// encrypted workflow payload. ReleaseRepo is projected from the resolved
+// catalog identity rather than accepted from normal build parameters.
+type releaseAssetDispatchPayload struct {
+	ReleaseRepo      string         `json:"release_repo"`
+	AssetsReleaseID  int64          `json:"assets_release_id"`
+	AssetsReleaseTag string         `json:"assets_release_tag"`
+	ReleaseAssets    []ReleaseAsset `json:"release_assets"`
+}
+
+func releaseAssetPayloadForIdentity(identity VersionIdentity) (releaseAssetDispatchPayload, error) {
+	if err := validateGithubRepo(identity.Repo); err != nil {
+		return releaseAssetDispatchPayload{}, fmt.Errorf("release asset repository is invalid: %w", err)
+	}
+	return releaseAssetDispatchPayload{
+		ReleaseRepo:      identity.Repo,
+		AssetsReleaseID:  identity.AssetsRelease.ID,
+		AssetsReleaseTag: identity.AssetsRelease.TagName,
+		ReleaseAssets:    identity.AssetsRelease.Assets,
+	}, nil
+}
+
+// DispatchBuild dispatches a workflow using the validated branch/tag selector
+// and returns the exact run details from GitHub. The resolved workflow SHA is
+// checked during preparation and retained for polling; it is not sent as the
+// workflow_dispatch ref. It is copied into the provider-owned public guard
+// input and authenticated payload. This method deliberately does not poll or
+// infer a run from a list response.
+func (s *GithubBuildConfigService) DispatchBuild(ctx context.Context, c *model.GithubBuildConfig, identity VersionIdentity, platform string, params map[string]any) (*GithubDispatchResult, error) {
+	if err := RequireProductionBuildCapability(platform); err != nil {
+		return nil, err
+	}
+	if c == nil {
+		return nil, &GithubProviderConfigurationError{Cause: errors.New("configuration is missing")}
+	}
+	if c.Token == "" || c.Repo == "" || c.PayloadKey == "" {
+		return nil, &GithubProviderConfigurationError{Cause: errors.New("repo, PAT, and payload key are required")}
+	}
+	// Direct callers must not reach provider policy reads, encryption, or a
+	// dispatch POST when the typed public-key/input gate is not satisfied.
+	normalizedParams, err := NormalizeWorkflowDispatchParams(platform, params)
 	if err != nil {
-		return "", "", err
+		return nil, &GithubContractError{Operation: "workflow dispatch", Cause: err}
+	}
+	if err := RequireDispatchPublicKey(normalizedParams); err != nil {
+		return nil, err
+	}
+	if err := s.RequireWorkflowRefApproval(c); err != nil {
+		return nil, err
+	}
+	workflow, err := WorkflowFilenameForPlatform(platform)
+	if err != nil {
+		return nil, err
+	}
+	configuredWorkflowRef, err := workflowExecutionRef(c)
+	if err != nil {
+		return nil, &GithubContractError{Operation: "workflow dispatch", Cause: err}
+	}
+	if identity.WorkflowRef == "" || identity.WorkflowSHA == "" {
+		return nil, &GithubContractError{Operation: "workflow dispatch", Cause: errors.New("workflow selector and resolved execution SHA are required")}
+	}
+	if identity.WorkflowRef != configuredWorkflowRef {
+		return nil, &GithubContractError{Operation: "workflow dispatch", Cause: errors.New("workflow dispatch ref does not match the configured workflow selector")}
+	}
+	if err := identity.validate(); err != nil {
+		return nil, &GithubContractError{Operation: "workflow dispatch", Cause: err}
+	}
+	if identity.Repo != c.Repo {
+		return nil, &GithubContractError{Operation: "workflow dispatch", Cause: fmt.Errorf("version identity repo %q does not match configured repo", identity.Repo)}
+	}
+	releasePayload, err := releaseAssetPayloadForIdentity(identity)
+	if err != nil {
+		return nil, &GithubContractError{Operation: "workflow dispatch", Cause: err}
+	}
+	// Re-check the mapped workflow immediately before dispatch. PrepareBuild
+	// performs the same readiness check before persistence, while this second
+	// check rejects stale identities for direct dispatch callers and provides
+	// compensating protection against provider-side movement. A provider-side
+	// TOCTOU window still remains after this check.
+	if err := s.verifyWorkflowAvailable(ctx, c, workflow, identity.WorkflowSHA); err != nil {
+		return nil, &GithubProviderConfigurationError{
+			Cause: fmt.Errorf("mapped workflow %q is not ready: %w", workflow, err),
+		}
+	}
+	// This is the dispatch primitive's final provider-policy check. It must be
+	// immediately before encryption so a moved branch/tag or stale prepared
+	// identity is rejected before a DFP1 payload is produced. This is
+	// compensating protection, not an atomic binding of the later dispatch to
+	// the resolved SHA.
+	execution, err := s.validateWorkflowRefPolicy(ctx, c)
+	if err != nil {
+		return nil, &GithubProviderConfigurationError{Cause: fmt.Errorf("workflow reference policy is not verified: %w", err)}
+	}
+	if execution.Ref != identity.WorkflowRef || execution.SHA != identity.WorkflowSHA || !strings.EqualFold(execution.SHA, c.WorkflowRefApprovalSHA) {
+		return nil, &GithubContractError{
+			Operation: "workflow dispatch",
+			Cause:     errors.New("workflow selector resolved to a different execution SHA"),
+		}
+	}
+	// workflow_dispatch accepts a branch or tag selector, not a raw SHA. Keep
+	// this explicit assertion at the dispatch boundary: the checks above reject
+	// stale identities and provide compensating protection, but GitHub's short
+	// tag selection is not atomically SHA-bound, so the selector/SHA TOCTOU risk
+	// remains. Non-tag selectors must never be normalized here.
+	dispatchRef, err := workflowDispatchTagSelector(identity.WorkflowRef)
+	if err != nil {
+		return nil, &GithubContractError{Operation: "workflow dispatch", Cause: err}
+	}
+	dispatchParams := make(map[string]any, len(normalizedParams)+1)
+	for key, value := range normalizedParams {
+		dispatchParams[key] = value
+	}
+	// Version propagation is provider/workflow-owned. Never trust a caller's
+	// duplicate or stale value over the immutable selected identity.
+	dispatchParams["version"] = identity.DisplayVersion
+	// Keep the source checkout identity available to the owned workflow without
+	// replacing the execution ref used to locate its workflow definition.
+	dispatchParams["source_sha"] = identity.BuildRef
+	// Bind the authenticated payload to the configured repository. The workflow
+	// compares this provider-derived value with github.repository, preserving
+	// self-hosted fork support without trusting a hardcoded owner/name.
+	dispatchParams["workflow_repo"] = c.Repo
+	// Release asset identity is catalog/provider-derived. Overwrite any caller
+	// value so raw/manual asset IDs or digests can never enter a normal build.
+	dispatchParams["release_repo"] = releasePayload.ReleaseRepo
+	dispatchParams["assets_release_id"] = releasePayload.AssetsReleaseID
+	dispatchParams["assets_release_tag"] = releasePayload.AssetsReleaseTag
+	dispatchParams["release_assets"] = releasePayload.ReleaseAssets
+	// The execution SHA is provider-derived and must bind both dispatch layers.
+	// NormalizeWorkflowDispatchParams deliberately rejects caller-authored
+	// workflow_sha values, so this overwrite remains the only normal input path.
+	dispatchParams["workflow_sha"] = identity.WorkflowSHA
+	enc, err := s.EncryptPayload(c.PayloadKey, dispatchParams)
+	if err != nil {
+		return nil, fmt.Errorf("encrypt: %w", err)
+	}
+	body := map[string]any{
+		// The resolved SHA is used by readiness and polling, not as this selector.
+		"ref":                dispatchRef,
+		"return_run_details": true,
+		"inputs": map[string]string{
+			"enc_payload":  enc,
+			"workflow_sha": identity.WorkflowSHA,
+		},
+	}
+	path, err := githubRepoPath(c.Repo, fmt.Sprintf("/actions/workflows/%s/dispatches", workflow))
+	if err != nil {
+		return nil, err
+	}
+	resp, err := s.ghReq(ctx, c, "POST", path, body, http.StatusOK)
+	if err != nil {
+		var apiErr *GithubAPIError
+		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNoContent {
+			return nil, &GithubContractError{Operation: "workflow dispatch", Cause: err}
+		}
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var result GithubDispatchResult
+	if err := decodeGithubJSON(resp, "workflow dispatch", &result); err != nil {
+		return nil, err
+	}
+	if result.WorkflowRunID <= 0 || !safeGithubURL(result.RunURL) || !safeGithubURL(result.HTMLURL) {
+		return nil, &GithubContractError{Operation: "workflow dispatch", Cause: errors.New("expected nonzero workflow_run_id and safe run_url/html_url")}
+	}
+	return &result, nil
+}
+
+// GithubRunStatusDetails contains the exact provider-owned fields returned by
+// a run-status response. New builds require SourceSHA to guard the immutable
+// workflow execution commit.
+type GithubRunStatusDetails struct {
+	Status     string
+	Conclusion string
+	SourceSHA  string
+}
+
+// RunStatusDetails fetches the status response, including the exact run
+// head_sha used to identify the workflow execution commit.
+func (s *GithubBuildConfigService) RunStatusDetails(ctx context.Context, c *model.GithubBuildConfig, runId int64) (GithubRunStatusDetails, error) {
+	path, err := githubRepoPath(c.Repo, fmt.Sprintf("/actions/runs/%d", runId))
+	if err != nil {
+		return GithubRunStatusDetails{}, err
+	}
+	resp, err := s.ghReq(ctx, c, "GET", path, nil, http.StatusOK)
+	if err != nil {
+		return GithubRunStatusDetails{}, err
 	}
 	defer resp.Body.Close()
 	var data struct {
 		Status     string `json:"status"`
 		Conclusion string `json:"conclusion"`
+		HeadSHA    string `json:"head_sha"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return "", "", err
+	if err := decodeGithubJSON(resp, "run status", &data); err != nil {
+		return GithubRunStatusDetails{}, err
 	}
-	return data.Status, data.Conclusion, nil
+	if data.Status == "" {
+		return GithubRunStatusDetails{}, &GithubContractError{Operation: "run status", Cause: errors.New("status is empty")}
+	}
+	if data.HeadSHA != "" && !validGithubSourceSHA(data.HeadSHA) {
+		return GithubRunStatusDetails{}, &GithubContractError{Operation: "run status", Cause: errors.New("head_sha must be 40-64 hexadecimal characters")}
+	}
+	return GithubRunStatusDetails{Status: data.Status, Conclusion: data.Conclusion, SourceSHA: data.HeadSHA}, nil
 }
 
-// DownloadArtifact — скачивает zip артефакта по имени, возвращает []byte (zip-байты).
-// Используется после успешного завершения сборки.
-func (s *GithubBuildConfigService) DownloadArtifact(ctx context.Context, c *model.GithubBuildConfig, runId int64, artifactName string) ([]byte, error) {
-	resp, err := s.ghReq(ctx, c, "GET", fmt.Sprintf("/repos/%s/actions/runs/%d/artifacts", c.Repo, runId), nil)
+// RunStatus preserves the existing status-only caller contract.
+func (s *GithubBuildConfigService) RunStatus(ctx context.Context, c *model.GithubBuildConfig, runId int64) (status, conclusion string, err error) {
+	details, err := s.RunStatusDetails(ctx, c, runId)
+	if err != nil {
+		return "", "", err
+	}
+	return details.Status, details.Conclusion, nil
+}
+
+func (s *GithubBuildConfigService) listRunArtifacts(ctx context.Context, c *model.GithubBuildConfig, runId int64) ([]githubArtifactMetadata, error) {
+	path, err := githubRepoPath(c.Repo, fmt.Sprintf("/actions/runs/%d/artifacts", runId))
+	if err != nil {
+		return nil, err
+	}
+	resp, err := s.ghReq(ctx, c, "GET", path, nil, http.StatusOK)
 	if err != nil {
 		return nil, err
 	}
 	var data struct {
-		Artifacts []struct {
-			Id   int64  `json:"id"`
-			Name string `json:"name"`
-		} `json:"artifacts"`
+		Artifacts []githubArtifactMetadata `json:"artifacts"`
 	}
-	_ = json.NewDecoder(resp.Body).Decode(&data)
+	if err := decodeGithubJSON(resp, "list artifacts", &data); err != nil {
+		resp.Body.Close()
+		return nil, err
+	}
 	resp.Body.Close()
+	return data.Artifacts, nil
+}
+
+// ResolveArtifactID selects the exact named artifact from the exact workflow
+// run. A missing or expired name is terminal; there is deliberately no
+// sole-artifact fallback.
+func (s *GithubBuildConfigService) ResolveArtifactID(ctx context.Context, c *model.GithubBuildConfig, runId int64, artifactName string) (int64, error) {
+	artifacts, err := s.listRunArtifacts(ctx, c, runId)
+	if err != nil {
+		return 0, err
+	}
 	var aid int64
 	if artifactName != "" {
-		for _, a := range data.Artifacts {
+		for _, a := range artifacts {
 			if a.Name == artifactName {
-				aid = a.Id
-				break
+				if a.Expired {
+					return 0, &GithubArtifactUnavailableError{RunID: runId, ArtifactName: artifactName}
+				}
+				if a.ID <= 0 {
+					return 0, &GithubContractError{Operation: "list artifacts", Cause: fmt.Errorf("artifact %q has an invalid id", artifactName)}
+				}
+				if aid != 0 {
+					return 0, &GithubContractError{Operation: "list artifacts", Cause: fmt.Errorf("artifact name %q is ambiguous", artifactName)}
+				}
+				aid = a.ID
 			}
 		}
 	}
-	// AU-L-011: не завязываемся жёстко на имя артефакта. Если имя не задано или
-	// не найдено, но ран произвёл ровно один артефакт — берём его.
-	if aid == 0 && len(data.Artifacts) == 1 {
-		aid = data.Artifacts[0].Id
-	}
 	if aid == 0 {
-		names := make([]string, 0, len(data.Artifacts))
-		for _, a := range data.Artifacts {
+		names := make([]string, 0, len(artifacts))
+		for _, a := range artifacts {
 			names = append(names, a.Name)
 		}
-		return nil, fmt.Errorf("artifact %q not found in run %d (available: %v)", artifactName, runId, names)
+		return 0, &GithubArtifactUnavailableError{RunID: runId, ArtifactName: artifactName, Available: names}
 	}
-	// /artifacts/{id}/zip → 302 redirect → CDN. http.Client сам не следует на скачивание
-	// большого файла — но в нашем случае GitHub отдаёт 302 на signed URL.
-	zipPath := fmt.Sprintf("/repos/%s/actions/artifacts/%d/zip", c.Repo, aid)
-	rr, err := s.ghReq(ctx, c, "GET", zipPath, nil)
+	return aid, nil
+}
+
+func (s *GithubBuildConfigService) verifyRunArtifact(ctx context.Context, c *model.GithubBuildConfig, runId, artifactID int64, artifactName string) error {
+	artifacts, err := s.listRunArtifacts(ctx, c, runId)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	defer rr.Body.Close()
-	if rr.StatusCode != 200 {
-		b, _ := io.ReadAll(rr.Body)
-		return nil, fmt.Errorf("artifact zip HTTP %d: %s", rr.StatusCode, string(b))
+	var nameMatch *githubArtifactMetadata
+	for i := range artifacts {
+		a := &artifacts[i]
+		if a.ID == artifactID {
+			if a.Expired {
+				return &GithubArtifactUnavailableError{RunID: runId, ArtifactName: artifactName, Available: []string{a.Name}}
+			}
+			if a.Name != artifactName {
+				return &GithubContractError{Operation: "verify artifact identity", Cause: fmt.Errorf("stored artifact %d belongs to %q, not %q", artifactID, a.Name, artifactName)}
+			}
+			return nil
+		}
+		if a.Name == artifactName {
+			copy := *a
+			nameMatch = &copy
+		}
 	}
-	return io.ReadAll(rr.Body)
+	if nameMatch != nil {
+		return &GithubContractError{Operation: "verify artifact identity", Cause: fmt.Errorf("stored artifact id %d does not match run artifact id %d for %q", artifactID, nameMatch.ID, artifactName)}
+	}
+	return &GithubArtifactUnavailableError{RunID: runId, ArtifactName: artifactName}
+}
+
+// ArtifactDownload is the bounded hand-off between the GitHub service and the
+// controller. The archive is always a temporary file; callers own cleanup of
+// ArchivePath after validation/publication, while the identity is provider
+// derived and can be guarded into build provenance.
+type ArtifactDownload struct {
+	ArchivePath  string
+	ArtifactID   int64
+	ArtifactName string
+	Size         int64
+}
+
+// DownloadArtifact resolves the exact requested artifact when its stored ID
+// is absent, then streams that exact ID to a temporary archive. It never
+// selects a sole artifact, infers a path, or returns the ZIP in memory.
+func (s *GithubBuildConfigService) DownloadArtifact(ctx context.Context, c *model.GithubBuildConfig, runId, artifactID int64, artifactName string) (ArtifactDownload, error) {
+	if runId <= 0 {
+		return ArtifactDownload{}, &GithubContractError{Operation: "download artifact", Cause: errors.New("github run id must be positive")}
+	}
+	if artifactName == "" {
+		return ArtifactDownload{}, &GithubContractError{Operation: "download artifact", Cause: errors.New("artifact name is required")}
+	}
+	if artifactID > 0 {
+		if err := s.verifyRunArtifact(ctx, c, runId, artifactID, artifactName); err != nil {
+			return ArtifactDownload{}, err
+		}
+	} else {
+		resolvedID, err := s.ResolveArtifactID(ctx, c, runId, artifactName)
+		if err != nil {
+			return ArtifactDownload{}, err
+		}
+		artifactID = resolvedID
+	}
+	if artifactID <= 0 {
+		return ArtifactDownload{}, &GithubArtifactUnavailableError{RunID: runId, ArtifactName: artifactName}
+	}
+
+	zipPath, err := githubRepoPath(c.Repo, fmt.Sprintf("/actions/artifacts/%d/zip", artifactID))
+	if err != nil {
+		return ArtifactDownload{}, err
+	}
+	resp, err := s.ghReq(ctx, c, "GET", zipPath, nil, http.StatusOK)
+	if err != nil {
+		return ArtifactDownload{}, err
+	}
+	defer resp.Body.Close()
+
+	limit := githubArtifactBodyLimit
+	if limit <= 0 {
+		return ArtifactDownload{}, &GithubContractError{Operation: "download artifact", Cause: errors.New("artifact response limit must be positive")}
+	}
+	expectedLength, hasContentLength := responseContentLength(resp)
+	if hasContentLength && expectedLength > limit {
+		return ArtifactDownload{}, &GithubContractError{Operation: "download artifact", Cause: errors.New("artifact response exceeds limit")}
+	}
+
+	part, err := os.CreateTemp(githubArtifactTempDir, "deskforge-artifact-*.part")
+	if err != nil {
+		return ArtifactDownload{}, &GithubTransportError{Operation: "create artifact temporary file", Cause: err}
+	}
+	partPath := part.Name()
+	archivePath := strings.TrimSuffix(partPath, ".part") + ".zip"
+	ProtectGithubArtifactTemp(partPath)
+	ProtectGithubArtifactTemp(archivePath)
+	keepArchive := false
+	defer func() {
+		if !keepArchive {
+			_ = os.Remove(partPath)
+			_ = os.Remove(archivePath)
+			ReleaseGithubArtifactTemp(partPath)
+			ReleaseGithubArtifactTemp(archivePath)
+		}
+	}()
+
+	written, copyErr := copyContextBounded(ctx, part, resp.Body, limit+1)
+	if copyErr != nil {
+		_ = part.Close()
+		return ArtifactDownload{}, &GithubTransportError{Operation: "download artifact response body", Cause: copyErr}
+	}
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		_ = part.Close()
+		return ArtifactDownload{}, &GithubTransportError{Operation: "download artifact response body", Cause: ctxErr}
+	}
+	if written > limit {
+		_ = part.Close()
+		return ArtifactDownload{}, &GithubContractError{Operation: "download artifact", Cause: errors.New("artifact response exceeds limit")}
+	}
+	if err := part.Sync(); err != nil {
+		_ = part.Close()
+		return ArtifactDownload{}, &GithubTransportError{Operation: "sync artifact temporary file", Cause: err}
+	}
+	if err := part.Close(); err != nil {
+		return ArtifactDownload{}, &GithubTransportError{Operation: "close artifact temporary file", Cause: err}
+	}
+	if hasContentLength && written != expectedLength {
+		return ArtifactDownload{}, &GithubContractError{Operation: "download artifact", Cause: fmt.Errorf("artifact response body length %d does not match Content-Length %d", written, expectedLength)}
+	}
+	if err := validateDownloadedArtifactArchive(partPath); err != nil {
+		return ArtifactDownload{}, &GithubContractError{Operation: "download artifact", Cause: err}
+	}
+	if err := os.Rename(partPath, archivePath); err != nil {
+		return ArtifactDownload{}, &GithubTransportError{Operation: "publish artifact temporary file", Cause: err}
+	}
+	ReleaseGithubArtifactTemp(partPath)
+	keepArchive = true
+	return ArtifactDownload{
+		ArchivePath:  archivePath,
+		ArtifactID:   artifactID,
+		ArtifactName: artifactName,
+		Size:         written,
+	}, nil
+}
+
+// copyContextBounded keeps streaming bounded even when a non-conforming body
+// repeatedly returns (0, nil). The context is checked between reads; the
+// transport remains responsible for interrupting a blocked network read.
+func copyContextBounded(ctx context.Context, dst io.Writer, src io.Reader, limit int64) (int64, error) {
+	if limit < 0 {
+		return 0, errors.New("copy limit must not be negative")
+	}
+	buf := make([]byte, 32*1024)
+	var written int64
+	emptyReads := 0
+	for {
+		if err := ctx.Err(); err != nil {
+			return written, err
+		}
+		n, readErr := src.Read(buf)
+		if n > 0 {
+			emptyReads = 0
+			if err := ctx.Err(); err != nil {
+				return written, err
+			}
+			writtenNow, writeErr := dst.Write(buf[:n])
+			written += int64(writtenNow)
+			if writeErr != nil {
+				return written, writeErr
+			}
+			if writtenNow != n {
+				return written, io.ErrShortWrite
+			}
+			if written > limit {
+				return written, nil
+			}
+		} else if readErr == nil {
+			emptyReads++
+			if emptyReads >= 100 {
+				return written, io.ErrNoProgress
+			}
+		}
+		if readErr != nil {
+			if errors.Is(readErr, io.EOF) {
+				return written, nil
+			}
+			return written, readErr
+		}
+	}
+}
+
+func responseContentLength(resp *http.Response) (int64, bool) {
+	if raw := resp.Header.Get("Content-Length"); raw != "" {
+		length, err := strconv.ParseInt(raw, 10, 64)
+		if err == nil && length >= 0 {
+			return length, true
+		}
+		return 0, true
+	}
+	if resp.ContentLength > 0 {
+		return resp.ContentLength, true
+	}
+	return 0, false
+}
+
+func validateDownloadedArtifactArchive(path string) error {
+	zr, err := zip.OpenReader(path)
+	if err != nil {
+		return fmt.Errorf("invalid ZIP archive: %w", err)
+	}
+	if err := zr.Close(); err != nil {
+		return fmt.Errorf("close ZIP archive: %w", err)
+	}
+	return nil
 }

@@ -19,9 +19,9 @@ type Group struct {
 // @Description 
 // @Accept  json
 // @Produce  json
-// @Param page query int false ""
-// @Param pageSize query int false ""
-// @Param status query int false ""
+// @Param page query int false "Page number for the user list"
+// @Param pageSize query int false "Number of users per page"
+// @Param status query int false "User status filter"
 // @Param accessible query string false "accessible"
 // @Success 200 {object} response.DataResponse{data=[]apiResp.UserPayload}
 // @Failure 500 {object} response.ErrorResponse
@@ -63,9 +63,9 @@ func (g *Group) Users(c *gin.Context) {
 // @Description 
 // @Accept  json
 // @Produce  json
-// @Param page query int false ""
-// @Param pageSize query int false ""
-// @Param status query int false ""
+// @Param page query int false "Page number for the peer list"
+// @Param pageSize query int false "Number of peers per page"
+// @Param status query int false "Peer status filter"
 // @Param accessible query string false "accessible"
 // @Success 200 {object} response.DataResponse
 // @Failure 500 {object} response.Response
@@ -127,9 +127,9 @@ func (g *Group) Peers(c *gin.Context) {
 // @Description 
 // @Accept  json
 // @Produce  json
-// @Param page query int false ""
-// @Param pageSize query int false ""
-// @Param status query int false ""
+// @Param page query int false "Page number for the group list"
+// @Param pageSize query int false "Number of groups per page"
+// @Param status query int false "Group status filter"
 // @Param accessible query string false "accessible"
 // @Success 200 {object} response.DataResponse
 // @Failure 500 {object} response.Response
