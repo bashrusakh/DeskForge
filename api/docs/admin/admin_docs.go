@@ -7417,7 +7417,6 @@ const docTemplateadmin = `{
                 },
                 "old_password": {
                     "type": "string",
-                    "maxLength": 32,
                     "minLength": 4
                 }
             }
@@ -8397,6 +8396,9 @@ const docTemplateadmin = `{
                 },
                 "custom_json": {
                     "type": "string"
+                },
+                "has_permanent_password": {
+                    "type": "boolean"
                 },
                 "id": {
                     "type": "integer"

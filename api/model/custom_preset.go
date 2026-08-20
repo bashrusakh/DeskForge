@@ -14,6 +14,8 @@ type CustomPreset struct {
 	Version    string `json:"version" gorm:"size:32;default:'';not null;"`
 	AppName    string `json:"app_name" gorm:"size:128;default:'';not null;"`
 	CustomJson string `json:"-" gorm:"type:text;"`
+	// PreservePermanentPassword is request intent only; it is never stored or serialized.
+	PreservePermanentPassword bool `json:"-" gorm:"-"`
 	TimeModel
 }
 
@@ -25,13 +27,14 @@ type CustomPresetList struct {
 // CustomPresetSafe is the administrative response view. Its custom_json is
 // limited to canonical non-secret settings.
 type CustomPresetSafe struct {
-	Id         uint   `json:"id"`
-	UserId     uint   `json:"user_id"`
-	Name       string `json:"name"`
-	Platform   string `json:"platform"`
-	Version    string `json:"version"`
-	AppName    string `json:"app_name"`
-	CustomJson string `json:"custom_json"`
+	Id                   uint   `json:"id"`
+	UserId               uint   `json:"user_id"`
+	Name                 string `json:"name"`
+	Platform             string `json:"platform"`
+	Version              string `json:"version"`
+	AppName              string `json:"app_name"`
+	CustomJson           string `json:"custom_json"`
+	HasPermanentPassword bool   `json:"has_permanent_password"`
 	TimeModel
 }
 
@@ -47,14 +50,15 @@ func (c *CustomPreset) Safe() *CustomPresetSafe {
 		return nil
 	}
 	return &CustomPresetSafe{
-		Id:         c.Id,
-		UserId:     c.UserId,
-		Name:       c.Name,
-		Platform:   c.Platform,
-		Version:    c.Version,
-		AppName:    c.AppName,
-		CustomJson: utils.RedactCustomBuilderJSON(c.CustomJson),
-		TimeModel:  c.TimeModel,
+		Id:                   c.Id,
+		UserId:               c.UserId,
+		Name:                 c.Name,
+		Platform:             c.Platform,
+		Version:              c.Version,
+		AppName:              c.AppName,
+		CustomJson:           utils.RedactCustomBuilderJSON(c.CustomJson),
+		HasPermanentPassword: utils.CustomBuilderJSONHasPermanentPassword(c.CustomJson),
+		TimeModel:            c.TimeModel,
 	}
 }
 

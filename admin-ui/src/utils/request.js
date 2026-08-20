@@ -12,6 +12,51 @@ const service = axios.create({
   timeout: 50000, // request timeout
 })
 
+const getEnvelopeErrorMessage = data => {
+  const messages = [data?.message, data?.data?.message]
+
+  return messages.find(message => typeof message === 'string' && message.trim()) || ''
+}
+
+const redirectToLogin = config => {
+  if (!config?.skipAuthRedirect) {
+    removeToken()
+    window.location.reload()
+  }
+}
+
+const redirectOnEnvelopeAuthFailure = (config, code) => {
+  if (code === 403) {
+    redirectToLogin(config)
+  }
+}
+
+const redirectOnHttpAuthFailure = (config, status) => {
+  if (config?.useServerErrorMessage && (status === 401 || status === 403)) {
+    redirectToLogin(config)
+  }
+}
+
+const GENERIC_RESPONSE_ERROR = 'Unable to process server response'
+
+const markInterceptorHandled = error => {
+  Object.defineProperty(error, 'interceptorHandled', { value: true })
+  return error
+}
+
+const getResponseErrorMessage = async error => {
+  if (!error.config?.useServerErrorMessage) return ''
+  let data = error.response?.data
+  if (error.config?.responseType === 'blob' && typeof Blob !== 'undefined' && data instanceof Blob) {
+    try {
+      data = JSON.parse(await data.text())
+    } catch (_) {
+      return ''
+    }
+  }
+  return getEnvelopeErrorMessage(data)
+}
+
 // request interceptor
 service.interceptors.request.use(
   config => {
@@ -70,22 +115,38 @@ service.interceptors.response.use(
       // Auth/API failures can still arrive as a JSON envelope with HTTP 200.
       // Parse those responses so a failed download is not saved as a .zip file.
       return response.data.text().then(text => {
-        const res = JSON.parse(text)
-        if (res.code !== 0) {
-          ElMessage({
-            message: res.message || 'error',
-            type: 'error',
-            duration: 5 * 1000,
-          })
-
-          if (res.code === 403) {
-            removeToken()
-            window.location.reload()
+        let res
+        try {
+          res = JSON.parse(text)
+        } catch (_) {
+          const malformedResponseError = new Error(GENERIC_RESPONSE_ERROR)
+          if (response.config.useServerErrorMessage && !response.config.skipErrorMessage) {
+            ElMessage({
+              message: GENERIC_RESPONSE_ERROR,
+              type: 'error',
+              duration: 5 * 1000,
+            })
+            return Promise.reject(markInterceptorHandled(malformedResponseError))
           }
+          return Promise.reject(malformedResponseError)
+        }
+
+        if (res.code !== 0) {
+          if (!response.config.skipErrorMessage) {
+            ElMessage({
+              message: response.config.useServerErrorMessage
+                ? getEnvelopeErrorMessage(res) || GENERIC_RESPONSE_ERROR
+                : res.message || 'error',
+              type: 'error',
+              duration: 5 * 1000,
+            })
+          }
+
+          redirectOnEnvelopeAuthFailure(response.config, res.code)
           return Promise.reject(res)
         }
         return response
-      }).catch(error => Promise.reject(error))
+      })
     }
 
     const res = response.data
@@ -106,27 +167,28 @@ service.interceptors.response.use(
         })
       }
 
-      if (res.code === 403 && !response.config.skipAuthRedirect) {
-        removeToken()
-        window.location.reload()
-      }
+      redirectOnEnvelopeAuthFailure(response.config, res.code)
       return Promise.reject(res)
     } else {
       return res
     }
   },
-  error => {
+  async error => {
     if (error.code === 'ECONNABORTED'
       && error.message.indexOf('timeout') > -1) {
       error.message = 'Connection Time Out!'
     }
     if (!error.config?.skipErrorMessage) {
+      const message = await getResponseErrorMessage(error)
       ElMessage({
-        message: error.message,
+        message: error.config?.useServerErrorMessage
+          ? message || GENERIC_RESPONSE_ERROR
+          : error.message,
         type: 'error',
         duration: 5 * 1000,
       })
     }
+    redirectOnHttpAuthFailure(error.config, error.response?.status)
     return Promise.reject(error)
   },
 )

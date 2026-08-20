@@ -149,6 +149,12 @@ func (is *CustomBuildService) CreateNormalized(u *model.CustomBuild) (Normalized
 // The identity is copied into the row before Create; the dispatch transition
 // later verifies the same values and cannot replace them.
 func (is *CustomBuildService) CreateNormalizedWithIdentity(u *model.CustomBuild, identity VersionIdentity) (NormalizedBuild, error) {
+	// This is the production build boundary. Generic CreateNormalized remains
+	// permissive so intentionally incomplete legacy presets/drafts can still be
+	// stored, but a provider-backed build must be complete before persistence.
+	if err := ValidateCustomBuildInput(u.Platform, u.CustomJson, u.AppName, u.Version); err != nil {
+		return NormalizedBuild{}, err
+	}
 	if err := identity.validate(); err != nil {
 		return NormalizedBuild{}, &ClientValidationError{Err: err}
 	}
@@ -184,9 +190,19 @@ func (is *CustomBuildService) UpdateValidated(u *model.CustomBuild) error {
 	if err := DB.First(&stored, u.Id).Error; err != nil {
 		return err
 	}
-	if stored.BuildRef != "" || stored.SourceTag != "" || stored.AssetsRelease != "" || stored.AssetsReleaseID != 0 || stored.AssetsReleaseAssets != "" {
+	providerBacked := customBuildHasProviderBacking(&stored)
+	if providerBacked {
+		if u.Platform != stored.Platform {
+			return &ClientValidationError{Err: fmt.Errorf("immutable build platform cannot be changed")}
+		}
+		if u.AppName != stored.AppName {
+			return &ClientValidationError{Err: fmt.Errorf("immutable build app name cannot be changed")}
+		}
 		if u.Version != stored.Version {
 			return &ClientValidationError{Err: fmt.Errorf("immutable build version cannot be changed")}
+		}
+		if err := ValidateCustomBuildInput(u.Platform, u.CustomJson, u.AppName, u.Version); err != nil {
+			return err
 		}
 	}
 	if err := ValidateDirectCustomBuilderJSON(u.CustomJson); err != nil {
@@ -219,6 +235,31 @@ func (is *CustomBuildService) UpdateValidated(u *model.CustomBuild) error {
 		return fmt.Errorf("validated update affected no rows")
 	}
 	return nil
+}
+
+// customBuildHasProviderBacking identifies rows whose edits must use the
+// production typed-input contract. Legacy identity-less drafts intentionally
+// remain on the permissive canonicalization path.
+func customBuildHasProviderBacking(build *model.CustomBuild) bool {
+	if build == nil {
+		return false
+	}
+	return build.BuildRef != "" ||
+		build.SourceTag != "" ||
+		build.AssetsRelease != "" ||
+		build.AssetsReleaseID != 0 ||
+		build.AssetsReleaseAssets != "" ||
+		build.GithubProvider != "" ||
+		build.GithubRepo != "" ||
+		build.GithubWorkflow != "" ||
+		build.WorkflowSelector != "" ||
+		build.GithubRef != "" ||
+		build.GithubArtifactName != "" ||
+		build.GithubRunId != 0 ||
+		build.GithubArtifactID != 0 ||
+		build.GithubRunUrl != "" ||
+		build.GithubHtmlUrl != "" ||
+		build.GithubSourceSha != ""
 }
 
 // BuildProgress contains the fields owned by the asynchronous build worker.

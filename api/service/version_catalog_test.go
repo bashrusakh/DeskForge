@@ -58,6 +58,19 @@ func TestValidateGithubRepoStrictOwnerNameAllowlist(t *testing.T) {
 	}
 }
 
+func TestResolveVersionRejectsInvalidDisplayVersionAsClientValidation(t *testing.T) {
+	_, err := (&GithubBuildConfigService{}).ResolveVersion(context.Background(), "not-a-version")
+	if err == nil {
+		t.Fatal("ResolveVersion() error = nil, want invalid display version error")
+	}
+	if !IsClientValidationError(err) {
+		t.Fatalf("ResolveVersion() error = %T %v, want ClientValidationError", err, err)
+	}
+	if got, want := err.Error(), "invalid display version"; got != want {
+		t.Fatalf("ResolveVersion() error = %q, want %q", got, want)
+	}
+}
+
 func TestVersionCatalogFollowsPaginationAndResolvesConfiguredRepo(t *testing.T) {
 	newVersionCatalogDB(t, "owner/repo-a")
 	sha := strings.Repeat("a", 40)

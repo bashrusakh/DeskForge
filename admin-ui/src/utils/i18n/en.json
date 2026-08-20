@@ -20,6 +20,21 @@
   "Password": {
     "One": "Password"
   },
+  "ShowPassword": {
+    "One": "Show password"
+  },
+  "HidePassword": {
+    "One": "Hide password"
+  },
+  "GeneratedKeyLabel": {
+    "One": "Generated encryption key"
+  },
+  "GeneratedKeyWarning": {
+    "One": "Copy this key now; it will not be shown again."
+  },
+  "GeneratedKeyCreated": {
+    "One": "A new encryption key was generated."
+  },
   "LoginSuccess": {
     "One": "Login Success"
   },
@@ -37,6 +52,33 @@
   },
   "ParamRequired": {
     "One": "{param} is required"
+  },
+  "CustomClientPlatformRequired": {
+    "One": "Choose Windows as the supported build platform."
+  },
+  "CustomClientVersionRequired": {
+    "One": "Choose the client version to build."
+  },
+  "CustomClientAppNameRequired": {
+    "One": "Enter the artifact application name."
+  },
+  "CustomClientHostRequired": {
+    "One": "Provide the ID server endpoint (hostname/IP and optional port)."
+  },
+  "CustomClientKeyRequired": {
+    "One": "Provide the public key."
+  },
+  "CustomClientApiServerRequired": {
+    "One": "Provide the API server URL."
+  },
+  "CustomClientRelayServerRequired": {
+    "One": "Provide the relay endpoint (hostname/IP and optional port)."
+  },
+  "CustomClientPermanentPasswordRequired": {
+    "One": "Provide a permanent password when connection management is hidden."
+  },
+  "ClearSavedPassword": {
+    "One": "Clear saved password"
   },
   "HasBind": {
     "One": "Has bind"
@@ -125,8 +167,41 @@
   "WorkflowApprovalRequestFailed": {
     "One": "Approval was not recorded. Try again after reviewing the provider status."
   },
+  "GithubPatPermissionsIntro": {
+    "One": "Required fine-grained PAT repository permissions:"
+  },
+  "GithubPatPermissionMetadata": {
+    "One": "Metadata — Read"
+  },
+  "GithubPatPermissionContents": {
+    "One": "Contents — Read"
+  },
+  "GithubPatPermissionActions": {
+    "One": "Actions — Read and write"
+  },
+  "GithubPatPermissionAdministration": {
+    "One": "Administration — Read and write"
+  },
+  "GithubPatPermissionSecrets": {
+    "One": "Secrets — Read and write"
+  },
+  "GithubPatPermissionsNote": {
+    "One": "Actions write is required for dispatch; Administration write is required for ruleset bypass metadata; Secrets write is required for secret synchronization. Empty value keeps the existing token."
+  },
   "GithubBuildSaveError": {
     "One": "GitHub build settings could not be saved. Check the configuration and try again."
+  },
+  "GithubBuildSaveSaving": {
+    "One": "Saving GitHub build settings..."
+  },
+  "GithubBuildSaveSuccess": {
+    "One": "GitHub build settings saved."
+  },
+  "GithubBuildRepositoryRequired": {
+    "One": "Enter a repository in owner/name format before continuing."
+  },
+  "ViewBuildLog": {
+    "One": "View build log"
   },
   "Status": {
     "One": "Status"
@@ -809,7 +884,7 @@
     "One": "Host"
   },
   "HostEndpointHint": {
-    "One": "Optional. Accepts a hostname or IP address with an optional port. RustDesk uses port 21116 only when the port is omitted."
+    "One": "Provide the ID server endpoint: a hostname or IP address with an optional port. RustDesk uses port 21116 when omitted."
   },
   "HostEndpointPlaceholder": {
     "One": "e.g. your-server.com or your-server.com:21116 (default when omitted)"
@@ -821,7 +896,7 @@
     "One": "Relay Server"
   },
   "RelayEndpointHint": {
-    "One": "Optional. Accepts a hostname or IP address with an optional port. RustDesk uses port 21117 only when the port is omitted."
+    "One": "Provide the relay endpoint: a hostname or IP address with an optional port. RustDesk uses port 21117 when omitted."
   },
   "RelayEndpointPlaceholder": {
     "One": "e.g. your-server.com or your-server.com:21117 (default when omitted)"
@@ -945,6 +1020,9 @@
   },
   "BuildStatus": {
     "One": "Status"
+  },
+  "BuildHistoryStatusChanged": {
+    "One": "Build status updated: {param}."
   },
   "Pending": {
     "One": "Pending"

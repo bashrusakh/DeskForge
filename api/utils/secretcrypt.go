@@ -165,6 +165,25 @@ func CustomBuilderJSONContainsSecret(value string) bool {
 	return customBuilderJSONValueContainsSecret(decoded)
 }
 
+// CustomBuilderJSONHasPermanentPassword reports only whether the canonical
+// top-level permanent_password field contains a non-empty value. It never
+// returns the password and treats ciphertext, malformed JSON, and non-object
+// values as absent.
+func CustomBuilderJSONHasPermanentPassword(value string) bool {
+	if value == "" || IsEncryptedSecret(value) {
+		return false
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(value), &fields); err != nil || fields == nil {
+		return false
+	}
+	var password string
+	if err := json.Unmarshal(fields["permanent_password"], &password); err != nil {
+		return false
+	}
+	return strings.TrimSpace(password) != ""
+}
+
 func customBuilderJSONValueContainsSecret(value any) bool {
 	switch value := value.(type) {
 	case map[string]any:

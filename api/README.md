@@ -235,15 +235,24 @@ completed live approval, dispatch, or release claim. Initial and later ruleset
 list failures, detail failures, policy failures, and contract failures remain
 failures.
 
-The stored PAT must have the provider's repository Metadata read, Contents read,
-Actions read, and Administration write permissions for the read-only checks.
+### GitHub fine-grained PAT permissions
+
+Configure the stored fine-grained PAT with this repository permission checklist:
+
+- **Metadata — Read**
+- **Contents — Read**
+- **Actions — Read and write** — read supports the checks; write is required for
+  workflow dispatch.
+- **Administration — Read and write** — write is required to retrieve ruleset
+  bypass metadata; Administration read alone is insufficient.
+- **Secrets — Read and write** — write is required for repository secret
+  synchronization.
+
 GitHub's Get repository ruleset endpoint only returns `bypass_actors` when the
-caller has write access to the ruleset, so Administration read is insufficient;
-the elevated permission is required to observe bypass actors and fail closed.
-Dispatch also requires Actions write. Secret synchronization additionally
-requires the repository Secrets write permission. Exact fine-grained PAT
-availability and permissions are repository/provider settings, not proven by
-local fake-transport tests.
+caller has write access to the ruleset, so Administration write is required to
+observe bypass actors and fail closed. Exact fine-grained PAT availability and
+permissions are repository/provider settings, not proven by local fake-transport
+tests.
 
 This policy is a provider-boundary contract, not live-provider evidence: the
 worktree has focused fake-transport coverage but no live GitHub/provider

@@ -1,8 +1,8 @@
 # DeskForge Workflow Migration Plan
 
 **Date:** 2026-08-16
-**Status:** Workflow migration, external verification, and final PR #59 body synchronization complete.
-**Scope:** Local contract reconciliation and recorded external workflow migration. Only these documentation artifacts are being updated; no source, workflow, secret, or external-repository changes are authorized here.
+**Status:** Prior workflow migration and external verification are complete; local two-layer workflow SHA-guard implementation and validation are complete, while live provider execution remains intentionally unperformed.
+**Scope:** Add a provider-derived outer/inner workflow SHA guard to the DeskForge dispatch boundary and active RustDesk Windows/bridge workflows, with focused local tests and documentation. No secret, provider, commit, push, or live-run action is authorized here.
 
 ## Current state
 
@@ -18,6 +18,19 @@
 - **Operator action:** select and approve a workflow revision for a build.
 - **Value source:** the provider supplies the workflow tag and resolves its commit; the GUI displays the provider-derived tag and approval state.
 - **Required behavior:** preserve provider-derived selection, immutable identity, approval, revalidation, and fail-closed handling. Do not add a raw/manual workflow-ref editor or new GUI architecture.
+
+## In-progress two-layer workflow SHA guard
+
+- [x] DeskForge overwrites `dispatchParams["workflow_sha"]` from provider-derived `identity.WorkflowSHA` immediately before DFP1 encryption and sends the same value as the public `workflow_dispatch` input. Normal dispatch parameters continue to reject caller-authored `workflow_sha`.
+- [x] The active RustDesk Windows flow runs a first no-secret/no-decrypt/no-checkout guard that validates the public SHA format and exact equality with `github.sha`; bridge and build depend on it.
+- [x] Bridge and direct Windows build paths validate the decrypted, MAC-authenticated inner SHA before payload export, checkout, source fetch, or build-tool input use.
+- [x] Focused Go, workflow-contract, and YAML parsing checks provide local evidence only.
+- [ ] Live provider execution remains intentionally excluded from this local work package.
+
+## SHA-guard limits
+
+- [x] This is defense in depth: it does not atomically bind GitHub's selector-based `workflow_dispatch` request or defend atomically against a malicious workflow file.
+- [x] Verified annotated workflow tags and the active immutable no-bypass ruleset remain required protections; no claim of live provider execution or protection proof is made by local tests.
 
 ## Validation and publication
 

@@ -14,16 +14,19 @@ an exact HTTP 200 run-details response containing the provider run identity. Sta
 correlation. Local fake-transport/static checks cover this contract; no normal GitHub
 dispatch, poll, or download operation is verified.
 
-The API's current application-owned execution selector defaults to
-`rustqs/workflows`; the configured provider repository resolves the selector and
-workflow SHA. The following branch labels describe the configured fork's roles;
-they are not a claim that synchronized copies or a live provider run currently exist:
+The legacy compatibility ref `rustqs/workflows` is retained for read-only
+compatibility; it is not the production workflow tag. Production approval and
+dispatch require provider-derived `refs/tags/*` refs verified through the immutable
+tag policy. The configured provider repository resolves the selected tag and
+workflow identity.
+The following ref labels describe the configured fork's roles; they are not a claim
+that synchronized copies, protected tags, or a live provider run currently exist:
 
-| Branch                | Purpose                                                          |
-| --------------------- | ---------------------------------------------------------------- |
-| `master`                | Fork default branch                                             |
-| `rustqs/workflows`      | Current default workflow execution ref                          |
-| `rustqs/master-workflows` | Fork-maintained workflow mirror/reference ref                  |
+| Ref                       | Purpose                                                        |
+| ------------------------- | -------------------------------------------------------------- |
+| `master`                  | Fork default branch; not a dispatch selector                  |
+| `rustqs/workflows`        | Legacy/read-only compatibility ref; not a production selector |
+| `rustqs/master-workflows` | Fork-maintained workflow mirror/reference ref; not a selector |
 
 | Platform | Executable workflow in fork                           | Status    |
 | -------- | ----------------------------------------------------- | --------- |
@@ -73,13 +76,23 @@ used by the owned workflow for its matching build assets.
   take a few minutes to appear in the dropdown
 - The workflow receives the resolved version in `enc_payload`; the API does not
   accept a separate raw/manual version identity from the normal build flow
-- Active fork workflows accept only the authenticated `DFP1` `enc_payload` input.
-  Direct/manual runs without a valid payload fail closed before checkout/build;
-  they are non-build diagnostics, not a public-debug or fixed-asset fallback.
+- The active Windows dispatch path receives two provider-set transport inputs: the
+  public outer `workflow_sha` and the authenticated `DFP1` `enc_payload`. The
+  admin never authors a SHA. A no-secret outer job validates the outer SHA against
+  `github.sha` before bridge/build jobs can run; after MAC/decryption, each
+  secret-bearing path requires the authenticated inner SHA to match both values
+  before exporting payload values, checkout, or build use. Direct/manual runs
+  without a valid payload fail closed; they are non-build diagnostics, not a
+  public-debug or fixed-asset fallback.
 - The authenticated payload binds the configured workflow repository to
   `github.repository`, so self-hosted forks remain supported without a hardcoded
-  owner/name. GitHub still receives the required branch/tag selector; exact
-  workflow contents readiness and run `head_sha` checks use the resolved SHA.
+  owner/name. GitHub receives the required tag selector; exact workflow contents
+  readiness and run `head_sha` checks use the resolved SHA. `workflow_dispatch` does
+  not provide atomic SHA binding between that selector and the executed workflow;
+  verified annotated tags under an active immutable no-bypass ruleset are a
+  compensating control, not an atomic guarantee. The two-layer SHA guard is
+  defense in depth, not an atomic defense against a malicious workflow file;
+  the verified tag and no-bypass ruleset remain required controls.
 
 ### Provider identity and asset contract
 
@@ -135,10 +148,15 @@ Credentials — encrypted payload, decrypted inside the runner via GitHub Secret
   be copied into the active fork workflows.
 - Change active build logic in the rustdesk fork. Keep this README aligned with
   the fork's actual workflow ownership and behavior.
-- A protected branch or immutable workflow tag remains an unclosed deployment gate.
-  A mutable branch selector is preserved for GitHub's dispatch API but is not claimed
-  to be immutable by the API. No release, signature, attestation, or readiness claim
-  follows from workflow-file presence or local focused checks.
+- Active dispatch is tag-only and uses a verified annotated workflow tag.
+- An active immutable no-bypass ruleset protects that tag; mutable branch selectors
+  are not an allowed fallback.
+- Secret-bearing production dispatch remains gated until live provider evidence
+  includes tag protection and ruleset administration.
+- GitHub `workflow_dispatch` does not provide atomic SHA binding; the verified tag
+  and ruleset are compensating controls rather than an atomic guarantee.
+- Workflow-file presence and local focused checks do not prove provider behavior;
+  live provider verification remains required.
 
 ---
 

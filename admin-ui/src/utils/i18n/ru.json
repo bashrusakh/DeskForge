@@ -20,6 +20,21 @@
   "Password": {
     "One": "Пароль"
   },
+  "ShowPassword": {
+    "One": "Показать пароль"
+  },
+  "HidePassword": {
+    "One": "Скрыть пароль"
+  },
+  "GeneratedKeyLabel": {
+    "One": "Созданный ключ шифрования"
+  },
+  "GeneratedKeyWarning": {
+    "One": "Скопируйте этот ключ сейчас — повторно он показан не будет."
+  },
+  "GeneratedKeyCreated": {
+    "One": "Создан новый ключ шифрования."
+  },
   "LoginSuccess": {
     "One": "Успешный вход"
   },
@@ -37,6 +52,33 @@
   },
   "ParamRequired": {
     "One": "Поле {param} обязательно"
+  },
+  "CustomClientPlatformRequired": {
+    "One": "Выберите поддерживаемую платформу сборки (Windows)."
+  },
+  "CustomClientVersionRequired": {
+    "One": "Выберите версию клиента для сборки."
+  },
+  "CustomClientAppNameRequired": {
+    "One": "Введите имя приложения для артефакта."
+  },
+  "CustomClientHostRequired": {
+    "One": "Укажите адрес ID-сервера (имя хоста/IP и необязательный порт)."
+  },
+  "CustomClientKeyRequired": {
+    "One": "Укажите публичный ключ."
+  },
+  "CustomClientApiServerRequired": {
+    "One": "Укажите URL API-сервера."
+  },
+  "CustomClientRelayServerRequired": {
+    "One": "Укажите адрес relay-сервера (имя хоста/IP и необязательный порт)."
+  },
+  "CustomClientPermanentPasswordRequired": {
+    "One": "Если управление подключением скрыто, укажите постоянный пароль."
+  },
+  "ClearSavedPassword": {
+    "One": "Очистить сохранённый пароль"
   },
   "HasBind": {
     "One": "Связано"
@@ -125,8 +167,44 @@
   "WorkflowApprovalRequestFailed": {
     "One": "Подтверждение не записано. Проверьте состояние провайдера и повторите попытку."
   },
+  "GithubPatPermissionsIntro": {
+    "One": "Необходимые разрешения репозитория для fine-grained PAT:"
+  },
+  "GithubPatPermissionMetadata": {
+    "One": "Metadata — Read"
+  },
+  "GithubPatPermissionContents": {
+    "One": "Contents — Read"
+  },
+  "GithubPatPermissionActions": {
+    "One": "Actions — Read and write"
+  },
+  "GithubPatPermissionAdministration": {
+    "One": "Administration — Read and write"
+  },
+  "GithubPatPermissionSecrets": {
+    "One": "Secrets — Read and write"
+  },
+  "GithubPatPermissionsNote": {
+    "One": "Для dispatch требуется Actions write; для метаданных обхода защиты workflow требуется Administration write; для синхронизации секретов требуется Secrets write. Пустое значение сохраняет текущий токен."
+  },
   "GithubBuildSaveError": {
     "One": "Не удалось сохранить настройки GitHub Build. Проверьте конфигурацию и повторите попытку."
+  },
+  "GithubBuildSaveSaving": {
+    "One": "Сохранение настроек GitHub Build..."
+  },
+  "GithubBuildSaveSuccess": {
+    "One": "Настройки GitHub Build сохранены."
+  },
+  "GithubBuildRepositoryRequired": {
+    "One": "Перед продолжением укажите репозиторий в формате owner/name."
+  },
+  "ViewBuildLog": {
+    "One": "Просмотреть журнал сборки"
+  },
+  "BuildHistoryStatusChanged": {
+    "One": "Статус сборки обновлён: {param}."
   },
   "Status": {
     "One": "Статус"
@@ -686,13 +764,13 @@
     "One": "Загрузить"
   },
   "HostEndpointHint": {
-    "One": "Необязательное поле. Принимает имя хоста или IP-адрес с необязательным портом. RustDesk использует порт 21116 только если порт не указан."
+    "One": "Укажите адрес ID-сервера: имя хоста или IP-адрес с необязательным портом. RustDesk использует порт 21116, если порт не указан."
   },
   "HostEndpointPlaceholder": {
     "One": "например, your-server.com или your-server.com:21116 (по умолчанию, если порт не указан)"
   },
   "RelayEndpointHint": {
-    "One": "Необязательное поле. Принимает имя хоста или IP-адрес с необязательным портом. RustDesk использует порт 21117 только если порт не указан."
+    "One": "Укажите адрес relay-сервера: имя хоста или IP-адрес с необязательным портом. RustDesk использует порт 21117, если порт не указан."
   },
   "RelayEndpointPlaceholder": {
     "One": "например, your-server.com или your-server.com:21117 (по умолчанию, если порт не указан)"

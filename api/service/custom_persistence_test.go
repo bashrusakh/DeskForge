@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"rustdesk-server/api/model"
+	"rustdesk-server/api/utils"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -275,6 +276,169 @@ func TestCustomPresetCreateUpdateCanonicalizeAndPreserveUpsert(t *testing.T) {
 	}
 	if unchanged.CustomJson != `{"android_app_id":"com.example.client"}` {
 		t.Fatalf("invalid preset update changed persisted custom_json to %q", unchanged.CustomJson)
+	}
+}
+
+func TestCustomPresetRedactedPasswordUpdateSemantics(t *testing.T) {
+	tests := []struct {
+		name          string
+		incomingJSON  string
+		preserve      bool
+		seedExisting  bool
+		useCreate     bool
+		wantPassword  string
+		wantEncrypted bool
+	}{
+		{
+			name:          "preserve redacted password",
+			incomingJSON:  `{"enable_audio":false,"hide_cm":false,"permanent_password":""}`,
+			preserve:      true,
+			seedExisting:  true,
+			useCreate:     true,
+			wantPassword:  "old-password",
+			wantEncrypted: true,
+		},
+		{
+			name:          "preserve redacted hide cm password",
+			incomingJSON:  `{"enable_audio":false,"hide_cm":true,"permanent_password":""}`,
+			preserve:      true,
+			seedExisting:  true,
+			useCreate:     true,
+			wantPassword:  "old-password",
+			wantEncrypted: true,
+		},
+		{
+			name:          "replace with non-empty password",
+			incomingJSON:  `{"enable_audio":false,"hide_cm":false,"permanent_password":"new-password"}`,
+			preserve:      true,
+			seedExisting:  true,
+			wantPassword:  "new-password",
+			wantEncrypted: true,
+		},
+		{
+			name:          "direct clear",
+			incomingJSON:  `{"enable_audio":false,"hide_cm":false,"permanent_password":""}`,
+			preserve:      false,
+			seedExisting:  true,
+			wantPassword:  "",
+			wantEncrypted: false,
+		},
+		{
+			name:          "new preset",
+			incomingJSON:  `{"enable_audio":false,"hide_cm":false,"permanent_password":""}`,
+			preserve:      true,
+			seedExisting:  false,
+			wantPassword:  "",
+			wantEncrypted: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv(utils.SecretEncryptionKeyEnv, "custom-preset-test-key")
+			db := newCustomPersistenceDB(t)
+			presetService := &CustomPresetService{}
+			var preset *model.CustomPreset
+			if test.seedExisting {
+				preset = &model.CustomPreset{
+					UserId:     7,
+					Name:       "redacted-preset",
+					Platform:   "windows",
+					Version:    "1.2.3",
+					AppName:    "rustqs",
+					CustomJson: `{"enable_audio":true,"hide_cm":false,"permanent_password":"old-password"}`,
+				}
+				if err := presetService.Create(preset); err != nil {
+					t.Fatalf("seed Create() error = %v", err)
+				}
+				if test.useCreate {
+					preset = &model.CustomPreset{
+						UserId:                    7,
+						Name:                      "redacted-preset",
+						Platform:                  "windows",
+						Version:                   "1.2.3",
+						AppName:                   "rustqs",
+						CustomJson:                test.incomingJSON,
+						PreservePermanentPassword: test.preserve,
+					}
+					if err := presetService.Create(preset); err != nil {
+						t.Fatalf("upsert Create() error = %v", err)
+					}
+				} else {
+					preset.CustomJson = test.incomingJSON
+					preset.PreservePermanentPassword = test.preserve
+					if err := presetService.Update(preset); err != nil {
+						t.Fatalf("Update() error = %v", err)
+					}
+				}
+			} else {
+				preset = &model.CustomPreset{
+					UserId:                    7,
+					Name:                      "new-preset",
+					Platform:                  "windows",
+					Version:                   "1.2.3",
+					AppName:                   "rustqs",
+					CustomJson:                test.incomingJSON,
+					PreservePermanentPassword: test.preserve,
+				}
+				if err := presetService.Create(preset); err != nil {
+					t.Fatalf("Create() error = %v", err)
+				}
+			}
+
+			loaded, err := presetService.Info(preset.Id)
+			if err != nil {
+				t.Fatalf("Info() error = %v", err)
+			}
+			var fields map[string]any
+			if err := json.Unmarshal([]byte(loaded.CustomJson), &fields); err != nil {
+				t.Fatalf("stored custom_json is invalid: %v", err)
+			}
+			password, _ := fields["permanent_password"].(string)
+			if password != test.wantPassword {
+				t.Fatalf("permanent_password = %q, want %q", password, test.wantPassword)
+			}
+			if raw := rawCustomJSON(t, db, "custom_presets", preset.Id); utils.IsEncryptedSecret(raw) != test.wantEncrypted {
+				t.Fatalf("encrypted-at-rest = %v for raw custom_json %q, want %v", utils.IsEncryptedSecret(raw), raw, test.wantEncrypted)
+			}
+		})
+	}
+}
+
+func TestCustomPresetPreservePasswordRequiresExistingStoredPassword(t *testing.T) {
+	t.Setenv(utils.SecretEncryptionKeyEnv, "custom-preset-test-key")
+	newCustomPersistenceDB(t)
+	presetService := &CustomPresetService{}
+
+	preset := &model.CustomPreset{
+		UserId:     7,
+		Name:       "hide-cm-preset",
+		Platform:   "windows",
+		Version:    "1.2.3",
+		AppName:    "rustqs",
+		CustomJson: `{"hide_cm":true,"permanent_password":"old-password"}`,
+	}
+	if err := presetService.Create(preset); err != nil {
+		t.Fatalf("seed Create() error = %v", err)
+	}
+
+	preset.CustomJson = `{"hide_cm":true,"permanent_password":""}`
+	preset.PreservePermanentPassword = true
+	if err := presetService.Update(preset); err != nil {
+		t.Fatalf("preserving existing password on hide_cm update: %v", err)
+	}
+
+	newPreset := &model.CustomPreset{
+		UserId:                    7,
+		Name:                      "new-hide-cm-preset",
+		Platform:                  "windows",
+		Version:                   "1.2.3",
+		AppName:                   "rustqs",
+		CustomJson:                `{"hide_cm":true,"permanent_password":""}`,
+		PreservePermanentPassword: true,
+	}
+	if err := presetService.Create(newPreset); err == nil || !IsClientValidationError(err) {
+		t.Fatalf("new hide_cm preset error = %v, want ClientValidationError", err)
 	}
 }
 
@@ -1238,6 +1402,151 @@ func TestCustomBuildUpdateValidatedAllowlistPreservesProvenance(t *testing.T) {
 	}
 }
 
+func TestCustomBuildUpdateValidatedProviderBackedIdentityFieldsAreImmutable(t *testing.T) {
+	const completeWindowsJSON = `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`
+	cases := []struct {
+		name      string
+		platform  string
+		appName   string
+		wantError string
+	}{
+		{name: "platform", platform: "linux", appName: "rustqs", wantError: "immutable build platform cannot be changed"},
+		{name: "app name", platform: "windows", appName: "other-client", wantError: "immutable build app name cannot be changed"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			db := newCustomPersistenceDB(t)
+			stored := &model.CustomBuild{
+				Platform:   "windows",
+				Version:    "1.2.3",
+				AppName:    "rustqs",
+				CustomJson: completeWindowsJSON,
+				BuildRef:   strings.Repeat("a", 40),
+			}
+			if err := db.Create(stored).Error; err != nil {
+				t.Fatalf("seed provider-backed build: %v", err)
+			}
+
+			candidate := *stored
+			candidate.Platform = tc.platform
+			candidate.AppName = tc.appName
+			err := (&CustomBuildService{}).UpdateValidated(&candidate)
+			if err == nil || !IsClientValidationError(err) {
+				t.Fatalf("UpdateValidated() error = %v, want ClientValidationError", err)
+			}
+			if got := err.Error(); got != tc.wantError {
+				t.Fatalf("UpdateValidated() error = %q, want %q", got, tc.wantError)
+			}
+
+			var unchanged model.CustomBuild
+			if err := db.First(&unchanged, stored.Id).Error; err != nil {
+				t.Fatalf("read unchanged provider-backed build: %v", err)
+			}
+			if unchanged.Platform != stored.Platform || unchanged.AppName != stored.AppName || unchanged.CustomJson != stored.CustomJson {
+				t.Fatalf("rejected provider-backed identity update mutated row: %#v", unchanged)
+			}
+		})
+	}
+}
+
+func TestCustomBuildUpdateValidatedProviderBackedWindowsRequiresProductionFields(t *testing.T) {
+	const completeWindowsJSON = `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`
+	const providerSourceRef = "0123456789abcdef0123456789abcdef01234567"
+	cases := []struct {
+		name       string
+		platform   string
+		version    string
+		appName    string
+		customJSON string
+	}{
+		{name: "missing platform", platform: "", version: "1.2.3", appName: "rustqs", customJSON: completeWindowsJSON},
+		{name: "whitespace version", platform: "windows", version: " \t ", appName: "rustqs", customJSON: completeWindowsJSON},
+		{name: "whitespace app name", platform: "windows", version: "1.2.3", appName: " \t ", customJSON: completeWindowsJSON},
+		{name: "missing server endpoint", platform: "windows", version: "1.2.3", appName: "rustqs", customJSON: `{"key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`},
+		{name: "missing public key", platform: "windows", version: "1.2.3", appName: "rustqs", customJSON: `{"server_ip":"id.example:21116","api_server":"https://api.example","relay_server":"relay.example:21117"}`},
+		{name: "missing API endpoint", platform: "windows", version: "1.2.3", appName: "rustqs", customJSON: `{"server_ip":"id.example:21116","key":"public-key","relay_server":"relay.example:21117"}`},
+		{name: "missing relay endpoint", platform: "windows", version: "1.2.3", appName: "rustqs", customJSON: `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example"}`},
+		{name: "hide cm whitespace password", platform: "windows", version: "1.2.3", appName: "rustqs", customJSON: `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117","hide_cm":true,"permanent_password":" \t "}`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			db := newCustomPersistenceDB(t)
+			stored := &model.CustomBuild{
+				Platform:   "windows",
+				Version:    "1.2.3",
+				AppName:    "rustqs",
+				CustomJson: completeWindowsJSON,
+				BuildRef:   providerSourceRef,
+			}
+			if err := db.Create(stored).Error; err != nil {
+				t.Fatalf("seed provider-backed build: %v", err)
+			}
+			candidate := *stored
+			candidate.Platform = tc.platform
+			candidate.Version = tc.version
+			candidate.AppName = tc.appName
+			candidate.CustomJson = tc.customJSON
+			if err := (&CustomBuildService{}).UpdateValidated(&candidate); err == nil || !IsClientValidationError(err) {
+				t.Fatalf("UpdateValidated() error = %v, want client validation error", err)
+			}
+			var unchanged model.CustomBuild
+			if err := db.First(&unchanged, stored.Id).Error; err != nil {
+				t.Fatalf("read unchanged provider-backed build: %v", err)
+			}
+			if unchanged.Platform != stored.Platform || unchanged.Version != stored.Version || unchanged.AppName != stored.AppName || unchanged.CustomJson != stored.CustomJson {
+				t.Fatalf("rejected provider-backed update mutated row: %#v", unchanged)
+			}
+		})
+	}
+}
+
+func TestCustomBuildUpdateValidatedAllowsIdentityLessLegacyWindowsDraft(t *testing.T) {
+	db := newCustomPersistenceDB(t)
+	legacy := &model.CustomBuild{
+		Platform:   "windows",
+		Version:    "1.2.3",
+		AppName:    "rustqs",
+		CustomJson: `{}`,
+	}
+	if err := db.Create(legacy).Error; err != nil {
+		t.Fatalf("seed identity-less legacy build: %v", err)
+	}
+	legacy.Platform = "linux"
+	legacy.AppName = "other-client"
+	legacy.CustomJson = `{}`
+	if err := (&CustomBuildService{}).UpdateValidated(legacy); err != nil {
+		t.Fatalf("UpdateValidated() legacy error = %v, want permissive update", err)
+	}
+	var updated model.CustomBuild
+	if err := db.First(&updated, legacy.Id).Error; err != nil {
+		t.Fatalf("read updated legacy build: %v", err)
+	}
+	if updated.Platform != "linux" || updated.AppName != "other-client" || updated.CustomJson != `{}` {
+		t.Fatalf("legacy fields = %#v, want permissive platform/app name/json update", updated)
+	}
+}
+
+func TestCustomBuildUpdateValidatedActiveProviderIdentityRequiresProductionFields(t *testing.T) {
+	db := newCustomPersistenceDB(t)
+	stored := &model.CustomBuild{
+		Platform:       "windows",
+		Version:        "1.2.3",
+		AppName:        "rustqs",
+		CustomJson:     `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`,
+		GithubProvider: "github",
+	}
+	if err := db.Create(stored).Error; err != nil {
+		t.Fatalf("seed active-provider build: %v", err)
+	}
+	candidate := *stored
+	candidate.CustomJson = `{"key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`
+	if err := (&CustomBuildService{}).UpdateValidated(&candidate); err == nil || !IsClientValidationError(err) {
+		t.Fatalf("UpdateValidated() error = %v, want client validation error", err)
+	}
+}
+
 func newCustomPersistenceDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -1448,8 +1757,14 @@ func TestValidateCustomBuildInput(t *testing.T) {
 		customJSON string
 		wantErr    bool
 	}{
-		{name: "supported empty payload", platform: "windows"},
+		{name: "supported empty payload", platform: "linux"},
+		{name: "windows complete payload", platform: "windows", customJSON: `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`},
 		{name: "supported typed payload", platform: "linux", customJSON: `{"enable_audio":false}`},
+		{name: "windows missing server endpoint", platform: "windows", customJSON: `{"key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`, wantErr: true},
+		{name: "windows missing public key", platform: "windows", customJSON: `{"server_ip":"id.example:21116","api_server":"https://api.example","relay_server":"relay.example:21117"}`, wantErr: true},
+		{name: "windows missing API URL", platform: "windows", customJSON: `{"server_ip":"id.example:21116","key":"public-key","relay_server":"relay.example:21117"}`, wantErr: true},
+		{name: "windows missing relay endpoint", platform: "windows", customJSON: `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example"}`, wantErr: true},
+		{name: "windows empty required values", platform: "windows", customJSON: `{"server_ip":"","key":"","api_server":"","relay_server":""}`, wantErr: true},
 		{name: "android requires package identity", platform: "android", wantErr: true},
 		{name: "unsupported platform", platform: "macos", customJSON: `{}`, wantErr: true},
 		{name: "malformed payload", platform: "android", customJSON: `{`, wantErr: true},
@@ -1464,6 +1779,29 @@ func TestValidateCustomBuildInput(t *testing.T) {
 				t.Fatalf("ValidateCustomBuildInput() error = %v, wantErr %v", err, test.wantErr)
 			}
 			if err != nil && !IsClientValidationError(err) {
+				t.Fatalf("error type = %T, want ClientValidationError", err)
+			}
+		})
+	}
+}
+
+func TestValidateCustomBuildInputUsesUserAuthoredRecordFields(t *testing.T) {
+	const completeWindowsJSON = `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`
+	for _, test := range []struct {
+		name     string
+		platform string
+		appName  string
+		version  string
+	}{
+		{name: "empty AppName", platform: "windows", version: "1.2.3"},
+		{name: "unsupported platform", platform: "macos", appName: "DeskForge", version: "1.2.3"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			err := ValidateCustomBuildInput(test.platform, completeWindowsJSON, test.appName, test.version)
+			if err == nil {
+				t.Fatal("ValidateCustomBuildInput() error = nil, want typed record-field rejection")
+			}
+			if !IsClientValidationError(err) {
 				t.Fatalf("error type = %T, want ClientValidationError", err)
 			}
 		})

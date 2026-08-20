@@ -227,6 +227,18 @@ func TestNormalizeWorkflowDispatchParamsRequiresTypedCustomTxt(t *testing.T) {
 	}
 }
 
+func TestNormalizeWorkflowDispatchParamsRejectsCallerWorkflowSHA(t *testing.T) {
+	_, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{
+		"workflow_sha": strings.Repeat("a", 40),
+	})
+	if err == nil {
+		t.Fatal("NormalizeWorkflowDispatchParams() accepted caller-authored workflow_sha")
+	}
+	if got, want := err.Error(), `unsupported workflow dispatch field "workflow_sha"`; got != want {
+		t.Fatalf("NormalizeWorkflowDispatchParams() error = %q, want %q", got, want)
+	}
+}
+
 func TestNormalizeCustomBuildFullNativeMapping(t *testing.T) {
 	raw := map[string]any{
 		"server_ip":             "id.example:21116",
@@ -488,6 +500,11 @@ func TestBuildCustomTxtHideConnectionManagement(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:    "whitespace-only password rejected",
+			raw:     map[string]any{"hide_cm": true, "permanent_password": " \t\n "},
+			wantErr: true,
+		},
+		{
 			name:    "wrong type rejected",
 			raw:     map[string]any{"hide_cm": "false"},
 			wantErr: true,
@@ -519,6 +536,24 @@ func TestBuildCustomTxtHideConnectionManagement(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestNormalizeCustomBuildPreservesNonEmptyPermanentPassword(t *testing.T) {
+	const password = " authored password "
+	normalized, err := NormalizeCustomBuild(map[string]any{
+		"hide_cm":            true,
+		"permanent_password": password,
+	}, BuildRecordContext{Platform: "linux", AppName: "rustqs", Version: "1.2.3"})
+	if err != nil {
+		t.Fatalf("NormalizeCustomBuild() error = %v", err)
+	}
+	if normalized.Spec.PermanentPassword != password {
+		t.Fatalf("normalized password = %q, want authored content %q", normalized.Spec.PermanentPassword, password)
+	}
+	persisted := decodeJSON(t, normalized.PersistedJSON)
+	if persisted["permanent_password"] != password {
+		t.Fatalf("persisted password = %#v, want authored content %q", persisted["permanent_password"], password)
 	}
 }
 

@@ -1,10 +1,15 @@
 package service
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 
 	"rustdesk-server/api/model"
 	"rustdesk-server/api/utils"
+
+	"gorm.io/gorm"
 )
 
 type CustomPresetService struct{}
@@ -51,6 +56,16 @@ func (ps *CustomPresetService) Create(p *model.CustomPreset) error {
 	if err := ValidateDirectCustomBuilderJSON(p.CustomJson); err != nil {
 		return err
 	}
+	existing, err := findCustomPresetForUpsert(p)
+	if err != nil {
+		return err
+	}
+	if existing != nil && p.PreservePermanentPassword && !hasNonEmptyPermanentPassword(p.CustomJson) {
+		p.CustomJson, err = mergePreservedPermanentPassword(p.CustomJson, existing.CustomJson)
+		if err != nil {
+			return err
+		}
+	}
 	canonicalJSON, err := CanonicalizeCustomBuildJSON(p.CustomJson, BuildRecordContext{
 		Platform: p.Platform,
 		AppName:  p.AppName,
@@ -63,15 +78,11 @@ func (ps *CustomPresetService) Create(p *model.CustomPreset) error {
 		return err
 	}
 	p.CustomJson = canonicalJSON
-	if p.Name != "" {
-		existing := &model.CustomPreset{}
-		err = DB.Where("user_id = ? AND name = ?", p.UserId, p.Name).First(existing).Error
-		if err == nil && existing.Id > 0 {
-			// найден → перезаписываем (Updates не трогает zero-value через struct,
-			// поэтому используем Save)
-			p.Id = existing.Id
-			return DB.Save(p).Error
-		}
+	if existing != nil {
+		// найден → перезаписываем (Updates не трогает zero-value через struct,
+		// поэтому используем Save)
+		p.Id = existing.Id
+		return DB.Save(p).Error
 	}
 	return DB.Create(p).Error
 }
@@ -82,6 +93,17 @@ func (ps *CustomPresetService) Update(p *model.CustomPreset) error {
 	}
 	if err := ValidateDirectCustomBuilderJSON(p.CustomJson); err != nil {
 		return err
+	}
+	var err error
+	if p.PreservePermanentPassword && !hasNonEmptyPermanentPassword(p.CustomJson) {
+		stored := &model.CustomPreset{}
+		if err := DB.First(stored, p.Id).Error; err != nil {
+			return err
+		}
+		p.CustomJson, err = mergePreservedPermanentPassword(p.CustomJson, stored.CustomJson)
+		if err != nil {
+			return err
+		}
 	}
 	canonicalJSON, err := CanonicalizeCustomBuildJSON(p.CustomJson, BuildRecordContext{
 		BuildID:  p.Id,
@@ -99,6 +121,57 @@ func (ps *CustomPresetService) Update(p *model.CustomPreset) error {
 	// Save is required here: Updates(struct) silently drops intentional zero
 	// values such as an empty custom_json.
 	return DB.Save(p).Error
+}
+
+func findCustomPresetForUpsert(p *model.CustomPreset) (*model.CustomPreset, error) {
+	if p.Name == "" {
+		return nil, nil
+	}
+	existing := &model.CustomPreset{}
+	err := DB.Where("user_id = ? AND name = ?", p.UserId, p.Name).First(existing).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return existing, nil
+}
+
+func hasNonEmptyPermanentPassword(customJSON string) bool {
+	return utils.CustomBuilderJSONHasPermanentPassword(customJSON)
+}
+
+func mergePreservedPermanentPassword(incomingJSON, existingJSON string) (string, error) {
+	if hasNonEmptyPermanentPassword(incomingJSON) {
+		return incomingJSON, nil
+	}
+	var incoming map[string]any
+	if strings.TrimSpace(incomingJSON) == "" {
+		incoming = make(map[string]any)
+	} else if err := json.Unmarshal([]byte(incomingJSON), &incoming); err != nil {
+		return "", &ClientValidationError{Err: fmt.Errorf("invalid custom JSON: %w", err)}
+	}
+	if incoming == nil {
+		return "", &ClientValidationError{Err: fmt.Errorf("custom JSON must be an object")}
+	}
+	if strings.TrimSpace(existingJSON) == "" {
+		return incomingJSON, nil
+	}
+	var existing map[string]any
+	if err := json.Unmarshal([]byte(existingJSON), &existing); err != nil {
+		return "", fmt.Errorf("read existing permanent_password: %w", err)
+	}
+	password, ok := existing["permanent_password"].(string)
+	if !ok || strings.TrimSpace(password) == "" {
+		return incomingJSON, nil
+	}
+	incoming["permanent_password"] = password
+	merged, err := json.Marshal(incoming)
+	if err != nil {
+		return "", fmt.Errorf("marshal preserved permanent_password: %w", err)
+	}
+	return string(merged), nil
 }
 
 func validateCustomPresetFields(p *model.CustomPreset, requireID bool) error {

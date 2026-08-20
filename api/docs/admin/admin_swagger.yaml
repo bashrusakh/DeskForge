@@ -103,7 +103,6 @@ definitions:
         minLength: 4
         type: string
       old_password:
-        maxLength: 32
         minLength: 4
         type: string
     required:
@@ -764,6 +763,8 @@ definitions:
         type: string
       custom_json:
         type: string
+      has_permanent_password:
+        type: boolean
       id:
         type: integer
       name:

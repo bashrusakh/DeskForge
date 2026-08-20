@@ -1,7 +1,7 @@
 # DeskForge Workflow Migration — Todo
 
 **Plan:** `plans/deskforge-workflow-migration/plan.md`
-**Status:** Workflow migration, external verification, and final PR #59 body synchronization complete.
+**Status:** Prior workflow migration and external verification are complete; local two-layer workflow SHA-guard implementation and validation are complete, while live provider execution remains intentionally unperformed.
 
 ## Current state
 
@@ -12,6 +12,18 @@
 - [x] Approved GPG key is registered; signed annotated `workflow-v1.0.0` targets `b11be6aef84aa110884bec8fa5fe827663b8ff01` and GitHub reports `verification=true`/`reason=valid`.
 - [x] Active restored Ruleset `20901403` protects `refs/tags/workflow-*` with deletion and update protection; fetch/merge updates are disallowed and there are no bypass actors.
 - [x] Provider-derived workflow-tag display and approval are verified; no new GUI architecture is needed. Final external verification is complete.
+
+## In-progress two-layer workflow SHA guard
+
+- [x] DeskForge dispatch overwrites the encrypted inner `workflow_sha` from `identity.WorkflowSHA`, sends the same provider-derived public outer input, and rejects caller-authored raw SHA parameters.
+- [x] The active RustDesk Windows flow runs a no-secret/no-decrypt/no-checkout outer SHA guard before bridge/build jobs, and bridge/direct build recheck the authenticated inner value before exports, checkout, source fetch, or build use.
+- [x] Focused Go, workflow contract, and YAML parser checks provide local evidence only; no live provider run, secret operation, commit, or push is part of this work.
+- [ ] Live provider execution remains intentionally excluded from this local work package.
+
+## SHA-guard limits
+
+- [x] The guard is defense in depth, not an atomic defense against a malicious workflow file or GitHub's selector-based dispatch TOCTOU.
+- [x] Verified annotated workflow tags and the immutable no-bypass ruleset remain required protections and are not replaced by this guard.
 
 ## Validation and publication
 
