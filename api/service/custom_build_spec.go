@@ -257,25 +257,50 @@ func ValidateCustomPlatform(value string) error {
 // the existing optional-payload behavior; a non-empty value must pass the
 // authoritative BuildSpec normalizer.
 func ValidateCustomBuildInput(platform, customJSON, appName, version string) error {
-	if err := ValidateBuildRecordContext(BuildRecordContext{
+	for _, field := range []struct {
+		name  string
+		value string
+	}{
+		{name: "platform", value: platform},
+		{name: "app_name", value: appName},
+		{name: "version", value: version},
+	} {
+		if strings.TrimSpace(field.value) == "" {
+			return &ClientValidationError{Err: fmt.Errorf("%s is required", field.name)}
+		}
+	}
+	context := BuildRecordContext{
 		Platform: platform,
 		AppName:  appName,
 		Version:  version,
-	}); err != nil {
+	}
+	if err := ValidateBuildRecordContext(context); err != nil {
 		return &ClientValidationError{Err: err}
 	}
 	if err := ValidateCustomPlatform(platform); err != nil {
 		return err
 	}
-	if customJSON == "" && platform != string(PlatformAndroid) {
+	if customJSON == "" && platform != string(PlatformAndroid) && platform != string(PlatformWindows) {
 		return nil
 	}
-	if _, err := NormalizeCustomBuildJSON(customJSON, BuildRecordContext{
-		Platform: platform,
-		AppName:  appName,
-		Version:  version,
-	}); err != nil {
+	normalized, err := NormalizeCustomBuildJSON(customJSON, context)
+	if err != nil {
 		return &ClientValidationError{Err: err}
+	}
+	if platform == string(PlatformWindows) {
+		for _, field := range []struct {
+			name  string
+			value string
+		}{
+			{name: "server_ip", value: normalized.Spec.ServerIP},
+			{name: "key", value: normalized.Spec.Key},
+			{name: "api_server", value: normalized.Spec.APIServer},
+			{name: "relay_server", value: normalized.Spec.RelayServer},
+		} {
+			if strings.TrimSpace(field.value) == "" {
+				return &ClientValidationError{Err: fmt.Errorf("%s is required for Windows builds", field.name)}
+			}
+		}
 	}
 	return nil
 }
@@ -520,7 +545,7 @@ func parseBuildSpec(raw map[string]any) (BuildSpec, error) {
 	if err := validateAPIURL("api_server", spec.APIServer); err != nil {
 		return BuildSpec{}, err
 	}
-	if spec.HideCM != nil && *spec.HideCM && spec.PermanentPassword == "" {
+	if spec.HideCM != nil && *spec.HideCM && strings.TrimSpace(spec.PermanentPassword) == "" {
 		return BuildSpec{}, fmt.Errorf("permanent_password is required when hide_cm is true")
 	}
 
@@ -852,7 +877,7 @@ func validateBuildSpec(spec BuildSpec) error {
 			return err
 		}
 	}
-	if spec.HideCM != nil && *spec.HideCM && spec.PermanentPassword == "" {
+	if spec.HideCM != nil && *spec.HideCM && strings.TrimSpace(spec.PermanentPassword) == "" {
 		return fmt.Errorf("permanent_password is required when hide_cm is true")
 	}
 	if err := validateBuildSpecTransportFields(spec); err != nil {

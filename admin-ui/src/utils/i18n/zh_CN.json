@@ -20,6 +20,21 @@
   "Password": {
     "One": "密码"
   },
+  "ShowPassword": {
+    "One": "显示密码"
+  },
+  "HidePassword": {
+    "One": "隐藏密码"
+  },
+  "GeneratedKeyLabel": {
+    "One": "生成的加密密钥"
+  },
+  "GeneratedKeyWarning": {
+    "One": "请立即复制此密钥；之后将不再显示。"
+  },
+  "GeneratedKeyCreated": {
+    "One": "已生成新的加密密钥。"
+  },
   "LoginSuccess": {
     "One": "登录成功"
   },
@@ -37,6 +52,33 @@
   },
   "ParamRequired": {
     "One": "{param} 是必须的"
+  },
+  "CustomClientPlatformRequired": {
+    "One": "请选择受支持的构建平台（Windows）。"
+  },
+  "CustomClientVersionRequired": {
+    "One": "请选择要构建的客户端版本。"
+  },
+  "CustomClientAppNameRequired": {
+    "One": "请输入产物应用名称。"
+  },
+  "CustomClientHostRequired": {
+    "One": "请输入 ID 服务器端点（主机名/IP，可选端口）。"
+  },
+  "CustomClientKeyRequired": {
+    "One": "请输入公钥。"
+  },
+  "CustomClientApiServerRequired": {
+    "One": "请输入 API 服务器 URL。"
+  },
+  "CustomClientRelayServerRequired": {
+    "One": "请输入中继端点（主机名/IP，可选端口）。"
+  },
+  "CustomClientPermanentPasswordRequired": {
+    "One": "隐藏连接管理时，请输入永久密码。"
+  },
+  "ClearSavedPassword": {
+    "One": "清除已保存的密码"
   },
   "HasBind": {
     "One": "已绑定"
@@ -124,6 +166,45 @@
   },
   "WorkflowApprovalRequestFailed": {
     "One": "审批未记录。请查看服务商状态后重试。"
+  },
+  "GithubPatPermissionsIntro": {
+    "One": "细粒度 PAT 所需的仓库权限："
+  },
+  "GithubPatPermissionMetadata": {
+    "One": "Metadata — Read"
+  },
+  "GithubPatPermissionContents": {
+    "One": "Contents — Read"
+  },
+  "GithubPatPermissionActions": {
+    "One": "Actions — Read and write"
+  },
+  "GithubPatPermissionAdministration": {
+    "One": "Administration — Read and write"
+  },
+  "GithubPatPermissionSecrets": {
+    "One": "Secrets — Read and write"
+  },
+  "GithubPatPermissionsNote": {
+    "One": "触发 workflow 需要 Actions write；读取规则绕过元数据需要 Administration write；同步仓库密钥需要 Secrets write。留空将保留现有令牌。"
+  },
+  "GithubBuildSaveError": {
+    "One": "无法保存 GitHub 构建设置。请检查配置后重试。"
+  },
+  "GithubBuildSaveSaving": {
+    "One": "正在保存 GitHub 构建设置..."
+  },
+  "GithubBuildSaveSuccess": {
+    "One": "GitHub 构建设置已保存。"
+  },
+  "GithubBuildRepositoryRequired": {
+    "One": "继续之前，请输入 owner/name 格式的仓库。"
+  },
+  "ViewBuildLog": {
+    "One": "查看构建日志"
+  },
+  "BuildHistoryStatusChanged": {
+    "One": "构建状态已更新：{param}。"
   },
   "Status": {
     "One": "状态"
@@ -696,13 +777,13 @@
     "One": "上传"
   },
   "HostEndpointHint": {
-    "One": "可选字段。支持主机名或 IP 地址，可选择是否指定端口。仅在未指定端口时，RustDesk 使用默认端口 21116。"
+    "One": "请输入 ID 服务器端点：主机名或 IP 地址，可选择是否指定端口。未指定端口时使用 21116。"
   },
   "HostEndpointPlaceholder": {
     "One": "例如 your-server.com 或 your-server.com:21116（未填写端口时使用默认端口）"
   },
   "RelayEndpointHint": {
-    "One": "可选字段。支持主机名或 IP 地址，可选择是否指定端口。仅在未指定端口时，RustDesk 使用默认端口 21117。"
+    "One": "请输入中继端点：主机名或 IP 地址，可选择是否指定端口。未指定端口时使用 21117。"
   },
   "RelayEndpointPlaceholder": {
     "One": "例如 your-server.com 或 your-server.com:21117（未填写端口时使用默认端口）"

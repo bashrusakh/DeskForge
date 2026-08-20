@@ -622,24 +622,44 @@ func (ct *CustomBuild) Manifest(c *gin.Context) {
 func (ct *CustomBuild) Create(c *gin.Context) {
 	f := &admin.CustomBuildForm{}
 	if err := c.ShouldBindJSON(f); err != nil {
-		response.Fail(c, 101, response.TranslateMsg(c, "ParamsError")+err.Error())
+		failCustomValidation(c, err)
 		return
 	}
 	if f.BuildRef != "" {
 		failCustomValidation(c, fmt.Errorf("build_ref is system-derived and cannot be supplied"))
 		return
 	}
+	b := f.ToCustomBuild()
 	if !validateCustomPlatform(c, f.Platform) {
 		return
 	}
 	errList := global.Validator.ValidStruct(c, f)
 	if len(errList) > 0 {
-		response.Fail(c, 101, errList[0])
+		failCustomValidation(c, errors.New("required custom build field is missing"))
+		return
+	}
+
+	// Reject unsafe version early; keeps DB clean and gives the caller a clear error.
+	if !utils.ValidateBuildVersion(f.Version) {
+		failCustomValidation(c, fmt.Errorf("invalid version format: %s", f.Version))
+		return
+	}
+	if err := service.ValidateCustomBuildInput(b.Platform, b.CustomJson, b.AppName, b.Version); err != nil {
+		if failCustomServiceError(c, err) {
+			return
+		}
+		failCustomValidation(c, err)
+		return
+	}
+	if err := utils.RequireSecretEncryptionForCustomBuilderJSON(f.CustomJson); err != nil {
+		if failCustomServiceError(c, err) {
+			return
+		}
+		response.FailStatus(c, http.StatusServiceUnavailable, 101, "secret encryption is not configured")
 		return
 	}
 
 	user := service.AllService.UserService.CurUser(c)
-	b := f.ToCustomBuild()
 	b.UserId = user.Id
 	b.Status = model.CustomBuildStatusPending
 	b.DownloadKey = utils.RandomString(32)
@@ -651,18 +671,6 @@ func (ct *CustomBuild) Create(c *gin.Context) {
 	}
 	b.DownloadKeyExpiresAt = time.Now().Add(ttl).Unix()
 
-	// Reject unsafe version early; keeps DB clean and gives the caller a clear error.
-	if !utils.ValidateBuildVersion(b.Version) {
-		failCustomValidation(c, fmt.Errorf("invalid version format: %s", b.Version))
-		return
-	}
-	if err := utils.RequireSecretEncryptionForCustomBuilderJSON(b.CustomJson); err != nil {
-		if failCustomServiceError(c, err) {
-			return
-		}
-		response.FailStatus(c, http.StatusServiceUnavailable, 101, "secret encryption is not configured")
-		return
-	}
 	if err := service.RequireConfiguredPublicKey(); err != nil {
 		var providerErr *service.GithubProviderConfigurationError
 		if errors.As(err, &providerErr) {
@@ -677,6 +685,9 @@ func (ct *CustomBuild) Create(c *gin.Context) {
 	prepared, err := service.AllService.GithubBuildConfigService.PrepareBuild(prepareCtx, b.Platform, b.Version)
 	prepareCancel()
 	if err != nil {
+		if failCustomServiceError(c, err) {
+			return
+		}
 		var capabilityErr *service.ProductionCapabilityUnavailableError
 		if errors.As(err, &capabilityErr) {
 			failGithubConfigError(c, err)
@@ -701,7 +712,7 @@ func (ct *CustomBuild) Create(c *gin.Context) {
 		if failCustomServiceError(c, err) {
 			return
 		}
-		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed")+err.Error())
+		response.Fail(c, 101, response.TranslateMsg(c, "OperationFailed"))
 		return
 	}
 

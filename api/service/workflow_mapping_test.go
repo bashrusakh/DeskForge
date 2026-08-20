@@ -1215,6 +1215,35 @@ func TestWorkflowExecutionRefNormalizesKnownLegacyValuesAndRejectsMutableValues(
 	}
 }
 
+func TestWorkflowDispatchTagSelectorRejectsNonTagSelectors(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		ref  string
+		want string
+		err  bool
+	}{
+		{name: "approved tag", ref: "refs/tags/workflow-v1", want: "workflow-v1"},
+		{name: "short branch", ref: "rustqs/workflows", err: true},
+		{name: "full branch", ref: "refs/heads/rustqs/workflows", err: true},
+		{name: "raw SHA", ref: strings.Repeat("a", 40), err: true},
+		{name: "tag-shaped raw SHA", ref: "refs/tags/" + strings.Repeat("b", 40), err: true},
+		{name: "empty tag", ref: "refs/tags/", err: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := workflowDispatchTagSelector(test.ref)
+			if test.err {
+				if err == nil {
+					t.Fatalf("workflowDispatchTagSelector(%q) = %q, nil; want non-tag rejection", test.ref, got)
+				}
+				return
+			}
+			if err != nil || got != test.want {
+				t.Fatalf("workflowDispatchTagSelector(%q) = %q, %v; want %q", test.ref, got, err, test.want)
+			}
+		})
+	}
+}
+
 func TestApproveWorkflowRefUsesClosedDomainAndOptionalEffectiveSelector(t *testing.T) {
 	db, sqlDB := newGithubConfigTestDB(t)
 	previousDB := DB

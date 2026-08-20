@@ -388,7 +388,7 @@ func applyWorkflowIdentity(entries []AvailableVersion, identity WorkflowExecutio
 // repository. The caller persists the returned identity before dispatch.
 func (s *GithubBuildConfigService) ResolveVersion(ctx context.Context, displayVersion string) (VersionIdentity, error) {
 	if !utils.ValidateBuildVersion(displayVersion) {
-		return VersionIdentity{}, fmt.Errorf("invalid display version %q", displayVersion)
+		return VersionIdentity{}, &ClientValidationError{Err: errors.New("invalid display version")}
 	}
 	gcfg, err := s.Get()
 	if err != nil {
@@ -403,7 +403,7 @@ func (s *GithubBuildConfigService) ResolveVersion(ctx context.Context, displayVe
 
 func (s *GithubBuildConfigService) resolveVersionWithConfig(ctx context.Context, gcfg *model.GithubBuildConfig, displayVersion string, workflowIdentity WorkflowExecutionIdentity) (VersionIdentity, error) {
 	if !utils.ValidateBuildVersion(displayVersion) {
-		return VersionIdentity{}, fmt.Errorf("invalid display version %q", displayVersion)
+		return VersionIdentity{}, &ClientValidationError{Err: errors.New("invalid display version")}
 	}
 	entries, err := s.getAvailableVersionsWithWorkflowIdentity(ctx, gcfg, workflowIdentity)
 	if err != nil {
@@ -418,7 +418,7 @@ func (s *GithubBuildConfigService) resolveVersionWithConfig(ctx context.Context,
 			return identity, nil
 		}
 	}
-	return VersionIdentity{}, fmt.Errorf("version %q is not available in configured repository", displayVersion)
+	return VersionIdentity{}, &ClientValidationError{Err: errors.New("selected version is not available in configured repository")}
 }
 
 type githubReleaseRecord struct {

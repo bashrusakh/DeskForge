@@ -89,7 +89,7 @@ are recorded, and no full sovereignty claim is made. See [LICENSE](LICENSE) and 
 admin-ui (Custom Client form)
    ↓ custom-build request
 Go API (DeskForge)
-   ↓ workflow_dispatch + authenticated DFP1 enc_payload (AES-256-CBC + PBKDF2 + HMAC)
+   ↓ workflow_dispatch + provider-derived public workflow_sha + authenticated DFP1 enc_payload (AES-256-CBC + PBKDF2 + HMAC)
 GitHub Actions [configured RustDesk fork, owned platform workflow]
    ↓ L1: config.rs (server + key)
    ↓ L2: custom_.txt (permanent password, allowCustom patch)
@@ -100,9 +100,13 @@ Go API validates/extracts/publishes locally → admin-ui Download
 ```
 
 **Security:** password never published — `enc_payload`, decrypted inside runner via
-GitHub Secret `WORKFLOW_PAYLOAD_KEY`. The runner does not callback to the API;
-the API retrieves the artifact through the provider API and publishes it locally,
-not to a public release.
+GitHub Secret `WORKFLOW_PAYLOAD_KEY`. The provider-derived outer `workflow_sha` is
+checked against `github.sha` before secret-bearing jobs; the same authenticated inner
+payload field is checked again before exports, checkout, or build use. This is defense
+in depth, not an atomic defense against a malicious workflow file; the verified tag
+and active no-bypass ruleset remain required controls. The runner does not callback to
+the API; the API retrieves the artifact through the provider API and publishes it
+locally, not to a public release.
 
 ### Workflow approval and schema evidence
 

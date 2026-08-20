@@ -298,7 +298,7 @@ func TestDispatchBuildUsesExactRunDetailsWithoutPolling(t *testing.T) {
 		if payload["return_run_details"] != true {
 			return githubResponse(http.StatusBadRequest, `{"message":"return_run_details missing"}`, nil), nil
 		}
-		if payload["ref"] != workflowDispatchRef(identity.WorkflowRef) {
+		if payload["ref"] != "workflow-v1" {
 			return githubResponse(http.StatusBadRequest, `{"message":"workflow selector was not used"}`, nil), nil
 		}
 		return githubResponse(http.StatusOK, `{"workflow_run_id":12345,"run_url":"https://api.github.com/repos/owner/repo/actions/runs/12345","html_url":"https://github.com/owner/repo/actions/runs/12345"}`, nil), nil
@@ -352,19 +352,27 @@ func TestDispatchBuildBindsEncryptedSourceSHAAndImmutableWorkflowSHA(t *testing.
 		if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 			return nil, fmt.Errorf("decode request: %w", err)
 		}
-		if payload["ref"] != workflowDispatchRef(identity.WorkflowRef) {
+		if payload["ref"] != "workflow-v1" {
 			return githubResponse(http.StatusBadRequest, `{"message":"wrong workflow selector"}`, nil), nil
 		}
 		inputs, ok := payload["inputs"].(map[string]any)
 		if !ok {
 			return githubResponse(http.StatusBadRequest, `{"message":"missing encrypted inputs"}`, nil), nil
 		}
-		decoded, err := decryptTestPayload(inputs["enc_payload"].(string), "payload-key")
+		outerWorkflowSHA, ok := inputs["workflow_sha"].(string)
+		if !ok || outerWorkflowSHA != identity.WorkflowSHA {
+			return githubResponse(http.StatusBadRequest, `{"message":"outer workflow SHA was not bound"}`, nil), nil
+		}
+		encPayload, ok := inputs["enc_payload"].(string)
+		if !ok {
+			return githubResponse(http.StatusBadRequest, `{"message":"missing encrypted payload"}`, nil), nil
+		}
+		decoded, err := decryptTestPayload(encPayload, "payload-key")
 		if err != nil {
 			return nil, err
 		}
-		if decoded["version"] != identity.DisplayVersion || decoded["source_sha"] != identity.BuildRef || decoded["workflow_repo"] != identity.Repo {
-			return githubResponse(http.StatusBadRequest, `{"message":"source identity was not bound"}`, nil), nil
+		if decoded["version"] != identity.DisplayVersion || decoded["source_sha"] != identity.BuildRef || decoded["workflow_sha"] != identity.WorkflowSHA || decoded["workflow_repo"] != identity.Repo {
+			return githubResponse(http.StatusBadRequest, `{"message":"source or workflow identity was not bound"}`, nil), nil
 		}
 		if decoded["release_repo"] != identity.Repo {
 			return githubResponse(http.StatusBadRequest, `{"message":"release repository was not bound"}`, nil), nil
@@ -408,6 +416,7 @@ func TestDispatchBuildRejectsUnsafeOrUnknownRawParamsBeforeProvider(t *testing.T
 		{name: "control custom text", params: map[string]any{"custom_txt": "safe\nunsafe"}},
 		{name: "path unsafe version", params: map[string]any{"version": "../../etc"}},
 		{name: "wrong version type", params: map[string]any{"version": 1.4}},
+		{name: "caller authored workflow SHA", params: map[string]any{"key": validRustDeskPublicKey, "workflow_sha": strings.Repeat("f", 40)}},
 		{name: "unknown raw field", params: map[string]any{"raw_internal": "value"}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -785,8 +794,52 @@ func TestGithubErrorDetailIsBoundedAndDoesNotFormatNestedProviderData(t *testing
 			t.Fatalf("GithubErrorDetail() leaked %q: %q", forbidden, detail)
 		}
 	}
-	if !strings.Contains(detail, "status=403") || !strings.Contains(detail, "GitHub provider request failed") {
+	if !strings.Contains(detail, "status=403") || !strings.Contains(detail, "GitHub access was denied; verify the PAT permissions and repository access") {
 		t.Fatalf("GithubErrorDetail() = %q, want safe status/classification", detail)
+	}
+}
+
+func TestGithubSafeErrorMessageExplainsRulesetBypassPermission(t *testing.T) {
+	want := "GitHub workflow tag verification requires a PAT with Administration: write and repository access"
+	for _, test := range []struct {
+		name string
+		err  error
+		want string
+	}{
+		{
+			name: "missing bypass metadata",
+			err: &GithubContractError{
+				Operation: "verify repository ruleset detail",
+				Cause:     errors.New("ruleset bypass metadata is missing or not visible"),
+			},
+			want: want,
+		},
+		{
+			name: "wrapped cause remains safe",
+			err: &GithubContractError{
+				Operation: "verify repository ruleset detail",
+				Cause:     fmt.Errorf("provider detail: ruleset bypass metadata is missing or not visible: token=github_pat_secret"),
+			},
+			want: want,
+		},
+		{
+			name: "other contract error remains generic",
+			err: &GithubContractError{
+				Operation: "verify repository rulesets",
+				Cause:     errors.New("ruleset bypass metadata is missing or not visible"),
+			},
+			want: "GitHub provider response was invalid",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got := GithubSafeErrorMessage(test.err)
+			if got != test.want {
+				t.Fatalf("GithubSafeErrorMessage() = %q, want %q", got, test.want)
+			}
+			if strings.Contains(got, "github_pat_secret") || strings.Contains(got, "provider detail") {
+				t.Fatalf("GithubSafeErrorMessage() exposed unsafe cause data: %q", got)
+			}
+		})
 	}
 }
 

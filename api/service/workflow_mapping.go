@@ -183,9 +183,22 @@ func (s *GithubBuildConfigService) ApproveWorkflowRef(selector string) (*model.G
 	return s.ApproveWorkflowTag(strings.TrimPrefix(strings.TrimSpace(selector), "refs/tags/"))
 }
 
-func workflowDispatchRef(ref string) string {
-	ref = strings.TrimPrefix(ref, "refs/heads/")
-	return strings.TrimPrefix(ref, "refs/tags/")
+// workflowDispatchTagSelector converts the approved fully-qualified tag ref to
+// the short selector required by GitHub's workflow_dispatch REST contract.
+// GitHub does not accept a raw commit SHA here. Production dispatch therefore
+// remains tag-only: the caller must have already passed the final provider
+// policy check proving a verified annotated tag is covered by active update and
+// deletion protection with an empty bypass-actor list and
+// current_user_can_bypass=never. Protected verified annotated tags are a
+// compensating control, but they do not provide atomic SHA binding or close the
+// selector/SHA race; this boundary must never silently turn a branch or SHA
+// into a dispatch selector.
+func workflowDispatchTagSelector(ref string) (string, error) {
+	ref = strings.TrimSpace(ref)
+	if _, err := approvedWorkflowRef(ref); err != nil {
+		return "", fmt.Errorf("workflow_dispatch requires an approved tag selector: %w", err)
+	}
+	return strings.TrimPrefix(ref, "refs/tags/"), nil
 }
 
 // WorkflowExecutionIdentity is the two-part identity needed by GitHub: Ref

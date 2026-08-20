@@ -189,6 +189,7 @@ func (p *CustomPreset) Update(c *gin.Context) {
 	ex.Version = f.Version
 	ex.AppName = f.AppName
 	ex.CustomJson = f.CustomJson
+	ex.PreservePermanentPassword = f.PreservePermanentPassword
 	if err := utils.RequireSecretEncryptionForCustomBuilderJSON(ex.CustomJson); err != nil {
 		if failCustomServiceError(c, err) {
 			return

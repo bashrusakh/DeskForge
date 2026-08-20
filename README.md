@@ -99,6 +99,12 @@ only; no APK/package/install/runtime evidence exists.
 The local schema target is `DatabaseVersion 282`; the published DeskForge schema is
 272, and SQLite-only checks do not establish cross-database verification.
 
+### GitHub Actions PAT permissions
+
+See the [fine-grained PAT permission checklist](api/README.md#github-fine-grained-pat-permissions)
+for the custom-client workflow, including why Administration, Actions, and
+Secrets write access are required.
+
 **Not implemented (vs RustDesk Pro):** 2FA, RBAC, session recording, device policy, remote script,
 HA, backup/restore.
 

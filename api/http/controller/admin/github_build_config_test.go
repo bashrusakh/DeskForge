@@ -124,7 +124,11 @@ func TestGithubProviderErrorsUseTypedSafeResponses(t *testing.T) {
 		{name: "workflow approval", err: &service.WorkflowRefApprovalError{Reason: "selector rustqs/workflows is not approved"}, status: http.StatusPreconditionFailed, want: "workflow reference approval is required"},
 		{name: "provider response", err: &service.GithubContractError{Operation: "dispatch", Cause: errors.New("invalid response")}, status: http.StatusBadGateway, want: "GitHub provider response was invalid"},
 		{name: "malformed provider response with sensitive details", err: &service.GithubContractError{Operation: "dispatch refs/tags/workflow-v1", Cause: errors.New(`response body https://api.github.com/repos/owner/repo?token=github_pat_secret enc_payload=ciphertext`)}, status: http.StatusBadGateway, want: "GitHub provider response was invalid"},
-		{name: "provider permission with sensitive body", err: &service.GithubAPIError{StatusCode: http.StatusForbidden, Terminal: true, Body: `{"message":"token=github_pat_secret enc_payload=ciphertext"}`}, status: http.StatusBadGateway, want: "GitHub provider request failed"},
+		{name: "ruleset bypass metadata permission", err: &service.GithubContractError{Operation: "verify repository ruleset detail", Cause: errors.New(`ruleset bypass metadata is missing or not visible: https://api.github.com/repos/owner/repo/rulesets/1 token=github_pat_ruleset_secret`)}, status: http.StatusBadGateway, want: "GitHub workflow tag verification requires a PAT with Administration: write and repository access"},
+		{name: "provider authentication with sensitive body", err: &service.GithubAPIError{StatusCode: http.StatusUnauthorized, Terminal: true, Body: `{"message":"token=github_pat_secret enc_payload=ciphertext"}`}, status: http.StatusBadGateway, want: "GitHub authentication failed; verify the configured PAT"},
+		{name: "provider permission with sensitive body", err: &service.GithubAPIError{StatusCode: http.StatusForbidden, Terminal: true, Body: `{"message":"token=github_pat_secret enc_payload=ciphertext"}`}, status: http.StatusBadGateway, want: "GitHub access was denied; verify the PAT permissions and repository access"},
+		{name: "provider resource not found", err: &service.GithubAPIError{StatusCode: http.StatusNotFound, Terminal: true}, status: http.StatusBadGateway, want: "GitHub repository or workflow resource was not found; verify the repository name and PAT access"},
+		{name: "provider temporary failure", err: &service.GithubAPIError{StatusCode: http.StatusBadGateway, Retryable: true}, status: http.StatusBadGateway, want: "GitHub provider is temporarily unavailable or rate-limited; retry shortly"},
 		{name: "unknown internal workflow error", err: errors.New(`workflow refs/tags/workflow-v1 failed at https://api.github.com/repos/owner/repo: ciphertext`), status: http.StatusInternalServerError, want: "GitHub build operation failed"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -138,7 +142,7 @@ func TestGithubProviderErrorsUseTypedSafeResponses(t *testing.T) {
 				t.Fatalf("error status = %d, want %d", recorder.Code, test.status)
 			}
 			body := recorder.Body.String()
-			forbidden := []string{"payload key is not configured", "api.github.com", "owner/repo", "refs/tags/workflow-v1", "github_pat_secret", "ciphertext", "enc_payload"}
+			forbidden := []string{"payload key is not configured", "api.github.com", "owner/repo", "refs/tags/workflow-v1", "github_pat_secret", "github_pat_ruleset_secret", "ciphertext", "enc_payload"}
 			if !strings.Contains(body, test.want) {
 				t.Fatalf("missing safe provider response %q: %s", test.want, body)
 			}
@@ -187,7 +191,7 @@ func TestGithubNestedProviderErrorsPreserveSpecificClassification(t *testing.T) 
 			name:   "API inside provider configuration",
 			inner:  &service.GithubAPIError{StatusCode: http.StatusForbidden, Terminal: true, Body: `{"message":"payload=secret"}`},
 			status: http.StatusBadGateway,
-			want:   "GitHub provider request failed",
+			want:   "GitHub access was denied; verify the PAT permissions and repository access",
 		},
 		{
 			name:   "artifact contract inside provider configuration",

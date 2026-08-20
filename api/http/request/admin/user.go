@@ -58,7 +58,7 @@ type UserPasswordForm struct {
 }
 
 type ChangeCurPasswordForm struct {
-	OldPassword string `json:"old_password" validate:"required,gte=4,lte=32"`
+	OldPassword string `json:"old_password" validate:"required,gte=4"`
 	NewPassword string `json:"new_password" validate:"required,gte=4,lte=32"`
 }
 

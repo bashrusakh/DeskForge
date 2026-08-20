@@ -800,6 +800,15 @@ func GithubErrorHTTPStatus(err error) (int, bool) {
 
 const githubDiagnosticLimit = 512
 
+const githubRulesetBypassMetadataUnavailableCause = "ruleset bypass metadata is missing or not visible"
+
+func isGithubRulesetBypassMetadataUnavailable(err *GithubContractError) bool {
+	return err != nil &&
+		err.Operation == "verify repository ruleset detail" &&
+		err.Cause != nil &&
+		strings.Contains(err.Cause.Error(), githubRulesetBypassMetadataUnavailableCause)
+}
+
 // GithubErrorDetail returns a bounded, log-oriented diagnostic. It is
 // deliberately reconstructed from typed classifications instead of formatting
 // err.Error(): provider URLs, refs, response bodies, credentials, payloads,
@@ -847,7 +856,22 @@ func GithubSafeErrorMessage(err error) string {
 	}
 	var apiErr *GithubAPIError
 	if errors.As(err, &apiErr) {
-		return "GitHub provider request failed"
+		switch apiErr.StatusCode {
+		case http.StatusUnauthorized:
+			return "GitHub authentication failed; verify the configured PAT"
+		case http.StatusForbidden:
+			if apiErr.Retryable {
+				return "GitHub rate limit reached; retry later"
+			}
+			return "GitHub access was denied; verify the PAT permissions and repository access"
+		case http.StatusNotFound:
+			return "GitHub repository or workflow resource was not found; verify the repository name and PAT access"
+		default:
+			if apiErr.Retryable {
+				return "GitHub provider is temporarily unavailable or rate-limited; retry shortly"
+			}
+			return "GitHub provider rejected the request; verify the repository and PAT permissions"
+		}
 	}
 	var transportErr *GithubTransportError
 	if errors.As(err, &transportErr) {
@@ -855,6 +879,9 @@ func GithubSafeErrorMessage(err error) string {
 	}
 	var contractErr *GithubContractError
 	if errors.As(err, &contractErr) {
+		if isGithubRulesetBypassMetadataUnavailable(contractErr) {
+			return "GitHub workflow tag verification requires a PAT with Administration: write and repository access"
+		}
 		return "GitHub provider response was invalid"
 	}
 	var providerErr *GithubProviderConfigurationError
@@ -970,8 +997,9 @@ func releaseAssetPayloadForIdentity(identity VersionIdentity) (releaseAssetDispa
 // DispatchBuild dispatches a workflow using the validated branch/tag selector
 // and returns the exact run details from GitHub. The resolved workflow SHA is
 // checked during preparation and retained for polling; it is not sent as the
-// workflow_dispatch ref. This method deliberately does not poll or infer a run
-// from a list response.
+// workflow_dispatch ref. It is copied into the provider-owned public guard
+// input and authenticated payload. This method deliberately does not poll or
+// infer a run from a list response.
 func (s *GithubBuildConfigService) DispatchBuild(ctx context.Context, c *model.GithubBuildConfig, identity VersionIdentity, platform string, params map[string]any) (*GithubDispatchResult, error) {
 	if err := RequireProductionBuildCapability(platform); err != nil {
 		return nil, err
@@ -1020,16 +1048,19 @@ func (s *GithubBuildConfigService) DispatchBuild(ctx context.Context, c *model.G
 	}
 	// Re-check the mapped workflow immediately before dispatch. PrepareBuild
 	// performs the same readiness check before persistence, while this second
-	// check closes the gap for direct dispatch callers and provider-side races.
+	// check rejects stale identities for direct dispatch callers and provides
+	// compensating protection against provider-side movement. A provider-side
+	// TOCTOU window still remains after this check.
 	if err := s.verifyWorkflowAvailable(ctx, c, workflow, identity.WorkflowSHA); err != nil {
 		return nil, &GithubProviderConfigurationError{
 			Cause: fmt.Errorf("mapped workflow %q is not ready: %w", workflow, err),
 		}
 	}
 	// This is the dispatch primitive's final provider-policy check. It must be
-	// immediately before encryption so a moved branch/tag cannot produce a DFP1
-	// payload, even when a caller reuses a stale prepared identity or readiness
-	// checks observe the ref before it moves.
+	// immediately before encryption so a moved branch/tag or stale prepared
+	// identity is rejected before a DFP1 payload is produced. This is
+	// compensating protection, not an atomic binding of the later dispatch to
+	// the resolved SHA.
 	execution, err := s.validateWorkflowRefPolicy(ctx, c)
 	if err != nil {
 		return nil, &GithubProviderConfigurationError{Cause: fmt.Errorf("workflow reference policy is not verified: %w", err)}
@@ -1039,6 +1070,15 @@ func (s *GithubBuildConfigService) DispatchBuild(ctx context.Context, c *model.G
 			Operation: "workflow dispatch",
 			Cause:     errors.New("workflow selector resolved to a different execution SHA"),
 		}
+	}
+	// workflow_dispatch accepts a branch or tag selector, not a raw SHA. Keep
+	// this explicit assertion at the dispatch boundary: the checks above reject
+	// stale identities and provide compensating protection, but GitHub's short
+	// tag selection is not atomically SHA-bound, so the selector/SHA TOCTOU risk
+	// remains. Non-tag selectors must never be normalized here.
+	dispatchRef, err := workflowDispatchTagSelector(identity.WorkflowRef)
+	if err != nil {
+		return nil, &GithubContractError{Operation: "workflow dispatch", Cause: err}
 	}
 	dispatchParams := make(map[string]any, len(normalizedParams)+1)
 	for key, value := range normalizedParams {
@@ -1060,17 +1100,21 @@ func (s *GithubBuildConfigService) DispatchBuild(ctx context.Context, c *model.G
 	dispatchParams["assets_release_id"] = releasePayload.AssetsReleaseID
 	dispatchParams["assets_release_tag"] = releasePayload.AssetsReleaseTag
 	dispatchParams["release_assets"] = releasePayload.ReleaseAssets
+	// The execution SHA is provider-derived and must bind both dispatch layers.
+	// NormalizeWorkflowDispatchParams deliberately rejects caller-authored
+	// workflow_sha values, so this overwrite remains the only normal input path.
+	dispatchParams["workflow_sha"] = identity.WorkflowSHA
 	enc, err := s.EncryptPayload(c.PayloadKey, dispatchParams)
 	if err != nil {
 		return nil, fmt.Errorf("encrypt: %w", err)
 	}
 	body := map[string]any{
-		// GitHub workflow_dispatch accepts a branch or tag selector here. The
-		// resolved SHA is used by readiness and polling, not as this selector.
-		"ref":                workflowDispatchRef(identity.WorkflowRef),
+		// The resolved SHA is used by readiness and polling, not as this selector.
+		"ref":                dispatchRef,
 		"return_run_details": true,
 		"inputs": map[string]string{
-			"enc_payload": enc,
+			"enc_payload":  enc,
+			"workflow_sha": identity.WorkflowSHA,
 		},
 	}
 	path, err := githubRepoPath(c.Repo, fmt.Sprintf("/actions/workflows/%s/dispatches", workflow))

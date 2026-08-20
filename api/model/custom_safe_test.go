@@ -56,6 +56,33 @@ func TestCustomPresetSafeResponsesRedactSecretCustomJSON(t *testing.T) {
 	}
 }
 
+func TestCustomPresetSafeReportsPermanentPasswordPresenceWithoutSecret(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		customJSON string
+		want       bool
+	}{
+		{name: "present", customJSON: `{"permanent_password":"preset-secret"}`, want: true},
+		{name: "blank", customJSON: `{"permanent_password":"  "}`, want: false},
+		{name: "absent", customJSON: `{"enable_audio":true}`, want: false},
+		{name: "ciphertext", customJSON: "enc:v1:not-ciphertext", want: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			view := (&CustomPreset{CustomJson: test.customJSON}).Safe()
+			if view.HasPermanentPassword != test.want {
+				t.Fatalf("has_permanent_password = %v, want %v", view.HasPermanentPassword, test.want)
+			}
+			encoded, err := json.Marshal(view)
+			if err != nil {
+				t.Fatalf("marshal safe preset: %v", err)
+			}
+			if strings.Contains(string(encoded), "preset-secret") {
+				t.Fatalf("safe preset exposed password: %s", encoded)
+			}
+		})
+	}
+}
+
 func TestCustomSafeViewNeverSerializesCiphertext(t *testing.T) {
 	build := &CustomBuild{CustomJson: "enc:v1:not-ciphertext"}
 	preset := &CustomPreset{CustomJson: "enc:v1:not-ciphertext"}
@@ -162,7 +189,7 @@ func assertSafeCustomResponse(t *testing.T, view any) {
 		t.Fatalf("marshal safe response: %v", err)
 	}
 	response := string(encoded)
-	for _, secret := range []string{"builder-secret", "preset-secret", "nested-secret", "permanent_password", `"token"`, `"secret"`} {
+	for _, secret := range []string{"builder-secret", "preset-secret", "nested-secret", `"permanent_password"`, `"token"`, `"secret"`} {
 		if strings.Contains(response, secret) {
 			t.Fatalf("safe response exposed %q: %s", secret, response)
 		}

@@ -145,7 +145,13 @@ func TestCreateNormalizedWithIdentityPersistsWriteOnceVersionFields(t *testing.T
 		WorkflowSHA:    strings.Repeat("b", 40),
 		AssetsRelease:  AssetsRelease{ID: 48, TagName: "offline-assets-1.4.8", Assets: testReleaseAssets()},
 	}
-	build := &model.CustomBuild{Status: model.CustomBuildStatusPending, Platform: "windows", Version: identity.DisplayVersion, AppName: "rustqs"}
+	build := &model.CustomBuild{
+		Status:     model.CustomBuildStatusPending,
+		Platform:   "windows",
+		Version:    identity.DisplayVersion,
+		AppName:    "rustqs",
+		CustomJson: `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`,
+	}
 	normalized, err := (&CustomBuildService{}).CreateNormalizedWithIdentity(build, identity)
 	if err != nil {
 		t.Fatalf("CreateNormalizedWithIdentity() error = %v", err)
@@ -201,7 +207,13 @@ func TestCatalogResolvedIdentityDispatchesAndRejectsMismatchedRepo(t *testing.T)
 	if err != nil {
 		t.Fatalf("ResolveVersion() error = %v", err)
 	}
-	build := &model.CustomBuild{Status: model.CustomBuildStatusPending, Platform: "windows", Version: identity.DisplayVersion, AppName: "rustqs"}
+	build := &model.CustomBuild{
+		Status:     model.CustomBuildStatusPending,
+		Platform:   "windows",
+		Version:    identity.DisplayVersion,
+		AppName:    "rustqs",
+		CustomJson: `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`,
+	}
 	if _, err := (&CustomBuildService{}).CreateNormalizedWithIdentity(build, identity); err != nil {
 		t.Fatalf("CreateNormalizedWithIdentity() error = %v", err)
 	}
@@ -226,7 +238,13 @@ func TestCatalogResolvedIdentityDispatchesAndRejectsMismatchedRepo(t *testing.T)
 		t.Fatalf("catalog dispatch state = %#v", stored)
 	}
 
-	mismatchedBuild := &model.CustomBuild{Status: model.CustomBuildStatusPending, Platform: "windows", Version: identity.DisplayVersion, AppName: "rustqs"}
+	mismatchedBuild := &model.CustomBuild{
+		Status:     model.CustomBuildStatusPending,
+		Platform:   "windows",
+		Version:    identity.DisplayVersion,
+		AppName:    "rustqs",
+		CustomJson: `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`,
+	}
 	if _, err := (&CustomBuildService{}).CreateNormalizedWithIdentity(mismatchedBuild, identity); err != nil {
 		t.Fatalf("CreateNormalizedWithIdentity() for mismatch case error = %v", err)
 	}
@@ -265,6 +283,57 @@ func TestCreateNormalizedWithIdentityRejectsInvalidVersionBeforeDBCreate(t *test
 	}
 	if count != 0 {
 		t.Fatalf("invalid identity created %d row(s)", count)
+	}
+}
+
+func TestCreateNormalizedWithIdentityRejectsIncompleteProductionBuildBeforeDBCreate(t *testing.T) {
+	const completeWindowsJSON = `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`
+	identity := VersionIdentity{
+		Repo:           "owner/repo",
+		DisplayVersion: "1.4.8",
+		BuildRef:       strings.Repeat("a", 40),
+		SourceTag:      "1.4.8",
+		WorkflowRef:    defaultWorkflowExecutionRef,
+		WorkflowSHA:    strings.Repeat("b", 40),
+		AssetsRelease:  AssetsRelease{ID: 48, TagName: "offline-assets-1.4.8", Assets: testReleaseAssets()},
+	}
+	cases := []struct {
+		name       string
+		platform   string
+		version    string
+		appName    string
+		customJSON string
+	}{
+		{name: "missing platform", platform: "", version: identity.DisplayVersion, appName: "rustqs", customJSON: completeWindowsJSON},
+		{name: "whitespace version", platform: "windows", version: " \t ", appName: "rustqs", customJSON: completeWindowsJSON},
+		{name: "whitespace app name", platform: "windows", version: identity.DisplayVersion, appName: " \t ", customJSON: completeWindowsJSON},
+		{name: "missing server endpoint", platform: "windows", version: identity.DisplayVersion, appName: "rustqs", customJSON: `{"key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`},
+		{name: "whitespace public key", platform: "windows", version: identity.DisplayVersion, appName: "rustqs", customJSON: `{"server_ip":"id.example:21116","key":" \t ","api_server":"https://api.example","relay_server":"relay.example:21117"}`},
+		{name: "missing API endpoint", platform: "windows", version: identity.DisplayVersion, appName: "rustqs", customJSON: `{"server_ip":"id.example:21116","key":"public-key","relay_server":"relay.example:21117"}`},
+		{name: "whitespace relay endpoint", platform: "windows", version: identity.DisplayVersion, appName: "rustqs", customJSON: `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example","relay_server":" \t "}`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			db := newBuildProvenanceDB(t)
+			build := &model.CustomBuild{
+				Status:     model.CustomBuildStatusPending,
+				Platform:   tc.platform,
+				Version:    tc.version,
+				AppName:    tc.appName,
+				CustomJson: tc.customJSON,
+			}
+			if _, err := (&CustomBuildService{}).CreateNormalizedWithIdentity(build, identity); err == nil || !IsClientValidationError(err) {
+				t.Fatalf("CreateNormalizedWithIdentity() error = %v, want client validation error", err)
+			}
+			var count int64
+			if err := db.Model(&model.CustomBuild{}).Count(&count).Error; err != nil {
+				t.Fatalf("count builds: %v", err)
+			}
+			if count != 0 {
+				t.Fatalf("incomplete production build created %d row(s)", count)
+			}
+		})
 	}
 }
 
