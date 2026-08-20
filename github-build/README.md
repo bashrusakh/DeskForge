@@ -43,15 +43,20 @@ that synchronized copies, protected tags, or a live provider run currently exist
 > package assertions are static implementation evidence only; capabilities remain disabled.
 > No live provider run or clean-environment build proof is recorded here.
 >
-> **RustDesk guard PR (2026-08-20):** `fix/workflow-sha-guard` is pushed at
-> `6ef1cd7fe`; [RustDesk PR #7](https://github.com/bashrusakh/rustdesk/pull/7) is
-> open against `rustqs/workflows`. It is not merged or tagged. It adds the marker,
-> requires outer and authenticated inner SHA checks in the bridge, and gates draft
-> Linux/Android before secret-bearing jobs. No newly signed provider-verified
-> immutable workflow tag exists yet. This is not provider deployment, tag protection,
-> or live workflow evidence.
-> DeskForge PR #59 local remediation remains unpushed; its remote PR remains open and
-> dirty.
+> **RustDesk guard PR (2026-08-20):** [RustDesk PR
+> #7](https://github.com/bashrusakh/rustdesk/pull/7) is merged into
+> `rustqs/workflows` at merge commit `ced31ae07f69c20119b88212b10d2eb2df651c97`,
+> which contains prior source commit `6ef1cd7fe`. It adds the marker, requires outer
+> and authenticated inner SHA checks in the bridge, and gates draft Linux/Android
+> before secret-bearing jobs. The merge does not deploy a guard tag:
+> `workflow-v1.2.0` does not exist, and no newly signed provider-verified immutable
+> protected workflow tag exists yet; live reapproval/reverification remains pending.
+> This is not provider deployment, tag protection,
+> live workflow, or live artifact evidence.
+> DeskForge local remediation includes `da42521`, `9a1ee5e`, and `d67b6e7`; the last
+> requires a stored v2 producer-manifest and exact canonical-output proof across
+> publication, recovery, detail, download, reuse, and handoff boundaries. These local
+> commits remain unpushed; DeskForge PR #59 remains open and dirty remotely.
 
 ---
 

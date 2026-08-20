@@ -12,10 +12,10 @@
 - [x] Approved GPG key is registered; signed annotated `workflow-v1.0.0` targets `b11be6aef84aa110884bec8fa5fe827663b8ff01` and GitHub reports `verification=true`/`reason=valid`.
 - [x] Active restored Ruleset `20901403` protects `refs/tags/workflow-*` with deletion and update protection; fetch/merge updates are disallowed and there are no bypass actors.
 - [x] Provider-derived workflow-tag display and approval are verified; no new GUI architecture is needed. Production use still requires live tag/ruleset re-verification.
-- [x] RustDesk branch `fix/workflow-sha-guard` is pushed at `6ef1cd7fe`; [RustDesk
-      PR #7](https://github.com/bashrusakh/rustdesk/pull/7) is open against
-      `rustqs/workflows`. It is not merged or tagged, and no newly signed
-      provider-verified immutable workflow tag exists yet.
+- [x] [RustDesk PR #7](https://github.com/bashrusakh/rustdesk/pull/7) is merged into
+      `rustqs/workflows` at `ced31ae07f69c20119b88212b10d2eb2df651c97`; prior source
+      commit `6ef1cd7fe` is contained in that merge. `workflow-v1.2.0` does not exist,
+      and no newly signed provider-verified immutable protected workflow tag exists yet.
 
 ## In-progress two-layer workflow SHA guard
 
@@ -32,10 +32,14 @@
       `# deskforge-workflow-identity-guard: v1` marker at the resolved workflow SHA
       before approval, preparation, or secret-bearing dispatch; legacy unguarded tags
       fail closed.
-- [x] Pushed RustDesk `fix/workflow-sha-guard` at `6ef1cd7fe` adds the marker,
+- [x] Merged [RustDesk PR #7](https://github.com/bashrusakh/rustdesk/pull/7) at
+      `ced31ae07f69c20119b88212b10d2eb2df651c97` contains `6ef1cd7fe`, adds the marker,
       requires outer/inner bridge SHA checks, and gates draft Linux/Android before
-      secret-bearing jobs. [RustDesk PR #7](https://github.com/bashrusakh/rustdesk/pull/7)
-      is open against `rustqs/workflows`; the branch is not merged or tagged.
+      secret-bearing jobs. It does not deploy a guard tag; `workflow-v1.2.0` does not
+      exist.
+- [x] DeskForge local `d67b6e7` enforces a stored v2 producer-manifest and exact
+      canonical-output proof across publication, recovery, detail, download, reuse,
+      and handoff boundaries. This is not live provider artifact proof.
 - [ ] Obtain a newly signed provider-verified immutable protected tag and perform live
       reapproval/reverification before production dispatch. Do not claim atomic
       selector/SHA binding or live-provider readiness.
@@ -52,7 +56,7 @@
 - [x] Credentials/approval and publication gates were verified before prior tag publication.
 - [x] Prior PR #59 body update covered the earlier documentation commit only.
 - [ ] PR #59 remains open and dirty remotely; local merge resolution `2c38c87` and
-      later local `da42521`/`9a1ee5e` remediation commits are not pushed.
+      later local `da42521`/`9a1ee5e`/`d67b6e7` remediation commits are not pushed.
 
 ## Explicit unresolved TOCTOU
 

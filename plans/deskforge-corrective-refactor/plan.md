@@ -36,7 +36,7 @@ files, local implementation checks, or dirty submodule state as publication evid
 | PR10 | offline-kit/release evidence | 🟡 `in-progress` | [`phase-10.md`](phases/phase-10.md); Packages A–C implementation/focused checks pass, offline-kit and release gates remain blocked |
 | PR11 | Linux/Android capability | 🟡 `in-progress` | [`phase-11.md`](phases/phase-11.md); local implementation evidence recorded, live capability evidence blocked |
 | PR12 | docs/tracker | ✅ `verified-with-notes` | [`phase-12.md`](phases/phase-12.md); reconciliation included in the cumulative candidate, with PR10/PR11 evidence gates retained |
-| Phase 13 | PR59 review remediation | 🟡 `in-progress` | [`phase-13.md`](phases/phase-13.md); DeskForge schema-283/API remediation is local only; the RustDesk guard is pushed in open PR #7 but remains unmerged, untagged, and not provider evidence |
+| Phase 13 | PR59 review remediation | 🟡 `in-progress` | [`phase-13.md`](phases/phase-13.md); DeskForge schema-283/API and producer-manifest/canonical-output remediation are local only; RustDesk PR #7 is merged, but no newly signed provider-verified immutable protected tag or live provider/artifact proof exists |
 
 ## Preserved completed facts
 
@@ -172,15 +172,18 @@ files, local implementation checks, or dirty submodule state as publication evid
   `# deskforge-workflow-identity-guard: v1` marker at the resolved workflow SHA before
   approval, preparation, or secret-bearing dispatch; legacy unguarded tags fail closed. This
   does not establish atomic GitHub selector/SHA binding or live-provider readiness.
-- RustDesk `fix/workflow-sha-guard` is pushed at `6ef1cd7fe`; [RustDesk PR
-  #7](https://github.com/bashrusakh/rustdesk/pull/7) is open against
-  `rustqs/workflows`. It is not merged or tagged. It adds the marker, requires outer
-  and inner SHA checks in bridge, and gates draft Linux/Android before secret-bearing
-  jobs.
+- [RustDesk PR #7](https://github.com/bashrusakh/rustdesk/pull/7) is merged into
+  `rustqs/workflows` at merge commit
+  `ced31ae07f69c20119b88212b10d2eb2df651c97`, which contains the prior source
+  commit `6ef1cd7fe`. It adds the marker, requires outer and inner SHA checks in the
+  bridge, and gates draft Linux/Android before secret-bearing jobs.
+- Local commit `d67b6e7` requires a stored v2 producer-manifest and exact
+  canonical-output proof across publication, recovery, detail, download, reuse, and
+  handoff boundaries. This is source remediation only, not live provider artifact proof.
 - PR #59 remains open and dirty remotely. Merge resolution is local `2c38c87`; later local
-  `da42521` and `9a1ee5e` are not pushed. No newly signed provider-verified immutable workflow
-  tag exists yet; live tag-protection verification and reapproval/reverification remain required
-  before production dispatch. See
+  `da42521`, `9a1ee5e`, and `d67b6e7` are not pushed. `workflow-v1.2.0` does not exist, and no
+  newly signed provider-verified immutable protected workflow tag exists yet; live tag-protection
+  verification and reapproval/reverification remain required before production dispatch. See
   [`phase-13.md`](phases/phase-13.md) for the SQLite-only validation boundary and full gates.
 
 ## PR10 blueprint — `in-progress`
@@ -507,7 +510,7 @@ helper/tests. `rdgen` deletion and dirty submodule content are excluded. Follow-
 `refactor/deskforge-corrective-pr`, and PR #59 remains open. GitHub run `31785951197`
 passed Go, Rust, Admin UI, and CodeQL/analyzer checks; CodeRabbit was skipped because the
 PR has 191 files. The later local merge resolution `2c38c87` and local remediation commits
-`da42521`/`9a1ee5e` are not pushed, so PR #59 remains open and dirty remotely. PR10 and
+`da42521`/`9a1ee5e`/`d67b6e7` are not pushed, so PR #59 remains open and dirty remotely. PR10 and
 PR11 remain `in-progress`; their live-provider, TOCTOU, cross-DB, offline, and other
 preserved limitations are unchanged. The PR is not marked ready and no live evidence is
 claimed.

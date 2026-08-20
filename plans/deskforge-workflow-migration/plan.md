@@ -12,10 +12,12 @@
 - The approved GPG key is registered. Signed annotated tag `workflow-v1.0.0` targets RustDesk commit `b11be6aef84aa110884bec8fa5fe827663b8ff01`; GitHub reports `verification=true` and `reason=valid`.
 - Active restored Repository Ruleset `20901403` (`DeskForge workflow tags`) protects `refs/tags/workflow-*` with deletion and update protection; `update_allows_fetch_and_merge=false`, `bypass_actors=[]`, and `current_user_can_bypass=never`.
 - The provider-derived workflow-tag display and approval flow are verified; no new GUI architecture is needed. Production use still requires live tag/ruleset re-verification.
-- RustDesk branch `fix/workflow-sha-guard` is pushed at `6ef1cd7fe`; [RustDesk PR
-  #7](https://github.com/bashrusakh/rustdesk/pull/7) is open against
-  `rustqs/workflows`. The branch is not merged or tagged, and no newly signed
-  provider-verified immutable workflow tag exists yet.
+- [RustDesk PR #7](https://github.com/bashrusakh/rustdesk/pull/7) is merged into
+  `rustqs/workflows` at merge commit
+  `ced31ae07f69c20119b88212b10d2eb2df651c97`; prior source commit `6ef1cd7fe` is
+  contained in that merge. This does not establish guard-tag deployment:
+  `workflow-v1.2.0` does not exist, and no newly signed provider-verified immutable
+  protected workflow tag exists yet.
 
 ## Behavioral contract
 
@@ -38,11 +40,15 @@
 - DeskForge now locally requires the exact provider-owned
   `# deskforge-workflow-identity-guard: v1` marker at the resolved workflow SHA before
   approval, preparation, or secret-bearing dispatch. Legacy unguarded tags fail closed.
-- RustDesk `fix/workflow-sha-guard` is pushed at `6ef1cd7fe`; [RustDesk PR
-  #7](https://github.com/bashrusakh/rustdesk/pull/7) is open against
-  `rustqs/workflows`. It adds the marker, requires outer and inner SHA checks in the
-  bridge, and gates draft Linux/Android before secret-bearing jobs. It is not merged
-  or tagged.
+- [RustDesk PR #7](https://github.com/bashrusakh/rustdesk/pull/7) is merged into
+  `rustqs/workflows` at `ced31ae07f69c20119b88212b10d2eb2df651c97`, containing
+  `6ef1cd7fe`. It adds the marker, requires outer and inner SHA checks in the bridge,
+  and gates draft Linux/Android before secret-bearing jobs. The merge does not deploy
+  a guard tag: `workflow-v1.2.0` does not exist.
+- DeskForge local commit `d67b6e7` requires a stored v2 producer-manifest and exact
+  canonical-output proof across publication, recovery, detail, download, reuse, and
+  handoff boundaries. It is source remediation only and does not prove a live provider
+  artifact or production output.
 - The historical signed-tag/ruleset observations above do not close the new guard's
   production gate. A newly signed provider-verified immutable protected tag and live
   reapproval/reverification are still required. GitHub selector/SHA binding remains
@@ -61,7 +67,7 @@
 - [x] Prior PR #59 body synchronization was completed for the earlier documentation
       commit. It does not cover the later local-only remediation.
 - [ ] PR #59 remains open and dirty remotely: local merge resolution `2c38c87` and
-      later local commits `da42521` and `9a1ee5e` are not pushed.
+      later local commits `da42521`, `9a1ee5e`, and `d67b6e7` are not pushed.
 
 ## Explicit unresolved TOCTOU
 

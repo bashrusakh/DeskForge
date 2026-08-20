@@ -142,15 +142,19 @@ release-readiness, or sovereignty claim is made.
       `# deskforge-workflow-identity-guard: v1` requirement at the resolved workflow
       SHA before approval, preparation, or secret-bearing dispatch; legacy unguarded
       tags fail closed without claiming atomic selector/SHA binding or live readiness.
-    - [x] Record RustDesk `fix/workflow-sha-guard` as pushed at `6ef1cd7fe`, with
-      [RustDesk PR #7](https://github.com/bashrusakh/rustdesk/pull/7) open against
-      `rustqs/workflows`; it is not merged or tagged, and no newly signed
-      provider-verified immutable workflow tag exists yet.
+    - [x] Record local `d67b6e7` enforcement of a stored v2 producer-manifest and exact
+      canonical-output proof across publication, recovery, detail, download, reuse, and
+      handoff boundaries, without claiming live provider artifact proof.
+    - [x] Record [RustDesk PR #7](https://github.com/bashrusakh/rustdesk/pull/7) as
+      merged into `rustqs/workflows` at
+      `ced31ae07f69c20119b88212b10d2eb2df651c97`, containing prior source commit
+      `6ef1cd7fe`.
     - [x] Record PR #59 as open/dirty remotely, with local-only `2c38c87` merge
-      resolution and unpushed `da42521`/`9a1ee5e` remediation commits.
-    - [ ] Before production dispatch, obtain a newly signed provider-verified immutable
-      protected tag and perform live reapproval/reverification. MySQL/PostgreSQL and
-      live-provider evidence remain separate unverified gates. See
+      resolution and unpushed `da42521`/`9a1ee5e`/`d67b6e7` remediation commits.
+    - [ ] `workflow-v1.2.0` does not exist. Before production dispatch, obtain a newly
+      signed provider-verified immutable protected tag and perform live
+      reapproval/reverification. MySQL/PostgreSQL and live-provider evidence remain
+      separate unverified gates. See
       [`phase-13.md`](phases/phase-13.md).
 
 ### PR12 audited-doc and remaining-gate checklist
@@ -216,8 +220,12 @@ release-readiness, or sovereignty claim is made.
   live-provider, PR10/PR11, cross-DB, and offline limitations remain unchanged.
 - Current Phase 13 state: schema 283 is local-only and adds the CustomPreset owner/name
   unique index with a fail-closed duplicate preflight; schema 282 remains historical.
-  The exact workflow identity marker is locally required, but PR #59 remains open/dirty
-  remotely because `2c38c87`, `da42521`, and `9a1ee5e` are not pushed.
+  The exact workflow identity marker and `d67b6e7` stored v2 producer-manifest and exact
+  canonical-output proof are locally required. RustDesk PR #7 is merged into
+  `rustqs/workflows` at `ced31ae07f69c20119b88212b10d2eb2df651c97`, containing
+  `6ef1cd7fe`; `workflow-v1.2.0` does not exist. PR #59 remains open/dirty remotely
+  because `2c38c87`, `da42521`, `9a1ee5e`, and `d67b6e7` are not pushed. These facts do
+  not provide live artifact proof, cross-DB evidence, or atomic selector/SHA binding.
 
 ## Immediate next action
 

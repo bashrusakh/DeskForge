@@ -18,16 +18,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   the immutable workflow SHA before approval, preparation, or secret-bearing
   dispatch. Legacy unguarded tags fail closed. This is not an atomic GitHub
   selector/SHA binding or live-provider-readiness claim.
-- RustDesk branch `fix/workflow-sha-guard` is pushed at `6ef1cd7fe`; [RustDesk PR
-  #7](https://github.com/bashrusakh/rustdesk/pull/7) is open against
-  `rustqs/workflows`. It is not merged or tagged. It adds the marker, requires outer
-  and inner SHA checks in the bridge, and gates draft Linux/Android before
-  secret-bearing jobs.
+- [RustDesk PR #7](https://github.com/bashrusakh/rustdesk/pull/7) is merged into
+  `rustqs/workflows` at merge commit
+  `ced31ae07f69c20119b88212b10d2eb2df651c97`, containing prior source commit
+  `6ef1cd7fe`. It adds the marker, requires outer and inner SHA checks in the bridge,
+  and gates draft Linux/Android before secret-bearing jobs.
+- DeskForge local source remediation also includes `d67b6e7`, which requires a stored
+  v2 producer-manifest and exact canonical-output proof across publication, recovery,
+  detail, download, reuse, and handoff boundaries. This is not live provider artifact
+  or production-output proof.
 - DeskForge PR #59 remains open and dirty remotely. The merge conflict is resolved
-  only in local `2c38c87`; later local `da42521` and `9a1ee5e` are not pushed. No
-  newly signed provider-verified immutable workflow tag exists yet; live tag
-  protection verification, reapproval, and reverification remain required before
-  production dispatch.
+  only in local `2c38c87`; later local `da42521`, `9a1ee5e`, and `d67b6e7` are not
+  pushed. `workflow-v1.2.0` does not exist, and no newly signed provider-verified
+  immutable protected workflow tag exists yet; live tag protection verification,
+  reapproval, and reverification remain required before production dispatch.
 - Prior local remediation results record passing focused migration/custom-preset
   coverage, a focused race check, `go vet`, `gofmt`, and `git diff --check`.
   Migration evidence is SQLite-only; MySQL/PostgreSQL migration and read/write
