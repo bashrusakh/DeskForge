@@ -724,7 +724,18 @@ func (is *CustomBuildService) RecordPublishedOutput(buildID uint, expectedRunID,
 			return &BuildProgressPersistenceError{BuildID: buildID, Cause: err}
 		}
 	}
-	_, digest, err := publishedOutputManifest(BuildOutputDir(buildID), &build)
+	publicationBuild := build
+	if build.PublicationRecordedAt <= 0 && build.PublishedDigest == "" {
+		// A first publication may atomically persist the manifest with its
+		// marker. Existing markers must prove against the value already stored
+		// on the row; an optional retry argument cannot repair missing proof.
+		publicationBuild.ProducerManifestJSON = manifestJSON
+	}
+	outputDir := BuildOutputDir(buildID)
+	if err := validateStoredProducerManifestOutput(&publicationBuild, outputDir); err != nil {
+		return &BuildProgressPersistenceError{BuildID: buildID, Cause: err}
+	}
+	_, digest, err := publishedOutputManifest(outputDir, &publicationBuild)
 	if err != nil {
 		return &BuildProgressPersistenceError{BuildID: buildID, Cause: err}
 	}

@@ -271,7 +271,7 @@ func TestWorkflowRefApprovalEndpointRequiresAdminAndReturnsSafeStatus(t *testing
 			body = `{"sha":"` + strings.Repeat("b", 40) + `","object":{"sha":"` + strings.Repeat("a", 40) + `","type":"commit"},"verification":{"verified":true,"reason":"valid"}}`
 		} else if strings.Contains(req.URL.Path, "/contents/.github/workflows/") {
 			status = http.StatusOK
-			body = `{"type":"file","path":".github/workflows/rustqs-windows.yml","sha":"` + strings.Repeat("c", 40) + `","encoding":"base64","content":"b246CiAgd29ya2Zsb3dfZGlzcGF0Y2g6Cg=="}`
+			body = `{"type":"file","path":".github/workflows/rustqs-windows.yml","sha":"` + strings.Repeat("c", 40) + `","encoding":"base64","content":"IyBkZXNrZm9yZ2Utd29ya2Zsb3ctaWRlbnRpdHktZ3VhcmQ6IHYxCm9uOgogIHdvcmtmbG93X2Rpc3BhdGNoOgo="}`
 		} else if strings.Contains(req.URL.Path, "/actions/workflows/") {
 			status = http.StatusOK
 			body = `{"state":"active"}`

@@ -231,7 +231,6 @@ func newAdminCompleteManifestBuild(t *testing.T) *model.CustomBuild {
 	}
 	for name, contents := range map[string]string{
 		"rustqs.exe":  "exe",
-		"helper.dll":  "dll",
 		"custom_.txt": "PAT-secret",
 	} {
 		if err := os.WriteFile(filepath.Join(outputDir, name), []byte(contents), 0600); err != nil {
@@ -258,6 +257,7 @@ func newAdminCompleteManifestBuild(t *testing.T) *model.CustomBuild {
 		PublicationTimestamp: build.PublicationRecordedAt,
 		HandoffContract:      service.ProducerManifestHandoffContract,
 		Files:                []service.ProducerManifestFile{{Name: "rustqs.exe", Size: 3, SHA256: hex.EncodeToString(exeHash[:])}},
+		PrivateFilenames:     []string{"custom_.txt"},
 	}
 	producerManifestJSON, err := producerManifest.StoredJSON()
 	if err != nil {

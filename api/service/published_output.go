@@ -229,6 +229,30 @@ func ValidatePublishedOutputDigest(build *model.CustomBuild) (int64, error) {
 	return size, nil
 }
 
+// validateStoredProducerManifestOutput enforces the producer-owned proof for
+// provider-backed outputs. Legacy identity-less rows intentionally retain their
+// manifest-optional compatibility path; they remain non-public through the
+// completed-build provenance predicate.
+func validateStoredProducerManifestOutput(build *model.CustomBuild, outputDir string) error {
+	if build == nil {
+		return errors.New("build record is required")
+	}
+	if !RequiresProducerManifest(build) {
+		return nil
+	}
+	manifest, err := ProducerManifestFromStoredJSON(build.ProducerManifestJSON)
+	if err != nil {
+		return fmt.Errorf("provider publication requires a valid stored producer manifest: %w", err)
+	}
+	if err := ValidateProducerManifestForBuild(manifest, build); err != nil {
+		return fmt.Errorf("provider publication manifest does not match immutable build identity: %w", err)
+	}
+	if _, err := ValidateProducerManifestOutput(manifest, outputDir); err != nil {
+		return fmt.Errorf("provider publication output does not match stored producer manifest: %w", err)
+	}
+	return nil
+}
+
 // ValidatePublishedOutputProof verifies the stored publication marker/digest
 // against the current canonical output without requiring the row to be done.
 // It is used by recovery and publication code that must not reuse an unproven
@@ -240,7 +264,11 @@ func ValidatePublishedOutputProof(build *model.CustomBuild) (int64, error) {
 	if build.PublicationRecordedAt <= 0 || !validPublishedDigest(build.PublishedDigest) {
 		return 0, errors.New("published output marker or digest is missing")
 	}
-	size, digest, err := publishedOutputManifest(BuildOutputDir(build.Id), build)
+	outputDir := BuildOutputDir(build.Id)
+	if err := validateStoredProducerManifestOutput(build, outputDir); err != nil {
+		return 0, err
+	}
+	size, digest, err := publishedOutputManifest(outputDir, build)
 	if err != nil {
 		return 0, err
 	}

@@ -88,6 +88,37 @@ func TestCustomBuildDownloadByIDRejectsPartialAndInvalidBuilds(t *testing.T) {
 	}
 }
 
+func TestPublicBuildRoutesRejectMissingStoredProducerManifest(t *testing.T) {
+	build, db, cleanup := setupDownloadBuild(t, model.CustomBuildStatusDone)
+	defer cleanup()
+	if err := db.Model(&model.CustomBuild{}).Where("id = ?", build.Id).Update("producer_manifest_json", "").Error; err != nil {
+		t.Fatalf("remove stored producer manifest: %v", err)
+	}
+
+	for _, tc := range []struct {
+		name    string
+		handler func(*gin.Context)
+		path    string
+	}{
+		{name: "public detail", handler: (&CustomBuild{}).DetailByKey, path: "/detail/" + build.DownloadKey},
+		{name: "public download", handler: (&CustomBuild{}).DownloadByKey, path: "/download/" + build.DownloadKey},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(http.MethodGet, tc.path, nil)
+			c.Params = gin.Params{{Key: "key", Value: build.DownloadKey}}
+			tc.handler(c)
+			if recorder.Code != http.StatusConflict {
+				t.Fatalf("%s status = %d, want %d; body=%s", tc.name, recorder.Code, http.StatusConflict, recorder.Body.String())
+			}
+			if got := recorder.Header().Get("X-DeskForge-Archive-SHA256"); got != "" {
+				t.Fatalf("%s set archive digest header %q", tc.name, got)
+			}
+		})
+	}
+}
+
 func TestCustomBuildDownloadByIDRejectsRangeBeforeArchiveHeaders(t *testing.T) {
 	build, _, cleanup := setupDownloadBuild(t, model.CustomBuildStatusDone)
 	defer cleanup()
@@ -221,6 +252,7 @@ func setupDownloadBuild(t *testing.T, status string) (*model.CustomBuild, *gorm.
 		PublicationRecordedAt: 1,
 	}
 	prepareAdminBuildProvenance(build)
+	setAdminWindowsProducerManifest(t, build, "binary")
 	if err := db.Create(build).Error; err != nil {
 		t.Fatalf("create download build: %v", err)
 	}

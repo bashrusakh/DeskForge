@@ -47,16 +47,15 @@ func TestBuildHandoffManifestIsCanonicalAndContainsExactDigestFields(t *testing.
 	if manifest.ProducerReport.VerificationResult != ProducerManifestVerificationResult || manifest.ProducerReport.VerificationStatus != HandoffVerificationStatusReported || manifest.ProducerReport.VerificationResult == HandoffVerificationStatusServiceVerified || manifest.ProducerReport.VerificationScope != HandoffProducerVerificationScope {
 		t.Fatalf("producer report = %#v, want explicitly reported producer source evidence", manifest.ProducerReport)
 	}
-	if len(manifest.OutputFiles) != 2 || manifest.OutputFiles[0].Name != "helper.dll" || manifest.OutputFiles[1].Name != "rustqs.exe" {
-		t.Fatalf("redacted output files = %#v, want sorted non-secret entries", manifest.OutputFiles)
+	if len(manifest.OutputFiles) != 1 || manifest.OutputFiles[0].Name != "rustqs.exe" {
+		t.Fatalf("redacted output files = %#v, want rustqs.exe", manifest.OutputFiles)
 	}
-	if manifest.OutputFiles[0].Size != int64(len("helper")) || manifest.OutputFiles[1].Size != int64(len("executable")) {
+	if manifest.OutputFiles[0].Size != int64(len("executable")) {
 		t.Fatalf("redacted output sizes = %#v, want exact byte sizes", manifest.OutputFiles)
 	}
-	helperHash := sha256.Sum256([]byte("helper"))
 	exeHash := sha256.Sum256([]byte("executable"))
-	if manifest.OutputFiles[0].SHA256 != hex.EncodeToString(helperHash[:]) || manifest.OutputFiles[1].SHA256 != hex.EncodeToString(exeHash[:]) {
-		t.Fatalf("redacted output hashes = %#v, want helper=%x exe=%x", manifest.OutputFiles, helperHash, exeHash)
+	if manifest.OutputFiles[0].SHA256 != hex.EncodeToString(exeHash[:]) {
+		t.Fatalf("redacted output hashes = %#v, want exe=%x", manifest.OutputFiles, exeHash)
 	}
 	if len(manifest.ReleaseAssets) != len(requiredOfflineAssetNames) {
 		t.Fatalf("release assets = %d, want %d", len(manifest.ReleaseAssets), len(requiredOfflineAssetNames))
@@ -255,7 +254,6 @@ func newCompleteBuildHandoffFixture(t *testing.T) *model.CustomBuild {
 	}
 	for name, contents := range map[string]string{
 		"rustqs.exe":  "executable",
-		"helper.dll":  "helper",
 		"custom_.txt": "secret-bearing settings must not be exported",
 	} {
 		if err := os.WriteFile(filepath.Join(outputDir, name), []byte(contents), 0600); err != nil {
@@ -263,6 +261,7 @@ func newCompleteBuildHandoffFixture(t *testing.T) *model.CustomBuild {
 		}
 	}
 	producerManifest := producerManifestForBuild(build, map[string]string{"rustqs.exe": "executable"})
+	producerManifest.PrivateFilenames = []string{"custom_.txt"}
 	producerManifestJSON, err := producerManifest.StoredJSON()
 	if err != nil {
 		t.Fatalf("ProducerManifest.StoredJSON() error: %v", err)

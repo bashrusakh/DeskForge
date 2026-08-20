@@ -805,6 +805,7 @@ func TestRecordPublishedOutputValidatesContentAndWritesMarkerOnce(t *testing.T) 
 		GithubHtmlUrl:       "https://github.com/owner/repo/actions/runs/17",
 		AssetsReleaseAssets: string(mustTestReleaseAssetsJSON(t)),
 	}
+	producerManifest := producerManifestForBuild(build, map[string]string{"rustqs.exe": "published"})
 	if err := db.Create(build).Error; err != nil {
 		t.Fatalf("create build: %v", err)
 	}
@@ -812,7 +813,7 @@ func TestRecordPublishedOutputValidatesContentAndWritesMarkerOnce(t *testing.T) 
 	if err := os.WriteFile(filepath.Join(decoyDir, "rustqs.exe"), []byte("caller-selected"), 0600); err != nil {
 		t.Fatalf("write decoy output: %v", err)
 	}
-	if err := (&CustomBuildService{}).RecordPublishedOutput(build.Id, build.GithubRunId, build.GithubArtifactID); err == nil {
+	if err := (&CustomBuildService{}).RecordPublishedOutput(build.Id, build.GithubRunId, build.GithubArtifactID, producerManifest); err == nil {
 		t.Fatal("RecordPublishedOutput() error = nil for missing canonical output, want validation failure")
 	}
 
@@ -824,7 +825,7 @@ func TestRecordPublishedOutputValidatesContentAndWritesMarkerOnce(t *testing.T) 
 		t.Fatalf("write output: %v", err)
 	}
 	service := &CustomBuildService{}
-	if err := service.RecordPublishedOutput(build.Id, build.GithubRunId, build.GithubArtifactID); err != nil {
+	if err := service.RecordPublishedOutput(build.Id, build.GithubRunId, build.GithubArtifactID, producerManifest); err != nil {
 		t.Fatalf("RecordPublishedOutput() valid output error = %v", err)
 	}
 	var stored model.CustomBuild
@@ -837,9 +838,14 @@ func TestRecordPublishedOutputValidatesContentAndWritesMarkerOnce(t *testing.T) 
 	if !validPublishedDigest(stored.PublishedDigest) {
 		t.Fatalf("published digest = %q, want SHA-256 hex", stored.PublishedDigest)
 	}
+	if storedManifest, err := ProducerManifestFromStoredJSON(stored.ProducerManifestJSON); err != nil {
+		t.Fatalf("stored producer manifest: %v", err)
+	} else if err := ValidateProducerManifestForBuild(storedManifest, &stored); err != nil {
+		t.Fatalf("stored producer manifest identity: %v", err)
+	}
 	marker := stored.PublicationRecordedAt
 	digest := stored.PublishedDigest
-	if err := service.RecordPublishedOutput(build.Id, build.GithubRunId, build.GithubArtifactID); err != nil {
+	if err := service.RecordPublishedOutput(build.Id, build.GithubRunId, build.GithubArtifactID, producerManifest); err != nil {
 		t.Fatalf("RecordPublishedOutput() idempotent retry error = %v", err)
 	}
 	if err := db.First(&stored, build.Id).Error; err != nil {
@@ -918,7 +924,8 @@ func TestPublishedOutputDigestMismatchFailsClosed(t *testing.T) {
 		t.Fatalf("write output: %v", err)
 	}
 	service := &CustomBuildService{}
-	if err := service.RecordPublishedOutput(build.Id, build.GithubRunId, build.GithubArtifactID); err != nil {
+	producerManifest := producerManifestForBuild(build, map[string]string{"rustqs.exe": "published"})
+	if err := service.RecordPublishedOutput(build.Id, build.GithubRunId, build.GithubArtifactID, producerManifest); err != nil {
 		t.Fatalf("RecordPublishedOutput() error = %v", err)
 	}
 	var stored model.CustomBuild
@@ -967,7 +974,8 @@ func TestPublishedOutputDigestBindsImmutablePublicationIdentity(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(outDir, "rustqs.exe"), []byte("published"), 0600); err != nil {
 		t.Fatalf("write output: %v", err)
 	}
-	if err := (&CustomBuildService{}).RecordPublishedOutput(build.Id, build.GithubRunId, build.GithubArtifactID); err != nil {
+	producerManifest := producerManifestForBuild(build, map[string]string{"rustqs.exe": "published"})
+	if err := (&CustomBuildService{}).RecordPublishedOutput(build.Id, build.GithubRunId, build.GithubArtifactID, producerManifest); err != nil {
 		t.Fatalf("record publication: %v", err)
 	}
 	var stored model.CustomBuild
@@ -988,6 +996,199 @@ func TestPublishedOutputDigestBindsImmutablePublicationIdentity(t *testing.T) {
 				t.Fatal("ValidatePublishedOutputProof() succeeded after immutable publication identity mutation")
 			}
 		})
+	}
+}
+
+func TestProviderPublicationProofRequiresStoredManifestAndExactOutput(t *testing.T) {
+	cases := []struct {
+		name           string
+		storedManifest func(*model.CustomBuild) string
+		mutateOutput   func(*testing.T, string)
+	}{
+		{
+			name: "missing stored manifest",
+			storedManifest: func(*model.CustomBuild) string {
+				return ""
+			},
+		},
+		{
+			name: "legacy v1 stored manifest",
+			storedManifest: func(build *model.CustomBuild) string {
+				encoded, err := json.Marshal(ProducerManifest{
+					Schema:          ProducerManifestSchema,
+					SchemaVersion:   1,
+					Platform:        build.Platform,
+					AppName:         build.AppName,
+					OutputFilenames: []string{"rustqs.exe"},
+					SourceSHA:       build.BuildRef,
+					WorkflowSHA:     build.GithubRef,
+					WorkflowRef:     build.WorkflowSelector,
+					Version:         build.Version,
+					DigestScope:     producerManifestLegacyDigestScope,
+					Files:           []ProducerManifestFile{{Name: "rustqs.exe", SHA256: strings.Repeat("a", 64)}},
+				})
+				if err != nil {
+					t.Fatalf("marshal legacy producer manifest: %v", err)
+				}
+				return string(encoded)
+			},
+		},
+		{
+			name: "malformed stored manifest",
+			storedManifest: func(*model.CustomBuild) string {
+				return `{"schema":`
+			},
+		},
+		{
+			name: "identity-mismatched stored manifest",
+			storedManifest: func(build *model.CustomBuild) string {
+				manifest := producerManifestForBuild(build, map[string]string{"rustqs.exe": "published"})
+				manifest.SourceSHA = strings.Repeat("b", 40)
+				encoded, err := manifest.StoredJSON()
+				if err != nil {
+					t.Fatalf("store identity-mismatched producer manifest: %v", err)
+				}
+				return encoded
+			},
+		},
+		{
+			name: "missing final file",
+			storedManifest: func(build *model.CustomBuild) string {
+				return mustStoredProducerManifestJSON(t, build, map[string]string{"rustqs.exe": "published"})
+			},
+			mutateOutput: func(t *testing.T, outputDir string) {
+				t.Helper()
+				if err := os.Remove(filepath.Join(outputDir, "rustqs.exe")); err != nil {
+					t.Fatalf("remove final output: %v", err)
+				}
+			},
+		},
+		{
+			name: "mutated final file",
+			storedManifest: func(build *model.CustomBuild) string {
+				return mustStoredProducerManifestJSON(t, build, map[string]string{"rustqs.exe": "published"})
+			},
+			mutateOutput: func(t *testing.T, outputDir string) {
+				t.Helper()
+				if err := os.WriteFile(filepath.Join(outputDir, "rustqs.exe"), []byte("mutated"), 0600); err != nil {
+					t.Fatalf("mutate final output: %v", err)
+				}
+			},
+		},
+		{
+			name: "extra final file",
+			storedManifest: func(build *model.CustomBuild) string {
+				return mustStoredProducerManifestJSON(t, build, map[string]string{"rustqs.exe": "published"})
+			},
+			mutateOutput: func(t *testing.T, outputDir string) {
+				t.Helper()
+				if err := os.WriteFile(filepath.Join(outputDir, "helper.dll"), []byte("extra"), 0600); err != nil {
+					t.Fatalf("write extra final output: %v", err)
+				}
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			db := newCustomPersistenceDB(t)
+			build := &model.CustomBuild{
+				Status:              model.CustomBuildStatusExtracting,
+				Platform:            "windows",
+				Version:             "1.2.3",
+				AppName:             "rustqs",
+				BuildRef:            strings.Repeat("a", 40),
+				SourceTag:           "1.2.3",
+				AssetsRelease:       "offline-assets-1.2.3",
+				AssetsReleaseID:     12,
+				GithubRunId:         17,
+				GithubProvider:      "github",
+				GithubRepo:          "owner/repo",
+				GithubWorkflow:      "workflow.yml",
+				WorkflowSelector:    defaultWorkflowExecutionRef,
+				GithubRef:           strings.Repeat("a", 40),
+				GithubArtifactName:  "artifact",
+				GithubArtifactID:    42,
+				GithubRunUrl:        "https://api.github.com/repos/owner/repo/actions/runs/17",
+				GithubHtmlUrl:       "https://github.com/owner/repo/actions/runs/17",
+				AssetsReleaseAssets: string(mustTestReleaseAssetsJSON(t)),
+			}
+			build.ProducerManifestJSON = tc.storedManifest(build)
+			if err := db.Create(build).Error; err != nil {
+				t.Fatalf("create provider build: %v", err)
+			}
+			outputDir := BuildOutputDir(build.Id)
+			if err := os.MkdirAll(outputDir, 0755); err != nil {
+				t.Fatalf("create canonical output: %v", err)
+			}
+			if err := os.WriteFile(filepath.Join(outputDir, "rustqs.exe"), []byte("published"), 0600); err != nil {
+				t.Fatalf("write canonical output: %v", err)
+			}
+			if tc.mutateOutput != nil {
+				tc.mutateOutput(t, outputDir)
+			}
+
+			err := (&CustomBuildService{}).RecordPublishedOutput(build.Id, build.GithubRunId, build.GithubArtifactID)
+			var persistenceErr *BuildProgressPersistenceError
+			if err == nil || !errors.As(err, &persistenceErr) {
+				t.Fatalf("RecordPublishedOutput() error = %T %v, want typed proof rejection", err, err)
+			}
+			var stored model.CustomBuild
+			if err := db.First(&stored, build.Id).Error; err != nil {
+				t.Fatalf("read rejected publication: %v", err)
+			}
+			if stored.PublicationRecordedAt != 0 || stored.PublishedDigest != "" {
+				t.Fatalf("rejected provider publication blessed marker/digest: %#v", stored)
+			}
+
+			stored.PublicationRecordedAt = 1
+			stored.PublishedDigest = strings.Repeat("a", 64)
+			if _, err := ValidatePublishedOutputProof(&stored); err == nil {
+				t.Fatal("ValidatePublishedOutputProof() error = nil for invalid provider proof")
+			}
+			if err := db.Model(&model.CustomBuild{}).Where("id = ?", build.Id).Updates(map[string]any{
+				"publication_recorded_at": stored.PublicationRecordedAt,
+				"published_digest":        stored.PublishedDigest,
+			}).Error; err != nil {
+				t.Fatalf("seed invalid stored proof: %v", err)
+			}
+			_, recoveryErr := (&CustomBuildService{}).ValidateRecordedPublishedOutput(build.Id, build.GithubRunId, build.GithubArtifactID)
+			var recoveryPersistenceErr *BuildProgressPersistenceError
+			if recoveryErr == nil || !errors.As(recoveryErr, &recoveryPersistenceErr) {
+				t.Fatalf("ValidateRecordedPublishedOutput() error = %T %v, want typed proof rejection", recoveryErr, recoveryErr)
+			}
+		})
+	}
+}
+
+func TestIdentitylessPublishedOutputProofRemainsManifestOptionalAndNonPublic(t *testing.T) {
+	db := newCustomPersistenceDB(t)
+	build := &model.CustomBuild{
+		Status:   model.CustomBuildStatusDone,
+		Platform: "windows",
+		AppName:  "rustqs",
+	}
+	if err := db.Create(build).Error; err != nil {
+		t.Fatalf("create legacy build: %v", err)
+	}
+	outputDir := BuildOutputDir(build.Id)
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		t.Fatalf("create legacy output: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(outputDir, "rustqs.exe"), []byte("legacy"), 0600); err != nil {
+		t.Fatalf("write legacy output: %v", err)
+	}
+	digest, err := PublishedOutputDigest(build)
+	if err != nil {
+		t.Fatalf("PublishedOutputDigest() legacy output: %v", err)
+	}
+	build.PublicationRecordedAt = 1
+	build.PublishedDigest = digest
+	if _, err := ValidatePublishedOutputProof(build); err != nil {
+		t.Fatalf("ValidatePublishedOutputProof() legacy manifest-optional output: %v", err)
+	}
+	if _, _, err := ValidateCompletedPublishedOutput(build); err == nil {
+		t.Fatal("ValidateCompletedPublishedOutput() accepted identity-less legacy output as public")
 	}
 }
 
@@ -1583,6 +1784,15 @@ func mustTestReleaseAssetsJSON(t *testing.T) []byte {
 	return assetsJSON
 }
 
+func mustStoredProducerManifestJSON(t *testing.T, build *model.CustomBuild, contents map[string]string) string {
+	t.Helper()
+	stored, err := producerManifestForBuild(build, contents).StoredJSON()
+	if err != nil {
+		t.Fatalf("store producer manifest: %v", err)
+	}
+	return stored
+}
+
 func recordValidPublication(t *testing.T, build *model.CustomBuild) {
 	t.Helper()
 	assetsJSON := mustTestReleaseAssetsJSON(t)
@@ -1647,7 +1857,8 @@ func recordValidPublication(t *testing.T, build *model.CustomBuild) {
 	if err := os.WriteFile(filepath.Join(outDir, appName+".exe"), []byte("published"), 0600); err != nil {
 		t.Fatalf("write published output: %v", err)
 	}
-	if err := (&CustomBuildService{}).RecordPublishedOutput(build.Id, build.GithubRunId, build.GithubArtifactID); err != nil {
+	producerManifest := producerManifestForBuild(build, map[string]string{appName + ".exe": "published"})
+	if err := (&CustomBuildService{}).RecordPublishedOutput(build.Id, build.GithubRunId, build.GithubArtifactID, producerManifest); err != nil {
 		t.Fatalf("RecordPublishedOutput() error = %v", err)
 	}
 }

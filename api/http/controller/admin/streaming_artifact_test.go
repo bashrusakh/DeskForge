@@ -457,6 +457,7 @@ func TestDownloadByKeyBuildsArchiveBeforeSendingSuccessHeaders(t *testing.T) {
 		GithubHtmlUrl:         "https://github.com/owner/repo/actions/runs/901",
 	}
 	prepareAdminBuildProvenance(build)
+	setAdminWindowsProducerManifest(t, build, "binary")
 	if err := db.Create(build).Error; err != nil {
 		t.Fatalf("create build: %v", err)
 	}
@@ -566,6 +567,7 @@ func TestDetailByKeyRedactsCapabilityKey(t *testing.T) {
 		GithubHtmlUrl:         "https://github.com/owner/repo/actions/runs/901",
 	}
 	prepareAdminBuildProvenance(build)
+	setAdminWindowsProducerManifest(t, build, "binary")
 	if err := db.Create(build).Error; err != nil {
 		t.Fatalf("create build: %v", err)
 	}
@@ -822,6 +824,7 @@ func TestDetailByKeyRejectsDoneBuildAfterPublishedOutputMutation(t *testing.T) {
 
 	build := &model.CustomBuild{
 		Status:                model.CustomBuildStatusDone,
+		Platform:              "windows",
 		AppName:               "rustqs",
 		DownloadKey:           "detail-mutated-key",
 		Version:               "1.2.3",
@@ -841,6 +844,7 @@ func TestDetailByKeyRejectsDoneBuildAfterPublishedOutputMutation(t *testing.T) {
 		GithubHtmlUrl:         "https://github.com/owner/repo/actions/runs/902",
 	}
 	prepareAdminBuildProvenance(build)
+	setAdminWindowsProducerManifest(t, build, "published")
 	if err := db.Create(build).Error; err != nil {
 		t.Fatalf("create build: %v", err)
 	}
@@ -901,6 +905,8 @@ func TestDownloadByKeyReturnsServerErrorBeforeHeadersWhenPackagingFails(t *testi
 		GithubRunUrl:          "https://api.github.com/repos/owner/repo/actions/runs/901",
 		GithubHtmlUrl:         "https://github.com/owner/repo/actions/runs/901",
 	}
+	prepareAdminBuildProvenance(build)
+	setAdminWindowsProducerManifest(t, build, "binary")
 	if err := db.Create(build).Error; err != nil {
 		t.Fatalf("create build: %v", err)
 	}
@@ -1518,6 +1524,7 @@ func TestPollRecoversValidFinalOutputBeforeProviderRedownload(t *testing.T) {
 		GithubHtmlUrl:      "https://github.com/owner/repo/actions/runs/779",
 	}
 	prepareAdminBuildProvenance(build)
+	setAdminWindowsProducerManifest(t, build, "recovered")
 	if err := db.Create(build).Error; err != nil {
 		t.Fatalf("create build: %v", err)
 	}
@@ -1629,6 +1636,38 @@ func activeWindowsBuild(id uint) *model.CustomBuild {
 		GithubSourceSha:  strings.Repeat("a", 40),
 		GithubRunId:      1,
 	}
+}
+
+func setAdminWindowsProducerManifest(t *testing.T, build *model.CustomBuild, contents string) {
+	t.Helper()
+	digest := sha256.Sum256([]byte(contents))
+	manifest := service.ProducerManifest{
+		Schema:               service.ProducerManifestSchema,
+		ManifestSchema:       service.ProducerManifestSchema,
+		SchemaVersion:        service.ProducerManifestVersion,
+		Platform:             build.Platform,
+		AppName:              build.AppName,
+		OutputFilenames:      []string{build.AppName + ".exe"},
+		SourceSHA:            build.BuildRef,
+		WorkflowSHA:          build.GithubRef,
+		WorkflowRef:          build.WorkflowSelector,
+		Version:              build.Version,
+		SourceTreeSHA:        strings.Repeat("c", 40),
+		Submodules:           []service.ProducerManifestSubmodule{},
+		DigestScope:          service.ProducerManifestDigestScope,
+		VerificationScope:    service.ProducerManifestVerificationScope,
+		VerificationResult:   service.ProducerManifestVerificationResult,
+		PublicationTimestamp: 1700000000,
+		HandoffContract:      service.ProducerManifestHandoffContract,
+		Files: []service.ProducerManifestFile{{
+			Name: build.AppName + ".exe", Size: int64(len(contents)), SHA256: hex.EncodeToString(digest[:]),
+		}},
+	}
+	stored, err := manifest.StoredJSON()
+	if err != nil {
+		t.Fatalf("store admin producer manifest: %v", err)
+	}
+	build.ProducerManifestJSON = stored
 }
 
 func markPublishedDigest(t *testing.T, db *gorm.DB, build *model.CustomBuild) {
