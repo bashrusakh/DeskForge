@@ -122,7 +122,10 @@ Approval requires all of the following at the provider boundary:
   verification reason;
 - positive protection evidence for that exact tag from the supported modern
   ruleset surface, with no bypass actor and no tag/branch collision;
-- the owned workflow is present and ready at the provider-resolved commit.
+- the owned Windows workflow is present and ready at the provider-resolved
+  immutable commit, declares `workflow_dispatch`, and contains the exact
+  `# deskforge-workflow-identity-guard: v1` marker. Legacy tags without that
+  guard are rejected.
 
 The successful response is `response.Response` with `data` as the secret-free
 `model.GithubBuildConfigSafe`. Invalid selectors or approval requests return

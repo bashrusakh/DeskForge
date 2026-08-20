@@ -22,6 +22,8 @@ import (
 	"rustdesk-server/api/model"
 )
 
+const testWorkflowIdentityGuardMarker = "# deskforge-workflow-identity-guard: v1"
+
 type githubRoundTripFunc func(*http.Request) (*http.Response, error)
 
 type countingGithubReader struct {
@@ -106,7 +108,7 @@ func testReleaseDetails(id int64, tag string) string {
 }
 
 func testWorkflowFileResponse(workflow string) string {
-	return testWorkflowFileResponseWithContent(workflow, "on:\n  workflow_dispatch:\n")
+	return testWorkflowFileResponseWithContent(workflow, testWorkflowIdentityGuardMarker+"\non:\n  workflow_dispatch:\n")
 }
 
 func testWorkflowFileResponseWithContent(workflow, content string) string {

@@ -1148,7 +1148,37 @@ func TestVerifyWorkflowAvailableRequiresWorkflowDispatch(t *testing.T) {
 	}
 }
 
-func TestVerifyWorkflowAvailableAcceptsWorkflowDispatchForms(t *testing.T) {
+func TestVerifyWorkflowAvailableRequiresWorkflowIdentityGuard(t *testing.T) {
+	workflowSHA := strings.Repeat("a", 40)
+	stateRequests := 0
+	withGithubTransport(t, githubRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if strings.Contains(req.URL.Path, "/contents/.github/workflows/") {
+			return githubResponse(http.StatusOK, testWorkflowFileResponseWithContent("rustqs-windows.yml", "name: unguarded\non:\n  workflow_dispatch:\n"), nil), nil
+		}
+		if strings.Contains(req.URL.Path, "/actions/workflows/") {
+			stateRequests++
+			return githubResponse(http.StatusOK, testWorkflowStateResponse(), nil), nil
+		}
+		t.Fatalf("unexpected readiness request: %s %s", req.Method, req.URL.Path)
+		return nil, nil
+	}))
+
+	err := (&GithubBuildConfigService{}).verifyWorkflowAvailable(
+		context.Background(), &model.GithubBuildConfig{Repo: "owner/repo"}, windowsWorkflowFilename, workflowSHA,
+	)
+	var contractErr *GithubContractError
+	if !errors.As(err, &contractErr) || !strings.Contains(err.Error(), "required identity guard") {
+		t.Fatalf("verifyWorkflowAvailable() error = %T %v, want missing-guard contract error", err, err)
+	}
+	if stateRequests != 0 {
+		t.Fatalf("workflow state requests = %d, want no state request after missing identity guard", stateRequests)
+	}
+	if strings.Contains(err.Error(), workflowSHA) || strings.Contains(err.Error(), "unguarded") {
+		t.Fatalf("missing-guard error leaked workflow source or SHA: %v", err)
+	}
+}
+
+func TestVerifyWorkflowAvailableAcceptsWorkflowDispatchFormsWithIdentityGuard(t *testing.T) {
 	for _, test := range []struct {
 		name    string
 		content string
@@ -1165,7 +1195,7 @@ func TestVerifyWorkflowAvailableAcceptsWorkflowDispatchForms(t *testing.T) {
 					if req.URL.Query().Get("ref") != workflowSHA {
 						t.Fatalf("contents ref = %q, want exact workflow SHA", req.URL.Query().Get("ref"))
 					}
-					return githubResponse(http.StatusOK, testWorkflowFileResponseWithContent("rustqs-windows.yml", test.content), nil), nil
+					return githubResponse(http.StatusOK, testWorkflowFileResponseWithContent("rustqs-windows.yml", testWorkflowIdentityGuardMarker+"\n"+test.content), nil), nil
 				}
 				if strings.Contains(req.URL.Path, "/actions/workflows/") {
 					return githubResponse(http.StatusOK, testWorkflowStateResponse(), nil), nil

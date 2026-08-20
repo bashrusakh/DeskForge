@@ -16,9 +16,11 @@ dispatch, poll, or download operation is verified.
 
 The legacy compatibility ref `rustqs/workflows` is retained for read-only
 compatibility; it is not the production workflow tag. Production approval and
-dispatch require provider-derived `refs/tags/*` refs verified through the immutable
-tag policy. The configured provider repository resolves the selected tag and
-workflow identity.
+dispatch require a guarded, provider-verified immutable `refs/tags/*` workflow
+tag. At the provider-resolved immutable commit, the mapped Windows workflow must
+declare `workflow_dispatch` and contain the exact
+`# deskforge-workflow-identity-guard: v1` marker. The configured provider
+repository resolves the selected tag and workflow identity.
 The following ref labels describe the configured fork's roles; they are not a claim
 that synchronized copies, protected tags, or a live provider run currently exist:
 
@@ -148,7 +150,8 @@ Credentials — encrypted payload, decrypted inside the runner via GitHub Secret
   be copied into the active fork workflows.
 - Change active build logic in the rustdesk fork. Keep this README aligned with
   the fork's actual workflow ownership and behavior.
-- Active dispatch is tag-only and uses a verified annotated workflow tag.
+- Active dispatch is tag-only and requires a guarded, provider-verified immutable
+  workflow tag.
 - An active immutable no-bypass ruleset protects that tag; mutable branch selectors
   are not an allowed fallback.
 - Secret-bearing production dispatch remains gated until live provider evidence

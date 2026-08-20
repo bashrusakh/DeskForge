@@ -21,6 +21,9 @@ const (
 	windowsWorkflowFilename = "rustqs-windows.yml"
 	linuxWorkflowFilename   = "rustqs-linux.yml"
 	androidWorkflowFilename = "rustqs-android.yml"
+	// workflowIdentityGuardMarker is the exact compatibility marker required
+	// in the provider-owned workflow content at the resolved immutable SHA.
+	workflowIdentityGuardMarker = "# deskforge-workflow-identity-guard: v1"
 	// This is retained only for read-only catalog/version health compatibility.
 	// Production approval and dispatch never accept this mutable branch.
 	defaultWorkflowExecutionRef = "rustqs/workflows"
@@ -1886,7 +1889,8 @@ func stripWorkflowYAMLComment(line string) string {
 }
 
 // verifyWorkflowAvailable confirms that the configured repository owns the
-// fixed workflow for this build platform at the exact immutable workflow SHA.
+// fixed workflow for this build platform at the exact immutable workflow SHA,
+// with workflow_dispatch and the required DeskForge identity guard.
 // GitHub's repository-contents API officially supports a commit SHA in ref;
 // the actions/workflows endpoint does not provide the same immutable-file
 // contract. The REST error is deliberately preserved so callers can distinguish
@@ -1931,10 +1935,17 @@ func (s *GithubBuildConfigService) verifyWorkflowAvailable(ctx context.Context, 
 	if err != nil {
 		return &GithubContractError{Operation: "workflow readiness", Cause: fmt.Errorf("workflow %q contents are invalid base64: %w", workflow, err)}
 	}
-	if !workflowDeclaresDispatch(string(content)) {
+	workflowContent := string(content)
+	if !workflowDeclaresDispatch(workflowContent) {
 		return &GithubContractError{
 			Operation: "workflow readiness",
 			Cause:     fmt.Errorf("workflow %q does not declare a workflow_dispatch trigger", workflow),
+		}
+	}
+	if !strings.Contains(workflowContent, workflowIdentityGuardMarker) {
+		return &GithubContractError{
+			Operation: "workflow readiness",
+			Cause:     errors.New("workflow does not declare the required identity guard"),
 		}
 	}
 	statePath, err := githubRepoPath(config.Repo, "/actions/workflows/"+workflow)
