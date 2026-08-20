@@ -6,10 +6,12 @@ import (
 	"gorm.io/gorm"
 )
 
+const CustomPresetUserNameUniqueIndex = "idx_custom_presets_user_id_name"
+
 type CustomPreset struct {
 	IdModel
-	UserId     uint   `json:"user_id" gorm:"default:0;not null;"`
-	Name       string `json:"name" gorm:"size:128;default:'';not null;"`
+	UserId     uint   `json:"user_id" gorm:"default:0;not null;uniqueIndex:idx_custom_presets_user_id_name,priority:1"`
+	Name       string `json:"name" gorm:"size:128;default:'';not null;uniqueIndex:idx_custom_presets_user_id_name,priority:2"`
 	Platform   string `json:"platform" gorm:"size:32;default:'';not null;"`
 	Version    string `json:"version" gorm:"size:32;default:'';not null;"`
 	AppName    string `json:"app_name" gorm:"size:128;default:'';not null;"`

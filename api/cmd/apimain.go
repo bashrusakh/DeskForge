@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -24,7 +25,9 @@ import (
 	"rustdesk-server/api/utils"
 )
 
-// DatabaseVersion bumped to 282 in 2026-08-11 to persist the exact provider
+// DatabaseVersion bumped to 283 to enforce one CustomPreset per (user_id,
+// name) after an explicit duplicate-data preflight. Earlier bump: 282 in
+// 2026-08-11 to persist the exact provider
 // resolved SHA captured by immutable workflow-tag approval. Earlier bump: 281
 // persisted workflow-ref provider
 // policy status alongside the operator approval attestation. Earlier bump: 280
@@ -44,7 +47,12 @@ import (
 // `download_key_expires_at` on `custom_builds` for capability-URL expiry
 // (B-006), 269 `github_run_id` for restart-safe GitHub Actions polling (B-003).
 // AutoMigrate is idempotent so all tables/columns are still created.
-const DatabaseVersion = 282
+const (
+	DatabaseVersion                         = 283
+	customPresetUniqueIndexMigrationVersion = 283
+)
+
+var errDuplicateCustomPresetNames = errors.New("duplicate custom preset owner/name rows")
 
 // @title API
 // @version 1.0
@@ -321,11 +329,39 @@ func DatabaseAutoUpdate() error {
 }
 
 func migrateSchemaAndRecordVersion(db *gorm.DB, version uint, migrate func(*gorm.DB) error) error {
+	if err := preflightCustomPresetUniqueIndex(db, version); err != nil {
+		return fmt.Errorf("custom preset unique index preflight: %w", err)
+	}
 	if err := migrate(db); err != nil {
 		return fmt.Errorf("auto migrate: %w", err)
 	}
 	if err := db.Create(&model.Version{Version: version}).Error; err != nil {
 		return fmt.Errorf("record database version %d: %w", version, err)
+	}
+	return nil
+}
+
+func preflightCustomPresetUniqueIndex(db *gorm.DB, version uint) error {
+	if version < customPresetUniqueIndexMigrationVersion ||
+		!db.Migrator().HasTable(&model.CustomPreset{}) ||
+		db.Migrator().HasIndex(&model.CustomPreset{}, model.CustomPresetUserNameUniqueIndex) {
+		return nil
+	}
+
+	type duplicateGroup struct {
+		Count int64 `gorm:"column:count"`
+	}
+	var duplicateGroups []duplicateGroup
+	if err := db.Model(&model.CustomPreset{}).
+		Select("COUNT(*) AS count").
+		Group("user_id, name").
+		Having("COUNT(*) > ?", 1).
+		Limit(1).
+		Find(&duplicateGroups).Error; err != nil {
+		return fmt.Errorf("query duplicate custom preset owner/name groups: %w", err)
+	}
+	if len(duplicateGroups) > 0 {
+		return fmt.Errorf("%w: a group contains %d rows", errDuplicateCustomPresetNames, duplicateGroups[0].Count)
 	}
 	return nil
 }

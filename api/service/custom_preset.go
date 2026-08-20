@@ -10,6 +10,7 @@ import (
 	"rustdesk-server/api/utils"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type CustomPresetService struct{}
@@ -56,14 +57,16 @@ func (ps *CustomPresetService) Create(p *model.CustomPreset) error {
 	if err := ValidateDirectCustomBuilderJSON(p.CustomJson); err != nil {
 		return err
 	}
-	existing, err := findCustomPresetForUpsert(p)
-	if err != nil {
-		return err
-	}
-	if existing != nil && p.PreservePermanentPassword && !hasNonEmptyPermanentPassword(p.CustomJson) {
-		p.CustomJson, err = mergePreservedPermanentPassword(p.CustomJson, existing.CustomJson)
+	if p.PreservePermanentPassword && !hasNonEmptyPermanentPassword(p.CustomJson) {
+		existing, err := findCustomPresetForPreservation(p)
 		if err != nil {
 			return err
+		}
+		if existing != nil {
+			p.CustomJson, err = mergePreservedPermanentPassword(p.CustomJson, existing.CustomJson)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	canonicalJSON, err := CanonicalizeCustomBuildJSON(p.CustomJson, BuildRecordContext{
@@ -78,13 +81,28 @@ func (ps *CustomPresetService) Create(p *model.CustomPreset) error {
 		return err
 	}
 	p.CustomJson = canonicalJSON
-	if existing != nil {
-		// найден → перезаписываем (Updates не трогает zero-value через struct,
-		// поэтому используем Save)
-		p.Id = existing.Id
-		return DB.Save(p).Error
+
+	// Insert with a zero primary key so a caller-provided ID cannot select an
+	// unrelated primary-key conflict instead of the owner/name conflict target.
+	candidate := *p
+	candidate.Id = 0
+	if err := DB.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "user_id"}, {Name: "name"}},
+		UpdateAll: true,
+	}).Create(&candidate).Error; err != nil {
+		return err
 	}
-	return DB.Create(p).Error
+
+	// Do not depend on dialect-specific upsert ID reporting. Reload the one
+	// persisted owner/name row and return its canonical, decrypted state.
+	persisted := &model.CustomPreset{}
+	if err := DB.Where("user_id = ? AND name = ?", p.UserId, p.Name).First(persisted).Error; err != nil {
+		return fmt.Errorf("reload custom preset after upsert: %w", err)
+	}
+	preservePermanentPassword := p.PreservePermanentPassword
+	*p = *persisted
+	p.PreservePermanentPassword = preservePermanentPassword
+	return nil
 }
 
 func (ps *CustomPresetService) Update(p *model.CustomPreset) error {
@@ -123,7 +141,7 @@ func (ps *CustomPresetService) Update(p *model.CustomPreset) error {
 	return DB.Save(p).Error
 }
 
-func findCustomPresetForUpsert(p *model.CustomPreset) (*model.CustomPreset, error) {
+func findCustomPresetForPreservation(p *model.CustomPreset) (*model.CustomPreset, error) {
 	if p.Name == "" {
 		return nil, nil
 	}
