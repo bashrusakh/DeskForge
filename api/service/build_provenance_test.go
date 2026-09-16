@@ -97,41 +97,48 @@ func TestCompletedBuildProvenanceRequiresDoneAndPublicationMarker(t *testing.T) 
 	}
 }
 
-func TestValidateCompletedPublishedOutputRequiresProductionCapability(t *testing.T) {
+func TestValidateCompletedPublishedOutputKeepsAndroidCapabilityGated(t *testing.T) {
 	provenance := testBuildProvenance(202, "owner/repo", "workflow.yml", "refs/heads/ref", "artifact")
 	provenance.GithubArtifactID = 42
-	for _, platform := range []string{string(PlatformLinux), string(PlatformAndroid)} {
-		t.Run(platform, func(t *testing.T) {
-			build := &model.CustomBuild{
-				Status:                model.CustomBuildStatusDone,
-				Platform:              platform,
-				Version:               provenance.Version,
-				BuildRef:              provenance.BuildRef,
-				SourceTag:             provenance.SourceTag,
-				AssetsRelease:         provenance.AssetsRelease,
-				AssetsReleaseID:       provenance.AssetsReleaseID,
-				GithubProvider:        provenance.GithubProvider,
-				GithubRepo:            provenance.GithubRepo,
-				GithubWorkflow:        provenance.GithubWorkflow,
-				GithubRef:             provenance.GithubRef,
-				GithubArtifactName:    provenance.GithubArtifactName,
-				GithubArtifactID:      provenance.GithubArtifactID,
-				GithubRunId:           provenance.GithubRunID,
-				GithubRunUrl:          provenance.GithubRunURL,
-				GithubHtmlUrl:         provenance.GithubHTMLURL,
-				PublicationRecordedAt: 1,
-				PublishedDigest:       strings.Repeat("a", 64),
-			}
-			_, _, err := ValidateCompletedPublishedOutput(build)
-			var unavailable *ProductionCapabilityUnavailableError
-			if !errors.As(err, &unavailable) {
-				t.Fatalf("ValidateCompletedPublishedOutput() error = %T %v, want capability-unavailable error", err, err)
-			}
-			if unavailable.Platform != platform {
-				t.Fatalf("capability error platform = %q, want %q", unavailable.Platform, platform)
-			}
-		})
+	buildForPlatform := func(platform string) *model.CustomBuild {
+		return &model.CustomBuild{
+			Status:                model.CustomBuildStatusDone,
+			Platform:              platform,
+			Version:               provenance.Version,
+			BuildRef:              provenance.BuildRef,
+			SourceTag:             provenance.SourceTag,
+			AssetsRelease:         provenance.AssetsRelease,
+			AssetsReleaseID:       provenance.AssetsReleaseID,
+			GithubProvider:        provenance.GithubProvider,
+			GithubRepo:            provenance.GithubRepo,
+			GithubWorkflow:        provenance.GithubWorkflow,
+			GithubRef:             provenance.GithubRef,
+			GithubArtifactName:    provenance.GithubArtifactName,
+			GithubArtifactID:      provenance.GithubArtifactID,
+			GithubRunId:           provenance.GithubRunID,
+			GithubRunUrl:          provenance.GithubRunURL,
+			GithubHtmlUrl:         provenance.GithubHTMLURL,
+			PublicationRecordedAt: 1,
+			PublishedDigest:       strings.Repeat("a", 64),
+		}
 	}
+	if _, _, err := ValidateCompletedPublishedOutput(buildForPlatform(string(PlatformLinux))); err != nil {
+		var unavailable *ProductionCapabilityUnavailableError
+		if errors.As(err, &unavailable) {
+			t.Fatalf("ValidateCompletedPublishedOutput() rejected Linux as capability-unavailable: %v", err)
+		}
+	}
+	t.Run(string(PlatformAndroid), func(t *testing.T) {
+		build := buildForPlatform(string(PlatformAndroid))
+		_, _, err := ValidateCompletedPublishedOutput(build)
+		var unavailable *ProductionCapabilityUnavailableError
+		if !errors.As(err, &unavailable) {
+			t.Fatalf("ValidateCompletedPublishedOutput() error = %T %v, want capability-unavailable error", err, err)
+		}
+		if unavailable.Platform != string(PlatformAndroid) {
+			t.Fatalf("capability error platform = %q, want %q", unavailable.Platform, string(PlatformAndroid))
+		}
+	})
 }
 
 func TestCreateNormalizedWithIdentityPersistsWriteOnceVersionFields(t *testing.T) {

@@ -1582,24 +1582,30 @@ func TestGithubBuildConfigGetNormalizesKnownLegacyBranchAtConfigBoundary(t *test
 	}
 }
 
-func TestRequireProductionBuildCapabilityKeepsUnvalidatedPlatformsFailClosed(t *testing.T) {
-	for _, platform := range []string{string(PlatformLinux), string(PlatformAndroid)} {
+func TestRequireProductionBuildCapabilityEnablesWindowsAndLinuxOnly(t *testing.T) {
+	for _, platform := range []string{string(PlatformWindows), string(PlatformLinux)} {
 		t.Run(platform, func(t *testing.T) {
-			err := RequireProductionBuildCapability(platform)
-			var unavailable *ProductionCapabilityUnavailableError
-			if !errors.As(err, &unavailable) {
-				t.Fatalf("RequireProductionBuildCapability(%q) = %T %v, want explicit capability-unavailable error", platform, err, err)
-			}
-			if unavailable.Platform != platform || unavailable.Capability == "" {
-				t.Fatalf("capability error = %#v, want platform and capability", unavailable)
+			if err := RequireProductionBuildCapability(platform); err != nil {
+				t.Fatalf("RequireProductionBuildCapability(%q) = %v, want available", platform, err)
 			}
 		})
 	}
-	if err := RequireProductionBuildCapability(string(PlatformWindows)); err != nil {
-		t.Fatalf("Windows production capability = %v, want available", err)
-	}
-	if err := RequireProductionBuildCapability(string(PlatformLinux)); err == nil {
-		t.Fatal("Linux production capability error = nil")
+	t.Run(string(PlatformAndroid), func(t *testing.T) {
+		err := RequireProductionBuildCapability(string(PlatformAndroid))
+		var unavailable *ProductionCapabilityUnavailableError
+		if !errors.As(err, &unavailable) {
+			t.Fatalf("RequireProductionBuildCapability(%q) = %T %v, want explicit capability-unavailable error", string(PlatformAndroid), err, err)
+		}
+		if unavailable.Platform != string(PlatformAndroid) || unavailable.Capability == "" {
+			t.Fatalf("capability error = %#v, want platform and capability", unavailable)
+		}
+	})
+	for _, platform := range []string{"macos", "plan9", ""} {
+		t.Run("invalid-"+platform, func(t *testing.T) {
+			if err := RequireProductionBuildCapability(platform); err == nil {
+				t.Fatalf("RequireProductionBuildCapability(%q) error = nil, want invalid platform rejection", platform)
+			}
+		})
 	}
 }
 
@@ -1636,7 +1642,7 @@ func TestRequireDispatchPublicKeyRejectsMalformedMaterial(t *testing.T) {
 	}
 }
 
-func TestPrepareBuildRejectsUnvalidatedPlatformBeforeProviderOrBuildRow(t *testing.T) {
+func TestPrepareBuildRejectsUnvalidatedAndroidBeforeProviderOrBuildRow(t *testing.T) {
 	db, sqlDB := newGithubConfigTestDB(t)
 	previousDB := DB
 	DB = db
@@ -1649,7 +1655,7 @@ func TestPrepareBuildRejectsUnvalidatedPlatformBeforeProviderOrBuildRow(t *testi
 		return nil, nil
 	}))
 
-	_, err := (&GithubBuildConfigService{}).PrepareBuild(context.Background(), string(PlatformLinux), "1.2.3")
+	_, err := (&GithubBuildConfigService{}).PrepareBuild(context.Background(), string(PlatformAndroid), "1.2.3")
 	var unavailable *ProductionCapabilityUnavailableError
 	if !errors.As(err, &unavailable) {
 		t.Fatalf("PrepareBuild() error = %T %v, want explicit capability-unavailable error", err, err)

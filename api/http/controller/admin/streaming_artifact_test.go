@@ -406,21 +406,37 @@ func TestPublishDownloadedArtifactRejectsUnprovenExistingOutputAndPreservesSibli
 	_ = root
 }
 
-func TestPublishDownloadedArtifactRejectsUnvalidatedLinuxAndroidCapability(t *testing.T) {
-	for _, platform := range []string{"linux", "android"} {
-		t.Run(platform, func(t *testing.T) {
-			root := withTestOutputRoot(t)
-			build := &model.CustomBuild{IdModel: model.IdModel{Id: 100}, Platform: platform, AppName: "rustqs"}
-			archive := makeArtifactZip(t, map[string]string{"nested/binary": "binary", "custom_.txt": "settings"})
-			if _, err := publishDownloadedArtifact(build, archive); err == nil || !strings.Contains(err.Error(), "production capability") {
-				t.Fatalf("publishDownloadedArtifact() error = %v, want explicit capability-unavailable error", err)
-			}
-			outDir := filepath.Join(root, "output", "100")
-			if _, err := os.Stat(outDir); !errors.Is(err, os.ErrNotExist) {
-				t.Fatalf("unvalidated platform output stat = %v, want absent", err)
-			}
+func TestPublishDownloadedArtifactCapabilityGateRejectsAndroidOnly(t *testing.T) {
+	t.Run("android", func(t *testing.T) {
+		root := withTestOutputRoot(t)
+		build := &model.CustomBuild{IdModel: model.IdModel{Id: 100}, Platform: "android", AppName: "rustqs"}
+		archive := makeArtifactZip(t, map[string]string{"nested/binary": "binary", "custom_.txt": "settings"})
+		if _, err := publishDownloadedArtifact(build, archive); err == nil || !strings.Contains(err.Error(), "production capability") {
+			t.Fatalf("publishDownloadedArtifact() error = %v, want explicit capability-unavailable error", err)
+		}
+		outDir := filepath.Join(root, "output", "100")
+		if _, err := os.Stat(outDir); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("unvalidated platform output stat = %v, want absent", err)
+		}
+	})
+	t.Run("linux", func(t *testing.T) {
+		root := withTestOutputRoot(t)
+		build := &model.CustomBuild{IdModel: model.IdModel{Id: 101}, Platform: "linux", AppName: "rustqs"}
+		archive := makeArtifactZip(t, map[string]string{
+			"rustqs-1.2.3.deb":          "deb",
+			"rustqs-1.2.3-0.x86_64.rpm": "rpm",
+			"custom_.txt":               "settings",
 		})
-	}
+		if _, err := publishDownloadedArtifact(build, archive); err != nil {
+			t.Fatalf("publishDownloadedArtifact() linux error = %v, want published output", err)
+		}
+		outDir := filepath.Join(root, "output", "101")
+		for _, name := range []string{"rustqs-1.2.3.deb", "rustqs-1.2.3-0.x86_64.rpm", "custom_.txt"} {
+			if _, err := os.Stat(filepath.Join(outDir, name)); err != nil {
+				t.Fatalf("published linux output %s stat = %v", name, err)
+			}
+		}
+	})
 }
 
 func TestDownloadByKeyBuildsArchiveBeforeSendingSuccessHeaders(t *testing.T) {
