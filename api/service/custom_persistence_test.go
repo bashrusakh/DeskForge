@@ -1459,31 +1459,52 @@ func TestCustomBuildProgressSupportsDownloadLifecycleStatesWithRunGuard(t *testi
 	}
 }
 
-func TestCustomBuildProgressCannotTransitionLinuxOrAndroidToDone(t *testing.T) {
+func TestCustomBuildProgressCannotTransitionAndroidToDone(t *testing.T) {
 	db := newCustomPersistenceDB(t)
-	for _, platform := range []string{"linux", "android"} {
-		t.Run(platform, func(t *testing.T) {
-			build := &model.CustomBuild{Status: model.CustomBuildStatusExtracting, Platform: platform, GithubRunId: 909, GithubArtifactID: 42}
-			if err := db.Create(build).Error; err != nil {
-				t.Fatalf("create build: %v", err)
-			}
-			err := (&CustomBuildService{}).UpdateProgress(BuildProgress{
-				BuildID: build.Id, ExpectedRunID: build.GithubRunId,
-				ExpectedArtifactID: build.GithubArtifactID,
-				Status:             model.CustomBuildStatusDone, BuildLog: "must remain non-done",
-			})
-			var unavailable *ProductionCapabilityUnavailableError
-			if !errors.As(err, &unavailable) {
-				t.Fatalf("UpdateProgress() error = %T %v, want capability-unavailable error", err, err)
-			}
-			var stored model.CustomBuild
-			if err := db.First(&stored, build.Id).Error; err != nil {
-				t.Fatalf("read build: %v", err)
-			}
-			if stored.Status != model.CustomBuildStatusExtracting {
-				t.Fatalf("status after rejected completion = %q, want extracting", stored.Status)
-			}
-		})
+	build := &model.CustomBuild{Status: model.CustomBuildStatusExtracting, Platform: "android", GithubRunId: 909, GithubArtifactID: 42}
+	if err := db.Create(build).Error; err != nil {
+		t.Fatalf("create build: %v", err)
+	}
+	err := (&CustomBuildService{}).UpdateProgress(BuildProgress{
+		BuildID: build.Id, ExpectedRunID: build.GithubRunId,
+		ExpectedArtifactID: build.GithubArtifactID,
+		Status:             model.CustomBuildStatusDone, BuildLog: "must remain non-done",
+	})
+	var unavailable *ProductionCapabilityUnavailableError
+	if !errors.As(err, &unavailable) {
+		t.Fatalf("UpdateProgress() error = %T %v, want capability-unavailable error", err, err)
+	}
+	var stored model.CustomBuild
+	if err := db.First(&stored, build.Id).Error; err != nil {
+		t.Fatalf("read build: %v", err)
+	}
+	if stored.Status != model.CustomBuildStatusExtracting {
+		t.Fatalf("status after rejected completion = %q, want extracting", stored.Status)
+	}
+}
+
+func TestCustomBuildProgressAllowsLinuxCompletion(t *testing.T) {
+	db := newCustomPersistenceDB(t)
+	build := &model.CustomBuild{Status: model.CustomBuildStatusExtracting, Platform: "linux", AppName: "rustqs", Version: "1.2.3", GithubRunId: 909, GithubArtifactID: 42}
+	if err := db.Create(build).Error; err != nil {
+		t.Fatalf("create build: %v", err)
+	}
+	recordValidPublication(t, build)
+	if err := (&CustomBuildService{}).UpdateProgress(BuildProgress{
+		BuildID:            build.Id,
+		ExpectedRunID:      build.GithubRunId,
+		ExpectedArtifactID: build.GithubArtifactID,
+		Status:             model.CustomBuildStatusDone,
+		BuildLog:           "completed",
+	}); err != nil {
+		t.Fatalf("UpdateProgress() linux completion error = %v", err)
+	}
+	var stored model.CustomBuild
+	if err := db.First(&stored, build.Id).Error; err != nil {
+		t.Fatalf("read build: %v", err)
+	}
+	if stored.Status != model.CustomBuildStatusDone {
+		t.Fatalf("status after linux completion = %q, want done", stored.Status)
 	}
 }
 
@@ -1854,10 +1875,18 @@ func recordValidPublication(t *testing.T, build *model.CustomBuild) {
 	if appName == "" {
 		appName = "rustqs"
 	}
-	if err := os.WriteFile(filepath.Join(outDir, appName+".exe"), []byte("published"), 0600); err != nil {
-		t.Fatalf("write published output: %v", err)
+	names, err := ExpectedProducerOutputFilenames(build.Platform, appName, build.Version)
+	if err != nil {
+		t.Fatalf("resolve producer output names: %v", err)
 	}
-	producerManifest := producerManifestForBuild(build, map[string]string{appName + ".exe": "published"})
+	contents := make(map[string]string, len(names))
+	for _, name := range names {
+		if err := os.WriteFile(filepath.Join(outDir, name), []byte("published"), 0600); err != nil {
+			t.Fatalf("write published output %q: %v", name, err)
+		}
+		contents[name] = "published"
+	}
+	producerManifest := producerManifestForBuild(build, contents)
 	if err := (&CustomBuildService{}).RecordPublishedOutput(build.Id, build.GithubRunId, build.GithubArtifactID, producerManifest); err != nil {
 		t.Fatalf("RecordPublishedOutput() error = %v", err)
 	}

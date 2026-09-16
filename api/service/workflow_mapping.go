@@ -1715,7 +1715,7 @@ func (e *GithubProviderConfigurationError) Unwrap() error { return e.Cause }
 
 // ProductionCapabilityUnavailableError means the platform is valid in the
 // typed custom-build domain but its production completion path is not yet
-// validated. PR11 owns re-enabling additional platforms after evidence.
+// validated.
 type ProductionCapabilityUnavailableError struct {
 	Platform   string
 	Capability string
@@ -1726,14 +1726,16 @@ func (e *ProductionCapabilityUnavailableError) Error() string {
 }
 
 // RequireProductionBuildCapability is the single backend capability gate for
-// production build execution and completion. Linux and Android remain valid
-// enum values for typed settings/preset data, but cannot enter this provider
-// path until PR11 validates and explicitly re-enables them.
+// production build execution and completion. Windows x64 and Linux x64 are
+// enabled after live GitHub Actions evidence (runs 34932397075 / 35031534442).
+// Android remains a valid enum value for typed settings/preset data, but
+// cannot enter this provider path until it is validated and explicitly
+// re-enabled.
 func RequireProductionBuildCapability(platform string) error {
 	if err := ValidateCustomPlatform(platform); err != nil {
 		return err
 	}
-	if platform != string(PlatformWindows) {
+	if platform != string(PlatformWindows) && platform != string(PlatformLinux) {
 		return &ProductionCapabilityUnavailableError{
 			Platform:   platform,
 			Capability: "production build execution and completion",

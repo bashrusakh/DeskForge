@@ -520,14 +520,10 @@ func TestDispatchBuildRejectsUnvalidatedPlatformsAtServiceBoundary(t *testing.T)
 		t.Fatal("unexpected provider request for unavailable platform")
 		return nil, nil
 	}))
-	for _, platform := range []string{string(PlatformLinux), string(PlatformAndroid)} {
-		t.Run(platform, func(t *testing.T) {
-			result, err := (&GithubBuildConfigService{}).DispatchBuild(context.Background(), githubConfig(), githubVersionIdentity(), platform, nil)
-			var unavailable *ProductionCapabilityUnavailableError
-			if result != nil || !errors.As(err, &unavailable) {
-				t.Fatalf("DispatchBuild(%q) = %#v, %T %v; want capability rejection", platform, result, err, err)
-			}
-		})
+	result, err := (&GithubBuildConfigService{}).DispatchBuild(context.Background(), githubConfig(), githubVersionIdentity(), string(PlatformAndroid), nil)
+	var unavailable *ProductionCapabilityUnavailableError
+	if result != nil || !errors.As(err, &unavailable) {
+		t.Fatalf("DispatchBuild(%q) = %#v, %T %v; want capability rejection", string(PlatformAndroid), result, err, err)
 	}
 }
 

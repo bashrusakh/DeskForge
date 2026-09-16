@@ -34,9 +34,9 @@
           <el-col :span="8">
             <el-form-item :label="T('Platform')" prop="platform">
               <!--
-                Windows x64 is validated end-to-end (GitHub Actions). Linux/Android remain
-                typed legacy values, but are unavailable for production builds pending PR11
-                evidence. 32-bit Windows and macOS are not supported (PLAN.md §8.15).
+                Windows x64 and Linux x64 are validated end-to-end (GitHub Actions run
+                evidence). Android remains unavailable pending validation. 32-bit Windows
+                and macOS are not supported (PLAN.md §8.15).
               -->
               <el-tooltip :content="requiredMessage('platform')" :disabled="!isFieldInvalid('platform')" placement="top" :trigger="['hover', 'focus']" :trigger-keys="[]">
                 <el-select
@@ -50,7 +50,7 @@
                   @change="onPlatformChange"
                 >
                   <el-option :label="T('PlatformWindows')" value="windows" />
-                  <el-option :label="T('PlatformLinuxUnavailable')" value="linux" disabled />
+                  <el-option :label="T('PlatformLinux')" value="linux" />
                   <el-option :label="T('PlatformAndroidUnavailable')" value="android" disabled />
                 </el-select>
               </el-tooltip>
@@ -711,9 +711,9 @@ export default defineComponent({
     //   - submitBuild и StartBuild были заблокированы для ВСЕХ не-ready состояний.
     const versionsState = ref('loading')
     const versionsReady = computed(() => versionsState.value === 'ready')
-    // Linux/Android remain valid persisted enum values for legacy presets, but
-    // the backend production capability gate keeps them unavailable until PR11.
-    const productionPlatformReady = computed(() => form.platform === 'windows')
+    // Android remains a valid persisted enum value for legacy presets, but the
+    // backend production capability gate keeps it unavailable until validated.
+    const productionPlatformReady = computed(() => form.platform === 'windows' || form.platform === 'linux')
     const page = ref(1)
     const pageSize = ref(10)
     const total = ref(0)

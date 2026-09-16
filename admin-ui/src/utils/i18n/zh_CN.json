@@ -104,8 +104,8 @@
   "PlatformWindows": {
     "One": "Windows 64 位"
   },
-  "PlatformLinuxUnavailable": {
-    "One": "Linux x64 — 实验性 / 暂不可用（PR11）"
+  "PlatformLinux": {
+    "One": "Linux x64"
   },
   "PlatformAndroidUnavailable": {
     "One": "Android arm64 — 实验性 / 暂不可用（PR11）"
