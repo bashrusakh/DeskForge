@@ -36,6 +36,7 @@ function fixture(platform = 'linux') {
     between('    const isFieldInvalid', '    const validateBuildForm') + `
     globalThis.api = { rules, requiredFieldSet, invalidFields, serverFieldErrors,
       serverFieldError, serverFieldMessage, applyServerFieldErrors,
+      snapshotSubmittedFields,
       useServerKey, isFieldInvalid, isRequiredField, clearFieldError, syncFieldAria };
   `, context)
   return context
@@ -75,6 +76,69 @@ test('unknown or non-displayable server fields are ignored', async () => {
   ])
   assert.equal(applied, false)
   assert.deepEqual(Object.keys(ctx.api.invalidFields.value), [])
+})
+
+test('stale response after a field edit is not applied to the newer value', async () => {
+  // F-B race: the request snapshots the submitted values; the user edits a field
+  // while the HTTP request is in flight; the late error must not land on the new
+  // value.
+  const ctx = fixture('linux')
+  ctx.form.key = 'edited-by-user'
+  const snapshot = ctx.api.snapshotSubmittedFields() // key = 'edited-by-user'
+  ctx.form.key = 'user-typed-something-else' // edit while request is in flight
+  const applied = await ctx.api.applyServerFieldErrors([{ field: 'key', code: 'invalid_format' }], snapshot)
+  assert.equal(applied, false)
+  assert.deepEqual(Object.keys(ctx.api.serverFieldErrors.value), [])
+  assert.deepEqual(Object.keys(ctx.api.invalidFields.value), [])
+})
+
+test('response with an unchanged field is applied', async () => {
+  const ctx = fixture('linux')
+  ctx.form.key = 'submitted-value'
+  const snapshot = ctx.api.snapshotSubmittedFields()
+  const applied = await ctx.api.applyServerFieldErrors([{ field: 'key', code: 'invalid_format' }], snapshot)
+  assert.equal(applied, true)
+  assert.equal(ctx.api.serverFieldError('key'), 'CustomClientKeyInvalidFormat')
+  assert.equal(ctx.api.isFieldInvalid('key'), true)
+})
+
+test('platform change invalidates a stale response entirely', async () => {
+  const ctx = fixture('linux')
+  ctx.form.key = 'submitted-value'
+  const snapshot = ctx.api.snapshotSubmittedFields()
+  ctx.form.platform = 'windows' // platform rules changed while in flight
+  const applied = await ctx.api.applyServerFieldErrors([{ field: 'key', code: 'required' }], snapshot)
+  assert.equal(applied, false)
+  assert.deepEqual(Object.keys(ctx.api.invalidFields.value), [])
+})
+
+test('a partially-stale response applies only the still-unchanged fields', async () => {
+  const ctx = fixture('linux')
+  ctx.form.key = 'submitted-key'
+  ctx.form.app_name = 'submitted-app'
+  const snapshot = ctx.api.snapshotSubmittedFields()
+  ctx.form.key = 'edited-key' // only key changed
+  const applied = await ctx.api.applyServerFieldErrors([
+    { field: 'key', code: 'invalid_format' },
+    { field: 'app_name', code: 'required' },
+  ], snapshot)
+  assert.equal(applied, true)
+  assert.equal(ctx.api.isFieldInvalid('key'), false)
+  assert.equal(ctx.api.isFieldInvalid('app_name'), true)
+})
+
+test('without a snapshot the response is applied to the current state', async () => {
+  // Legacy/test callers that do not track submit state keep the previous behavior.
+  const ctx = fixture('linux')
+  const applied = await ctx.api.applyServerFieldErrors([{ field: 'key', code: 'required' }])
+  assert.equal(applied, true)
+  assert.equal(ctx.api.serverFieldError('key'), 'CustomClientKeyRequired')
+})
+
+test('submitBuild forwards the submitted snapshot into applyServerFieldErrors', () => {
+  const submit = between('    const submitBuild = async () => {', '\n    const deleteBuild')
+  assert.match(submit, /snapshotSubmittedFields\(\)/, 'submitBuild must snapshot the submitted values')
+  assert.match(submit, /applyServerFieldErrors\(fields,\s*submittedSnapshot\)/, 'the snapshot must be passed to the applier')
 })
 
 test('clearing a field removes both its server and local error state', () => {

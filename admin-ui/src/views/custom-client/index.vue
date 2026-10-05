@@ -663,12 +663,25 @@ export default defineComponent({
     // display (requiredFieldNames) are highlighted; unknown fields are ignored.
     // The server message is the display source (`:error`), while invalidFields
     // keeps ARIA and focus behavior aligned with the existing schema.
-    const applyServerFieldErrors = async (fields) => {
+    //
+    // A create response describes the exact form state that was submitted. If the
+    // user edits a field while the request is in flight, the response is stale for
+    // that field. Pass the snapshot captured at submit time so an old error is
+    // never mapped onto a newer value: a platform change invalidates the whole
+    // classification (the server rules are platform-dependent), otherwise only the
+    // errors whose field value changed are dropped. Without a snapshot the caller
+    // is assumed to be applying a response for the current state (legacy/tests).
+    const applyServerFieldErrors = async (fields, snapshot) => {
       const applicable = (fields || []).filter((entry) => requiredFieldNames.includes(entry.field))
       if (!applicable.length) return false
+      if (snapshot && snapshot.platform !== form.platform) return false
+      const current = snapshot
+        ? applicable.filter((entry) => snapshot.values[entry.field] === form[entry.field])
+        : applicable
+      if (!current.length) return false
       const nextMessages = { ...serverFieldErrors.value }
       const nextInvalidFields = { ...invalidFields.value }
-      for (const { field, code } of applicable) {
+      for (const { field, code } of current) {
         const message = serverFieldMessage(field, code)
         nextMessages[field] = message
         nextInvalidFields[field] = [message]
@@ -682,6 +695,14 @@ export default defineComponent({
       await focusFirstInvalid(nextInvalidFields)
       syncFieldAria()
       return true
+    }
+
+    // Capture the submitted values for the displayable fields so a late server
+    // response can be matched against the state it actually describes.
+    const snapshotSubmittedFields = () => {
+      const values = {}
+      for (const field of requiredFieldNames) values[field] = form[field]
+      return { platform: values.platform, values }
     }
 
     // Presence predicate only: drives when a field needs its required rule.
@@ -1068,6 +1089,9 @@ export default defineComponent({
         return
       }
       submitting.value = true
+      // Snapshot the submitted displayable values so a response that arrives
+      // after an intervening edit is not applied to the newer form state.
+      const submittedSnapshot = snapshotSubmittedFields()
       try {
         // Derived from PRESET_FIELDS so submit + save preset stay in sync.
         const customPayload = {}
@@ -1090,7 +1114,7 @@ export default defineComponent({
         // still toasts the bounded server message.
         const fields = e?.response?.data?.data?.fields
           || (Number.isInteger(e?.code) && e.code !== 0 ? e?.data?.fields : null)
-        if (!await applyServerFieldErrors(fields)) console.error(e)
+        if (!await applyServerFieldErrors(fields, submittedSnapshot)) console.error(e)
       } finally {
         submitting.value = false
       }
