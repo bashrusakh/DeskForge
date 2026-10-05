@@ -1,5 +1,13 @@
 // Run with: node --test tests/custom-client-validation.test.mjs
 // Exercise the SFC's actual logic with Vue reactivity, not a validator copy.
+//
+// Design: the server is the single source of truth for field FORMAT validity.
+// The create response carries machine-readable per-field reasons
+// (`data.fields: [{ field, code }]`) derived from the authoritative Go
+// validators (api/service/custom_build_spec.go ValidateCustomBuildInput). The
+// form deliberately does NOT parse IPv4/IPv6/host/URL/key itself; it maps those
+// server reasons onto `invalidFields` / `:error` / ARIA. These tests therefore
+// assert the mapping and the presence/required boundary, not JS parsing parity.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { readFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs'
@@ -7,7 +15,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import vm from 'node:vm'
-import { reactive, ref, computed, nextTick } from 'vue'
+import { reactive, ref, computed, nextTick, watch } from 'vue'
 import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc'
 
 const sfc = readFileSync(new URL('../src/views/custom-client/index.vue', import.meta.url), 'utf8')
@@ -17,133 +25,116 @@ const between = (start, end) => {
 }
 function fixture(platform = 'linux') {
   const context = {
-    reactive, ref, computed, nextTick, atob, btoa, URL, T: value => value,
+    reactive, ref, computed, nextTick, watch, atob, btoa, URL, T: value => value,
     form: reactive({ platform, hide_cm: false }), formRef: ref(null),
-    serverConfigDefaults: reactive({ key: '' }), clearFieldError: () => {},
+    serverConfigDefaults: reactive({ key: '' }),
+    document: { getElementById: () => null },
   }
   vm.createContext(context)
   vm.runInContext(between('    const requiredFieldNames', '    const useServerKey') +
     between('    const useServerKey', '    const isFieldInvalid') +
-    between('    const isFieldInvalid', '    // formatCheckedFields participates') + `
-    globalThis.api = { rules, formatCheckedFields, isFieldFormatInvalid,
-      isValidEndpointFormat, isValidApiServerFormat, isValidPublicKeyFormat,
-      useServerKey, invalidFields, syncFieldAria };
-    globalThis.presetErrors = () => {
-      ${between('        const formatInvalidEntries', '        if (Object.keys(formatInvalidEntries)')}
-      return formatInvalidEntries;
-    };
+    between('    const isFieldInvalid', '    const validateBuildForm') + `
+    globalThis.api = { rules, requiredFieldSet, invalidFields, serverFieldErrors,
+      serverFieldError, serverFieldMessage, applyServerFieldErrors,
+      useServerKey, isFieldInvalid, isRequiredField, clearFieldError, syncFieldAria };
   `, context)
   return context
 }
 const key = Buffer.alloc(32, 7).toString('base64')
-const endpoints = ['', 'host/', 'ho[st', 'ho]st', 'host/:21116', 'ho[st:21116',
-  ' ', '\t', '\r\n', 'example.com', 'under_score', 'localhost', '192.0.2.1',
-  'example.com:21116', '192.0.2.1:080', '::1', '[2001:db8::1]:21116']
-const urls = ['', ' ', '\t', '\r\n', 'https://example.com', 'http://localhost:21114/path']
-const keys = ['', '\r\n', ' ', '\t', key, key + '\r\n', key + ' ']
 
-test('differential evidence from extracted production Go functions', () => {
-  const service = readFileSync(new URL('../../api/service/custom_build_spec.go', import.meta.url), 'utf8')
-  const config = readFileSync(new URL('../../api/config/rustdesk.go', import.meta.url), 'utf8')
-  const goFunction = (source, name) => {
-    const match = source.match(new RegExp(`func ${name}\\([^]*?\\n\\}`))
-    assert.ok(match, `missing Go function ${name}`)
-    return match[0]
-  }
-  const dir = mkdtempSync(join(process.env.TMPDIR || tmpdir(), 'deskforge-validator-'))
-  try {
-    const errorType = config.slice(config.indexOf('type PublicKeyConfigurationError'), config.indexOf('// NormalizePublicKey'))
-    const size = config.match(/rustDeskPublicKeyBytes = \d+/)?.[0]
-    assert.ok(size)
-    writeFileSync(join(dir, 'main.go'), `package main
-import ("fmt"; "net"; "net/url"; "strconv"; "strings"; "unicode"; "encoding/base64"; "encoding/json"; "os")
-${errorType}
-const ${size}
-${['validateEndpoint', 'validateHost', 'validateAPIURL'].map(n => goFunction(service, n)).join('\n')}
-${['NormalizePublicKey', 'ValidatePublicKeyMaterial'].map(n => goFunction(config, n)).join('\n')}
-func main() {
-  var input map[string][]string
-  if err := json.NewDecoder(os.Stdin).Decode(&input); err != nil { panic(err) }
-  output := map[string][]bool{}
-  for name, values := range input {
-    for _, value := range values {
-      var valid bool
-      switch name {
-      case "endpoints": valid = validateEndpoint("server_ip", value) == nil
-      case "urls": valid = validateAPIURL("api_server", value) == nil
-      case "keys": valid = ValidatePublicKeyMaterial(value) == nil
-      case "keyPresence": valid = NormalizePublicKey(value) != ""
-      }
-      output[name] = append(output[name], valid)
-    }
-  }
-  if err := json.NewEncoder(os.Stdout).Encode(output); err != nil { panic(err) }
-}`)
-    const result = spawnSync('go', ['run', join(dir, 'main.go')], {
-      input: JSON.stringify({ endpoints, urls, keys, keyPresence: keys }), encoding: 'utf8',
-      env: { ...process.env, GOWORK: 'off' },
-    })
-    assert.equal(result.status, 0, result.stderr)
-    const go = JSON.parse(result.stdout)
-    const { api } = fixture()
-    endpoints.forEach((value, i) => assert.equal(api.isValidEndpointFormat(value), go.endpoints[i], `endpoint ${JSON.stringify(value)}`))
-    urls.forEach((value, i) => assert.equal(api.isValidApiServerFormat(value), go.urls[i], `URL ${JSON.stringify(value)}`))
-    keys.forEach((value, i) => assert.equal(api.isValidPublicKeyFormat(value), !go.keyPresence[i] || go.keys[i], `optional key ${JSON.stringify(value)}`))
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
+test('form has no local IPv4/IPv6/host/URL/key format parsers', () => {
+  for (const removed of ['isValidIpv6', 'isValidIpv4', 'isValidHost', 'isValidEndpointFormat',
+    'isValidApiServerFormat', 'isValidPublicKeyFormat', 'formatValidators', 'formatCheckedFields',
+    'isFieldFormatInvalid']) {
+    assert.equal(sfc.includes(removed), false, `stale local validator remains: ${removed}`)
   }
 })
 
-test('rules, callbacks and preset highlights validate material whitespace on every platform', () => {
+test('server field errors map to localized per-field messages and invalidFields', async () => {
+  const ctx = fixture('windows')
+  const applied = await ctx.api.applyServerFieldErrors([
+    { field: 'server_ip', code: 'invalid_endpoint' },
+    { field: 'key', code: 'required' },
+    { field: 'api_server', code: 'invalid_format' },
+  ])
+  assert.equal(applied, true)
+  // `required` reuses the existing per-field required key.
+  assert.equal(ctx.api.serverFieldError('key'), 'CustomClientKeyRequired')
+  assert.equal(ctx.api.serverFieldError('server_ip'), 'CustomClientHostInvalidFormat')
+  assert.equal(ctx.api.serverFieldError('api_server'), 'CustomClientApiServerInvalidFormat')
+  // invalidFields follows the existing highlight/ARIA schema.
+  assert.deepEqual(Object.keys(ctx.api.invalidFields.value).sort(), ['api_server', 'key', 'server_ip'])
+  assert.equal(ctx.api.isFieldInvalid('server_ip'), true)
+})
+
+test('unknown or non-displayable server fields are ignored', async () => {
+  const ctx = fixture('windows')
+  const applied = await ctx.api.applyServerFieldErrors([
+    { field: 'android_app_id', code: 'invalid_format' },
+    { field: '__internal', code: 'required' },
+  ])
+  assert.equal(applied, false)
+  assert.deepEqual(Object.keys(ctx.api.invalidFields.value), [])
+})
+
+test('clearing a field removes both its server and local error state', () => {
+  const ctx = fixture('windows')
+  ctx.api.invalidFields.value = { key: ['CustomClientKeyRequired'] }
+  ctx.api.serverFieldErrors.value = { key: 'CustomClientKeyRequired' }
+  ctx.api.clearFieldError('key')
+  assert.deepEqual(Object.keys(ctx.api.invalidFields.value), [])
+  assert.deepEqual(Object.keys(ctx.api.serverFieldErrors.value), [])
+})
+
+test('required policy matches the server contract per platform', () => {
+  // platform/app_name/version + key are required everywhere; key is included
+  // because this form's submit action dispatches the build and dispatch requires
+  // a non-empty key on every platform (RequireDispatchPublicKey).
   for (const platform of ['windows', 'linux', 'android']) {
-    for (const field of ['server_ip', 'relay_server', 'api_server', 'key']) {
-      for (const value of [' ', '\t', ' \r\n']) {
-        const ctx = fixture(platform)
-        ctx.form[field] = value
-        const rules = ctx.api.rules.value[field] || []
-        assert.ok(rules.some(rule => rule.validator), `${platform} ${field} missing format rule`)
-        assert.equal(rules.some(rule => rule.required), platform === 'windows')
-        rules.find(rule => rule.validator).validator({}, value, error => assert.ok(error))
-        assert.equal(ctx.api.isFieldFormatInvalid(field, value), true)
-        assert.ok(ctx.presetErrors()[field], `${platform} ${field} missing preset warning`)
-      }
-    }
-  }
-})
-
-test('empty optional values and normalized keys remain supported without required rules', () => {
-  for (const platform of ['linux', 'android']) {
     const ctx = fixture(platform)
-    for (const field of ['server_ip', 'relay_server', 'api_server', 'key']) {
-      ctx.form[field] = ''
-      assert.equal(ctx.api.rules.value[field], undefined)
-      assert.equal(ctx.api.isFieldFormatInvalid(field, ''), false)
-    }
-    ctx.form.key = '\r\n'
-    assert.equal(ctx.api.rules.value.key, undefined)
-    ctx.form.key = key + '\r\n'
-    const rules = ctx.api.rules.value.key
-    assert.equal(rules.some(rule => rule.required), false)
-    rules[0].validator({}, ctx.form.key, error => assert.equal(error, undefined))
-    assert.deepEqual(Object.keys(ctx.presetErrors()), [])
+    assert.ok(ctx.api.isRequiredField('platform'), `${platform} platform required`)
+    assert.ok(ctx.api.isRequiredField('version'), `${platform} version required`)
+    assert.ok(ctx.api.isRequiredField('app_name'), `${platform} app_name required`)
+    assert.ok(ctx.api.isRequiredField('key'), `${platform} key required`)
   }
+  // Windows-only endpoint fields.
   const windows = fixture('windows')
-  for (const field of ['server_ip', 'relay_server', 'api_server', 'key']) {
-    const rules = windows.api.rules.value[field]
-    assert.ok(rules.some(rule => rule.required))
-    rules.find(rule => rule.validator).validator({}, '', error => assert.equal(error, undefined))
+  for (const field of ['server_ip', 'api_server', 'relay_server']) {
+    assert.ok(windows.api.isRequiredField(field), `windows ${field} required`)
+  }
+  const linux = fixture('linux')
+  for (const field of ['server_ip', 'api_server', 'relay_server']) {
+    assert.equal(linux.api.isRequiredField(field), false, `linux ${field} optional`)
   }
 })
 
-test('server-key action still uses exposed defaults and validates only key', async () => {
+test('rules only encode presence/required, never a local format validator', () => {
+  for (const platform of ['windows', 'linux']) {
+    const ctx = fixture(platform)
+    for (const field of ['platform', 'version', 'app_name', 'key']) {
+      const rules = ctx.api.rules.value[field] || []
+      assert.ok(rules.some(rule => rule.required), `${platform} ${field} has a required rule`)
+      assert.equal(rules.some(rule => rule.validator), false, `${platform} ${field} must not carry a format rule`)
+    }
+  }
+})
+
+test('required rules carry presence-only semantics (required + whitespace)', () => {
+  const ctx = fixture('windows')
+  const requiredRule = ctx.api.rules.value.key.find(rule => rule.required)
+  assert.equal(requiredRule.whitespace, true)
+  assert.equal(requiredRule.validator, undefined)
+})
+
+test('server-key action still uses exposed defaults and only checks presence', async () => {
   const ctx = fixture()
-  const calls = []
   ctx.serverConfigDefaults.key = key
-  ctx.clearFieldError = field => calls.push(['clear', field])
-  ctx.formRef.value = { validateField: async field => calls.push(['validate', field]) }
+  ctx.api.invalidFields.value = { key: ['CustomClientKeyInvalidFormat'] }
+  ctx.api.serverFieldErrors.value = { key: 'CustomClientKeyRequired' }
   await ctx.api.useServerKey()
   assert.equal(ctx.form.key, key)
-  assert.deepEqual(calls, [['clear', 'key'], ['validate', 'key']])
+  assert.deepEqual(Object.keys(ctx.api.invalidFields.value), [])
+  assert.deepEqual(Object.keys(ctx.api.serverFieldErrors.value), [])
   assert.match(sfc, /v-if="serverConfigDefaults.key"/)
   assert.match(sfc, /@click="useServerKey"/)
   const { descriptor } = parse(sfc)
@@ -153,15 +144,14 @@ test('server-key action still uses exposed defaults and validates only key', asy
   assert.match(between('    return {\n      form, formRef', '\n  },\n})'), /\bserverConfigDefaults,/) // setup return, not merely declaration
 })
 
-test('ARIA reflects optional field errors without changing required policy', async () => {
+test('ARIA reflects server field errors without changing required policy', async () => {
   const ctx = fixture()
   const attributes = {}
   ctx.document = { getElementById: id => id === 'custom-client-server_ip-input' ? {
     setAttribute: (name, value) => { attributes[name] = value },
     removeAttribute: name => { delete attributes[name] },
   } : null }
-  ctx.form.server_ip = ' '
-  ctx.api.invalidFields.value = ctx.presetErrors()
+  ctx.api.invalidFields.value = { server_ip: ['CustomClientHostInvalidFormat'] }
   await ctx.api.syncFieldAria()
   assert.equal(attributes['aria-required'], 'false')
   assert.equal(attributes['aria-invalid'], 'true')
@@ -170,4 +160,58 @@ test('ARIA reflects optional field errors without changing required policy', asy
   await ctx.api.syncFieldAria()
   assert.equal(attributes['aria-invalid'], 'false')
   assert.equal(attributes['aria-describedby'], undefined)
+})
+
+test('every displayable field binds the server error to its form item', () => {
+  for (const field of ['platform', 'version', 'app_name', 'server_ip', 'key', 'api_server', 'relay_server', 'permanent_password']) {
+    assert.ok(
+      sfc.includes(`serverFieldError('${field}')`),
+      `field ${field} must bind :error to the server message`
+    )
+  }
+})
+
+test('server still rejects/accepts the #69 IPv6 and URL cases (Go authority)', () => {
+  const service = readFileSync(new URL('../../api/service/custom_build_spec.go', import.meta.url), 'utf8')
+  const goFunction = (source, name) => {
+    const match = source.match(new RegExp(`func ${name}\\([^]*?\\n\\}`))
+    assert.ok(match, `missing Go function ${name}`)
+    return match[0]
+  }
+  const dir = mkdtempSync(join(process.env.TMPDIR || tmpdir(), 'deskforge-validator-'))
+  try {
+    writeFileSync(join(dir, 'main.go'), `package main
+import ("encoding/json"; "fmt"; "net"; "net/url"; "strconv"; "strings"; "os")
+${goFunction(service, 'validateEndpoint')}
+${goFunction(service, 'validateHost')}
+${goFunction(service, 'validateAPIURL')}
+func main() {
+  var input map[string][]string
+  if err := json.NewDecoder(os.Stdin).Decode(&input); err != nil { panic(err) }
+  output := map[string][]bool{}
+  for _, value := range input["endpoints"] { output["endpoints"] = append(output["endpoints"], validateEndpoint("server_ip", value) == nil) }
+  for _, value := range input["urls"] { output["urls"] = append(output["urls"], validateAPIURL("api_server", value) == nil) }
+  _ = fmt.Sprint
+  _ = net.ParseIP
+  _ = url.Parse
+  _ = strconv.Itoa
+  _ = strings.TrimSpace
+  if err := json.NewEncoder(os.Stdout).Encode(output); err != nil { panic(err) }
+}`)
+    const endpoints = ['1:2:3:4:5:6:7::8', '1.2.3.4::1', '1:2:3:4:5:6:1.2.3.4']
+    const urls = ['http://host\\path', 'http:///host', 'http://ho%41st', 'http://host:65536', 'http://[fe80::1%25eth0]:80']
+    const result = spawnSync('go', ['run', join(dir, 'main.go')], {
+      input: JSON.stringify({ endpoints, urls }), encoding: 'utf8',
+      env: { ...process.env, GOWORK: 'off' },
+    })
+    assert.equal(result.status, 0, result.stderr)
+    const go = JSON.parse(result.stdout)
+    // These are the exact #69 divergent inputs. The UI no longer produces its own
+    // verdict for them; the server (Go) is the contract, and the UI only renders
+    // the field it reports.
+    assert.deepEqual(go.endpoints, [false, false, true])
+    assert.deepEqual(go.urls, [false, false, false, true, true])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })

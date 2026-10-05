@@ -157,7 +157,7 @@ func TestCreateNormalizedWithIdentityPersistsWriteOnceVersionFields(t *testing.T
 		Platform:   "windows",
 		Version:    identity.DisplayVersion,
 		AppName:    "rustqs",
-		CustomJson: `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`,
+		CustomJson: `{"server_ip":"id.example:21116","key":"` + validRustDeskPublicKey + `","api_server":"https://api.example","relay_server":"relay.example:21117"}`,
 	}
 	normalized, err := (&CustomBuildService{}).CreateNormalizedWithIdentity(build, identity)
 	if err != nil {
@@ -219,7 +219,7 @@ func TestCatalogResolvedIdentityDispatchesAndRejectsMismatchedRepo(t *testing.T)
 		Platform:   "windows",
 		Version:    identity.DisplayVersion,
 		AppName:    "rustqs",
-		CustomJson: `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`,
+		CustomJson: `{"server_ip":"id.example:21116","key":"` + validRustDeskPublicKey + `","api_server":"https://api.example","relay_server":"relay.example:21117"}`,
 	}
 	if _, err := (&CustomBuildService{}).CreateNormalizedWithIdentity(build, identity); err != nil {
 		t.Fatalf("CreateNormalizedWithIdentity() error = %v", err)
@@ -250,7 +250,7 @@ func TestCatalogResolvedIdentityDispatchesAndRejectsMismatchedRepo(t *testing.T)
 		Platform:   "windows",
 		Version:    identity.DisplayVersion,
 		AppName:    "rustqs",
-		CustomJson: `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`,
+		CustomJson: `{"server_ip":"id.example:21116","key":"` + validRustDeskPublicKey + `","api_server":"https://api.example","relay_server":"relay.example:21117"}`,
 	}
 	if _, err := (&CustomBuildService{}).CreateNormalizedWithIdentity(mismatchedBuild, identity); err != nil {
 		t.Fatalf("CreateNormalizedWithIdentity() for mismatch case error = %v", err)
@@ -294,7 +294,7 @@ func TestCreateNormalizedWithIdentityRejectsInvalidVersionBeforeDBCreate(t *test
 }
 
 func TestCreateNormalizedWithIdentityRejectsIncompleteProductionBuildBeforeDBCreate(t *testing.T) {
-	const completeWindowsJSON = `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`
+	const completeWindowsJSON = `{"server_ip":"id.example:21116","key":"` + validRustDeskPublicKey + `","api_server":"https://api.example","relay_server":"relay.example:21117"}`
 	identity := VersionIdentity{
 		Repo:           "owner/repo",
 		DisplayVersion: "1.4.8",
@@ -314,10 +314,10 @@ func TestCreateNormalizedWithIdentityRejectsIncompleteProductionBuildBeforeDBCre
 		{name: "missing platform", platform: "", version: identity.DisplayVersion, appName: "rustqs", customJSON: completeWindowsJSON},
 		{name: "whitespace version", platform: "windows", version: " \t ", appName: "rustqs", customJSON: completeWindowsJSON},
 		{name: "whitespace app name", platform: "windows", version: identity.DisplayVersion, appName: " \t ", customJSON: completeWindowsJSON},
-		{name: "missing server endpoint", platform: "windows", version: identity.DisplayVersion, appName: "rustqs", customJSON: `{"key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`},
+		{name: "missing server endpoint", platform: "windows", version: identity.DisplayVersion, appName: "rustqs", customJSON: `{"key":"` + validRustDeskPublicKey + `","api_server":"https://api.example","relay_server":"relay.example:21117"}`},
 		{name: "whitespace public key", platform: "windows", version: identity.DisplayVersion, appName: "rustqs", customJSON: `{"server_ip":"id.example:21116","key":" \t ","api_server":"https://api.example","relay_server":"relay.example:21117"}`},
-		{name: "missing API endpoint", platform: "windows", version: identity.DisplayVersion, appName: "rustqs", customJSON: `{"server_ip":"id.example:21116","key":"public-key","relay_server":"relay.example:21117"}`},
-		{name: "whitespace relay endpoint", platform: "windows", version: identity.DisplayVersion, appName: "rustqs", customJSON: `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example","relay_server":" \t "}`},
+		{name: "missing API endpoint", platform: "windows", version: identity.DisplayVersion, appName: "rustqs", customJSON: `{"server_ip":"id.example:21116","key":"` + validRustDeskPublicKey + `","relay_server":"relay.example:21117"}`},
+		{name: "whitespace relay endpoint", platform: "windows", version: identity.DisplayVersion, appName: "rustqs", customJSON: `{"server_ip":"id.example:21116","key":"` + validRustDeskPublicKey + `","api_server":"https://api.example","relay_server":" \t "}`},
 	}
 
 	for _, tc := range cases {

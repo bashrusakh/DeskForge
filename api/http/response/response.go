@@ -13,6 +13,20 @@ type Response struct {
 	Message string      `json:"message"`
 	Data    interface{} `json:"data"`
 }
+
+// ErrorField is a machine-readable per-field validation reason. `code` is a
+// stable localization identifier (for example "required" or "invalid_format");
+// it never contains the submitted field value.
+type ErrorField struct {
+	Field string `json:"field"`
+	Code  string `json:"code"`
+}
+
+// ErrorData is the optional non-nil error payload. Fields is omitted from the
+// envelope unless at least one per-field reason is present.
+type ErrorData struct {
+	Fields []ErrorField `json:"fields,omitempty"`
+}
 type PageData struct {
 	Page  int         `json:"page"`
 	Total int         `json:"total"`
@@ -49,6 +63,21 @@ func FailStatus(c *gin.Context, status, code int, message string) {
 		Code:    code,
 		Message: message,
 		Data:    nil,
+	})
+}
+
+// FailValidation keeps the standard envelope and attaches machine-readable
+// per-field reasons so a client can localize and highlight specific fields.
+// `data` stays nil when no field is present, preserving the legacy shape.
+func FailValidation(c *gin.Context, status, code int, message string, fields ...ErrorField) {
+	var data any
+	if len(fields) > 0 {
+		data = ErrorData{Fields: fields}
+	}
+	c.JSON(status, Response{
+		Code:    code,
+		Message: message,
+		Data:    data,
 	})
 }
 

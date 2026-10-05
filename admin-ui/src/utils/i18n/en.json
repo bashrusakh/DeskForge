@@ -89,6 +89,9 @@
   "CustomClientRelayServerInvalidFormat": {
     "One": "Relay server must be a valid IP address or a host with an optional port (e.g. relay.example.com or 1.2.3.4:21117)."
   },
+  "CustomClientFieldInvalidFormat": {
+    "One": "The value has an invalid format for the selected platform."
+  },
   "CustomClientUseServerKey": {
     "One": "Use the server's public key"
   },

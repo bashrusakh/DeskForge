@@ -232,6 +232,71 @@ func IsClientValidationError(err error) bool {
 	return errors.As(err, &validationErr)
 }
 
+// Field validation codes are the machine-readable reason contract consumed by
+// the admin UI to localize a per-field message. They are intentionally stable
+// identifiers, never user-facing prose.
+const (
+	FieldCodeRequired        = "required"
+	FieldCodeInvalidFormat   = "invalid_format"
+	FieldCodeInvalidEndpoint = "invalid_endpoint"
+)
+
+// structuredFieldNames is the closed set of fields the admin UI can localize.
+// Validators only attach machine-readable field metadata for these names so the
+// error payload never gains noise for internal/native-only parameters.
+var structuredFieldNames = map[string]struct{}{
+	"platform":           {},
+	"version":            {},
+	"app_name":           {},
+	"server_ip":          {},
+	"key":                {},
+	"api_server":         {},
+	"relay_server":       {},
+	"permanent_password": {},
+}
+
+// FieldError attaches a machine-readable field/reason pair to an input
+// validation failure. The human message from the authoritative validator is
+// preserved verbatim for logs and the legacy message field; Code is the
+// localization contract. It never carries a field value, so secrets cannot
+// enter the error payload.
+type FieldError struct {
+	Field string
+	Code  string
+	Err   error
+}
+
+func (e *FieldError) Error() string { return e.Err.Error() }
+
+func (e *FieldError) Unwrap() error { return e.Err }
+
+// FieldErrorMetadata extracts the first structured field/reason pair from err.
+// It reports ok=false when no annotated field error is present.
+func FieldErrorMetadata(err error) (field, code string, ok bool) {
+	var fieldErr *FieldError
+	if !errors.As(err, &fieldErr) || fieldErr == nil {
+		return "", "", false
+	}
+	if fieldErr.Field == "" || fieldErr.Code == "" {
+		return "", "", false
+	}
+	return fieldErr.Field, fieldErr.Code, true
+}
+
+// NewFieldError annotates an authoritative validation failure with
+// field/reason metadata. Names outside structuredFieldNames keep their plain
+// error. The human message is preserved for logs; Field/Code are the
+// machine-readable localization contract and never carry a field value.
+func NewFieldError(field, code string, err error) error {
+	if err == nil {
+		return nil
+	}
+	if _, ok := structuredFieldNames[field]; !ok {
+		return err
+	}
+	return &FieldError{Field: field, Code: code, Err: err}
+}
+
 // ParsePlatform validates the closed platform domain used by BuildSpec.
 func ParsePlatform(value string) (Platform, error) {
 	switch platform := Platform(value); platform {
@@ -252,11 +317,11 @@ func ValidateCustomPlatform(value string) error {
 	return nil
 }
 
-// ValidateCustomBuildInput validates the normal typed request path without
-// changing the persisted custom_json representation. Empty custom_json keeps
-// the existing optional-payload behavior; a non-empty value must pass the
-// authoritative BuildSpec normalizer.
-func ValidateCustomBuildInput(platform, customJSON, appName, version string) error {
+// ValidateCustomBuildRecordFieldsRequired applies only the record-owned required
+// part of ValidateCustomBuildInput (platform/app_name/version). It lets the
+// controller surface those machine-readable field errors before the generic
+// request-shape validator without changing the authoritative full validation.
+func ValidateCustomBuildRecordFieldsRequired(platform, appName, version string) error {
 	for _, field := range []struct {
 		name  string
 		value string
@@ -266,8 +331,19 @@ func ValidateCustomBuildInput(platform, customJSON, appName, version string) err
 		{name: "version", value: version},
 	} {
 		if strings.TrimSpace(field.value) == "" {
-			return &ClientValidationError{Err: fmt.Errorf("%s is required", field.name)}
+			return &ClientValidationError{Err: NewFieldError(field.name, FieldCodeRequired, fmt.Errorf("%s is required", field.name))}
 		}
+	}
+	return nil
+}
+
+// ValidateCustomBuildInput validates the normal typed request path without
+// changing the persisted custom_json representation. Empty custom_json keeps
+// the existing optional-payload behavior; a non-empty value must pass the
+// authoritative BuildSpec normalizer.
+func ValidateCustomBuildInput(platform, customJSON, appName, version string) error {
+	if err := ValidateCustomBuildRecordFieldsRequired(platform, appName, version); err != nil {
+		return err
 	}
 	context := BuildRecordContext{
 		Platform: platform,
@@ -298,7 +374,7 @@ func ValidateCustomBuildInput(platform, customJSON, appName, version string) err
 			{name: "relay_server", value: normalized.Spec.RelayServer},
 		} {
 			if strings.TrimSpace(field.value) == "" {
-				return &ClientValidationError{Err: fmt.Errorf("%s is required for Windows builds", field.name)}
+				return &ClientValidationError{Err: NewFieldError(field.name, FieldCodeRequired, fmt.Errorf("%s is required for Windows builds", field.name))}
 			}
 		}
 	}
@@ -348,10 +424,10 @@ func ValidateBuildRecordContext(context BuildRecordContext) error {
 		return err
 	}
 	if err := ValidateOutputAppName(context.AppName); err != nil {
-		return err
+		return NewFieldError("app_name", FieldCodeInvalidFormat, err)
 	}
 	if err := validateWorkflowValue("version", context.Version); err != nil {
-		return err
+		return NewFieldError("version", FieldCodeInvalidFormat, err)
 	}
 	_, err := ParseSettingsScope(context.SettingsScope)
 	return err
@@ -539,14 +615,14 @@ func parseBuildSpec(raw map[string]any) (BuildSpec, error) {
 		{"relay_server", spec.RelayServer},
 	} {
 		if err := validateEndpoint(endpoint.name, endpoint.value); err != nil {
-			return BuildSpec{}, err
+			return BuildSpec{}, NewFieldError(endpoint.name, FieldCodeInvalidEndpoint, err)
 		}
 	}
 	if err := validateAPIURL("api_server", spec.APIServer); err != nil {
-		return BuildSpec{}, err
+		return BuildSpec{}, NewFieldError("api_server", FieldCodeInvalidFormat, err)
 	}
 	if spec.HideCM != nil && *spec.HideCM && strings.TrimSpace(spec.PermanentPassword) == "" {
-		return BuildSpec{}, fmt.Errorf("permanent_password is required when hide_cm is true")
+		return BuildSpec{}, NewFieldError("permanent_password", FieldCodeRequired, fmt.Errorf("permanent_password is required when hide_cm is true"))
 	}
 
 	return spec, nil
@@ -878,7 +954,7 @@ func validateBuildSpec(spec BuildSpec) error {
 		}
 	}
 	if spec.HideCM != nil && *spec.HideCM && strings.TrimSpace(spec.PermanentPassword) == "" {
-		return fmt.Errorf("permanent_password is required when hide_cm is true")
+		return NewFieldError("permanent_password", FieldCodeRequired, fmt.Errorf("permanent_password is required when hide_cm is true"))
 	}
 	if err := validateBuildSpecTransportFields(spec); err != nil {
 		return err
@@ -891,11 +967,11 @@ func validateBuildSpec(spec BuildSpec) error {
 		{"relay_server", spec.RelayServer},
 	} {
 		if err := validateEndpoint(endpoint.name, endpoint.value); err != nil {
-			return err
+			return NewFieldError(endpoint.name, FieldCodeInvalidEndpoint, err)
 		}
 	}
 	if err := validateAPIURL("api_server", spec.APIServer); err != nil {
-		return err
+		return NewFieldError("api_server", FieldCodeInvalidFormat, err)
 	}
 	return nil
 }
@@ -909,7 +985,20 @@ func validateBuildSpecTransportFields(spec BuildSpec) error {
 		{"key", spec.Key},
 	} {
 		if err := validateWorkflowValue(field.name, field.value); err != nil {
-			return err
+			return NewFieldError(field.name, FieldCodeInvalidFormat, err)
+		}
+	}
+	// A non-empty key must be canonical 32-byte base64 public-key material, the
+	// same contract RequireDispatchPublicKey enforces before dispatch and the
+	// key-file loader enforces at startup. This is the create-time equivalent of
+	// the removed client-side isValidPublicKeyFormat check, so create returns a
+	// structured key/invalid_format error instead of persisting a row whose
+	// dispatch later fails without field feedback. An empty key keeps its
+	// separate per-platform required policy and is not a material error here.
+	// The underlying PublicKeyConfigurationError never carries key material.
+	if spec.Key != "" {
+		if err := config.ValidatePublicKeyMaterial(spec.Key); err != nil {
+			return NewFieldError("key", FieldCodeInvalidFormat, err)
 		}
 	}
 	return nil
