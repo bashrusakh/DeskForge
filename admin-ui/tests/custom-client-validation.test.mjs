@@ -112,6 +112,23 @@ test('platform change invalidates a stale response entirely', async () => {
   assert.deepEqual(Object.keys(ctx.api.invalidFields.value), [])
 })
 
+test('hide_cm change invalidates a stale response entirely', async () => {
+  // F-B (follow-up): the server requirement set also depends on hide_cm
+  // (permanent_password is required when hide_cm is true), so toggling it while
+  // the create request is in flight must invalidate the response just like a
+  // platform change.
+  const ctx = fixture('linux')
+  ctx.form.hide_cm = false
+  const snapshot = ctx.api.snapshotSubmittedFields()
+  assert.equal(snapshot.hide_cm, false)
+  ctx.form.hide_cm = true // requirement set changed while in flight
+  const applied = await ctx.api.applyServerFieldErrors(
+    [{ field: 'permanent_password', code: 'required' }], snapshot)
+  assert.equal(applied, false)
+  assert.deepEqual(Object.keys(ctx.api.serverFieldErrors.value), [])
+  assert.deepEqual(Object.keys(ctx.api.invalidFields.value), [])
+})
+
 test('a partially-stale response applies only the still-unchanged fields', async () => {
   const ctx = fixture('linux')
   ctx.form.key = 'submitted-key'

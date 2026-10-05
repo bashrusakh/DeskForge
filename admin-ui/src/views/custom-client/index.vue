@@ -667,14 +667,15 @@ export default defineComponent({
     // A create response describes the exact form state that was submitted. If the
     // user edits a field while the request is in flight, the response is stale for
     // that field. Pass the snapshot captured at submit time so an old error is
-    // never mapped onto a newer value: a platform change invalidates the whole
-    // classification (the server rules are platform-dependent), otherwise only the
-    // errors whose field value changed are dropped. Without a snapshot the caller
-    // is assumed to be applying a response for the current state (legacy/tests).
+    // never mapped onto a newer value: a change to an input that decides which
+    // fields the server requires (platform, hide_cm — see requiredFieldSet)
+    // invalidates the whole classification, otherwise only the errors whose field
+    // value changed are dropped. Without a snapshot the caller is assumed to be
+    // applying a response for the current state (legacy/tests).
     const applyServerFieldErrors = async (fields, snapshot) => {
       const applicable = (fields || []).filter((entry) => requiredFieldNames.includes(entry.field))
       if (!applicable.length) return false
-      if (snapshot && snapshot.platform !== form.platform) return false
+      if (snapshot && (snapshot.platform !== form.platform || snapshot.hide_cm !== form.hide_cm)) return false
       const current = snapshot
         ? applicable.filter((entry) => snapshot.values[entry.field] === form[entry.field])
         : applicable
@@ -698,11 +699,13 @@ export default defineComponent({
     }
 
     // Capture the submitted values for the displayable fields so a late server
-    // response can be matched against the state it actually describes.
+    // response can be matched against the state it actually describes. platform
+    // and hide_cm are the requirement inputs (see requiredFieldSet); if either
+    // changes while the request is in flight, the whole classification is stale.
     const snapshotSubmittedFields = () => {
       const values = {}
       for (const field of requiredFieldNames) values[field] = form[field]
-      return { platform: values.platform, values }
+      return { platform: values.platform, hide_cm: form.hide_cm, values }
     }
 
     // Presence predicate only: drives when a field needs its required rule.
