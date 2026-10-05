@@ -89,6 +89,9 @@
   "CustomClientRelayServerInvalidFormat": {
     "One": "中继服务器地址必须是有效的 IP 或主机名，可带端口（例如 relay.example.com 或 1.2.3.4:21117）。"
   },
+  "CustomClientFieldInvalidFormat": {
+    "One": "该值对所选的平台而言格式无效。"
+  },
   "CustomClientUseServerKey": {
     "One": "使用服务器公钥"
   },

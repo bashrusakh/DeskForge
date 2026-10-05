@@ -32,7 +32,7 @@
         <el-divider content-position="left">{{ T('Platform') }}</el-divider>
         <el-row :gutter="20">
           <el-col :span="8">
-            <el-form-item :label="T('Platform')" prop="platform">
+            <el-form-item :label="T('Platform')" prop="platform" :error="serverFieldError('platform') || undefined">
               <!--
                 Windows x64 and Linux x64 are validated end-to-end (GitHub Actions run
                 evidence). Android remains unavailable pending validation. 32-bit Windows
@@ -63,7 +63,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item :label="T('Version')" prop="version">
+            <el-form-item :label="T('Version')" prop="version" :error="serverFieldError('version') || undefined">
               <el-tooltip :content="requiredMessage('version')" :disabled="!isFieldInvalid('version')" placement="top" :trigger="['hover', 'focus']" :trigger-keys="[]">
                 <el-select
                   v-model="form.version"
@@ -85,7 +85,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item :label="T('AppName')" prop="app_name">
+            <el-form-item :label="T('AppName')" prop="app_name" :error="serverFieldError('app_name') || undefined">
               <el-tooltip :content="requiredMessage('app_name')" :disabled="!isFieldInvalid('app_name')" placement="top" :trigger="['hover', 'focus']" :trigger-keys="[]">
                 <el-input
                   v-model="form.app_name"
@@ -107,7 +107,7 @@
         <el-divider content-position="left">{{ T('CustomServer') }}</el-divider>
         <el-row :gutter="20">
           <el-col :span="8">
-            <el-form-item :label="T('Host')" prop="server_ip">
+            <el-form-item :label="T('Host')" prop="server_ip" :error="serverFieldError('server_ip') || undefined">
               <el-tooltip :content="requiredMessage('server_ip')" :disabled="!isFieldInvalid('server_ip')" placement="top" :trigger="['hover', 'focus']" :trigger-keys="[]">
                 <el-input
                   v-model="form.server_ip"
@@ -134,7 +134,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item :label="T('Key')" prop="key">
+            <el-form-item :label="T('Key')" prop="key" :error="serverFieldError('key') || undefined">
               <el-tooltip :content="requiredMessage('key')" :disabled="!isFieldInvalid('key')" placement="top" :trigger="['hover', 'focus']" :trigger-keys="[]">
                 <el-input
                   v-model="form.key"
@@ -167,7 +167,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item :label="T('ApiServer')" prop="api_server">
+            <el-form-item :label="T('ApiServer')" prop="api_server" :error="serverFieldError('api_server') || undefined">
               <el-tooltip :content="requiredMessage('api_server')" :disabled="!isFieldInvalid('api_server')" placement="top" :trigger="['hover', 'focus']" :trigger-keys="[]">
                 <el-input
                   v-model="form.api_server"
@@ -188,7 +188,7 @@
         </el-row>
         <el-row :gutter="20">
           <el-col :span="8">
-            <el-form-item :label="T('RelayServer')" prop="relay_server">
+            <el-form-item :label="T('RelayServer')" prop="relay_server" :error="serverFieldError('relay_server') || undefined">
               <el-tooltip :content="requiredMessage('relay_server')" :disabled="!isFieldInvalid('relay_server')" placement="top" :trigger="['hover', 'focus']" :trigger-keys="[]">
                 <el-input
                   v-model="form.relay_server"
@@ -238,7 +238,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item :label="T('PermanentPassword')" prop="permanent_password">
+            <el-form-item :label="T('PermanentPassword')" prop="permanent_password" :error="serverFieldError('permanent_password') || undefined">
               <el-tooltip :content="requiredMessage('permanent_password')" :disabled="!isFieldInvalid('permanent_password')" placement="top" :trigger="['hover', 'focus']" :trigger-keys="[]">
                 <el-input
                   v-model="form.permanent_password"
@@ -602,14 +602,23 @@ export default defineComponent({
       permanent_password: 'CustomClientPermanentPasswordRequired',
     }
     const invalidFields = ref({})
+    // Per-field validation messages owned by the server. Populated only from the
+    // create response (data.fields) so the form never re-derives IPv4/IPv6/host/
+    // URL/key format truth locally.
+    const serverFieldErrors = ref({})
     const requiredMessage = (field) => T(requiredMessageKeys[field])
+    // Required policy mirrors the authoritative server contract:
+    //   ValidateCustomBuildInput (api/service/custom_build_spec.go) requires
+    //   platform/app_name/version on every platform and server_ip/key/api_server/
+    //   relay_server for Windows. This form's only submit action also dispatches
+    //   the build, and dispatch (RequireDispatchPublicKey) requires a non-empty
+    //   key on every platform, so key is required here for all platforms rather
+    //   than Windows only. permanent_password is required whenever hide_cm is
+    //   set (BuildSpec/ValidateCustomBuildInput).
     const requiredFieldSet = computed(() => {
-      const fields = new Set()
-      if (!form.platform || form.platform === 'windows') {
-        fields.add('platform')
-      }
+      const fields = new Set(['platform', 'version', 'app_name', 'key'])
       if (form.platform === 'windows') {
-        for (const field of ['version', 'app_name', 'server_ip', 'key', 'api_server', 'relay_server']) {
+        for (const field of ['server_ip', 'api_server', 'relay_server']) {
           fields.add(field)
         }
       }
@@ -625,204 +634,63 @@ export default defineComponent({
       trigger: ['blur', 'change'],
     })
 
-    // Format validators provide early feedback for server-validated fields:
-    //   key         -> api/config/rustdesk.go ValidatePublicKeyMaterial
-    //                  (after config.NormalizePublicKey)
-    //   endpoints   -> api/service/custom_build_spec.go validateEndpoint
-    //   api_server  -> api/service/custom_build_spec.go validateAPIURL
-    // They validate every NON-EMPTY value on any platform; rules() attaches them whenever the
-    // field is required or currently holds a non-empty value, so linux/android
-    // garbage is highlighted instead of false-passing. Truly empty values are
-    // NOT a format error: the required rule owns emptiness, so these
-    // validators keep single-error messaging.
-    const formatMessageKeys = {
+    // Format truth lives on the server. The create response returns
+    // machine-readable per-field reasons (data.fields) derived from the
+    // authoritative Go validators — ValidateCustomBuildInput / validateBuildSpec
+    // in api/service/custom_build_spec.go. The UI therefore
+    // does NOT re-implement IPv4/IPv6/host/URL/key parsing, so it cannot
+    // false-pass or false-reject against the server. Only presence/required
+    // (per platform) is decided locally.
+    //
+    // Server error code -> localized message. `required` reuses the existing
+    // per-field required keys; format codes reuse the existing per-field format
+    // keys where one exists and fall back to a generic invalid-format key.
+    const serverFormatMessageKeys = {
       key: 'CustomClientKeyInvalidFormat',
       server_ip: 'CustomClientHostInvalidFormat',
-      relay_server: 'CustomClientRelayServerInvalidFormat',
       api_server: 'CustomClientApiServerInvalidFormat',
+      relay_server: 'CustomClientRelayServerInvalidFormat',
+      version: 'CustomClientFieldInvalidFormat',
+      app_name: 'CustomClientFieldInvalidFormat',
     }
-    const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f]/
-    const isValidPublicKeyFormat = (value) => {
-      if (!value) return true
-      // Mirror config.NormalizePublicKey: only trailing \r\n are stripped (the
-      // terminator emitted by id_ed25519.pub). Spaces and tabs remain material
-      // and are rejected like the server does (whitespace-only means invalid).
-      const normalized = value.replace(/[\r\n]+$/, '')
-      if (!normalized) return true // became empty: owned by the required rule
-      if (CONTROL_CHARS.test(normalized)) return false
-      let decoded
-      try {
-        decoded = atob(normalized)
-      } catch (_) {
-        return false
+    const serverFieldMessage = (field, code) => {
+      if (code === 'required') return requiredMessage(field)
+      return T(serverFormatMessageKeys[field] || 'CustomClientFieldInvalidFormat')
+    }
+    const serverFieldError = (field) => serverFieldErrors.value[field] || ''
+
+    // Apply the per-field reasons from a create response. Fields the form can
+    // display (requiredFieldNames) are highlighted; unknown fields are ignored.
+    // The server message is the display source (`:error`), while invalidFields
+    // keeps ARIA and focus behavior aligned with the existing schema.
+    const applyServerFieldErrors = async (fields) => {
+      const applicable = (fields || []).filter((entry) => requiredFieldNames.includes(entry.field))
+      if (!applicable.length) return false
+      const nextMessages = { ...serverFieldErrors.value }
+      const nextInvalidFields = { ...invalidFields.value }
+      for (const { field, code } of applicable) {
+        const message = serverFieldMessage(field, code)
+        nextMessages[field] = message
+        nextInvalidFields[field] = [message]
       }
-      return decoded.length === 32 && btoa(decoded) === normalized
-    }
-    const isValidIpv4 = (host) => {
-      const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host)
-      if (!match) return false
-      return match.slice(1).every((octet) => (octet === '0' || octet[0] !== '0') && Number(octet) <= 255)
-    }
-    const isValidIpv6 = (host) => {
-      if (!host.includes(':') || /[^0-9a-fA-F:.]/.test(host)) return false
-      const halves = host.split('::')
-      if (halves.length > 2) return false
-      const groupWeights = (piece) => {
-        if (piece === '') return []
-        const groups = piece.split(':')
-        const weights = []
-        for (const group of groups) {
-          if (!group) return null // e.g. "1:2:" — empty group
-          if (group.includes('.')) {
-            if (!isValidIpv4(group)) return null
-            weights.push(2) // embedded IPv4 counts as two 16-bit groups
-          } else if (/^[0-9a-fA-F]{1,4}$/.test(group)) {
-            weights.push(1)
-          } else {
-            return null
-          }
-        }
-        return weights
-      }
-      const total = (halves[0] ? groupWeights(halves[0])?.length : 0) + (halves[1] ? groupWeights(halves[1])?.length : 0)
-      if (halves[0] && groupWeights(halves[0]) === null) return false
-      if (halves[1] && groupWeights(halves[1]) === null) return false
-      const compressed = halves.length === 2
-      return compressed ? total <= 8 : total === 8
-    }
-    const isValidIp = (host) => isValidIpv4(host) || isValidIpv6(host)
-    const isValidHost = (host) => {
-      // Reject path/query/fragment/userinfo delimiters and opening brackets.
-      // Keep the existing UI character restrictions; this is not a complete
-      // emulation of Go's URL parser. A closing bracket alone is allowed by Go.
-      if (!host) return false
-      if (host !== host.trim()) return false
-      if (/[\s\u0000-\u001f\u007f-\u009f\\%'"`<>?#@/\[]/.test(host)) return false
+      serverFieldErrors.value = nextMessages
+      invalidFields.value = nextInvalidFields
+      // `:error` drives the el-form-item error state; do not call validateField
+      // here because a passing local rule would flip the field back to success
+      // and hide the server message.
+      await nextTick()
+      await focusFirstInvalid(nextInvalidFields)
+      syncFieldAria()
       return true
     }
-    const isValidEndpointFormat = (value) => {
-      if (!value) return true
-      if (value !== value.trim()) return false
-      if (isValidIp(value)) return true // bare IPv4/IPv6 without a port
-      // Emulate net.SplitHostPort.
-      let host = null
-      let port = null
-      let split = false
-      if (value.startsWith('[')) {
-        const close = value.indexOf(']')
-        if (close !== -1) {
-          const rest = value.slice(close + 1)
-          if (rest === '') {
-            split = false // "[::1]" — missing port
-          } else if (rest.startsWith(':')) {
-            host = value.slice(1, close)
-            port = rest.slice(1)
-            split = true
-          }
-        }
-      } else {
-        const colon = value.indexOf(':')
-        if (colon !== -1 && value.indexOf(':', colon + 1) === -1) {
-          host = value.slice(0, colon)
-          port = value.slice(colon + 1)
-          split = true
-        }
-      }
-      if (split) {
-        // SplitHostPort succeeded: a port is mandatory and must be 1-65535.
-        if (!/^\d+$/.test(port)) return false
-        const portNumber = Number(port)
-        if (portNumber < 1 || portNumber > 65535) return false
-        if (value.startsWith('[') && !isValidIp(host)) return false
-        if (!isValidIp(host) && !isValidHost(host)) return false
-        if (!host) return false
-        return true
-      }
-      if (value.includes(':')) return false // too many colons / stray colon
-      return isValidHost(value)
-    }
-    const isValidApiServerFormat = (value) => {
-      if (!value) return true
-      if (value !== value.trim()) return false
-      // Mirror Go's url.ParseRequestURI: control characters (including \t \r
-      // \n) are rejected outright, and an authority must not carry userinfo —
-      // Go rejects User != nil, i.e. any "@" inside the authority. The browser
-      // URL parser silently strips control chars and parses "http://@host" as
-      // host only, so both are checked textually before new URL() runs.
-      if (CONTROL_CHARS.test(value)) return false
-      const authorityIndex = value.indexOf('://')
-      if (authorityIndex === -1) return false
-      const afterScheme = value.slice(authorityIndex + 3)
-      const authority = afterScheme.split(/[/?#]/)[0]
-      if (authority.includes('@')) return false
-      try {
-        const parsed = new URL(value)
-        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
-        if (!parsed.hostname) return false
-        if (parsed.username || parsed.password) return false
-        return true
-      } catch (_) {
-        return false
-      }
-    }
-    const formatValidators = {
-      key: isValidPublicKeyFormat,
-      server_ip: isValidEndpointFormat,
-      relay_server: isValidEndpointFormat,
-      api_server: isValidApiServerFormat,
-    }
-    const fieldFormatMessage = (field) => T(formatMessageKeys[field])
-    // Only keys normalize trailing line terminators. Endpoint/API whitespace
-    // is material and must reach the format validator, even on optional fields.
-    const hasFieldFormatValue = (field, value) => {
-      const text = String(value ?? '')
-      return (field === 'key' ? text.replace(/[\r\n]+$/, '') : text) !== ''
-    }
-    const isFieldFormatInvalid = (field, value) => {
-      const validator = formatValidators[field]
-      if (!validator) return false
-      const text = String(value ?? '')
-      if (!hasFieldFormatValue(field, text)) return false // emptiness is owned by the required rule
-      return !validator(text)
-    }
-    // Any non-empty value is validated regardless of platform, so a field needs a format
-    // rule whenever it is required OR currently non-empty.
-    // Android-only fields without a validator (android_app_id) never get one.
-    // Reactivity: requiredFieldSet covers the platform switch; form covers
-    // values typed or preset-loaded while the field is not required.
-    const formatCheckedFields = computed(() => {
-      const fields = new Set()
-      for (const field of requiredFieldNames) {
-        if (isRequiredField(field) || hasFieldFormatValue(field, form[field])) {
-          fields.add(field)
-        }
-      }
-      return fields
-    })
-    const formatRule = (field) => ({
-      validator: (_rule, value, callback) => {
-        if (!hasFieldFormatValue(field, value)) {
-          callback()
-          return
-        }
-        const text = String(value)
-        callback(formatValidators[field](text) ? undefined : new Error(fieldFormatMessage(field)))
-      },
-      trigger: ['blur', 'change'],
-    })
-    // Rule assembly: the required rule is attached only to requiredFieldSet
-    // fields (it owns emptiness). The format rule is attached to every field
-    // with a format validator that is required OR currently non-empty — that
-    // keeps non-empty values format-checked regardless of platform without exposing a
-    // required:true rule to fields the server does not require. Fields
-    // without a format validator (android_app_id and friends) never get one
-    // and keep zero rules when they are not required.
+
+    // Presence predicate only: drives when a field needs its required rule.
+    // It carries no format semantics.
     const rules = computed(() => Object.fromEntries(
       requiredFieldNames
         .map((field) => {
           const fieldRules = []
           if (isRequiredField(field)) fieldRules.push(requiredRule(field))
-          if (formatCheckedFields.value.has(field) && formatValidators[field]) fieldRules.push(formatRule(field))
           return [field, fieldRules]
         })
         .filter(([, fieldRules]) => fieldRules.length > 0)
@@ -832,11 +700,8 @@ export default defineComponent({
       if (!serverConfigDefaults.key) return
       form.key = serverConfigDefaults.key
       clearFieldError('key')
-      try {
-        await formRef.value?.validateField?.('key')
-      } catch (_) {
-        // Validation failure renders the field rule message inline; nothing to do.
-      }
+      // The key format is server-owned; only refresh presence/required state.
+      syncFieldAria()
     }
 
     const isFieldInvalid = (field) => Boolean(invalidFields.value[field])
@@ -854,14 +719,20 @@ export default defineComponent({
         else control.removeAttribute('aria-describedby')
       }
     }
-    // formatCheckedFields participates so aria state follows format rules that
-    // appear/disappear when a non-required field gains or loses its value.
-    watch([requiredFieldSet, formatCheckedFields, invalidFields], syncFieldAria, { deep: true, flush: 'post' })
+    // requiredFieldSet and invalidFields participate so ARIA follows the
+    // per-platform required policy and both local and server-provided field
+    // errors.
+    watch([requiredFieldSet, invalidFields], syncFieldAria, { deep: true, flush: 'post' })
     const clearFieldError = (field) => {
       if (invalidFields.value[field]) {
         const nextInvalidFields = { ...invalidFields.value }
         delete nextInvalidFields[field]
         invalidFields.value = nextInvalidFields
+      }
+      if (serverFieldErrors.value[field]) {
+        const nextServerFieldErrors = { ...serverFieldErrors.value }
+        delete nextServerFieldErrors[field]
+        serverFieldErrors.value = nextServerFieldErrors
       }
       formRef.value?.clearValidate?.(field)
       syncFieldAria()
@@ -871,6 +742,7 @@ export default defineComponent({
     }
     const onPlatformChange = () => {
       invalidFields.value = {}
+      serverFieldErrors.value = {}
       formRef.value?.clearValidate?.()
       syncFieldAria()
     }
@@ -887,6 +759,7 @@ export default defineComponent({
     const validateBuildForm = async () => {
       if (!formRef.value) return false
       invalidFields.value = {}
+      serverFieldErrors.value = {}
       const valid = await formRef.value.validate().catch(async (fields) => {
         invalidFields.value = fields || {}
         await focusFirstInvalid(fields)
@@ -920,6 +793,7 @@ export default defineComponent({
       presetPasswordClearIntent.value = false
       showPermanentPassword.value = false
       invalidFields.value = {}
+      serverFieldErrors.value = {}
       formRef.value?.clearValidate?.()
     }
 
@@ -1091,28 +965,12 @@ export default defineComponent({
         explicitPresetFields.value = explicitFields
         applyServerConfigDefaults()
         invalidFields.value = {}
+        serverFieldErrors.value = {}
         formRef.value?.clearValidate?.()
-        // A preset loaded from disk carries values for any platform. Sync the
-        // highlight with the rules contract: format checks run on every
-        // non-empty value regardless of platform (see formatCheckedFields), so
-        // a garbage linux/android endpoint is highlighted too. android_app_id
-        // has no format validator and is never flagged.
-        const formatInvalidEntries = Object.fromEntries(
-          requiredFieldNames
-            .filter((field) => formatCheckedFields.value.has(field))
-            .filter((field) => isFieldFormatInvalid(field, form[field]))
-            .map((field) => [field, [fieldFormatMessage(field)]])
-        )
-        if (Object.keys(formatInvalidEntries).length > 0) {
-          invalidFields.value = formatInvalidEntries
-          for (const field of Object.keys(formatInvalidEntries)) {
-            try {
-              await formRef.value?.validateField?.(field)
-            } catch (_) {
-              // The field rule renders the format message itself.
-            }
-          }
-        }
+        // Format validity is server-owned, so a loaded preset is not
+        // pre-highlighted locally; the create response highlights the exact
+        // fields whose server validation fails. Presence/required state (which
+        // can differ by platform) is still reflected through rules/ARIA.
         syncFieldAria()
         ElMessage.success(T('OperationSuccess'))
       } catch (e) {
@@ -1226,7 +1084,13 @@ export default defineComponent({
         resetForm()
         loadBuilds()
       } catch (e) {
-        console.error(e)
+        // The server returns machine-readable per-field validation reasons
+        // (data.fields) derived from the authoritative Go validators. Highlight
+        // those exact fields instead of one generic toast; the axios interceptor
+        // still toasts the bounded server message.
+        const fields = e?.response?.data?.data?.fields
+          || (Number.isInteger(e?.code) && e.code !== 0 ? e?.data?.fields : null)
+        if (!await applyServerFieldErrors(fields)) console.error(e)
       } finally {
         submitting.value = false
       }
@@ -1370,7 +1234,7 @@ export default defineComponent({
        clearSavedPresetPassword,
        useServerKey,
        serverConfigDefaults,
-      requiredMessage, isRequiredField, fieldInputId, fieldErrorId, isFieldInvalid, clearFieldError, onHideConnectionManagementChange, onPlatformChange,
+      requiredMessage, isRequiredField, fieldInputId, fieldErrorId, isFieldInvalid, serverFieldError, clearFieldError, onHideConnectionManagementChange, onPlatformChange,
     }
   },
 })

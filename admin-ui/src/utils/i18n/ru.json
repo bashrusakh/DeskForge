@@ -89,6 +89,9 @@
   "CustomClientRelayServerInvalidFormat": {
     "One": "Адрес relay-сервера должен быть допустимым IP или именем хоста с необязательным портом (например, relay.example.com или 1.2.3.4:21117)."
   },
+  "CustomClientFieldInvalidFormat": {
+    "One": "Значение имеет недопустимый формат для выбранной платформы."
+  },
   "CustomClientUseServerKey": {
     "One": "Использовать публичный ключ сервера"
   },
