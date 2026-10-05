@@ -254,13 +254,13 @@ func TestCustomBuildCreateValidationReturnsStructuredFields(t *testing.T) {
 	}{
 		{
 			name:      "invalid IPv6 server endpoint is attributed to server_ip",
-			body:      `{"name":"DeskForge","platform":"windows","version":"1.2.3","app_name":"DeskForge","custom_json":"{\"server_ip\":\"1:2:3:4:5:6:7::8\",\"key\":\"k\",\"api_server\":\"https://api.example\",\"relay_server\":\"relay.example\"}"}`,
+			body:      `{"name":"DeskForge","platform":"windows","version":"1.2.3","app_name":"DeskForge","custom_json":"{\"server_ip\":\"1:2:3:4:5:6:7::8\",\"key\":\"5Qbwsde3unUcJBtrx9ZkvUmwFNoExHzpryHuPUdqlWM=\",\"api_server\":\"https://api.example\",\"relay_server\":\"relay.example\"}"}`,
 			wantField: "server_ip",
 			wantCode:  service.FieldCodeInvalidEndpoint,
 		},
 		{
 			name:      "invalid api_server URL is attributed to api_server",
-			body:      `{"name":"DeskForge","platform":"windows","version":"1.2.3","app_name":"DeskForge","custom_json":"{\"server_ip\":\"id.example\",\"key\":\"k\",\"api_server\":\"http:///host\",\"relay_server\":\"relay.example\"}"}`,
+			body:      `{"name":"DeskForge","platform":"windows","version":"1.2.3","app_name":"DeskForge","custom_json":"{\"server_ip\":\"id.example\",\"key\":\"5Qbwsde3unUcJBtrx9ZkvUmwFNoExHzpryHuPUdqlWM=\",\"api_server\":\"http:///host\",\"relay_server\":\"relay.example\"}"}`,
 			wantField: "api_server",
 			wantCode:  service.FieldCodeInvalidFormat,
 		},
@@ -281,6 +281,12 @@ func TestCustomBuildCreateValidationReturnsStructuredFields(t *testing.T) {
 			body:      `{"name":"DeskForge","platform":"windows","version":"1.2.3","app_name":"DeskForge","custom_json":"{\"server_ip\":\"id.example\",\"api_server\":\"https://api.example\",\"relay_server\":\"relay.example\"}"}`,
 			wantField: "key",
 			wantCode:  service.FieldCodeRequired,
+		},
+		{
+			name:      "non-canonical public key material is attributed to key",
+			body:      `{"name":"DeskForge","platform":"windows","version":"1.2.3","app_name":"DeskForge","custom_json":"{\"server_ip\":\"id.example\",\"key\":\"test\",\"api_server\":\"https://api.example\",\"relay_server\":\"relay.example\"}"}`,
+			wantField: "key",
+			wantCode:  service.FieldCodeInvalidFormat,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {

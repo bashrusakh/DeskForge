@@ -64,7 +64,7 @@ func TestCustomBuildCreateCanonicalizesBeforePersistence(t *testing.T) {
 		Platform:   "windows",
 		Version:    "1.2.3",
 		AppName:    "deskforge",
-		CustomJson: `{"server_ip":"id.example:21116","key":"public-key","relay_server":"relay.example:21117","enable_audio":false}`,
+		CustomJson: `{"server_ip":"id.example:21116","key":"` + validRustDeskPublicKey + `","relay_server":"relay.example:21117","enable_audio":false}`,
 	}
 	normalized, err := (&CustomBuildService{}).CreateNormalized(build)
 	if err != nil {
@@ -1625,7 +1625,7 @@ func TestCustomBuildUpdateValidatedAllowlistPreservesProvenance(t *testing.T) {
 }
 
 func TestCustomBuildUpdateValidatedProviderBackedIdentityFieldsAreImmutable(t *testing.T) {
-	const completeWindowsJSON = `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`
+	const completeWindowsJSON = `{"server_ip":"id.example:21116","key":"` + validRustDeskPublicKey + `","api_server":"https://api.example","relay_server":"relay.example:21117"}`
 	cases := []struct {
 		name      string
 		platform  string
@@ -1673,7 +1673,7 @@ func TestCustomBuildUpdateValidatedProviderBackedIdentityFieldsAreImmutable(t *t
 }
 
 func TestCustomBuildUpdateValidatedProviderBackedWindowsRequiresProductionFields(t *testing.T) {
-	const completeWindowsJSON = `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`
+	const completeWindowsJSON = `{"server_ip":"id.example:21116","key":"` + validRustDeskPublicKey + `","api_server":"https://api.example","relay_server":"relay.example:21117"}`
 	const providerSourceRef = "0123456789abcdef0123456789abcdef01234567"
 	cases := []struct {
 		name       string
@@ -1685,11 +1685,11 @@ func TestCustomBuildUpdateValidatedProviderBackedWindowsRequiresProductionFields
 		{name: "missing platform", platform: "", version: "1.2.3", appName: "rustqs", customJSON: completeWindowsJSON},
 		{name: "whitespace version", platform: "windows", version: " \t ", appName: "rustqs", customJSON: completeWindowsJSON},
 		{name: "whitespace app name", platform: "windows", version: "1.2.3", appName: " \t ", customJSON: completeWindowsJSON},
-		{name: "missing server endpoint", platform: "windows", version: "1.2.3", appName: "rustqs", customJSON: `{"key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`},
+		{name: "missing server endpoint", platform: "windows", version: "1.2.3", appName: "rustqs", customJSON: `{"key":"` + validRustDeskPublicKey + `","api_server":"https://api.example","relay_server":"relay.example:21117"}`},
 		{name: "missing public key", platform: "windows", version: "1.2.3", appName: "rustqs", customJSON: `{"server_ip":"id.example:21116","api_server":"https://api.example","relay_server":"relay.example:21117"}`},
-		{name: "missing API endpoint", platform: "windows", version: "1.2.3", appName: "rustqs", customJSON: `{"server_ip":"id.example:21116","key":"public-key","relay_server":"relay.example:21117"}`},
-		{name: "missing relay endpoint", platform: "windows", version: "1.2.3", appName: "rustqs", customJSON: `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example"}`},
-		{name: "hide cm whitespace password", platform: "windows", version: "1.2.3", appName: "rustqs", customJSON: `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117","hide_cm":true,"permanent_password":" \t "}`},
+		{name: "missing API endpoint", platform: "windows", version: "1.2.3", appName: "rustqs", customJSON: `{"server_ip":"id.example:21116","key":"` + validRustDeskPublicKey + `","relay_server":"relay.example:21117"}`},
+		{name: "missing relay endpoint", platform: "windows", version: "1.2.3", appName: "rustqs", customJSON: `{"server_ip":"id.example:21116","key":"` + validRustDeskPublicKey + `","api_server":"https://api.example"}`},
+		{name: "hide cm whitespace password", platform: "windows", version: "1.2.3", appName: "rustqs", customJSON: `{"server_ip":"id.example:21116","key":"` + validRustDeskPublicKey + `","api_server":"https://api.example","relay_server":"relay.example:21117","hide_cm":true,"permanent_password":" \t "}`},
 	}
 
 	for _, tc := range cases {
@@ -1756,14 +1756,14 @@ func TestCustomBuildUpdateValidatedActiveProviderIdentityRequiresProductionField
 		Platform:       "windows",
 		Version:        "1.2.3",
 		AppName:        "rustqs",
-		CustomJson:     `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`,
+		CustomJson:     `{"server_ip":"id.example:21116","key":"` + validRustDeskPublicKey + `","api_server":"https://api.example","relay_server":"relay.example:21117"}`,
 		GithubProvider: "github",
 	}
 	if err := db.Create(stored).Error; err != nil {
 		t.Fatalf("seed active-provider build: %v", err)
 	}
 	candidate := *stored
-	candidate.CustomJson = `{"key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`
+	candidate.CustomJson = `{"key":"` + validRustDeskPublicKey + `","api_server":"https://api.example","relay_server":"relay.example:21117"}`
 	if err := (&CustomBuildService{}).UpdateValidated(&candidate); err == nil || !IsClientValidationError(err) {
 		t.Fatalf("UpdateValidated() error = %v, want client validation error", err)
 	}
@@ -1998,12 +1998,12 @@ func TestValidateCustomBuildInput(t *testing.T) {
 		wantErr    bool
 	}{
 		{name: "supported empty payload", platform: "linux"},
-		{name: "windows complete payload", platform: "windows", customJSON: `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`},
+		{name: "windows complete payload", platform: "windows", customJSON: `{"server_ip":"id.example:21116","key":"` + validRustDeskPublicKey + `","api_server":"https://api.example","relay_server":"relay.example:21117"}`},
 		{name: "supported typed payload", platform: "linux", customJSON: `{"enable_audio":false}`},
-		{name: "windows missing server endpoint", platform: "windows", customJSON: `{"key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`, wantErr: true},
+		{name: "windows missing server endpoint", platform: "windows", customJSON: `{"key":"` + validRustDeskPublicKey + `","api_server":"https://api.example","relay_server":"relay.example:21117"}`, wantErr: true},
 		{name: "windows missing public key", platform: "windows", customJSON: `{"server_ip":"id.example:21116","api_server":"https://api.example","relay_server":"relay.example:21117"}`, wantErr: true},
-		{name: "windows missing API URL", platform: "windows", customJSON: `{"server_ip":"id.example:21116","key":"public-key","relay_server":"relay.example:21117"}`, wantErr: true},
-		{name: "windows missing relay endpoint", platform: "windows", customJSON: `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example"}`, wantErr: true},
+		{name: "windows missing API URL", platform: "windows", customJSON: `{"server_ip":"id.example:21116","key":"` + validRustDeskPublicKey + `","relay_server":"relay.example:21117"}`, wantErr: true},
+		{name: "windows missing relay endpoint", platform: "windows", customJSON: `{"server_ip":"id.example:21116","key":"` + validRustDeskPublicKey + `","api_server":"https://api.example"}`, wantErr: true},
 		{name: "windows empty required values", platform: "windows", customJSON: `{"server_ip":"","key":"","api_server":"","relay_server":""}`, wantErr: true},
 		{name: "android requires package identity", platform: "android", wantErr: true},
 		{name: "unsupported platform", platform: "macos", customJSON: `{}`, wantErr: true},
@@ -2041,57 +2041,57 @@ func TestValidateCustomBuildInputReportsStructuredFieldCodes(t *testing.T) {
 		{
 			name:      "IPv6 too many groups is invalid server_ip",
 			platform:  "windows",
-			custom:    `{"server_ip":"1:2:3:4:5:6:7::8","key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`,
+			custom:    `{"server_ip":"1:2:3:4:5:6:7::8","key":"` + validRustDeskPublicKey + `","api_server":"https://api.example","relay_server":"relay.example:21117"}`,
 			wantField: "server_ip",
 			wantCode:  FieldCodeInvalidEndpoint,
 		},
 		{
 			name:      "embedded IPv4 double colon is invalid relay_server",
 			platform:  "windows",
-			custom:    `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example","relay_server":"1.2.3.4::1"}`,
+			custom:    `{"server_ip":"id.example:21116","key":"` + validRustDeskPublicKey + `","api_server":"https://api.example","relay_server":"1.2.3.4::1"}`,
 			wantField: "relay_server",
 			wantCode:  FieldCodeInvalidEndpoint,
 		},
 		{
 			name:     "embedded IPv4 server_ip is accepted by Go",
 			platform: "windows",
-			custom:   `{"server_ip":"1:2:3:4:5:6:1.2.3.4","key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`,
+			custom:   `{"server_ip":"1:2:3:4:5:6:1.2.3.4","key":"` + validRustDeskPublicKey + `","api_server":"https://api.example","relay_server":"relay.example:21117"}`,
 		},
 		{
 			name:      "backslash host is invalid api_server",
 			platform:  "windows",
-			custom:    `{"server_ip":"id.example:21116","key":"public-key","api_server":"http://host\\path","relay_server":"relay.example:21117"}`,
+			custom:    `{"server_ip":"id.example:21116","key":"` + validRustDeskPublicKey + `","api_server":"http://host\\path","relay_server":"relay.example:21117"}`,
 			wantField: "api_server",
 			wantCode:  FieldCodeInvalidFormat,
 		},
 		{
 			name:      "empty-authority URL is invalid api_server",
 			platform:  "windows",
-			custom:    `{"server_ip":"id.example:21116","key":"public-key","api_server":"http:///host","relay_server":"relay.example:21117"}`,
+			custom:    `{"server_ip":"id.example:21116","key":"` + validRustDeskPublicKey + `","api_server":"http:///host","relay_server":"relay.example:21117"}`,
 			wantField: "api_server",
 			wantCode:  FieldCodeInvalidFormat,
 		},
 		{
 			name:     "zone-scoped IPv6 URL is accepted by Go",
 			platform: "windows",
-			custom:   `{"server_ip":"id.example:21116","key":"public-key","api_server":"http://[fe80::1%25eth0]:80","relay_server":"relay.example:21117"}`,
+			custom:   `{"server_ip":"id.example:21116","key":"` + validRustDeskPublicKey + `","api_server":"http://[fe80::1%25eth0]:80","relay_server":"relay.example:21117"}`,
 		},
 		{
 			name:     "URL port above 65535 is accepted by Go",
 			platform: "windows",
-			custom:   `{"server_ip":"id.example:21116","key":"public-key","api_server":"http://host:65536","relay_server":"relay.example:21117"}`,
+			custom:   `{"server_ip":"id.example:21116","key":"` + validRustDeskPublicKey + `","api_server":"http://host:65536","relay_server":"relay.example:21117"}`,
 		},
 		{
 			name:      "percent-escaped host is invalid api_server",
 			platform:  "windows",
-			custom:    `{"server_ip":"id.example:21116","key":"public-key","api_server":"http://ho%41st","relay_server":"relay.example:21117"}`,
+			custom:    `{"server_ip":"id.example:21116","key":"` + validRustDeskPublicKey + `","api_server":"http://ho%41st","relay_server":"relay.example:21117"}`,
 			wantField: "api_server",
 			wantCode:  FieldCodeInvalidFormat,
 		},
 		{
 			name:      "hide_cm without permanent password is required",
 			platform:  "windows",
-			custom:    `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117","hide_cm":true}`,
+			custom:    `{"server_ip":"id.example:21116","key":"` + validRustDeskPublicKey + `","api_server":"https://api.example","relay_server":"relay.example:21117","hide_cm":true}`,
 			wantField: "permanent_password",
 			wantCode:  FieldCodeRequired,
 		},
@@ -2130,6 +2130,108 @@ func TestValidateCustomBuildInputReportsStructuredFieldCodes(t *testing.T) {
 	}
 }
 
+func TestValidateCustomBuildInputRequiresCanonicalPublicKeyMaterial(t *testing.T) {
+	// F1 regression: after validation moved to the server (#69), a non-empty
+	// key that is not canonical 32-byte base64 public-key material must be
+	// rejected at create with a structured key/invalid_format error, mirroring
+	// the removed client-side isValidPublicKeyFormat check. Empty keys keep
+	// their separate per-platform required policy and must not raise a material
+	// error. Every other Windows-required field is valid so the failure is
+	// attributed to key.
+	windows := func(keyFragment string) string {
+		return `{"server_ip":"id.example:21116",` + keyFragment + `"api_server":"https://api.example","relay_server":"relay.example:21117"}`
+	}
+	for _, test := range []struct {
+		name      string
+		platform  string
+		custom    string
+		wantField string
+		wantCode  string
+		wantOK    bool
+	}{
+		{
+			name:      "non-base64 key is invalid format",
+			platform:  "windows",
+			custom:    windows(`"key":"test",`),
+			wantField: "key",
+			wantCode:  FieldCodeInvalidFormat,
+		},
+		{
+			name:      "wrong-length base64 key is invalid format",
+			platform:  "windows",
+			custom:    windows(`"key":"cHVibGljLWtleQ==",`),
+			wantField: "key",
+			wantCode:  FieldCodeInvalidFormat,
+		},
+		{
+			name:      "non-canonical padding is invalid format",
+			platform:  "windows",
+			custom:    windows(`"key":"5Qbwsde3unUcJBtrx9ZkvUmwFNoExHzpryHuPUdqlWM",`),
+			wantField: "key",
+			wantCode:  FieldCodeInvalidFormat,
+		},
+		{
+			name:      "control characters in key are invalid format",
+			platform:  "windows",
+			custom:    windows(`"key":"public\nkey",`),
+			wantField: "key",
+			wantCode:  FieldCodeInvalidFormat,
+		},
+		{
+			name:     "canonical 32-byte base64 key is accepted on windows",
+			platform: "windows",
+			custom:   windows(`"key":"` + validRustDeskPublicKey + `",`),
+			wantOK:   true,
+		},
+		{
+			name:     "trailing line endings are normalized before material check",
+			platform: "windows",
+			custom:   windows(`"key":"` + validRustDeskPublicKey + `\r\n",`),
+			wantOK:   true,
+		},
+		{
+			name:      "empty key on windows stays required, not invalid format",
+			platform:  "windows",
+			custom:    windows(`"key":"",`),
+			wantField: "key",
+			wantCode:  FieldCodeRequired,
+		},
+		{
+			name:     "empty key on linux remains accepted",
+			platform: "linux",
+			custom:   `{"enable_audio":false}`,
+			wantOK:   true,
+		},
+		{
+			name:      "non-empty garbage key on linux is rejected",
+			platform:  "linux",
+			custom:    `{"key":"test"}`,
+			wantField: "key",
+			wantCode:  FieldCodeInvalidFormat,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			err := ValidateCustomBuildInput(test.platform, test.custom, "DeskForge", "1.2.3")
+			if test.wantOK {
+				if err != nil {
+					t.Fatalf("ValidateCustomBuildInput() error = %v, want accepted", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("ValidateCustomBuildInput() error = nil, want structured key error")
+			}
+			if !IsClientValidationError(err) {
+				t.Fatalf("error type = %T, want ClientValidationError", err)
+			}
+			field, code, ok := FieldErrorMetadata(err)
+			if !ok || field != test.wantField || code != test.wantCode {
+				t.Fatalf("field/code = %s/%s ok=%v, want %s/%s (err=%v)", field, code, ok, test.wantField, test.wantCode, err)
+			}
+		})
+	}
+}
+
 func TestValidateCustomBuildInputMatchesAuthoritativeValidatorsForIssue69(t *testing.T) {
 	// Differential: the structured path must agree with the raw authoritative
 	// validators for every #69 divergent input. A nil error from
@@ -2148,7 +2250,7 @@ func TestValidateCustomBuildInputMatchesAuthoritativeValidatorsForIssue69(t *tes
 			rawValid := validateEndpoint(test.field, test.value) == nil
 			custom := map[string]string{
 				"server_ip":    "id.example:21116",
-				"key":          "public-key",
+				"key":          validRustDeskPublicKey,
 				"api_server":   "https://api.example",
 				"relay_server": "relay.example:21117",
 			}
@@ -2174,7 +2276,7 @@ func TestValidateCustomBuildInputMatchesAuthoritativeValidatorsForIssue69(t *tes
 			rawValid := validateAPIURL("api_server", value) == nil
 			encoded, _ := json.Marshal(map[string]string{
 				"server_ip":    "id.example:21116",
-				"key":          "public-key",
+				"key":          validRustDeskPublicKey,
 				"api_server":   value,
 				"relay_server": "relay.example:21117",
 			})
@@ -2194,7 +2296,7 @@ func TestValidateCustomBuildInputMatchesAuthoritativeValidatorsForIssue69(t *tes
 }
 
 func TestValidateCustomBuildInputUsesUserAuthoredRecordFields(t *testing.T) {
-	const completeWindowsJSON = `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`
+	const completeWindowsJSON = `{"server_ip":"id.example:21116","key":"` + validRustDeskPublicKey + `","api_server":"https://api.example","relay_server":"relay.example:21117"}`
 	for _, test := range []struct {
 		name     string
 		platform string

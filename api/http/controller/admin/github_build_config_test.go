@@ -71,12 +71,12 @@ func TestDispatchTestResponseIncludesProviderRunDetails(t *testing.T) {
 }
 
 func TestDispatchTestParamsUseTypedConfiguredValues(t *testing.T) {
-	params, err := normalizeDispatchTestParams("id.example:21116", "public-key", "1.4.8")
+	params, err := normalizeDispatchTestParams("id.example:21116", "5Qbwsde3unUcJBtrx9ZkvUmwFNoExHzpryHuPUdqlWM=", "1.4.8")
 	if err != nil {
 		t.Fatalf("normalizeDispatchTestParams() error = %v", err)
 	}
 	customTxt, ok := params["custom_txt"].(service.NormalizedCustomTxt)
-	if !ok || customTxt.Value() != "" || params["server"] != "id.example:21116" || params["key"] != "public-key" || params["app_name"] != "deskforge-smoketest" {
+	if !ok || customTxt.Value() != "" || params["server"] != "id.example:21116" || params["key"] != "5Qbwsde3unUcJBtrx9ZkvUmwFNoExHzpryHuPUdqlWM=" || params["app_name"] != "deskforge-smoketest" {
 		t.Fatalf("normalized smoke-test params = %#v", params)
 	}
 

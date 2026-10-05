@@ -242,7 +242,7 @@ func TestNormalizeWorkflowDispatchParamsRejectsCallerWorkflowSHA(t *testing.T) {
 func TestNormalizeCustomBuildFullNativeMapping(t *testing.T) {
 	raw := map[string]any{
 		"server_ip":             "id.example:21116",
-		"key":                   "public-key",
+		"key":                   validRustDeskPublicKey,
 		"app_name":              "ignored-app-name",
 		"version":               "ignored-version",
 		"direction":             "incoming",
@@ -316,8 +316,8 @@ func TestNormalizeCustomBuildFullNativeMapping(t *testing.T) {
 	if got.DispatchParams["server"] != "id.example:21116" {
 		t.Errorf("dispatch server = %v, want literal endpoint", got.DispatchParams["server"])
 	}
-	if got.DispatchParams["key"] != "public-key" {
-		t.Errorf("dispatch key = %v, want public-key", got.DispatchParams["key"])
+	if got.DispatchParams["key"] != validRustDeskPublicKey {
+		t.Errorf("dispatch key = %v, want canonical public key", got.DispatchParams["key"])
 	}
 	if got.DispatchParams["app_name"] != "record-app" || got.DispatchParams["version"] != "1.2.3" {
 		t.Errorf("record context leaked or was lost in dispatch params: %#v", got.DispatchParams)
@@ -773,7 +773,7 @@ func TestNormalizeCustomBuildRejectsUnknownPersistedFields(t *testing.T) {
 }
 
 func TestNormalizedBuildPersistedJSONIsCanonicalFormJSON(t *testing.T) {
-	got, err := NormalizeCustomBuildJSON(`{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example","enable_audio":false,"enable_terminal":true,"app_name":"raw-app","version":"raw-version","platform":"raw-platform"}`, BuildRecordContext{
+	got, err := NormalizeCustomBuildJSON(`{"server_ip":"id.example:21116","key":"`+validRustDeskPublicKey+`","api_server":"https://api.example","enable_audio":false,"enable_terminal":true,"app_name":"raw-app","version":"raw-version","platform":"raw-platform"}`, BuildRecordContext{
 		BuildID:  99,
 		Platform: "linux",
 		AppName:  "record-app",
@@ -789,10 +789,10 @@ func TestNormalizedBuildPersistedJSONIsCanonicalFormJSON(t *testing.T) {
 	if persisted["api_server"] != "https://api.example" {
 		t.Fatalf("known values not preserved: %#v", persisted)
 	}
-	if got.DispatchParams["server"] != "id.example:21116" || got.DispatchParams["key"] != "public-key" {
+	if got.DispatchParams["server"] != "id.example:21116" || got.DispatchParams["key"] != validRustDeskPublicKey {
 		t.Fatalf("L1 endpoint/key dispatch values not preserved: %#v", got.DispatchParams)
 	}
-	if persisted["server_ip"] != "id.example:21116" || persisted["key"] != "public-key" {
+	if persisted["server_ip"] != "id.example:21116" || persisted["key"] != validRustDeskPublicKey {
 		t.Fatalf("L1 endpoint/key persisted values not preserved: %#v", persisted)
 	}
 	if persisted["enable_audio"] != false || persisted["enable_terminal"] != true {
@@ -833,7 +833,7 @@ func TestPersistedJSONPreservesAuthoredEmptyStringsOnly(t *testing.T) {
 func TestCanonicalPersistedPRESETFieldsAndCustomTxtBoundary(t *testing.T) {
 	raw := map[string]any{
 		"server_ip":                "id.example:21116",
-		"key":                      "public-key",
+		"key":                      validRustDeskPublicKey,
 		"api_server":               "https://api.example",
 		"relay_server":             "relay.example:21117",
 		"company_name":             "DeskForge",

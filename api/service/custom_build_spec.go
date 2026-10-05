@@ -988,6 +988,19 @@ func validateBuildSpecTransportFields(spec BuildSpec) error {
 			return NewFieldError(field.name, FieldCodeInvalidFormat, err)
 		}
 	}
+	// A non-empty key must be canonical 32-byte base64 public-key material, the
+	// same contract RequireDispatchPublicKey enforces before dispatch and the
+	// key-file loader enforces at startup. This is the create-time equivalent of
+	// the removed client-side isValidPublicKeyFormat check, so create returns a
+	// structured key/invalid_format error instead of persisting a row whose
+	// dispatch later fails without field feedback. An empty key keeps its
+	// separate per-platform required policy and is not a material error here.
+	// The underlying PublicKeyConfigurationError never carries key material.
+	if spec.Key != "" {
+		if err := config.ValidatePublicKeyMaterial(spec.Key); err != nil {
+			return NewFieldError("key", FieldCodeInvalidFormat, err)
+		}
+	}
 	return nil
 }
 
