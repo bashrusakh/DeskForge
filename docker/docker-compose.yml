@@ -15,6 +15,10 @@ services:
         # Pass a trusted commit timestamp for deterministic Rust metadata;
         # empty keeps the build deterministic with BUILD_DATE=unknown.
         SOURCE_DATE_EPOCH: ${SOURCE_DATE_EPOCH:-}
+    # SECRET_ENCRYPTION_KEY lives in the repo-root .env (gitignored); compose
+    # auto-detection only looks next to this file, so point at it explicitly.
+    env_file:
+      - ../.env
     ports:
       - 21114:21114
       - 21115:21115
@@ -33,7 +37,6 @@ services:
       - RUSTDESK_API_RUSTDESK_WS_HOST=ws://localhost:21118
       - RUSTDESK_API_KEY_FILE=/data/id_ed25519.pub
       - RUSTDESK_API_JWT_KEY=your-secret-jwt-key-change-this
-      - SECRET_ENCRYPTION_KEY=${SECRET_ENCRYPTION_KEY:-}
     volumes:
       - ../data/server:/data
       - ../data/api:/app/data
