@@ -625,13 +625,12 @@ export default defineComponent({
       trigger: ['blur', 'change'],
     })
 
-    // Format validators mirror the server-side contract exactly:
+    // Format validators provide early feedback for server-validated fields:
     //   key         -> api/config/rustdesk.go ValidatePublicKeyMaterial
     //                  (after config.NormalizePublicKey)
     //   endpoints   -> api/service/custom_build_spec.go validateEndpoint
     //   api_server  -> api/service/custom_build_spec.go validateAPIURL
-    // They validate every NON-EMPTY value on any platform, matching
-    // validateBuildSpecTransportFields; rules() attaches them whenever the
+    // They validate every NON-EMPTY value on any platform; rules() attaches them whenever the
     // field is required or currently holds a non-empty value, so linux/android
     // garbage is highlighted instead of false-passing. Truly empty values are
     // NOT a format error: the required rule owns emptiness, so these
@@ -693,17 +692,12 @@ export default defineComponent({
     }
     const isValidIp = (host) => isValidIpv4(host) || isValidIpv6(host)
     const isValidHost = (host) => {
-      // Mirrors Go's url.Parse("//" + host) round-trip: no path/query/fragment/
-      // userinfo delimiters, no brackets (bracketed hosts need an IP + port),
-      // and no surrounding whitespace. The charset reject-list covers what the
-      // Go parser refuses inside a host: whitespace and control characters
-      // (space/tab/CR/LF), backslash, the "@" authority delimiter — plus the
-      // contract-mandated extras %'"`<>? that the Go round-trip partially
-      // tolerates but the platform never needs in real hostnames. "%" also
-      // disallows IPv6 zone IDs (fe80::1%25eth0), which the server rejects too.
+      // Reject path/query/fragment/userinfo delimiters and opening brackets.
+      // Keep the existing UI character restrictions; this is not a complete
+      // emulation of Go's URL parser. A closing bracket alone is allowed by Go.
       if (!host) return false
       if (host !== host.trim()) return false
-      if (/[\s\u0000-\u001f\u007f-\u009f\\%'"`<>?#@]/.test(host)) return false
+      if (/[\s\u0000-\u001f\u007f-\u009f\\%'"`<>?#@/\[]/.test(host)) return false
       return true
     }
     const isValidEndpointFormat = (value) => {
@@ -778,23 +772,28 @@ export default defineComponent({
       api_server: isValidApiServerFormat,
     }
     const fieldFormatMessage = (field) => T(formatMessageKeys[field])
+    // Only keys normalize trailing line terminators. Endpoint/API whitespace
+    // is material and must reach the format validator, even on optional fields.
+    const hasFieldFormatValue = (field, value) => {
+      const text = String(value ?? '')
+      return (field === 'key' ? text.replace(/[\r\n]+$/, '') : text) !== ''
+    }
     const isFieldFormatInvalid = (field, value) => {
       const validator = formatValidators[field]
       if (!validator) return false
       const text = String(value ?? '')
-      if (!text.trim()) return false // emptiness is owned by the required rule
+      if (!hasFieldFormatValue(field, text)) return false // emptiness is owned by the required rule
       return !validator(text)
     }
-    // Format checks follow validateBuildSpecTransportFields: any non-empty
-    // value is validated regardless of platform, so a field needs a format
-    // rule whenever it is required (windows/linux) OR currently non-empty.
+    // Any non-empty value is validated regardless of platform, so a field needs a format
+    // rule whenever it is required OR currently non-empty.
     // Android-only fields without a validator (android_app_id) never get one.
     // Reactivity: requiredFieldSet covers the platform switch; form covers
     // values typed or preset-loaded while the field is not required.
     const formatCheckedFields = computed(() => {
       const fields = new Set()
       for (const field of requiredFieldNames) {
-        if (isRequiredField(field) || String(form[field] ?? '').trim() !== '') {
+        if (isRequiredField(field) || hasFieldFormatValue(field, form[field])) {
           fields.add(field)
         }
       }
@@ -802,7 +801,7 @@ export default defineComponent({
     })
     const formatRule = (field) => ({
       validator: (_rule, value, callback) => {
-        if (!String(value ?? '').trim()) {
+        if (!hasFieldFormatValue(field, value)) {
           callback()
           return
         }
@@ -814,8 +813,7 @@ export default defineComponent({
     // Rule assembly: the required rule is attached only to requiredFieldSet
     // fields (it owns emptiness). The format rule is attached to every field
     // with a format validator that is required OR currently non-empty — that
-    // keeps validateBuildSpecTransportFields parity (any non-empty value is
-    // format-checked regardless of platform) without exposing a
+    // keeps non-empty values format-checked regardless of platform without exposing a
     // required:true rule to fields the server does not require. Fields
     // without a format validator (android_app_id and friends) never get one
     // and keep zero rules when they are not required.
@@ -1101,7 +1099,7 @@ export default defineComponent({
         // has no format validator and is never flagged.
         const formatInvalidEntries = Object.fromEntries(
           requiredFieldNames
-            .filter((field) => isRequiredField(field) || String(form[field] ?? '').trim() !== '')
+            .filter((field) => formatCheckedFields.value.has(field))
             .filter((field) => isFieldFormatInvalid(field, form[field]))
             .map((field) => [field, [fieldFormatMessage(field)]])
         )
