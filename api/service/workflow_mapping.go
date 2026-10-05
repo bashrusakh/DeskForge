@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"rustdesk-server/api/config"
 	"rustdesk-server/api/global"
 	"rustdesk-server/api/model"
@@ -1238,50 +1240,64 @@ func activeRulesetTargetsWorkflowTag(ruleset githubRepositoryRulesetRecord, tag 
 	return true
 }
 
-func fetchRulesetDetail(ctx context.Context, s *GithubBuildConfigService, config *model.GithubBuildConfig, summary githubRulesetSummary, tag string) (githubRepositoryRulesetRecord, error) {
+// githubWorkflowRulesetRecord is one captured tag-ruleset detail inside a
+// request-scoped snapshot. Identity/metadata checks that do not depend on a
+// candidate tag are applied once when the snapshot loads; raw rules and bypass
+// payloads stay undecoded until a tag proves the ruleset is applicable. That
+// keeps a disabled or non-matching payload from rejecting an otherwise
+// eligible tag while still fetching every detail at most once per ruleset id.
+type githubWorkflowRulesetRecord struct {
+	raw  githubRepositoryRulesetDetail
+	base githubRepositoryRulesetRecord
+	err  error
+}
+
+// fetchRulesetDetailRecord performs the provider GET for one ruleset summary
+// and applies every tag-independent contract check to the captured payload.
+func fetchRulesetDetailRecord(ctx context.Context, s *GithubBuildConfigService, config *model.GithubBuildConfig, summary githubRulesetSummary) (githubRepositoryRulesetDetail, githubRepositoryRulesetRecord, error) {
+	var rawDetail githubRepositoryRulesetDetail
 	if summary.ID <= 0 {
-		return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: errors.New("ruleset summary has no positive id")}
+		return rawDetail, githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: errors.New("ruleset summary has no positive id")}
 	}
 	path, err := githubRepoPath(config.Repo, fmt.Sprintf("/rulesets/%d?includes_parents=true", summary.ID))
 	if err != nil {
-		return githubRepositoryRulesetRecord{}, err
+		return rawDetail, githubRepositoryRulesetRecord{}, err
 	}
 	resp, err := s.ghReq(ctx, config, http.MethodGet, path, nil, http.StatusOK)
 	if err != nil {
-		return githubRepositoryRulesetRecord{}, fmt.Errorf("verify repository ruleset detail: %w", err)
+		return rawDetail, githubRepositoryRulesetRecord{}, fmt.Errorf("verify repository ruleset detail: %w", err)
 	}
 	defer resp.Body.Close()
-	var rawDetail githubRepositoryRulesetDetail
 	if err := decodeGithubJSON(resp, "verify repository ruleset detail", &rawDetail); err != nil {
-		return githubRepositoryRulesetRecord{}, err
+		return rawDetail, githubRepositoryRulesetRecord{}, err
 	}
 	if rawDetail.ID == nil || *rawDetail.ID != summary.ID {
-		return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: errors.New("ruleset detail id does not match summary")}
+		return rawDetail, githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: errors.New("ruleset detail id does not match summary")}
 	}
 	if *rawDetail.ID <= 0 || rawDetail.Name == nil || strings.TrimSpace(*rawDetail.Name) == "" || rawDetail.Source == nil || strings.TrimSpace(*rawDetail.Source) == "" || rawDetail.SourceType == nil {
-		return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: errors.New("ruleset detail is missing required metadata")}
+		return rawDetail, githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: errors.New("ruleset detail is missing required metadata")}
 	}
 	switch *rawDetail.SourceType {
 	case "Repository", "Organization", "Enterprise":
 	default:
-		return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: fmt.Errorf("ruleset detail has an invalid source_type %q", *rawDetail.SourceType)}
+		return rawDetail, githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: fmt.Errorf("ruleset detail has an invalid source_type %q", *rawDetail.SourceType)}
 	}
 	if err := validateOptionalGithubRulesetTimestamp(rawDetail.CreatedAt, "created_at"); err != nil {
-		return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: err}
+		return rawDetail, githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: err}
 	}
 	if err := validateOptionalGithubRulesetTimestamp(rawDetail.UpdatedAt, "updated_at"); err != nil {
-		return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: err}
+		return rawDetail, githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: err}
 	}
 	if rawDetail.Target == nil || *rawDetail.Target != "tag" {
-		return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: errors.New("ruleset detail has an invalid target")}
+		return rawDetail, githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: errors.New("ruleset detail has an invalid target")}
 	}
 	if rawDetail.Enforcement == nil {
-		return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: errors.New("ruleset detail has an invalid enforcement")}
+		return rawDetail, githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: errors.New("ruleset detail has an invalid enforcement")}
 	}
 	switch *rawDetail.Enforcement {
 	case "active", "evaluate", "disabled":
 	default:
-		return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: errors.New("ruleset detail has an invalid enforcement")}
+		return rawDetail, githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: errors.New("ruleset detail has an invalid enforcement")}
 	}
 	detail := githubRepositoryRulesetRecord{
 		ID:          *rawDetail.ID,
@@ -1291,20 +1307,28 @@ func fetchRulesetDetail(ctx context.Context, s *GithubBuildConfigService, config
 		Source:      *rawDetail.Source,
 	}
 	if string(rawDetail.Conditions) == "null" {
-		return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: errors.New("ruleset conditions must be an object")}
+		return rawDetail, githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: errors.New("ruleset conditions must be an object")}
 	}
 	if len(rawDetail.Conditions) != 0 {
 		var conditions githubRulesetConditions
 		if err := json.Unmarshal(rawDetail.Conditions, &conditions); err != nil {
-			return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: fmt.Errorf("decode conditions: %w", err)}
+			return rawDetail, githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: fmt.Errorf("decode conditions: %w", err)}
 		}
 		detail.Conditions = &conditions
 	}
 	if detail.Target == "tag" {
 		if err := validateGithubTagRulesetConditions(detail.Conditions); err != nil {
-			return githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: err}
+			return rawDetail, githubRepositoryRulesetRecord{}, &GithubContractError{Operation: "verify repository ruleset detail", Cause: err}
 		}
 	}
+	return rawDetail, detail, nil
+}
+
+// applyTagScopedRulesetDetail mirrors the original applicability-gated tail of
+// the per-tag detail decode: only an active tag ruleset whose ref_name
+// condition matches the candidate tag has its bypass list and rules decoded and
+// validated. Everything else returns the base record untouched.
+func applyTagScopedRulesetDetail(rawDetail githubRepositoryRulesetDetail, detail githubRepositoryRulesetRecord, tag string) (githubRepositoryRulesetRecord, error) {
 	if detail.Target != "tag" || detail.Enforcement != "active" {
 		return detail, nil
 	}
@@ -1340,6 +1364,137 @@ func fetchRulesetDetail(ctx context.Context, s *GithubBuildConfigService, config
 	return detail, nil
 }
 
+// workflowRulesetSnapshot is a request-scoped view of the repository's active
+// tag rulesets. Pages are listed once and each ruleset detail is fetched at
+// most once per ruleset id; every tag applicability decision afterwards is
+// local. A failed detail fetch is retained as that record's error so it can be
+// surfaced deterministically instead of being masked by an earlier policy
+// rejection.
+type workflowRulesetSnapshot struct {
+	records []githubWorkflowRulesetRecord
+	count   int
+}
+
+// loadWorkflowRulesetSnapshot lists the tag rulesets and captures each detail
+// payload exactly once. Pagination bounds and record limits match the
+// per-candidate path they replace.
+func (s *GithubBuildConfigService) loadWorkflowRulesetSnapshot(ctx context.Context, config *model.GithubBuildConfig) (workflowRulesetSnapshot, error) {
+	snapshot := workflowRulesetSnapshot{}
+	path, err := githubRepoPath(config.Repo, "/rulesets?targets=tag&includes_parents=true&per_page=100&page=1")
+	if err != nil {
+		return snapshot, err
+	}
+	seen := make(map[int64]struct{})
+	for page := 0; page < maxRulesetPages; page++ {
+		if err := ctx.Err(); err != nil {
+			return snapshot, &GithubTransportError{Operation: "verify repository rulesets", Cause: err}
+		}
+		resp, requestErr := s.ghReq(ctx, config, http.MethodGet, path, nil, http.StatusOK)
+		if requestErr != nil {
+			return snapshot, fmt.Errorf("verify repository rulesets: %w", requestErr)
+		}
+		var summaries []githubRulesetSummary
+		decodeErr := decodeGithubJSON(resp, "verify repository rulesets", &summaries)
+		next, hasNext, linkErr := nextGithubLink(resp.Header.Get("Link"))
+		resp.Body.Close()
+		if decodeErr != nil {
+			return snapshot, decodeErr
+		}
+		if linkErr != nil {
+			return snapshot, &GithubContractError{Operation: "verify repository rulesets", Cause: linkErr}
+		}
+		snapshot.count += len(summaries)
+		if snapshot.count > maxRulesetRecords {
+			return snapshot, &GithubContractError{Operation: "verify repository rulesets", Cause: errors.New("provider returned too many repository rulesets")}
+		}
+		for _, summary := range summaries {
+			if _, duplicate := seen[summary.ID]; duplicate {
+				// A duplicated summary id is fetched and evaluated once even if
+				// the provider repeats it across pages.
+				continue
+			}
+			seen[summary.ID] = struct{}{}
+			raw, base, detailErr := fetchRulesetDetailRecord(ctx, s, config, summary)
+			snapshot.records = append(snapshot.records, githubWorkflowRulesetRecord{raw: raw, base: base, err: detailErr})
+		}
+		if !hasNext {
+			break
+		}
+		if page == maxRulesetPages-1 {
+			return snapshot, &GithubContractError{Operation: "verify repository rulesets", Cause: fmt.Errorf("pagination exceeds %d pages", maxRulesetPages)}
+		}
+		path, err = inheritedRulesetPagePath(next)
+		if err != nil {
+			return snapshot, &GithubContractError{Operation: "verify repository rulesets", Cause: err}
+		}
+	}
+	return snapshot, nil
+}
+
+// isWorkflowRulesetPolicyError reports whether err is an ordinary ruleset
+// policy rejection rather than a malformed payload or provider failure.
+func isWorkflowRulesetPolicyError(err error) bool {
+	var approvalErr *WorkflowRefApprovalError
+	return errors.As(err, &approvalErr)
+}
+
+// verifyProtected evaluates one tag against the captured snapshot without any
+// provider I/O. It keeps the original semantics that an applicable ruleset
+// must expose update and deletion protection with an empty bypass list, while
+// preferring an applicable fatal provider/payload failure over an ordinary
+// policy rejection so a later provider failure is never hidden.
+func (snapshot workflowRulesetSnapshot) verifyProtected(tag string) error {
+	foundApplicableRuleset := false
+	var effectiveProtection githubRulesetProtection
+	var fatalErr error
+	var policyErr error
+	for _, record := range snapshot.records {
+		if record.err != nil {
+			if fatalErr == nil {
+				fatalErr = record.err
+			}
+			continue
+		}
+		detail, err := applyTagScopedRulesetDetail(record.raw, record.base, tag)
+		if err != nil {
+			if fatalErr == nil {
+				fatalErr = err
+			}
+			continue
+		}
+		if !activeRulesetTargetsWorkflowTag(detail, tag) {
+			continue
+		}
+		foundApplicableRuleset = true
+		protection, err := evaluateRulesetTagProtection(detail, tag)
+		if err != nil {
+			if isWorkflowRulesetPolicyError(err) {
+				if policyErr == nil {
+					policyErr = err
+				}
+			} else if fatalErr == nil {
+				fatalErr = err
+			}
+			continue
+		}
+		effectiveProtection.hasUpdateRule = effectiveProtection.hasUpdateRule || protection.hasUpdateRule
+		effectiveProtection.hasDeletionRule = effectiveProtection.hasDeletionRule || protection.hasDeletionRule
+	}
+	if fatalErr != nil {
+		return &GithubContractError{Operation: "verify repository ruleset detail", Cause: fatalErr}
+	}
+	if policyErr != nil {
+		return policyErr
+	}
+	if foundApplicableRuleset && effectiveProtection.hasUpdateRule && effectiveProtection.hasDeletionRule {
+		return nil
+	}
+	if snapshot.count == 0 {
+		return &GithubContractError{Operation: "verify repository rulesets", Cause: errors.New("provider returned no repository rulesets")}
+	}
+	return &WorkflowRefApprovalError{Reason: "workflow tag is not covered by an active immutable repository ruleset without bypass actors"}
+}
+
 func validateGithubTagRulesetConditions(conditions *githubRulesetConditions) error {
 	if conditions == nil || conditions.RefName == nil {
 		return errors.New("tag ruleset conditions must include ref_name")
@@ -1365,81 +1520,16 @@ func inheritedRulesetPagePath(path string) (string, error) {
 // bypass list is required because any bypass actor could bypass protection for
 // the configured workflow selector; exact workflow path/SHA readiness remains
 // enforced separately by verifyWorkflowAvailable.
+//
+// This entry point captures a fresh request-scoped snapshot so approval,
+// preparation, and dispatch always re-read provider policy; it never reuses a
+// catalog snapshot.
 func (s *GithubBuildConfigService) verifyModernProtectedWorkflowTag(ctx context.Context, config *model.GithubBuildConfig, tag string) error {
-	path, err := githubRepoPath(config.Repo, "/rulesets?targets=tag&includes_parents=true&per_page=100&page=1")
+	snapshot, err := s.loadWorkflowRulesetSnapshot(ctx, config)
 	if err != nil {
 		return err
 	}
-	rulesetCount := 0
-	foundApplicableRuleset := false
-	var effectiveProtection githubRulesetProtection
-	var evaluationErr error
-	for page := 0; page < maxRulesetPages; page++ {
-		resp, requestErr := s.ghReq(ctx, config, http.MethodGet, path, nil, http.StatusOK)
-		if requestErr != nil {
-			return fmt.Errorf("verify repository rulesets: %w", requestErr)
-		}
-		var summaries []githubRulesetSummary
-		decodeErr := decodeGithubJSON(resp, "verify repository rulesets", &summaries)
-		next, hasNext, linkErr := nextGithubLink(resp.Header.Get("Link"))
-		resp.Body.Close()
-		if decodeErr != nil {
-			return decodeErr
-		}
-		if linkErr != nil {
-			return &GithubContractError{Operation: "verify repository rulesets", Cause: linkErr}
-		}
-		rulesetCount += len(summaries)
-		if rulesetCount > maxRulesetRecords {
-			return &GithubContractError{Operation: "verify repository rulesets", Cause: errors.New("provider returned too many repository rulesets")}
-		}
-		for _, summary := range summaries {
-			ruleset, detailErr := fetchRulesetDetail(ctx, s, config, summary, tag)
-			if detailErr != nil {
-				if evaluationErr == nil {
-					evaluationErr = detailErr
-				}
-				continue
-			}
-			if !activeRulesetTargetsWorkflowTag(ruleset, tag) {
-				continue
-			}
-			foundApplicableRuleset = true
-			protection, err := evaluateRulesetTagProtection(ruleset, tag)
-			if err != nil {
-				if evaluationErr == nil {
-					evaluationErr = err
-				}
-				continue
-			}
-			effectiveProtection.hasUpdateRule = effectiveProtection.hasUpdateRule || protection.hasUpdateRule
-			effectiveProtection.hasDeletionRule = effectiveProtection.hasDeletionRule || protection.hasDeletionRule
-		}
-		if !hasNext {
-			break
-		}
-		if page == maxRulesetPages-1 {
-			return &GithubContractError{Operation: "verify repository rulesets", Cause: fmt.Errorf("pagination exceeds %d pages", maxRulesetPages)}
-		}
-		path, err = inheritedRulesetPagePath(next)
-		if err != nil {
-			return &GithubContractError{Operation: "verify repository rulesets", Cause: err}
-		}
-	}
-	if evaluationErr != nil {
-		var approvalErr *WorkflowRefApprovalError
-		if errors.As(evaluationErr, &approvalErr) {
-			return evaluationErr
-		}
-		return &GithubContractError{Operation: "verify repository ruleset detail", Cause: evaluationErr}
-	}
-	if foundApplicableRuleset && effectiveProtection.hasUpdateRule && effectiveProtection.hasDeletionRule {
-		return nil
-	}
-	if rulesetCount == 0 {
-		return &GithubContractError{Operation: "verify repository rulesets", Cause: errors.New("provider returned no repository rulesets")}
-	}
-	return &WorkflowRefApprovalError{Reason: "workflow tag is not covered by an active immutable repository ruleset without bypass actors"}
+	return snapshot.verifyProtected(tag)
 }
 
 // verifyProtectedWorkflowTag delegates to the supported modern ruleset surface.
@@ -1453,6 +1543,21 @@ func (s *GithubBuildConfigService) verifyProtectedWorkflowTag(ctx context.Contex
 }
 
 const maxWorkflowTagPages = 3
+
+// maxWorkflowTagCandidateConcurrency bounds how many listed candidates may be
+// evaluated concurrently. Each candidate performs a small fixed number of
+// provider requests, so a small window keeps the catalogue inside the
+// controller's unchanged timeout without a per-candidate guard or unbounded
+// fan-out.
+const maxWorkflowTagCandidateConcurrency = 4
+
+// workflowTagCandidateOutcome records one candidate's local result slot so a
+// concurrent worker never appends to shared state and listing order is
+// preserved independently of completion order.
+type workflowTagCandidateOutcome struct {
+	option WorkflowTagOption
+	ok     bool
+}
 
 // resolveWorkflowTag resolves one provider-derived tag label and requires the
 // GitHub ref to point at an annotated tag object whose signature is verified
@@ -1500,18 +1605,16 @@ func (s *GithubBuildConfigService) resolveWorkflowTag(ctx context.Context, confi
 	if err := decodeGithubJSON(tagResp, "resolve workflow tag object", &tagRecord); err != nil {
 		return WorkflowExecutionIdentity{}, err
 	}
-	if tagRecord.SHA != record.Object.SHA || !validGithubTagVerification(tagRecord) || tagRecord.Object.Type != "commit" || !validGithubSourceSHA(tagRecord.Object.SHA) {
-		return WorkflowExecutionIdentity{}, &GithubContractError{
-			Operation: "resolve workflow tag object",
-			Cause:     errors.New("workflow tag is not a verified annotated commit tag with an accepted verification reason"),
-		}
+	identity, err := verifiedWorkflowTagIdentity(ref, record.Object.SHA, tagRecord)
+	if err != nil {
+		return WorkflowExecutionIdentity{}, err
 	}
 	if enforceSelectorPolicy {
 		if err := s.verifyWorkflowTagSelectorUnambiguous(ctx, config, tag); err != nil {
 			return WorkflowExecutionIdentity{}, err
 		}
 	}
-	return WorkflowExecutionIdentity{Ref: ref, SHA: tagRecord.Object.SHA, VerificationReason: githubVerificationReasonValid, TrustStatus: githubTrustStatusProvider}, nil
+	return identity, nil
 }
 
 // ResolveWorkflowTag resolves a provider-derived tag for the tag-policy
@@ -1570,28 +1673,30 @@ func (s *GithubBuildConfigService) resolveWorkflowExecution(ctx context.Context,
 	return WorkflowExecutionIdentity{}, &GithubContractError{Operation: "resolve workflow execution", Cause: errors.New("unsupported workflow ref type")}
 }
 
-// ListWorkflowTagOptions returns a bounded, provider-derived list of tag
-// labels that are signed annotated tags and contain the current Windows
-// workflow with an active workflow_dispatch trigger. It never returns refs,
-// SHAs, verification payloads, or credentials to the admin client.
-func (s *GithubBuildConfigService) ListWorkflowTagOptions(ctx context.Context, config *model.GithubBuildConfig) ([]WorkflowTagOption, error) {
-	if config == nil {
-		return nil, errors.New("GitHub build config is missing")
-	}
-	if err := validateGithubRepo(config.Repo); err != nil {
-		return nil, err
-	}
-	workflow, err := WorkflowFilenameForPlatform(string(PlatformWindows))
-	if err != nil {
-		return nil, err
-	}
+// workflowTagCandidate is one annotated tag occurrence discovered while
+// listing provider tag refs. The listed object SHA is retained so the annotated
+// object can be resolved directly without a redundant per-tag ref GET.
+type workflowTagCandidate struct {
+	tag       string
+	objectSHA string
+}
+
+// listWorkflowTagCandidates lists every provider tag ref within the existing
+// page bound and validates its shape before any per-candidate I/O. Lightweight
+// tags and malformed ref entries are not candidates; a listed annotated ref is
+// admitted with its listed object SHA so resolution never repeats the
+// /git/ref/tags/<tag> lookup. Pagination Link validation and page bounds match
+// the previous per-candidate listing.
+func (s *GithubBuildConfigService) listWorkflowTagCandidates(ctx context.Context, config *model.GithubBuildConfig) ([]workflowTagCandidate, error) {
 	path, err := githubRepoPath(config.Repo, "/git/refs/tags?per_page=100&page=1")
 	if err != nil {
 		return nil, err
 	}
-	options := make([]WorkflowTagOption, 0)
-	seen := make(map[string]struct{})
+	candidates := make([]workflowTagCandidate, 0)
 	for page := 0; page < maxWorkflowTagPages; page++ {
+		if err := ctx.Err(); err != nil {
+			return nil, &GithubTransportError{Operation: "list workflow tags", Cause: err}
+		}
 		resp, err := s.ghReq(ctx, config, http.MethodGet, path, nil, http.StatusOK)
 		if err != nil {
 			return nil, err
@@ -1612,39 +1717,10 @@ func (s *GithubBuildConfigService) ListWorkflowTagOptions(ctx context.Context, c
 				// selectable options and cannot be approved by label.
 				continue
 			}
-			tag := strings.TrimPrefix(ref.Ref, "refs/tags/")
-			if _, duplicate := seen[tag]; duplicate {
-				return nil, &GithubContractError{Operation: "list workflow tags", Cause: errors.New("provider returned duplicate workflow tag")}
-			}
-			if protectionErr := s.verifyProtectedWorkflowTag(ctx, config, tag); protectionErr != nil {
-				var approvalErr *WorkflowRefApprovalError
-				if errors.As(protectionErr, &approvalErr) {
-					continue
-				}
-				return nil, protectionErr
-			}
-			identity, resolveErr := s.ResolveWorkflowTag(ctx, config, tag)
-			if resolveErr != nil {
-				// A tag can be removed or have invalid signature metadata between
-				// the list and resolve calls. Such a tag is simply not selectable;
-				// provider transport/API failures remain visible and fail closed.
-				var apiErr *GithubAPIError
-				var transportErr *GithubTransportError
-				if errors.As(resolveErr, &apiErr) || errors.As(resolveErr, &transportErr) {
-					return nil, resolveErr
-				}
-				continue
-			}
-			if err := s.verifyWorkflowAvailable(ctx, config, workflow, identity.SHA); err != nil {
-				var apiErr *GithubAPIError
-				var transportErr *GithubTransportError
-				if errors.As(err, &apiErr) || errors.As(err, &transportErr) {
-					return nil, err
-				}
-				continue
-			}
-			seen[tag] = struct{}{}
-			options = append(options, WorkflowTagOption{Tag: tag, Label: tag})
+			candidates = append(candidates, workflowTagCandidate{
+				tag:       strings.TrimPrefix(ref.Ref, "refs/tags/"),
+				objectSHA: ref.Object.SHA,
+			})
 		}
 		if !hasNext {
 			break
@@ -1653,6 +1729,196 @@ func (s *GithubBuildConfigService) ListWorkflowTagOptions(ctx context.Context, c
 			return nil, &GithubContractError{Operation: "list workflow tags", Cause: fmt.Errorf("pagination exceeds %d pages", maxWorkflowTagPages)}
 		}
 		path = next
+	}
+	return candidates, nil
+}
+
+// resolveListedWorkflowTag verifies the annotated tag object identified by the
+// provider's own listed object SHA, then applies the same short-selector branch
+// collision policy as ResolveWorkflowTag. The tag ref GET is intentionally
+// omitted because the list response already supplied the object identity.
+func (s *GithubBuildConfigService) resolveListedWorkflowTag(ctx context.Context, config *model.GithubBuildConfig, tag, listedObjectSHA string) (WorkflowExecutionIdentity, error) {
+	tag, err := workflowTagLabel(tag)
+	if err != nil {
+		return WorkflowExecutionIdentity{}, err
+	}
+	if config == nil {
+		return WorkflowExecutionIdentity{}, errors.New("GitHub build config is missing")
+	}
+	if !validGithubSourceSHA(listedObjectSHA) {
+		return WorkflowExecutionIdentity{}, &GithubContractError{
+			Operation: "resolve workflow tag",
+			Cause:     errors.New("workflow tag is missing or lightweight"),
+		}
+	}
+	tagPath, err := githubRepoPath(config.Repo, "/git/tags/"+url.PathEscape(listedObjectSHA))
+	if err != nil {
+		return WorkflowExecutionIdentity{}, err
+	}
+	tagResp, err := s.ghReq(ctx, config, http.MethodGet, tagPath, nil, http.StatusOK)
+	if err != nil {
+		return WorkflowExecutionIdentity{}, fmt.Errorf("resolve workflow tag object: %w", err)
+	}
+	defer tagResp.Body.Close()
+	var tagRecord githubTagObjectRecord
+	if err := decodeGithubJSON(tagResp, "resolve workflow tag object", &tagRecord); err != nil {
+		return WorkflowExecutionIdentity{}, err
+	}
+	identity, err := verifiedWorkflowTagIdentity("refs/tags/"+tag, listedObjectSHA, tagRecord)
+	if err != nil {
+		return WorkflowExecutionIdentity{}, err
+	}
+	if err := s.verifyWorkflowTagSelectorUnambiguous(ctx, config, tag); err != nil {
+		return WorkflowExecutionIdentity{}, err
+	}
+	return identity, nil
+}
+
+// verifiedWorkflowTagIdentity applies the shared annotated-tag contract: the
+// fetched object must be the exact listed object, carry an accepted verified
+// signature, and contain a commit.
+func verifiedWorkflowTagIdentity(ref, listedObjectSHA string, tagRecord githubTagObjectRecord) (WorkflowExecutionIdentity, error) {
+	if tagRecord.SHA != listedObjectSHA || !validGithubTagVerification(tagRecord) || tagRecord.Object.Type != "commit" || !validGithubSourceSHA(tagRecord.Object.SHA) {
+		return WorkflowExecutionIdentity{}, &GithubContractError{
+			Operation: "resolve workflow tag object",
+			Cause:     errors.New("workflow tag is not a verified annotated commit tag with an accepted verification reason"),
+		}
+	}
+	return WorkflowExecutionIdentity{Ref: ref, SHA: tagRecord.Object.SHA, VerificationReason: githubVerificationReasonValid, TrustStatus: githubTrustStatusProvider}, nil
+}
+
+// isWorkflowTagAbortError reports whether a candidate-stage error is a provider
+// or transport failure that must abort the whole catalog rather than merely
+// exclude one candidate.
+func isWorkflowTagAbortError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var apiErr *GithubAPIError
+	if errors.As(err, &apiErr) {
+		return true
+	}
+	var transportErr *GithubTransportError
+	return errors.As(err, &transportErr)
+}
+
+// processWorkflowTagCandidate evaluates one listed candidate. Local ruleset
+// policy is applied first so rejected or inapplicable candidates avoid all
+// tag-specific provider I/O. It returns a non-nil error only for a failure that
+// must abort the catalog; an ineligible candidate returns (zero, false, nil).
+func (s *GithubBuildConfigService) processWorkflowTagCandidate(ctx context.Context, config *model.GithubBuildConfig, workflow string, snapshot workflowRulesetSnapshot, candidate workflowTagCandidate) (WorkflowTagOption, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return WorkflowTagOption{}, false, &GithubTransportError{Operation: "list workflow tags", Cause: err}
+	}
+	if protectionErr := snapshot.verifyProtected(candidate.tag); protectionErr != nil {
+		if isWorkflowRulesetPolicyError(protectionErr) {
+			return WorkflowTagOption{}, false, nil
+		}
+		return WorkflowTagOption{}, false, protectionErr
+	}
+	if err := ctx.Err(); err != nil {
+		return WorkflowTagOption{}, false, &GithubTransportError{Operation: "list workflow tags", Cause: err}
+	}
+	identity, resolveErr := s.resolveListedWorkflowTag(ctx, config, candidate.tag, candidate.objectSHA)
+	if resolveErr != nil {
+		// A tag can be removed or have invalid signature metadata between the
+		// list and resolve calls. Such a tag is simply not selectable;
+		// provider transport/API failures remain visible and fail closed.
+		if isWorkflowTagAbortError(resolveErr) {
+			return WorkflowTagOption{}, false, resolveErr
+		}
+		return WorkflowTagOption{}, false, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return WorkflowTagOption{}, false, &GithubTransportError{Operation: "list workflow tags", Cause: err}
+	}
+	if availableErr := s.verifyWorkflowAvailable(ctx, config, workflow, identity.SHA); availableErr != nil {
+		if isWorkflowTagAbortError(availableErr) {
+			return WorkflowTagOption{}, false, availableErr
+		}
+		return WorkflowTagOption{}, false, nil
+	}
+	return WorkflowTagOption{Tag: candidate.tag, Label: candidate.tag}, true, nil
+}
+
+// ListWorkflowTagOptions returns a bounded, provider-derived list of tag
+// labels that are signed annotated tags and contain the current Windows
+// workflow with an active workflow_dispatch trigger. It never returns refs,
+// SHAs, verification payloads, or credentials to the admin client.
+//
+// Provider work is hoisted out of the per-tag loop: tag refs are listed within
+// the existing page bound, one request-scoped ruleset snapshot is captured
+// (each page once, each ruleset detail at most once per id), and candidates are
+// then evaluated with at most maxWorkflowTagCandidateConcurrency in flight.
+// Successful labels are emitted in listing order regardless of completion
+// order; any aborting provider/transport failure yields no partial catalog.
+func (s *GithubBuildConfigService) ListWorkflowTagOptions(ctx context.Context, config *model.GithubBuildConfig) ([]WorkflowTagOption, error) {
+	if config == nil {
+		return nil, errors.New("GitHub build config is missing")
+	}
+	if err := validateGithubRepo(config.Repo); err != nil {
+		return nil, err
+	}
+	workflow, err := WorkflowFilenameForPlatform(string(PlatformWindows))
+	if err != nil {
+		return nil, err
+	}
+	candidates, err := s.listWorkflowTagCandidates(ctx, config)
+	if err != nil {
+		return nil, err
+	}
+	if len(candidates) == 0 {
+		// A lightweight-only or empty catalogue needs no ruleset policy reads.
+		return []WorkflowTagOption{}, nil
+	}
+	snapshot, err := s.loadWorkflowRulesetSnapshot(ctx, config)
+	if err != nil {
+		return nil, err
+	}
+	outcomes := make([]workflowTagCandidateOutcome, len(candidates))
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.SetLimit(maxWorkflowTagCandidateConcurrency)
+	admittedAll := true
+	for index := range candidates {
+		if err := groupCtx.Err(); err != nil {
+			admittedAll = false
+			break
+		}
+		index := index
+		group.Go(func() error {
+			option, ok, err := s.processWorkflowTagCandidate(groupCtx, config, workflow, snapshot, candidates[index])
+			outcomes[index] = workflowTagCandidateOutcome{option: option, ok: ok}
+			return err
+		})
+	}
+	if err := group.Wait(); err != nil {
+		// The errgroup records the initiating failure before it cancels
+		// siblings, so a sibling's post-cancellation transport error is never
+		// reported here. Return no partial catalogue.
+		return nil, err
+	}
+	if !admittedAll {
+		// Not every candidate was admitted and no worker initiated a failure:
+		// the parent context was cancelled. errgroup cancels its derived
+		// context when Wait returns, so only the parent context is consulted
+		// here; a post-Wait derived-context cancellation is normal completion,
+		// not a failure.
+		if err := ctx.Err(); err != nil {
+			return nil, &GithubTransportError{Operation: "list workflow tags", Cause: err}
+		}
+		return nil, &GithubContractError{Operation: "list workflow tags", Cause: errors.New("workflow tag catalog was interrupted")}
+	}
+	options := make([]WorkflowTagOption, 0, len(outcomes))
+	seen := make(map[string]struct{})
+	for _, outcome := range outcomes {
+		if !outcome.ok {
+			continue
+		}
+		if _, duplicate := seen[outcome.option.Tag]; duplicate {
+			return nil, &GithubContractError{Operation: "list workflow tags", Cause: errors.New("provider returned duplicate workflow tag")}
+		}
+		seen[outcome.option.Tag] = struct{}{}
+		options = append(options, outcome.option)
 	}
 	return options, nil
 }
