@@ -77,6 +77,21 @@
   "CustomClientPermanentPasswordRequired": {
     "One": "隐藏连接管理时，请输入永久密码。"
   },
+  "CustomClientKeyInvalidFormat": {
+    "One": "密钥必须是 32 字节公钥的规范 base64 编码。"
+  },
+  "CustomClientHostInvalidFormat": {
+    "One": "主机地址必须是有效的 IP 或主机名，可带端口（例如 example.com 或 1.2.3.4:21116）。"
+  },
+  "CustomClientApiServerInvalidFormat": {
+    "One": "API 服务器 URL 必须以 http:// 或 https:// 开头，包含主机名，且不包含用户凭据。"
+  },
+  "CustomClientRelayServerInvalidFormat": {
+    "One": "中继服务器地址必须是有效的 IP 或主机名，可带端口（例如 relay.example.com 或 1.2.3.4:21117）。"
+  },
+  "CustomClientUseServerKey": {
+    "One": "使用服务器公钥"
+  },
   "ClearSavedPassword": {
     "One": "清除已保存的密码"
   },

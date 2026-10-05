@@ -77,6 +77,21 @@
   "CustomClientPermanentPasswordRequired": {
     "One": "Provide a permanent password when connection management is hidden."
   },
+  "CustomClientKeyInvalidFormat": {
+    "One": "Key must be canonical base64 of a 32-byte public key."
+  },
+  "CustomClientHostInvalidFormat": {
+    "One": "Host must be a valid IP address or a host with an optional port (e.g. example.com or 1.2.3.4:21116)."
+  },
+  "CustomClientApiServerInvalidFormat": {
+    "One": "API server must be an http:// or https:// URL with a host and no credentials."
+  },
+  "CustomClientRelayServerInvalidFormat": {
+    "One": "Relay server must be a valid IP address or a host with an optional port (e.g. relay.example.com or 1.2.3.4:21117)."
+  },
+  "CustomClientUseServerKey": {
+    "One": "Use the server's public key"
+  },
   "ClearSavedPassword": {
     "One": "Clear saved password"
   },

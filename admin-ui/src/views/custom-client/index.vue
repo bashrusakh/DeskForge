@@ -145,7 +145,21 @@
                   :aria-describedby="isFieldInvalid('key') ? fieldErrorId('key') : undefined"
                   :validate-event="false"
                   @input="clearFieldError('key')"
-                />
+                >
+                  <template #append>
+                    <el-tooltip :content="T('CustomClientUseServerKey')" placement="top" :trigger="['hover', 'focus']">
+                      <button
+                        v-if="serverConfigDefaults.key"
+                        type="button"
+                        class="endpoint-hint-trigger endpoint-hint-trigger--action"
+                        :aria-label="T('CustomClientUseServerKey')"
+                        @click="useServerKey"
+                      >
+                        <el-icon aria-hidden="true"><Key /></el-icon>
+                      </button>
+                    </el-tooltip>
+                  </template>
+                </el-input>
               </el-tooltip>
               <template #error="{ error }">
                 <span :id="fieldErrorId('key')" aria-live="polite">{{ error }}</span>
@@ -499,7 +513,7 @@ import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { T } from '@/utils/i18n'
 import { downBlob } from '@/utils/file'
-import { InfoFilled } from '@element-plus/icons-vue'
+import { InfoFilled, Key } from '@element-plus/icons-vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import PageSection from '@/components/ui/PageSection.vue'
 import DataTable from '@/components/ui/DataTable.vue'
@@ -522,7 +536,7 @@ const extractApiError = (error, fallbackKey) => {
 
 export default defineComponent({
   name: 'CustomClientBuilds',
-  components: { PageHeader, PageSection, DataTable, InfoFilled },
+  components: { PageHeader, PageSection, DataTable, InfoFilled, Key },
   setup () {
     const formRef = ref(null)
     const showPermanentPassword = ref(false)
@@ -610,11 +624,169 @@ export default defineComponent({
       message: requiredMessage(field),
       trigger: ['blur', 'change'],
     })
+
+    // Format validators mirror the server-side contract exactly:
+    //   key         -> api/config/rustdesk.go ValidatePublicKeyMaterial
+    //   endpoints   -> api/service/custom_build_spec.go validateEndpoint
+    //   api_server  -> api/service/custom_build_spec.go validateAPIURL
+    // Empty (or whitespace-only) values are NOT a format error: the required
+    // rule owns emptiness, so these validators keep single-error messaging.
+    const formatMessageKeys = {
+      key: 'CustomClientKeyInvalidFormat',
+      server_ip: 'CustomClientHostInvalidFormat',
+      relay_server: 'CustomClientRelayServerInvalidFormat',
+      api_server: 'CustomClientApiServerInvalidFormat',
+    }
+    const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f]/
+    const isValidPublicKeyFormat = (value) => {
+      if (!value) return true
+      if (value !== value.trim()) return false
+      if (CONTROL_CHARS.test(value)) return false
+      let decoded
+      try {
+        decoded = atob(value)
+      } catch (_) {
+        return false
+      }
+      return decoded.length === 32 && btoa(decoded) === value
+    }
+    const isValidIpv4 = (host) => {
+      const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host)
+      if (!match) return false
+      return match.slice(1).every((octet) => (octet === '0' || octet[0] !== '0') && Number(octet) <= 255)
+    }
+    const isValidIpv6 = (host) => {
+      if (!host.includes(':') || /[^0-9a-fA-F:.]/.test(host)) return false
+      const halves = host.split('::')
+      if (halves.length > 2) return false
+      const groupWeights = (piece) => {
+        if (piece === '') return []
+        const groups = piece.split(':')
+        const weights = []
+        for (const group of groups) {
+          if (!group) return null // e.g. "1:2:" — empty group
+          if (group.includes('.')) {
+            if (!isValidIpv4(group)) return null
+            weights.push(2) // embedded IPv4 counts as two 16-bit groups
+          } else if (/^[0-9a-fA-F]{1,4}$/.test(group)) {
+            weights.push(1)
+          } else {
+            return null
+          }
+        }
+        return weights
+      }
+      const total = (halves[0] ? groupWeights(halves[0])?.length : 0) + (halves[1] ? groupWeights(halves[1])?.length : 0)
+      if (halves[0] && groupWeights(halves[0]) === null) return false
+      if (halves[1] && groupWeights(halves[1]) === null) return false
+      const compressed = halves.length === 2
+      return compressed ? total <= 8 : total === 8
+    }
+    const isValidIp = (host) => isValidIpv4(host) || isValidIpv6(host)
+    const isValidHost = (host) => {
+      // Mirrors Go's url.Parse("//" + host) round-trip: no path/query/fragment/
+      // userinfo delimiters, no brackets (bracketed hosts need an IP + port),
+      // and no surrounding whitespace.
+      if (!host) return false
+      if (host !== host.trim()) return false
+      if (/[/@?#[\]%]/.test(host)) return false
+      return true
+    }
+    const isValidEndpointFormat = (value) => {
+      if (!value) return true
+      if (value !== value.trim()) return false
+      if (isValidIp(value)) return true // bare IPv4/IPv6 without a port
+      // Emulate net.SplitHostPort.
+      let host = null
+      let port = null
+      let split = false
+      if (value.startsWith('[')) {
+        const close = value.indexOf(']')
+        if (close !== -1) {
+          const rest = value.slice(close + 1)
+          if (rest === '') {
+            split = false // "[::1]" — missing port
+          } else if (rest.startsWith(':')) {
+            host = value.slice(1, close)
+            port = rest.slice(1)
+            split = true
+          }
+        }
+      } else {
+        const colon = value.indexOf(':')
+        if (colon !== -1 && value.indexOf(':', colon + 1) === -1) {
+          host = value.slice(0, colon)
+          port = value.slice(colon + 1)
+          split = true
+        }
+      }
+      if (split) {
+        // SplitHostPort succeeded: a port is mandatory and must be 1-65535.
+        if (!/^\d+$/.test(port)) return false
+        const portNumber = Number(port)
+        if (portNumber < 1 || portNumber > 65535) return false
+        if (value.startsWith('[') && !isValidIp(host)) return false
+        if (!isValidIp(host) && !isValidHost(host)) return false
+        if (!host) return false
+        return true
+      }
+      if (value.includes(':')) return false // too many colons / stray colon
+      return isValidHost(value)
+    }
+    const isValidApiServerFormat = (value) => {
+      if (!value) return true
+      if (value !== value.trim()) return false
+      try {
+        const parsed = new URL(value)
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
+        if (!parsed.hostname) return false
+        if (parsed.username || parsed.password) return false
+        return true
+      } catch (_) {
+        return false
+      }
+    }
+    const formatValidators = {
+      key: isValidPublicKeyFormat,
+      server_ip: isValidEndpointFormat,
+      relay_server: isValidEndpointFormat,
+      api_server: isValidApiServerFormat,
+    }
+    const fieldFormatMessage = (field) => T(formatMessageKeys[field])
+    const isFieldFormatInvalid = (field, value) => {
+      const validator = formatValidators[field]
+      if (!validator) return false
+      const text = String(value ?? '')
+      if (!text.trim()) return false // emptiness is owned by the required rule
+      return !validator(text)
+    }
+    const formatRule = (field) => ({
+      validator: (_rule, value, callback) => {
+        if (!String(value ?? '').trim()) {
+          callback()
+          return
+        }
+        const text = String(value)
+        callback(formatValidators[field](text) ? undefined : new Error(fieldFormatMessage(field)))
+      },
+      trigger: ['blur', 'change'],
+    })
     const rules = computed(() => Object.fromEntries(
       requiredFieldNames
         .filter(isRequiredField)
-        .map((field) => [field, [requiredRule(field)]])
+        .map((field) => [field, [requiredRule(field), ...(formatValidators[field] ? [formatRule(field)] : [])]])
     ))
+
+    const useServerKey = async () => {
+      if (!serverConfigDefaults.key) return
+      form.key = serverConfigDefaults.key
+      clearFieldError('key')
+      try {
+        await formRef.value?.validateField?.('key')
+      } catch (_) {
+        // Validation failure renders the field rule message inline; nothing to do.
+      }
+    }
 
     const isFieldInvalid = (field) => Boolean(invalidFields.value[field])
     const fieldInputId = (field) => `custom-client-${field}-input`
@@ -837,7 +1009,7 @@ export default defineComponent({
       }
     }
 
-    const loadPresetIntoForm = (preset) => {
+    const loadPresetIntoForm = async (preset) => {
       if (!preset) return
       try {
         const parsedConfig = JSON.parse(preset.custom_json || '{}')
@@ -867,6 +1039,28 @@ export default defineComponent({
         applyServerConfigDefaults()
         invalidFields.value = {}
         formRef.value?.clearValidate?.()
+        // Highlight format-invalid preset values immediately: the required rule
+        // already validated emptiness at server save time, but a preset saved
+        // before format validation existed can still carry a garbage key or
+        // endpoint. Only requiredFieldSet fields get format checks, so android
+        // preset data is never flagged.
+        const formatInvalidEntries = Object.fromEntries(
+          requiredFieldNames
+            .filter(isRequiredField)
+            .filter((field) => isFieldFormatInvalid(field, form[field]))
+            .map((field) => [field, [fieldFormatMessage(field)]])
+        )
+        if (Object.keys(formatInvalidEntries).length > 0) {
+          invalidFields.value = formatInvalidEntries
+          for (const field of Object.keys(formatInvalidEntries)) {
+            try {
+              await formRef.value?.validateField?.(field)
+            } catch (_) {
+              // The field rule renders the format message itself.
+            }
+          }
+        }
+        syncFieldAria()
         ElMessage.success(T('OperationSuccess'))
       } catch (e) {
         console.error('preset custom_json parse error', e)
@@ -1121,6 +1315,7 @@ export default defineComponent({
         presets, selectedPresetId, selectedPreset, presetSelectRef, onPresetSelect, saveCurrentAsPreset, deletePreset, uploadImage,
        showPermanentPassword,
        clearSavedPresetPassword,
+       useServerKey,
       requiredMessage, isRequiredField, fieldInputId, fieldErrorId, isFieldInvalid, clearFieldError, onHideConnectionManagementChange, onPlatformChange,
     }
   },
@@ -1247,6 +1442,15 @@ export default defineComponent({
   &:focus-visible {
     outline: 2px solid var(--el-color-primary);
     outline-offset: 2px;
+  }
+}
+
+.endpoint-hint-trigger--action {
+  cursor: pointer;
+  color: var(--el-color-primary);
+
+  &:hover {
+    color: var(--el-color-primary-light-3);
   }
 }
 
