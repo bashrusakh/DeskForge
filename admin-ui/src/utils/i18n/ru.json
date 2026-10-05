@@ -77,6 +77,21 @@
   "CustomClientPermanentPasswordRequired": {
     "One": "Если управление подключением скрыто, укажите постоянный пароль."
   },
+  "CustomClientKeyInvalidFormat": {
+    "One": "Ключ должен быть каноничным base64 32-байтного публичного ключа."
+  },
+  "CustomClientHostInvalidFormat": {
+    "One": "Адрес должен быть допустимым IP или именем хоста с необязательным портом (например, example.com или 1.2.3.4:21116)."
+  },
+  "CustomClientApiServerInvalidFormat": {
+    "One": "URL API-сервера должен начинаться с http:// или https://, содержать хост и не включать учётные данные."
+  },
+  "CustomClientRelayServerInvalidFormat": {
+    "One": "Адрес relay-сервера должен быть допустимым IP или именем хоста с необязательным портом (например, relay.example.com или 1.2.3.4:21117)."
+  },
+  "CustomClientUseServerKey": {
+    "One": "Использовать публичный ключ сервера"
+  },
   "ClearSavedPassword": {
     "One": "Очистить сохранённый пароль"
   },
