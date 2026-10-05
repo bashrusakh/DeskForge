@@ -1316,6 +1316,7 @@ export default defineComponent({
        showPermanentPassword,
        clearSavedPresetPassword,
        useServerKey,
+       serverConfigDefaults,
       requiredMessage, isRequiredField, fieldInputId, fieldErrorId, isFieldInvalid, clearFieldError, onHideConnectionManagementChange, onPlatformChange,
     }
   },
