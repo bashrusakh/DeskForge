@@ -627,10 +627,15 @@ export default defineComponent({
 
     // Format validators mirror the server-side contract exactly:
     //   key         -> api/config/rustdesk.go ValidatePublicKeyMaterial
+    //                  (after config.NormalizePublicKey)
     //   endpoints   -> api/service/custom_build_spec.go validateEndpoint
     //   api_server  -> api/service/custom_build_spec.go validateAPIURL
-    // Empty (or whitespace-only) values are NOT a format error: the required
-    // rule owns emptiness, so these validators keep single-error messaging.
+    // They validate every NON-EMPTY value on any platform, matching
+    // validateBuildSpecTransportFields; rules() attaches them whenever the
+    // field is required or currently holds a non-empty value, so linux/android
+    // garbage is highlighted instead of false-passing. Truly empty values are
+    // NOT a format error: the required rule owns emptiness, so these
+    // validators keep single-error messaging.
     const formatMessageKeys = {
       key: 'CustomClientKeyInvalidFormat',
       server_ip: 'CustomClientHostInvalidFormat',
@@ -640,15 +645,19 @@ export default defineComponent({
     const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f]/
     const isValidPublicKeyFormat = (value) => {
       if (!value) return true
-      if (value !== value.trim()) return false
-      if (CONTROL_CHARS.test(value)) return false
+      // Mirror config.NormalizePublicKey: only trailing \r\n are stripped (the
+      // terminator emitted by id_ed25519.pub). Spaces and tabs remain material
+      // and are rejected like the server does (whitespace-only means invalid).
+      const normalized = value.replace(/[\r\n]+$/, '')
+      if (!normalized) return true // became empty: owned by the required rule
+      if (CONTROL_CHARS.test(normalized)) return false
       let decoded
       try {
-        decoded = atob(value)
+        decoded = atob(normalized)
       } catch (_) {
         return false
       }
-      return decoded.length === 32 && btoa(decoded) === value
+      return decoded.length === 32 && btoa(decoded) === normalized
     }
     const isValidIpv4 = (host) => {
       const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host)
@@ -686,10 +695,15 @@ export default defineComponent({
     const isValidHost = (host) => {
       // Mirrors Go's url.Parse("//" + host) round-trip: no path/query/fragment/
       // userinfo delimiters, no brackets (bracketed hosts need an IP + port),
-      // and no surrounding whitespace.
+      // and no surrounding whitespace. The charset reject-list covers what the
+      // Go parser refuses inside a host: whitespace and control characters
+      // (space/tab/CR/LF), backslash, the "@" authority delimiter — plus the
+      // contract-mandated extras %'"`<>? that the Go round-trip partially
+      // tolerates but the platform never needs in real hostnames. "%" also
+      // disallows IPv6 zone IDs (fe80::1%25eth0), which the server rejects too.
       if (!host) return false
       if (host !== host.trim()) return false
-      if (/[/@?#[\]%]/.test(host)) return false
+      if (/[\s\u0000-\u001f\u007f-\u009f\\%'"`<>?#@]/.test(host)) return false
       return true
     }
     const isValidEndpointFormat = (value) => {
@@ -736,6 +750,17 @@ export default defineComponent({
     const isValidApiServerFormat = (value) => {
       if (!value) return true
       if (value !== value.trim()) return false
+      // Mirror Go's url.ParseRequestURI: control characters (including \t \r
+      // \n) are rejected outright, and an authority must not carry userinfo —
+      // Go rejects User != nil, i.e. any "@" inside the authority. The browser
+      // URL parser silently strips control chars and parses "http://@host" as
+      // host only, so both are checked textually before new URL() runs.
+      if (CONTROL_CHARS.test(value)) return false
+      const authorityIndex = value.indexOf('://')
+      if (authorityIndex === -1) return false
+      const afterScheme = value.slice(authorityIndex + 3)
+      const authority = afterScheme.split(/[/?#]/)[0]
+      if (authority.includes('@')) return false
       try {
         const parsed = new URL(value)
         if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
@@ -760,6 +785,21 @@ export default defineComponent({
       if (!text.trim()) return false // emptiness is owned by the required rule
       return !validator(text)
     }
+    // Format checks follow validateBuildSpecTransportFields: any non-empty
+    // value is validated regardless of platform, so a field needs a format
+    // rule whenever it is required (windows/linux) OR currently non-empty.
+    // Android-only fields without a validator (android_app_id) never get one.
+    // Reactivity: requiredFieldSet covers the platform switch; form covers
+    // values typed or preset-loaded while the field is not required.
+    const formatCheckedFields = computed(() => {
+      const fields = new Set()
+      for (const field of requiredFieldNames) {
+        if (isRequiredField(field) || String(form[field] ?? '').trim() !== '') {
+          fields.add(field)
+        }
+      }
+      return fields
+    })
     const formatRule = (field) => ({
       validator: (_rule, value, callback) => {
         if (!String(value ?? '').trim()) {
@@ -771,10 +811,23 @@ export default defineComponent({
       },
       trigger: ['blur', 'change'],
     })
+    // Rule assembly: the required rule is attached only to requiredFieldSet
+    // fields (it owns emptiness). The format rule is attached to every field
+    // with a format validator that is required OR currently non-empty — that
+    // keeps validateBuildSpecTransportFields parity (any non-empty value is
+    // format-checked regardless of platform) without exposing a
+    // required:true rule to fields the server does not require. Fields
+    // without a format validator (android_app_id and friends) never get one
+    // and keep zero rules when they are not required.
     const rules = computed(() => Object.fromEntries(
       requiredFieldNames
-        .filter(isRequiredField)
-        .map((field) => [field, [requiredRule(field), ...(formatValidators[field] ? [formatRule(field)] : [])]])
+        .map((field) => {
+          const fieldRules = []
+          if (isRequiredField(field)) fieldRules.push(requiredRule(field))
+          if (formatCheckedFields.value.has(field) && formatValidators[field]) fieldRules.push(formatRule(field))
+          return [field, fieldRules]
+        })
+        .filter(([, fieldRules]) => fieldRules.length > 0)
     ))
 
     const useServerKey = async () => {
@@ -803,7 +856,9 @@ export default defineComponent({
         else control.removeAttribute('aria-describedby')
       }
     }
-    watch([requiredFieldSet, invalidFields], syncFieldAria, { deep: true, flush: 'post' })
+    // formatCheckedFields participates so aria state follows format rules that
+    // appear/disappear when a non-required field gains or loses its value.
+    watch([requiredFieldSet, formatCheckedFields, invalidFields], syncFieldAria, { deep: true, flush: 'post' })
     const clearFieldError = (field) => {
       if (invalidFields.value[field]) {
         const nextInvalidFields = { ...invalidFields.value }
@@ -1039,14 +1094,14 @@ export default defineComponent({
         applyServerConfigDefaults()
         invalidFields.value = {}
         formRef.value?.clearValidate?.()
-        // Highlight format-invalid preset values immediately: the required rule
-        // already validated emptiness at server save time, but a preset saved
-        // before format validation existed can still carry a garbage key or
-        // endpoint. Only requiredFieldSet fields get format checks, so android
-        // preset data is never flagged.
+        // A preset loaded from disk carries values for any platform. Sync the
+        // highlight with the rules contract: format checks run on every
+        // non-empty value regardless of platform (see formatCheckedFields), so
+        // a garbage linux/android endpoint is highlighted too. android_app_id
+        // has no format validator and is never flagged.
         const formatInvalidEntries = Object.fromEntries(
           requiredFieldNames
-            .filter(isRequiredField)
+            .filter((field) => isRequiredField(field) || String(form[field] ?? '').trim() !== '')
             .filter((field) => isFieldFormatInvalid(field, form[field]))
             .map((field) => [field, [fieldFormatMessage(field)]])
         )
