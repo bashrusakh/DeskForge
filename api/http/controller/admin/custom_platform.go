@@ -11,7 +11,23 @@ import (
 )
 
 func failCustomValidation(c *gin.Context, err error) {
-	response.FailStatus(c, http.StatusBadRequest, 101, customValidationMessage(err))
+	fields := customValidationFields(err)
+	response.FailValidation(c, http.StatusBadRequest, 101, customValidationMessage(err), fields...)
+}
+
+// customValidationFields extracts machine-readable field/reason pairs from an
+// annotated validation error. The authoritative typed validator
+// (service.NewFieldError) is the only source of this metadata, so the mapping
+// cannot drift from the server validation.
+func customValidationFields(err error) []response.ErrorField {
+	if err == nil {
+		return nil
+	}
+	field, code, ok := service.FieldErrorMetadata(err)
+	if !ok {
+		return nil
+	}
+	return []response.ErrorField{{Field: field, Code: code}}
 }
 
 func customValidationMessage(err error) string {

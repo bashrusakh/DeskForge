@@ -122,6 +122,41 @@ func TestCustomValidationResponsesAreSafeAndActionable(t *testing.T) {
 	}
 }
 
+func TestCustomValidationResponseCarriesStructuredFields(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	err := &service.ClientValidationError{Err: service.NewFieldError("server_ip", service.FieldCodeInvalidEndpoint, errors.New(`server_ip has invalid endpoint "1:2:3:4:5:6:7::8"`))}
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+
+	failCustomValidation(context, err)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("validation status = %d, want %d", recorder.Code, http.StatusBadRequest)
+	}
+	var payload struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+		Data    struct {
+			Fields []struct {
+				Field string `json:"field"`
+				Code  string `json:"code"`
+			} `json:"fields"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("invalid validation response: %v", err)
+	}
+	if payload.Code != 101 {
+		t.Fatalf("validation code = %d, want 101", payload.Code)
+	}
+	if len(payload.Data.Fields) != 1 {
+		t.Fatalf("structured fields = %#v, want one entry", payload.Data.Fields)
+	}
+	if payload.Data.Fields[0].Field != "server_ip" || payload.Data.Fields[0].Code != service.FieldCodeInvalidEndpoint {
+		t.Fatalf("structured field = %#v, want server_ip/invalid_endpoint", payload.Data.Fields[0])
+	}
+}
+
 func TestFailCustomServiceErrorMapsClientValidationSafely(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
@@ -201,6 +236,82 @@ func TestCustomBuildCreateValidationResponsesAreSafe(t *testing.T) {
 			}
 			if strings.Contains(recorder.Body.String(), maliciousValue) {
 				t.Fatalf("create validation response leaked raw value: %s", recorder.Body.String())
+			}
+		})
+	}
+}
+
+func TestCustomBuildCreateValidationReturnsStructuredFields(t *testing.T) {
+	previousValidator := global.Validator
+	global.ApiInitValidator()
+	t.Cleanup(func() { global.Validator = previousValidator })
+
+	for _, test := range []struct {
+		name      string
+		body      string
+		wantField string
+		wantCode  string
+	}{
+		{
+			name:      "invalid IPv6 server endpoint is attributed to server_ip",
+			body:      `{"name":"DeskForge","platform":"windows","version":"1.2.3","app_name":"DeskForge","custom_json":"{\"server_ip\":\"1:2:3:4:5:6:7::8\",\"key\":\"k\",\"api_server\":\"https://api.example\",\"relay_server\":\"relay.example\"}"}`,
+			wantField: "server_ip",
+			wantCode:  service.FieldCodeInvalidEndpoint,
+		},
+		{
+			name:      "invalid api_server URL is attributed to api_server",
+			body:      `{"name":"DeskForge","platform":"windows","version":"1.2.3","app_name":"DeskForge","custom_json":"{\"server_ip\":\"id.example\",\"key\":\"k\",\"api_server\":\"http:///host\",\"relay_server\":\"relay.example\"}"}`,
+			wantField: "api_server",
+			wantCode:  service.FieldCodeInvalidFormat,
+		},
+		{
+			name:      "missing app name is attributed to app_name",
+			body:      `{"platform":"windows","version":"1.2.3","app_name":"","custom_json":"{}"}`,
+			wantField: "app_name",
+			wantCode:  service.FieldCodeRequired,
+		},
+		{
+			name:      "missing version is attributed to version",
+			body:      `{"name":"DeskForge","platform":"windows","version":"","app_name":"DeskForge","custom_json":"{}"}`,
+			wantField: "version",
+			wantCode:  service.FieldCodeRequired,
+		},
+		{
+			name:      "missing Windows public key is attributed to key",
+			body:      `{"name":"DeskForge","platform":"windows","version":"1.2.3","app_name":"DeskForge","custom_json":"{\"server_ip\":\"id.example\",\"api_server\":\"https://api.example\",\"relay_server\":\"relay.example\"}"}`,
+			wantField: "key",
+			wantCode:  service.FieldCodeRequired,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			context, _ := gin.CreateTestContext(recorder)
+			context.Request = httptest.NewRequest(http.MethodPost, "/api/admin/custom_build/create", strings.NewReader(test.body))
+			context.Request.Header.Set("Content-Type", "application/json")
+
+			(&CustomBuild{}).Create(context)
+
+			if recorder.Code != http.StatusBadRequest {
+				t.Fatalf("create validation status = %d, want %d; body=%s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
+			}
+			var payload struct {
+				Code    int    `json:"code"`
+				Message string `json:"message"`
+				Data    struct {
+					Fields []struct {
+						Field string `json:"field"`
+						Code  string `json:"code"`
+					} `json:"fields"`
+				} `json:"data"`
+			}
+			if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+				t.Fatalf("invalid create validation response: %v", err)
+			}
+			if len(payload.Data.Fields) == 0 {
+				t.Fatalf("create validation response has no structured fields: %s", recorder.Body.String())
+			}
+			if payload.Data.Fields[0].Field != test.wantField || payload.Data.Fields[0].Code != test.wantCode {
+				t.Fatalf("structured field = %#v, want %s/%s", payload.Data.Fields[0], test.wantField, test.wantCode)
 			}
 		})
 	}

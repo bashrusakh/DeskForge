@@ -633,6 +633,19 @@ func (ct *CustomBuild) Create(c *gin.Context) {
 	if !validateCustomPlatform(c, f.Platform) {
 		return
 	}
+
+	// The authoritative typed validator owns the per-field contract. Apply its
+	// record-owned required check (platform/app_name/version) before the generic
+	// request-shape validator, which would otherwise mask a missing app_name or
+	// version as "required custom build field is missing". The UI sets the record
+	// name from app_name, so the name required rule must not preempt app_name.
+	if err := service.ValidateCustomBuildRecordFieldsRequired(b.Platform, b.AppName, b.Version); err != nil {
+		if failCustomServiceError(c, err) {
+			return
+		}
+		failCustomValidation(c, err)
+		return
+	}
 	errList := global.Validator.ValidStruct(c, f)
 	if len(errList) > 0 {
 		failCustomValidation(c, errors.New("required custom build field is missing"))
@@ -641,7 +654,7 @@ func (ct *CustomBuild) Create(c *gin.Context) {
 
 	// Reject unsafe version early; keeps DB clean and gives the caller a clear error.
 	if !utils.ValidateBuildVersion(f.Version) {
-		failCustomValidation(c, fmt.Errorf("invalid version format: %s", f.Version))
+		failCustomValidation(c, service.NewFieldError("version", service.FieldCodeInvalidFormat, fmt.Errorf("invalid version format: %s", f.Version)))
 		return
 	}
 	if err := service.ValidateCustomBuildInput(b.Platform, b.CustomJson, b.AppName, b.Version); err != nil {

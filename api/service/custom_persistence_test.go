@@ -2025,6 +2025,174 @@ func TestValidateCustomBuildInput(t *testing.T) {
 	}
 }
 
+func TestValidateCustomBuildInputReportsStructuredFieldCodes(t *testing.T) {
+	// Each custom_json keeps every other Windows-required field valid so the
+	// failure is attributed to the field under test. The IPv6/URL inputs are the
+	// exact #69 divergence cases; ValidateCustomBuildInput must classify them the
+	// same way the authoritative Go validator does.
+	for _, test := range []struct {
+		name      string
+		platform  string
+		custom    string
+		appName   string
+		wantField string
+		wantCode  string
+	}{
+		{
+			name:      "IPv6 too many groups is invalid server_ip",
+			platform:  "windows",
+			custom:    `{"server_ip":"1:2:3:4:5:6:7::8","key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`,
+			wantField: "server_ip",
+			wantCode:  FieldCodeInvalidEndpoint,
+		},
+		{
+			name:      "embedded IPv4 double colon is invalid relay_server",
+			platform:  "windows",
+			custom:    `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example","relay_server":"1.2.3.4::1"}`,
+			wantField: "relay_server",
+			wantCode:  FieldCodeInvalidEndpoint,
+		},
+		{
+			name:     "embedded IPv4 server_ip is accepted by Go",
+			platform: "windows",
+			custom:   `{"server_ip":"1:2:3:4:5:6:1.2.3.4","key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`,
+		},
+		{
+			name:      "backslash host is invalid api_server",
+			platform:  "windows",
+			custom:    `{"server_ip":"id.example:21116","key":"public-key","api_server":"http://host\\path","relay_server":"relay.example:21117"}`,
+			wantField: "api_server",
+			wantCode:  FieldCodeInvalidFormat,
+		},
+		{
+			name:      "empty-authority URL is invalid api_server",
+			platform:  "windows",
+			custom:    `{"server_ip":"id.example:21116","key":"public-key","api_server":"http:///host","relay_server":"relay.example:21117"}`,
+			wantField: "api_server",
+			wantCode:  FieldCodeInvalidFormat,
+		},
+		{
+			name:     "zone-scoped IPv6 URL is accepted by Go",
+			platform: "windows",
+			custom:   `{"server_ip":"id.example:21116","key":"public-key","api_server":"http://[fe80::1%25eth0]:80","relay_server":"relay.example:21117"}`,
+		},
+		{
+			name:     "URL port above 65535 is accepted by Go",
+			platform: "windows",
+			custom:   `{"server_ip":"id.example:21116","key":"public-key","api_server":"http://host:65536","relay_server":"relay.example:21117"}`,
+		},
+		{
+			name:      "percent-escaped host is invalid api_server",
+			platform:  "windows",
+			custom:    `{"server_ip":"id.example:21116","key":"public-key","api_server":"http://ho%41st","relay_server":"relay.example:21117"}`,
+			wantField: "api_server",
+			wantCode:  FieldCodeInvalidFormat,
+		},
+		{
+			name:      "hide_cm without permanent password is required",
+			platform:  "windows",
+			custom:    `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117","hide_cm":true}`,
+			wantField: "permanent_password",
+			wantCode:  FieldCodeRequired,
+		},
+		{
+			name:      "linux empty app_name is required",
+			platform:  "linux",
+			custom:    "{}",
+			appName:   "",
+			wantField: "app_name",
+			wantCode:  FieldCodeRequired,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			appName := test.appName
+			if appName == "" && test.wantField != "app_name" {
+				appName = "DeskForge"
+			}
+			err := ValidateCustomBuildInput(test.platform, test.custom, appName, "1.2.3")
+			if test.wantField == "" {
+				if err != nil {
+					t.Fatalf("ValidateCustomBuildInput() error = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("ValidateCustomBuildInput() error = nil, want structured field error")
+			}
+			field, code, ok := FieldErrorMetadata(err)
+			if !ok {
+				t.Fatalf("FieldErrorMetadata() ok=false for %v", err)
+			}
+			if field != test.wantField || code != test.wantCode {
+				t.Fatalf("field/code = %s/%s, want %s/%s", field, code, test.wantField, test.wantCode)
+			}
+		})
+	}
+}
+
+func TestValidateCustomBuildInputMatchesAuthoritativeValidatorsForIssue69(t *testing.T) {
+	// Differential: the structured path must agree with the raw authoritative
+	// validators for every #69 divergent input. A nil error from
+	// ValidateCustomBuildInput means the value is accepted; a non-nil error must
+	// name the field whose raw validator rejected it.
+	endpointCases := []struct {
+		field string
+		value string
+	}{
+		{"server_ip", "1:2:3:4:5:6:7::8"},
+		{"server_ip", "1.2.3.4::1"},
+		{"server_ip", "1:2:3:4:5:6:1.2.3.4"},
+	}
+	for _, test := range endpointCases {
+		t.Run("endpoint/"+test.field+"/"+test.value, func(t *testing.T) {
+			rawValid := validateEndpoint(test.field, test.value) == nil
+			custom := map[string]string{
+				"server_ip":    "id.example:21116",
+				"key":          "public-key",
+				"api_server":   "https://api.example",
+				"relay_server": "relay.example:21117",
+			}
+			custom[test.field] = test.value
+			encoded, _ := json.Marshal(custom)
+
+			err := ValidateCustomBuildInput("windows", string(encoded), "DeskForge", "1.2.3")
+			if (err == nil) != rawValid {
+				t.Fatalf("ValidateCustomBuildInput valid=%v, raw validateEndpoint valid=%v for %q", err == nil, rawValid, test.value)
+			}
+			if !rawValid {
+				field, code, ok := FieldErrorMetadata(err)
+				if !ok || field != test.field || code != FieldCodeInvalidEndpoint {
+					t.Fatalf("field/code = %s/%s ok=%v, want %s/%s", field, code, ok, test.field, FieldCodeInvalidEndpoint)
+				}
+			}
+		})
+	}
+
+	urlCases := []string{"http://host\\path", "http:///host", "http://ho%41st", "http://host:65536", "http://[fe80::1%25eth0]:80"}
+	for _, value := range urlCases {
+		t.Run("api_server/"+value, func(t *testing.T) {
+			rawValid := validateAPIURL("api_server", value) == nil
+			encoded, _ := json.Marshal(map[string]string{
+				"server_ip":    "id.example:21116",
+				"key":          "public-key",
+				"api_server":   value,
+				"relay_server": "relay.example:21117",
+			})
+
+			err := ValidateCustomBuildInput("windows", string(encoded), "DeskForge", "1.2.3")
+			if (err == nil) != rawValid {
+				t.Fatalf("ValidateCustomBuildInput valid=%v, raw validateAPIURL valid=%v for %q", err == nil, rawValid, value)
+			}
+			if !rawValid {
+				field, code, ok := FieldErrorMetadata(err)
+				if !ok || field != "api_server" || code != FieldCodeInvalidFormat {
+					t.Fatalf("field/code = %s/%s ok=%v, want api_server/%s", field, code, ok, FieldCodeInvalidFormat)
+				}
+			}
+		})
+	}
+}
+
 func TestValidateCustomBuildInputUsesUserAuthoredRecordFields(t *testing.T) {
 	const completeWindowsJSON = `{"server_ip":"id.example:21116","key":"public-key","api_server":"https://api.example","relay_server":"relay.example:21117"}`
 	for _, test := range []struct {
