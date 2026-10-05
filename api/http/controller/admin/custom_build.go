@@ -630,20 +630,24 @@ func (ct *CustomBuild) Create(c *gin.Context) {
 		return
 	}
 	b := f.ToCustomBuild()
-	if !validateCustomPlatform(c, f.Platform) {
-		return
-	}
 
 	// The authoritative typed validator owns the per-field contract. Apply its
-	// record-owned required check (platform/app_name/version) before the generic
-	// request-shape validator, which would otherwise mask a missing app_name or
-	// version as "required custom build field is missing". The UI sets the record
-	// name from app_name, so the name required rule must not preempt app_name.
+	// record-owned required check (platform/app_name/version) before the platform
+	// domain gate and the generic request-shape validator. This ordering makes an
+	// empty/whitespace-only platform a structured platform/required error instead
+	// of the coarser "unsupported platform"; an unsupported non-empty platform is
+	// still classified by validateCustomPlatform. The generic request-shape
+	// validator would otherwise mask a missing app_name or version as "required
+	// custom build field is missing". The UI sets the record name from app_name,
+	// so the name required rule must not preempt app_name.
 	if err := service.ValidateCustomBuildRecordFieldsRequired(b.Platform, b.AppName, b.Version); err != nil {
 		if failCustomServiceError(c, err) {
 			return
 		}
 		failCustomValidation(c, err)
+		return
+	}
+	if !validateCustomPlatform(c, f.Platform) {
 		return
 	}
 	errList := global.Validator.ValidStruct(c, f)

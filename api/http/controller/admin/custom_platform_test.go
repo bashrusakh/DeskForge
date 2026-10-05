@@ -283,6 +283,30 @@ func TestCustomBuildCreateValidationReturnsStructuredFields(t *testing.T) {
 			wantCode:  service.FieldCodeRequired,
 		},
 		{
+			name:      "missing linux public key is attributed to key",
+			body:      `{"name":"DeskForge","platform":"linux","version":"1.2.3","app_name":"DeskForge","custom_json":"{\"enable_audio\":false}"}`,
+			wantField: "key",
+			wantCode:  service.FieldCodeRequired,
+		},
+		{
+			name:      "missing android public key is attributed to key",
+			body:      `{"name":"DeskForge","platform":"android","version":"1.2.3","app_name":"DeskForge","custom_json":"{\"android_app_id\":\"com.example.client\"}"}`,
+			wantField: "key",
+			wantCode:  service.FieldCodeRequired,
+		},
+		{
+			name:      "empty platform is attributed to platform",
+			body:      `{"platform":"","version":"1.2.3","app_name":"DeskForge","custom_json":"{}"}`,
+			wantField: "platform",
+			wantCode:  service.FieldCodeRequired,
+		},
+		{
+			name:      "whitespace-only platform is attributed to platform",
+			body:      `{"platform":"   ","version":"1.2.3","app_name":"DeskForge","custom_json":"{}"}`,
+			wantField: "platform",
+			wantCode:  service.FieldCodeRequired,
+		},
+		{
 			name:      "non-canonical public key material is attributed to key",
 			body:      `{"name":"DeskForge","platform":"windows","version":"1.2.3","app_name":"DeskForge","custom_json":"{\"server_ip\":\"id.example\",\"key\":\"test\",\"api_server\":\"https://api.example\",\"relay_server\":\"relay.example\"}"}`,
 			wantField: "key",
