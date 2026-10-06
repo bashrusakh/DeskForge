@@ -718,9 +718,14 @@ export default defineComponent({
     // genuinely unexpected failure is logged, in a bounded form that never
     // includes the request config.
     const reportCreateBuildFailure = async (e, snapshot) => {
+      // A failed envelope arrives as the raw body object (request.js rejects
+      // `res`), so it carries neither axios markers nor necessarily data.fields.
+      // A numeric nonzero code is the interceptor's handled-envelope signal, the
+      // same predicate the upload flow uses (isInterceptorHandledFailure).
+      const envelopeFailure = Number.isInteger(e?.code) && e.code !== 0
       const fields = e?.response?.data?.data?.fields
-        || (Number.isInteger(e?.code) && e.code !== 0 ? e?.data?.fields : null)
-      if (fields || axios.isAxiosError(e) || Boolean(e?.response || e?.request) || e?.interceptorHandled) {
+        || (envelopeFailure ? e?.data?.fields : null)
+      if (fields || envelopeFailure || axios.isAxiosError(e) || Boolean(e?.response || e?.request) || e?.interceptorHandled) {
         await applyServerFieldErrors(fields, snapshot)
         return
       }

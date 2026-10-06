@@ -222,6 +222,44 @@ test('an unexpected error is logged only in a bounded form without the raw axios
   assert.equal(rendered.includes('DUMMY_TOKEN'), false, 'the api-token must never be logged')
 })
 
+// request.js rejects a failed envelope as the raw body object (`res`), so an
+// envelope create error carries no axios markers and may have data: null: the
+// controller returns {code:101,message:'OperationFailed',data:null} for an
+// expected create failure. The response interceptor has already toasted the
+// bounded message, so this must be handled and never logged as unexpected.
+// config is attached here only to prove nothing from it can leak.
+const envelopeCreateError = (data) => Object.assign(
+  { code: 101, message: 'OperationFailed', data },
+  { config: { data: JSON.stringify({ permanent_password: 'DUMMY_PASSWORD', key: 'DUMMY_KEY' }), headers: { 'api-token': 'DUMMY_TOKEN' } } },
+)
+
+test('an interceptor-handled envelope error without fields is handled, not logged', async () => {
+  const ctx = fixture('linux')
+  const error = envelopeCreateError(null)
+  await ctx.api.reportCreateBuildFailure(error, ctx.api.snapshotSubmittedFields())
+  assert.equal(ctx.logs.length, 0, 'the interceptor already toasted the envelope; no extra log')
+  const rendered = serializedLogs(ctx.logs)
+  assert.equal(rendered.includes('DUMMY_PASSWORD'), false, 'the request body must never be logged')
+  assert.equal(rendered.includes('DUMMY_TOKEN'), false, 'the api-token must never be logged')
+})
+
+test('an envelope error that carries data.fields still applies the server reasons', async () => {
+  const ctx = fixture('linux')
+  ctx.form.key = 'submitted-key'
+  const snapshot = ctx.api.snapshotSubmittedFields()
+  const error = envelopeCreateError({ fields: [{ field: 'key', code: 'required' }] })
+  await ctx.api.reportCreateBuildFailure(error, snapshot)
+  assert.equal(ctx.logs.length, 0, 'expected per-field envelope failures are not logged')
+  assert.equal(ctx.api.isFieldInvalid('key'), true, 'the server reason is still rendered')
+})
+
+test('a zero code object is not misread as a handled envelope', async () => {
+  const ctx = fixture('linux')
+  await ctx.api.reportCreateBuildFailure(
+    { code: 0, message: 'not a failure', data: null }, ctx.api.snapshotSubmittedFields())
+  assert.equal(ctx.logs.length, 1, 'only a numeric nonzero envelope code counts as handled')
+})
+
 test('clearing a field removes both its server and local error state', () => {
   const ctx = fixture('windows')
   ctx.api.invalidFields.value = { key: ['CustomClientKeyRequired'] }
