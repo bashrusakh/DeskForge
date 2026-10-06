@@ -659,6 +659,14 @@ export default defineComponent({
     }
     const serverFieldError = (field) => serverFieldErrors.value[field] || ''
 
+    // The requirement inputs (platform, hide_cm — see requiredFieldSet) decide
+    // which fields the server requires, so a change to either invalidates any
+    // snapshot captured before it. Shared by applyServerFieldErrors (per-field
+    // staleness) and isSubmittedSnapshotCurrent (whole-form staleness). Callers
+    // pass a captured snapshot; the caller decides what a missing snapshot means.
+    const submittedRequirementInputsMatch = (snapshot) =>
+      snapshot.platform === form.platform && snapshot.hide_cm === form.hide_cm
+
     // Apply the per-field reasons from a create response. Fields the form can
     // display (requiredFieldNames) are highlighted; unknown fields are ignored.
     // The server message is the display source (`:error`), while invalidFields
@@ -675,7 +683,7 @@ export default defineComponent({
     const applyServerFieldErrors = async (fields, snapshot) => {
       const applicable = (fields || []).filter((entry) => requiredFieldNames.includes(entry.field))
       if (!applicable.length) return false
-      if (snapshot && (snapshot.platform !== form.platform || snapshot.hide_cm !== form.hide_cm)) return false
+      if (snapshot && !submittedRequirementInputsMatch(snapshot)) return false
       const current = snapshot
         ? applicable.filter((entry) => snapshot.values[entry.field] === form[entry.field])
         : applicable
@@ -706,6 +714,17 @@ export default defineComponent({
       const values = {}
       for (const field of requiredFieldNames) values[field] = form[field]
       return { platform: values.platform, hide_cm: form.hide_cm, values }
+    }
+
+    // True when the live form still matches the exact state that was submitted.
+    // Reuses the error-path semantics: the requirement inputs must match and every
+    // displayable field the create request snapshotted must be unchanged. This is
+    // what the create response actually describes, so the success path may clear
+    // the form only while it holds; otherwise the user edited a field in flight
+    // and we keep their edits (the build was still created).
+    const isSubmittedSnapshotCurrent = (snapshot) => {
+      if (!snapshot || !submittedRequirementInputsMatch(snapshot)) return false
+      return requiredFieldNames.every((field) => snapshot.values[field] === form[field])
     }
 
     // Classify a create failure. A 400 carries machine-readable per-field reasons
@@ -1131,8 +1150,15 @@ export default defineComponent({
           app_name: form.app_name,
           custom_json: customJson,
         })
+        // The build was created regardless of later edits, so always refresh the
+        // list and toast success. Clear the form only while it still matches what
+        // was submitted; if the user edited a field while the request was in
+        // flight (the same race as the error path), keep those edits instead of
+        // silently discarding them. `validateBuildForm` already cleared the field
+        // errors recorded by the previous attempt, and a create failure never
+        // reaches this branch, so no stale highlight can remain either way.
         ElMessage.success(T('OperationSuccess'))
-        resetForm()
+        if (isSubmittedSnapshotCurrent(submittedSnapshot)) resetForm()
         loadBuilds()
       } catch (e) {
         // The server returns machine-readable per-field validation reasons

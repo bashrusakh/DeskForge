@@ -40,13 +40,89 @@ function fixture(platform = 'linux') {
     between('    const isFieldInvalid', '    const validateBuildForm') + `
     globalThis.api = { rules, requiredFieldSet, invalidFields, serverFieldErrors,
       serverFieldError, serverFieldMessage, applyServerFieldErrors,
-      snapshotSubmittedFields, reportCreateBuildFailure,
+      snapshotSubmittedFields, isSubmittedSnapshotCurrent, reportCreateBuildFailure,
       useServerKey, isFieldInvalid, isRequiredField, clearFieldError, syncFieldAria };
     globalThis.logs = logs;
   `, context)
   return context
 }
 const key = Buffer.alloc(32, 7).toString('base64')
+
+// Fixture for the create-success path (F-D). It runs the same extracted SFC
+// logic as `fixture` (so isSubmittedSnapshotCurrent/snapshotSubmittedFields are
+// the real implementation), plus submitBuild's own body, with the request layer
+// stubbed so the post-await side effects can be observed via spies.
+function successFixture(platform = 'linux') {
+  const calls = { resetForm: 0, loadBuilds: 0, success: 0 }
+  const context = {
+    reactive, ref, computed, nextTick, watch, atob, btoa, URL, T: value => value,
+    form: reactive({ platform, hide_cm: false }), formRef: ref(null),
+    serverConfigDefaults: reactive({ key: '' }),
+    document: { getElementById: () => null },
+    axios, console: { error: () => {}, warn: () => {} },
+    ElMessage: { success: () => { calls.success++ }, warning: () => {}, error: () => {} },
+    create: async () => ({ data: {} }),
+    submitting: ref(false),
+    versionsState: ref('ready'),
+    productionPlatformReady: computed(() => true),
+    validateBuildForm: async () => true,
+    resetForm: () => { calls.resetForm++ },
+    loadBuilds: () => { calls.loadBuilds++ },
+    PRESET_FIELDS: ['key'],
+  }
+  vm.createContext(context)
+  vm.runInContext(between('    const requiredFieldNames', '    const useServerKey') +
+    between('    const useServerKey', '    const isFieldInvalid') +
+    between('    const isFieldInvalid', '    const validateBuildForm') +
+    between('    const submitBuild = async () => {', '\n    const deleteBuild') + `
+    globalThis.api = { submitBuild, snapshotSubmittedFields, isSubmittedSnapshotCurrent, form };
+  `, context)
+  context.calls = calls
+  return context
+}
+
+test('create success with an in-flight edit keeps the form and still refreshes the list', async () => {
+  // F-D race (success path): the form stays editable during the request. If the
+  // user changes a field while create is in flight, the success handler must not
+  // silently discard those edits, but it must still surface the created build.
+  const ctx = successFixture('linux')
+  ctx.form.key = 'submitted-key'
+  let releaseCreate
+  let createStarted
+  const started = new Promise((resolve) => { createStarted = resolve })
+  ctx.create = () => {
+    createStarted() // the snapshot was already captured synchronously before this
+    return new Promise((resolve) => { releaseCreate = resolve })
+  }
+  const pending = ctx.api.submitBuild()
+  await started
+  ctx.form.key = 'edited-while-in-flight'
+  releaseCreate()
+  await pending
+  assert.equal(ctx.form.key, 'edited-while-in-flight', 'the in-flight edit must be preserved')
+  assert.equal(ctx.calls.resetForm, 0, 'resetForm must not run when the submitted snapshot is stale')
+  assert.equal(ctx.calls.loadBuilds, 1, 'the created build must still appear in the list')
+})
+
+test('create success with an unchanged form resets the form and refreshes the list', async () => {
+  const ctx = successFixture('linux')
+  ctx.form.key = 'submitted-key'
+  await ctx.api.submitBuild()
+  assert.equal(ctx.calls.resetForm, 1, 'an unchanged form is reset after a successful create')
+  assert.equal(ctx.calls.loadBuilds, 1, 'the created build must appear in the list')
+})
+
+test('a change to a requirement input (platform) also keeps the form on success', () => {
+  // isSubmittedSnapshotCurrent reuses the error path's requirement-input rule:
+  // platform/hide_cm decide which fields the server requires, so a change to
+  // either invalidates the whole snapshot even if the displayable values match.
+  const ctx = successFixture('linux')
+  ctx.form.key = 'submitted-key'
+  const snapshot = ctx.api.snapshotSubmittedFields()
+  assert.equal(ctx.api.isSubmittedSnapshotCurrent(snapshot), true)
+  ctx.form.platform = 'windows'
+  assert.equal(ctx.api.isSubmittedSnapshotCurrent(snapshot), false)
+})
 
 test('form has no local IPv4/IPv6/host/URL/key format parsers', () => {
   for (const removed of ['isValidIpv6', 'isValidIpv4', 'isValidHost', 'isValidEndpointFormat',
