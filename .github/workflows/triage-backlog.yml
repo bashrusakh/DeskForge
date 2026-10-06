@@ -31,3 +31,4 @@ jobs:
       OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
     with:
       contract_files: "AGENTS.md CONTRIBUTING.md"
+      item_numbers: ${{ github.event.inputs.item_numbers }}
