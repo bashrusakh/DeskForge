@@ -24,14 +24,33 @@ const between = (start, end) => {
   assert.ok(sfc.includes(start) && sfc.includes(end), `missing SFC boundary: ${start}`)
   return sfc.slice(sfc.indexOf(start), sfc.indexOf(end, sfc.indexOf(start)))
 }
+// The submitted field set (PRESET_FIELDS + record fields) and the blank form are
+// defined in the SFC. Extract them from the source of truth rather than
+// hardcoding a narrow copy: a fixture that narrows PRESET_FIELDS (e.g. to ['key'])
+// hides exactly the F-D defect where optional in-flight edits were discarded.
+const sfcArrayLiteral = (name) => {
+  const match = sfc.match(new RegExp(`const ${name} = (\\[[^\\]]*\\])`))
+  assert.ok(match, `missing SFC array literal ${name}`)
+  return vm.runInNewContext(match[1])
+}
+const sfcObjectLiteral = (name) => {
+  const match = sfc.match(new RegExp(`const ${name} = (\\{[\\s\\S]*?\\n    \\})`))
+  assert.ok(match, `missing SFC object literal ${name}`)
+  return vm.runInNewContext(`(${match[1]})`)
+}
+const PRESET_FIELDS = sfcArrayLiteral('PRESET_FIELDS')
+const FORM_DEFAULTS = sfcObjectLiteral('FORM_DEFAULTS')
+const formState = (platform = 'linux') => ({ ...FORM_DEFAULTS, platform })
+
 function fixture(platform = 'linux') {
   const logs = []
   const context = {
     reactive, ref, computed, nextTick, watch, atob, btoa, URL, T: value => value,
-    form: reactive({ platform, hide_cm: false }), formRef: ref(null),
+    form: reactive(formState(platform)), formRef: ref(null),
     serverConfigDefaults: reactive({ key: '' }),
     document: { getElementById: () => null },
     axios, console: { error: (...args) => logs.push(args) },
+    PRESET_FIELDS,
     logs,
   }
   vm.createContext(context)
@@ -56,7 +75,7 @@ function successFixture(platform = 'linux') {
   const calls = { resetForm: 0, loadBuilds: 0, success: 0 }
   const context = {
     reactive, ref, computed, nextTick, watch, atob, btoa, URL, T: value => value,
-    form: reactive({ platform, hide_cm: false }), formRef: ref(null),
+    form: reactive(formState(platform)), formRef: ref(null),
     serverConfigDefaults: reactive({ key: '' }),
     document: { getElementById: () => null },
     axios, console: { error: () => {}, warn: () => {} },
@@ -68,7 +87,7 @@ function successFixture(platform = 'linux') {
     validateBuildForm: async () => true,
     resetForm: () => { calls.resetForm++ },
     loadBuilds: () => { calls.loadBuilds++ },
-    PRESET_FIELDS: ['key'],
+    PRESET_FIELDS,
   }
   vm.createContext(context)
   vm.runInContext(between('    const requiredFieldNames', '    const useServerKey') +
@@ -122,6 +141,78 @@ test('a change to a requirement input (platform) also keeps the form on success'
   assert.equal(ctx.api.isSubmittedSnapshotCurrent(snapshot), true)
   ctx.form.platform = 'windows'
   assert.equal(ctx.api.isSubmittedSnapshotCurrent(snapshot), false)
+})
+
+test('an in-flight edit to an optional submitted field keeps the form on success', async () => {
+  // F-D regression: submitBuild serializes all of PRESET_FIELDS (not just the
+  // required ones), so an edit to ANY sent field during the request must block
+  // the success-path resetForm. Sol reproduced company_name/enable_audio/
+  // app_icon_url edits being silently discarded. The successFixture now uses the
+  // real PRESET_FIELDS so this test would fail against the old narrow guard.
+  const cases = [
+    ['company_name', 'edited-company'], // string, PRESET_FIELDS, not required
+    ['enable_audio', false], // boolean, PRESET_FIELDS, not required
+    ['app_icon_url', '/upload/2026/in-flight.png'], // async-upload result field
+  ]
+  for (const [field, edited] of cases) {
+    const ctx = successFixture('linux')
+    ctx.form.key = 'submitted-key'
+    let releaseCreate
+    let createStarted
+    const started = new Promise((resolve) => { createStarted = resolve })
+    ctx.create = () => {
+      createStarted()
+      return new Promise((resolve) => { releaseCreate = resolve })
+    }
+    const pending = ctx.api.submitBuild()
+    await started
+    ctx.form[field] = edited // edit while create is in flight
+    releaseCreate()
+    await pending
+    assert.equal(ctx.form[field], edited, `${field}: the in-flight edit must be preserved`)
+    assert.equal(ctx.calls.resetForm, 0, `${field}: resetForm must not run for an optional submitted edit`)
+    assert.equal(ctx.calls.loadBuilds, 1, `${field}: the created build must still appear in the list`)
+  }
+})
+
+test('a snapshot covers every submitted field, including ones outside requiredFieldNames', () => {
+  // The guard must account for the whole create payload. If a future field is
+  // added to PRESET_FIELDS or the record columns and not snapshotted, this fails.
+  const ctx = successFixture('linux')
+  const expected = new Set([...PRESET_FIELDS, 'platform', 'version', 'app_name'])
+  const snapshot = ctx.api.snapshotSubmittedFields()
+  assert.deepEqual(new Set(Object.keys(snapshot.values)), expected)
+  for (const field of ['company_name', 'enable_audio', 'app_icon_url', 'platform', 'version', 'app_name']) {
+    assert.ok(field in snapshot.values, `snapshot must capture the submitted ${field}`)
+  }
+  // Every displayable field the error path reasons about survives the widening.
+  for (const field of ['platform', 'version', 'app_name', 'server_ip', 'key', 'api_server', 'relay_server', 'permanent_password']) {
+    assert.ok(field in snapshot.values, `required field ${field} must remain in the snapshot`)
+  }
+})
+
+test('every snapshotted submitted field is a primitive value', () => {
+  // The guard compares with strict equality; an object/array field would compare
+  // by reference and break the staleness rule. All form fields are primitives.
+  const ctx = successFixture('windows')
+  for (const [field, value] of Object.entries(ctx.api.snapshotSubmittedFields().values)) {
+    assert.equal(
+      value === null || ['string', 'boolean', 'number'].includes(typeof value), true,
+      `${field} must hold a primitive, got ${typeof value}`,
+    )
+  }
+})
+
+test('the success-path guard actually covers the width of the create payload', () => {
+  // Negative control: the old implementation compared only requiredFieldNames,
+  // which is narrower than what submitBuild sends. Assert the guard is driven by
+  // the submitted payload, not by the required set.
+  const guard = between('    const isSubmittedSnapshotCurrent', '    // Classify a create failure')
+  assert.equal(guard.includes('requiredFieldNames.every'), false, 'the guard must not be limited to requiredFieldNames')
+  assert.match(guard, /Object\.keys\(snapshot\.values\)\.every/)
+  const snapshotFn = between('    const snapshotSubmittedFields', '    // True when the live form')
+  assert.equal(snapshotFn.includes('for (const field of requiredFieldNames)'), false)
+  assert.match(snapshotFn, /submittedFieldNames\(\)/)
 })
 
 test('form has no local IPv4/IPv6/host/URL/key format parsers', () => {

@@ -706,25 +706,38 @@ export default defineComponent({
       return true
     }
 
-    // Capture the submitted values for the displayable fields so a late server
-    // response can be matched against the state it actually describes. platform
-    // and hide_cm are the requirement inputs (see requiredFieldSet); if either
-    // changes while the request is in flight, the whole classification is stale.
+    // Every form field the create request actually sends. custom_json carries all
+    // of PRESET_FIELDS, while platform/version/app_name travel as record columns
+    // (`name` simply duplicates app_name). requiredFieldNames is a subset of this
+    // union, so the per-field error matching below still finds every displayable
+    // field. PRESET_FIELDS is declared further down as the single source of truth
+    // for custom_json, so read it lazily (at submit time) to avoid a TDZ reference
+    // during setup. All of these fields hold primitives (strings/booleans), so
+    // strict equality is an exact comparison.
+    const SUBMITTED_RECORD_FIELDS = ['platform', 'version', 'app_name']
+    const submittedFieldNames = () =>
+      Array.from(new Set([...PRESET_FIELDS, ...SUBMITTED_RECORD_FIELDS]))
+
+    // Capture the values of every submitted field so a late server response can be
+    // matched against the state it actually describes. platform and hide_cm are
+    // the requirement inputs (see requiredFieldSet); if either changes while the
+    // request is in flight, the whole classification is stale.
     const snapshotSubmittedFields = () => {
       const values = {}
-      for (const field of requiredFieldNames) values[field] = form[field]
+      for (const field of submittedFieldNames()) values[field] = form[field]
       return { platform: values.platform, hide_cm: form.hide_cm, values }
     }
 
     // True when the live form still matches the exact state that was submitted.
     // Reuses the error-path semantics: the requirement inputs must match and every
-    // displayable field the create request snapshotted must be unchanged. This is
-    // what the create response actually describes, so the success path may clear
-    // the form only while it holds; otherwise the user edited a field in flight
-    // and we keep their edits (the build was still created).
+    // submitted field must be unchanged. The create serializes the whole payload,
+    // so an in-flight edit to ANY sent field — required or not (company_name,
+    // enable_audio, app_icon_url, ...) — makes the response/clear stale. Clearing
+    // the form is only safe while this holds; otherwise the user edited a field in
+    // flight and we keep their edits (the build was still created).
     const isSubmittedSnapshotCurrent = (snapshot) => {
       if (!snapshot || !submittedRequirementInputsMatch(snapshot)) return false
-      return requiredFieldNames.every((field) => snapshot.values[field] === form[field])
+      return Object.keys(snapshot.values).every((field) => snapshot.values[field] === form[field])
     }
 
     // Classify a create failure. A 400 carries machine-readable per-field reasons
