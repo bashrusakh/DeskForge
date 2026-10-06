@@ -78,6 +78,7 @@ jobs:
           node-version: 20
       - run: npm ci
       - run: npm run build
+      - run: node --test tests/custom-client-validation.test.mjs
 
   rust:
     name: Rust checks
