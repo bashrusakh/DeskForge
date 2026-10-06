@@ -78,6 +78,13 @@ jobs:
           node-version: 20
       - run: npm ci
       - run: npm run build
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: api/go.mod
+          cache: true
+          cache-dependency-path: |
+            api/go.sum
+            go.work.sum
       - run: node --test tests/custom-client-validation.test.mjs
 
   rust:
