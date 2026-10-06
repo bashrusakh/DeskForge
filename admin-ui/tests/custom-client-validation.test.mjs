@@ -17,6 +17,7 @@ import { spawnSync } from 'node:child_process'
 import vm from 'node:vm'
 import { reactive, ref, computed, nextTick, watch } from 'vue'
 import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc'
+import axios from 'axios'
 
 const sfc = readFileSync(new URL('../src/views/custom-client/index.vue', import.meta.url), 'utf8')
 const between = (start, end) => {
@@ -24,11 +25,14 @@ const between = (start, end) => {
   return sfc.slice(sfc.indexOf(start), sfc.indexOf(end, sfc.indexOf(start)))
 }
 function fixture(platform = 'linux') {
+  const logs = []
   const context = {
     reactive, ref, computed, nextTick, watch, atob, btoa, URL, T: value => value,
     form: reactive({ platform, hide_cm: false }), formRef: ref(null),
     serverConfigDefaults: reactive({ key: '' }),
     document: { getElementById: () => null },
+    axios, console: { error: (...args) => logs.push(args) },
+    logs,
   }
   vm.createContext(context)
   vm.runInContext(between('    const requiredFieldNames', '    const useServerKey') +
@@ -36,8 +40,9 @@ function fixture(platform = 'linux') {
     between('    const isFieldInvalid', '    const validateBuildForm') + `
     globalThis.api = { rules, requiredFieldSet, invalidFields, serverFieldErrors,
       serverFieldError, serverFieldMessage, applyServerFieldErrors,
-      snapshotSubmittedFields,
+      snapshotSubmittedFields, reportCreateBuildFailure,
       useServerKey, isFieldInvalid, isRequiredField, clearFieldError, syncFieldAria };
+    globalThis.logs = logs;
   `, context)
   return context
 }
@@ -152,10 +157,69 @@ test('without a snapshot the response is applied to the current state', async ()
   assert.equal(ctx.api.serverFieldError('key'), 'CustomClientKeyRequired')
 })
 
-test('submitBuild forwards the submitted snapshot into applyServerFieldErrors', () => {
+test('submitBuild wires the bounded create-failure reporter with the snapshot', () => {
   const submit = between('    const submitBuild = async () => {', '\n    const deleteBuild')
   assert.match(submit, /snapshotSubmittedFields\(\)/, 'submitBuild must snapshot the submitted values')
-  assert.match(submit, /applyServerFieldErrors\(fields,\s*submittedSnapshot\)/, 'the snapshot must be passed to the applier')
+  assert.match(submit, /reportCreateBuildFailure\(e,\s*submittedSnapshot\)/, 'the catch must delegate to the bounded reporter')
+  assert.equal(submit.includes('console.error(e)'), false, 'submitBuild must not log the raw error object')
+})
+
+// Build a real axios 400 error whose config retains the submitted body and the
+// api-token header, the exact shape the response interceptor rejects.
+const staleCreateError = (fields) => new axios.AxiosError(
+  'Request failed with status code 400',
+  'ERR_BAD_REQUEST',
+  { data: JSON.stringify({ permanent_password: 'DUMMY_PASSWORD', key: 'DUMMY_KEY' }), headers: { 'api-token': 'DUMMY_TOKEN' } },
+  {},
+  { status: 400, data: { code: 101, data: { fields } } },
+)
+const serializedLogs = (logs) => logs
+  .map(args => args.map(value => {
+    if (typeof value === 'string') return value
+    try { return JSON.stringify(value) } catch { return String(value) }
+  }).join(' '))
+  .join('\n')
+
+test('a stale create response never logs the raw axios error (no secret leak)', async () => {
+  const ctx = fixture('linux')
+  ctx.form.key = 'submitted-key'
+  const snapshot = ctx.api.snapshotSubmittedFields()
+  ctx.form.key = 'edited-while-in-flight' // F-B: the response is now stale
+  const error = staleCreateError([{ field: 'key', code: 'required' }])
+  await ctx.api.reportCreateBuildFailure(error, snapshot)
+  assert.equal(ctx.logs.length, 0, 'a stale, already-handled response must not be logged')
+  assert.deepEqual(Object.keys(ctx.api.invalidFields.value), [], 'the stale response is dropped')
+})
+
+test('a 400 field-error response for the unchanged form is handled, not logged', async () => {
+  const ctx = fixture('linux')
+  ctx.form.key = 'submitted-key'
+  const snapshot = ctx.api.snapshotSubmittedFields()
+  const error = staleCreateError([{ field: 'key', code: 'required' }])
+  await ctx.api.reportCreateBuildFailure(error, snapshot)
+  assert.equal(ctx.logs.length, 0, 'expected per-field validation failures are not logged')
+  assert.equal(ctx.api.isFieldInvalid('key'), true, 'the server reason is still rendered')
+})
+
+test('a transport/network failure is treated as interceptor-handled and not logged', async () => {
+  const ctx = fixture('linux')
+  const error = new axios.AxiosError('Network Error', 'ERR_NETWORK', {}, {})
+  await ctx.api.reportCreateBuildFailure(error, ctx.api.snapshotSubmittedFields())
+  assert.equal(ctx.logs.length, 0, 'the interceptor already surfaced the transport failure')
+})
+
+test('an unexpected error is logged only in a bounded form without the raw axios object', async () => {
+  const ctx = fixture('linux')
+  const error = Object.assign(new Error('kaboom'), {
+    config: { data: 'DUMMY_PASSWORD', headers: { 'api-token': 'DUMMY_TOKEN' } },
+  })
+  await ctx.api.reportCreateBuildFailure(error, ctx.api.snapshotSubmittedFields())
+  assert.equal(ctx.logs.length, 1)
+  assert.equal(ctx.logs[0][0], 'Custom client build request failed:')
+  assert.equal(ctx.logs[0][1], 'kaboom')
+  const rendered = serializedLogs(ctx.logs)
+  assert.equal(rendered.includes('DUMMY_PASSWORD'), false, 'the request body must never be logged')
+  assert.equal(rendered.includes('DUMMY_TOKEN'), false, 'the api-token must never be logged')
 })
 
 test('clearing a field removes both its server and local error state', () => {

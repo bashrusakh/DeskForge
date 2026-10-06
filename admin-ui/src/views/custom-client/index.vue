@@ -708,6 +708,25 @@ export default defineComponent({
       return { platform: values.platform, hide_cm: form.hide_cm, values }
     }
 
+    // Classify a create failure. A 400 carries machine-readable per-field reasons
+    // (data.fields) and the axios response interceptor has already toasted a
+    // bounded server message; `applyServerFieldErrors` applies those reasons or,
+    // per F-B, intentionally drops a stale response. Both outcomes are expected
+    // and already surfaced, so they are reported without an error object.
+    // Logging the raw AxiosError would expose config.data.custom_json (including
+    // permanent_password) and config.headers['api-token'] in the console. Only a
+    // genuinely unexpected failure is logged, in a bounded form that never
+    // includes the request config.
+    const reportCreateBuildFailure = async (e, snapshot) => {
+      const fields = e?.response?.data?.data?.fields
+        || (Number.isInteger(e?.code) && e.code !== 0 ? e?.data?.fields : null)
+      if (fields || axios.isAxiosError(e) || Boolean(e?.response || e?.request) || e?.interceptorHandled) {
+        await applyServerFieldErrors(fields, snapshot)
+        return
+      }
+      console.error('Custom client build request failed:', e?.message || String(e))
+    }
+
     // Presence predicate only: drives when a field needs its required rule.
     // It carries no format semantics.
     const rules = computed(() => Object.fromEntries(
@@ -1114,10 +1133,10 @@ export default defineComponent({
         // The server returns machine-readable per-field validation reasons
         // (data.fields) derived from the authoritative Go validators. Highlight
         // those exact fields instead of one generic toast; the axios interceptor
-        // still toasts the bounded server message.
-        const fields = e?.response?.data?.data?.fields
-          || (Number.isInteger(e?.code) && e.code !== 0 ? e?.data?.fields : null)
-        if (!await applyServerFieldErrors(fields, submittedSnapshot)) console.error(e)
+        // still toasts the bounded server message. reportCreateBuildFailure also
+        // drops a stale response (F-B) and never logs the raw request/response
+        // object, which would leak custom_json/permanent_password and api-token.
+        await reportCreateBuildFailure(e, submittedSnapshot)
       } finally {
         submitting.value = false
       }
