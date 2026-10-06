@@ -17,18 +17,41 @@ import { spawnSync } from 'node:child_process'
 import vm from 'node:vm'
 import { reactive, ref, computed, nextTick, watch } from 'vue'
 import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc'
+import axios from 'axios'
 
 const sfc = readFileSync(new URL('../src/views/custom-client/index.vue', import.meta.url), 'utf8')
 const between = (start, end) => {
   assert.ok(sfc.includes(start) && sfc.includes(end), `missing SFC boundary: ${start}`)
   return sfc.slice(sfc.indexOf(start), sfc.indexOf(end, sfc.indexOf(start)))
 }
+// The submitted field set (PRESET_FIELDS + record fields) and the blank form are
+// defined in the SFC. Extract them from the source of truth rather than
+// hardcoding a narrow copy: a fixture that narrows PRESET_FIELDS (e.g. to ['key'])
+// hides exactly the F-D defect where optional in-flight edits were discarded.
+const sfcArrayLiteral = (name) => {
+  const match = sfc.match(new RegExp(`const ${name} = (\\[[^\\]]*\\])`))
+  assert.ok(match, `missing SFC array literal ${name}`)
+  return vm.runInNewContext(match[1])
+}
+const sfcObjectLiteral = (name) => {
+  const match = sfc.match(new RegExp(`const ${name} = (\\{[\\s\\S]*?\\n    \\})`))
+  assert.ok(match, `missing SFC object literal ${name}`)
+  return vm.runInNewContext(`(${match[1]})`)
+}
+const PRESET_FIELDS = sfcArrayLiteral('PRESET_FIELDS')
+const FORM_DEFAULTS = sfcObjectLiteral('FORM_DEFAULTS')
+const formState = (platform = 'linux') => ({ ...FORM_DEFAULTS, platform })
+
 function fixture(platform = 'linux') {
+  const logs = []
   const context = {
     reactive, ref, computed, nextTick, watch, atob, btoa, URL, T: value => value,
-    form: reactive({ platform, hide_cm: false }), formRef: ref(null),
+    form: reactive(formState(platform)), formRef: ref(null),
     serverConfigDefaults: reactive({ key: '' }),
     document: { getElementById: () => null },
+    axios, console: { error: (...args) => logs.push(args) },
+    PRESET_FIELDS,
+    logs,
   }
   vm.createContext(context)
   vm.runInContext(between('    const requiredFieldNames', '    const useServerKey') +
@@ -36,11 +59,161 @@ function fixture(platform = 'linux') {
     between('    const isFieldInvalid', '    const validateBuildForm') + `
     globalThis.api = { rules, requiredFieldSet, invalidFields, serverFieldErrors,
       serverFieldError, serverFieldMessage, applyServerFieldErrors,
+      snapshotSubmittedFields, isSubmittedSnapshotCurrent, reportCreateBuildFailure,
       useServerKey, isFieldInvalid, isRequiredField, clearFieldError, syncFieldAria };
+    globalThis.logs = logs;
   `, context)
   return context
 }
 const key = Buffer.alloc(32, 7).toString('base64')
+
+// Fixture for the create-success path (F-D). It runs the same extracted SFC
+// logic as `fixture` (so isSubmittedSnapshotCurrent/snapshotSubmittedFields are
+// the real implementation), plus submitBuild's own body, with the request layer
+// stubbed so the post-await side effects can be observed via spies.
+function successFixture(platform = 'linux') {
+  const calls = { resetForm: 0, loadBuilds: 0, success: 0 }
+  const context = {
+    reactive, ref, computed, nextTick, watch, atob, btoa, URL, T: value => value,
+    form: reactive(formState(platform)), formRef: ref(null),
+    serverConfigDefaults: reactive({ key: '' }),
+    document: { getElementById: () => null },
+    axios, console: { error: () => {}, warn: () => {} },
+    ElMessage: { success: () => { calls.success++ }, warning: () => {}, error: () => {} },
+    create: async () => ({ data: {} }),
+    submitting: ref(false),
+    versionsState: ref('ready'),
+    productionPlatformReady: computed(() => true),
+    validateBuildForm: async () => true,
+    resetForm: () => { calls.resetForm++ },
+    loadBuilds: () => { calls.loadBuilds++ },
+    PRESET_FIELDS,
+  }
+  vm.createContext(context)
+  vm.runInContext(between('    const requiredFieldNames', '    const useServerKey') +
+    between('    const useServerKey', '    const isFieldInvalid') +
+    between('    const isFieldInvalid', '    const validateBuildForm') +
+    between('    const submitBuild = async () => {', '\n    const deleteBuild') + `
+    globalThis.api = { submitBuild, snapshotSubmittedFields, isSubmittedSnapshotCurrent, form };
+  `, context)
+  context.calls = calls
+  return context
+}
+
+test('create success with an in-flight edit keeps the form and still refreshes the list', async () => {
+  // F-D race (success path): the form stays editable during the request. If the
+  // user changes a field while create is in flight, the success handler must not
+  // silently discard those edits, but it must still surface the created build.
+  const ctx = successFixture('linux')
+  ctx.form.key = 'submitted-key'
+  let releaseCreate
+  let createStarted
+  const started = new Promise((resolve) => { createStarted = resolve })
+  ctx.create = () => {
+    createStarted() // the snapshot was already captured synchronously before this
+    return new Promise((resolve) => { releaseCreate = resolve })
+  }
+  const pending = ctx.api.submitBuild()
+  await started
+  ctx.form.key = 'edited-while-in-flight'
+  releaseCreate()
+  await pending
+  assert.equal(ctx.form.key, 'edited-while-in-flight', 'the in-flight edit must be preserved')
+  assert.equal(ctx.calls.resetForm, 0, 'resetForm must not run when the submitted snapshot is stale')
+  assert.equal(ctx.calls.loadBuilds, 1, 'the created build must still appear in the list')
+})
+
+test('create success with an unchanged form resets the form and refreshes the list', async () => {
+  const ctx = successFixture('linux')
+  ctx.form.key = 'submitted-key'
+  await ctx.api.submitBuild()
+  assert.equal(ctx.calls.resetForm, 1, 'an unchanged form is reset after a successful create')
+  assert.equal(ctx.calls.loadBuilds, 1, 'the created build must appear in the list')
+})
+
+test('a change to a requirement input (platform) also keeps the form on success', () => {
+  // isSubmittedSnapshotCurrent reuses the error path's requirement-input rule:
+  // platform/hide_cm decide which fields the server requires, so a change to
+  // either invalidates the whole snapshot even if the displayable values match.
+  const ctx = successFixture('linux')
+  ctx.form.key = 'submitted-key'
+  const snapshot = ctx.api.snapshotSubmittedFields()
+  assert.equal(ctx.api.isSubmittedSnapshotCurrent(snapshot), true)
+  ctx.form.platform = 'windows'
+  assert.equal(ctx.api.isSubmittedSnapshotCurrent(snapshot), false)
+})
+
+test('an in-flight edit to an optional submitted field keeps the form on success', async () => {
+  // F-D regression: submitBuild serializes all of PRESET_FIELDS (not just the
+  // required ones), so an edit to ANY sent field during the request must block
+  // the success-path resetForm. Sol reproduced company_name/enable_audio/
+  // app_icon_url edits being silently discarded. The successFixture now uses the
+  // real PRESET_FIELDS so this test would fail against the old narrow guard.
+  const cases = [
+    ['company_name', 'edited-company'], // string, PRESET_FIELDS, not required
+    ['enable_audio', false], // boolean, PRESET_FIELDS, not required
+    ['app_icon_url', '/upload/2026/in-flight.png'], // async-upload result field
+  ]
+  for (const [field, edited] of cases) {
+    const ctx = successFixture('linux')
+    ctx.form.key = 'submitted-key'
+    let releaseCreate
+    let createStarted
+    const started = new Promise((resolve) => { createStarted = resolve })
+    ctx.create = () => {
+      createStarted()
+      return new Promise((resolve) => { releaseCreate = resolve })
+    }
+    const pending = ctx.api.submitBuild()
+    await started
+    ctx.form[field] = edited // edit while create is in flight
+    releaseCreate()
+    await pending
+    assert.equal(ctx.form[field], edited, `${field}: the in-flight edit must be preserved`)
+    assert.equal(ctx.calls.resetForm, 0, `${field}: resetForm must not run for an optional submitted edit`)
+    assert.equal(ctx.calls.loadBuilds, 1, `${field}: the created build must still appear in the list`)
+  }
+})
+
+test('a snapshot covers every submitted field, including ones outside requiredFieldNames', () => {
+  // The guard must account for the whole create payload. If a future field is
+  // added to PRESET_FIELDS or the record columns and not snapshotted, this fails.
+  const ctx = successFixture('linux')
+  const expected = new Set([...PRESET_FIELDS, 'platform', 'version', 'app_name'])
+  const snapshot = ctx.api.snapshotSubmittedFields()
+  assert.deepEqual(new Set(Object.keys(snapshot.values)), expected)
+  for (const field of ['company_name', 'enable_audio', 'app_icon_url', 'platform', 'version', 'app_name']) {
+    assert.ok(field in snapshot.values, `snapshot must capture the submitted ${field}`)
+  }
+  // Every displayable field the error path reasons about survives the widening.
+  for (const field of ['platform', 'version', 'app_name', 'server_ip', 'key', 'api_server', 'relay_server', 'permanent_password']) {
+    assert.ok(field in snapshot.values, `required field ${field} must remain in the snapshot`)
+  }
+})
+
+test('every snapshotted submitted field is a primitive value', () => {
+  // The guard compares with strict equality; an object/array field would compare
+  // by reference and break the staleness rule. All form fields are primitives.
+  const ctx = successFixture('windows')
+  for (const [field, value] of Object.entries(ctx.api.snapshotSubmittedFields().values)) {
+    assert.equal(
+      value === null || ['string', 'boolean', 'number'].includes(typeof value), true,
+      `${field} must hold a primitive, got ${typeof value}`,
+    )
+  }
+})
+
+test('the success-path guard actually covers the width of the create payload', () => {
+  // Negative control: the old implementation compared only requiredFieldNames,
+  // which is narrower than what submitBuild sends. Assert the guard is driven by
+  // the submitted payload, not by the required set.
+  const guard = between('    const isSubmittedSnapshotCurrent', '    // Classify a create failure')
+  assert.equal(guard.includes('requiredFieldNames.every'), false, 'the guard must not be limited to requiredFieldNames')
+  assert.match(guard, /Object\.keys\(snapshot\.values\)\.every/)
+  const snapshotFn = between('    const snapshotSubmittedFields', '    // True when the live form')
+  assert.equal(snapshotFn.includes('for (const field of requiredFieldNames)'), false)
+  assert.match(snapshotFn, /submittedFieldNames\(\)/)
+})
 
 test('form has no local IPv4/IPv6/host/URL/key format parsers', () => {
   for (const removed of ['isValidIpv6', 'isValidIpv4', 'isValidHost', 'isValidEndpointFormat',
@@ -75,6 +248,183 @@ test('unknown or non-displayable server fields are ignored', async () => {
   ])
   assert.equal(applied, false)
   assert.deepEqual(Object.keys(ctx.api.invalidFields.value), [])
+})
+
+test('stale response after a field edit is not applied to the newer value', async () => {
+  // F-B race: the request snapshots the submitted values; the user edits a field
+  // while the HTTP request is in flight; the late error must not land on the new
+  // value.
+  const ctx = fixture('linux')
+  ctx.form.key = 'edited-by-user'
+  const snapshot = ctx.api.snapshotSubmittedFields() // key = 'edited-by-user'
+  ctx.form.key = 'user-typed-something-else' // edit while request is in flight
+  const applied = await ctx.api.applyServerFieldErrors([{ field: 'key', code: 'invalid_format' }], snapshot)
+  assert.equal(applied, false)
+  assert.deepEqual(Object.keys(ctx.api.serverFieldErrors.value), [])
+  assert.deepEqual(Object.keys(ctx.api.invalidFields.value), [])
+})
+
+test('response with an unchanged field is applied', async () => {
+  const ctx = fixture('linux')
+  ctx.form.key = 'submitted-value'
+  const snapshot = ctx.api.snapshotSubmittedFields()
+  const applied = await ctx.api.applyServerFieldErrors([{ field: 'key', code: 'invalid_format' }], snapshot)
+  assert.equal(applied, true)
+  assert.equal(ctx.api.serverFieldError('key'), 'CustomClientKeyInvalidFormat')
+  assert.equal(ctx.api.isFieldInvalid('key'), true)
+})
+
+test('platform change invalidates a stale response entirely', async () => {
+  const ctx = fixture('linux')
+  ctx.form.key = 'submitted-value'
+  const snapshot = ctx.api.snapshotSubmittedFields()
+  ctx.form.platform = 'windows' // platform rules changed while in flight
+  const applied = await ctx.api.applyServerFieldErrors([{ field: 'key', code: 'required' }], snapshot)
+  assert.equal(applied, false)
+  assert.deepEqual(Object.keys(ctx.api.invalidFields.value), [])
+})
+
+test('hide_cm change invalidates a stale response entirely', async () => {
+  // F-B (follow-up): the server requirement set also depends on hide_cm
+  // (permanent_password is required when hide_cm is true), so toggling it while
+  // the create request is in flight must invalidate the response just like a
+  // platform change.
+  const ctx = fixture('linux')
+  ctx.form.hide_cm = false
+  const snapshot = ctx.api.snapshotSubmittedFields()
+  assert.equal(snapshot.hide_cm, false)
+  ctx.form.hide_cm = true // requirement set changed while in flight
+  const applied = await ctx.api.applyServerFieldErrors(
+    [{ field: 'permanent_password', code: 'required' }], snapshot)
+  assert.equal(applied, false)
+  assert.deepEqual(Object.keys(ctx.api.serverFieldErrors.value), [])
+  assert.deepEqual(Object.keys(ctx.api.invalidFields.value), [])
+})
+
+test('a partially-stale response applies only the still-unchanged fields', async () => {
+  const ctx = fixture('linux')
+  ctx.form.key = 'submitted-key'
+  ctx.form.app_name = 'submitted-app'
+  const snapshot = ctx.api.snapshotSubmittedFields()
+  ctx.form.key = 'edited-key' // only key changed
+  const applied = await ctx.api.applyServerFieldErrors([
+    { field: 'key', code: 'invalid_format' },
+    { field: 'app_name', code: 'required' },
+  ], snapshot)
+  assert.equal(applied, true)
+  assert.equal(ctx.api.isFieldInvalid('key'), false)
+  assert.equal(ctx.api.isFieldInvalid('app_name'), true)
+})
+
+test('without a snapshot the response is applied to the current state', async () => {
+  // Legacy/test callers that do not track submit state keep the previous behavior.
+  const ctx = fixture('linux')
+  const applied = await ctx.api.applyServerFieldErrors([{ field: 'key', code: 'required' }])
+  assert.equal(applied, true)
+  assert.equal(ctx.api.serverFieldError('key'), 'CustomClientKeyRequired')
+})
+
+test('submitBuild wires the bounded create-failure reporter with the snapshot', () => {
+  const submit = between('    const submitBuild = async () => {', '\n    const deleteBuild')
+  assert.match(submit, /snapshotSubmittedFields\(\)/, 'submitBuild must snapshot the submitted values')
+  assert.match(submit, /reportCreateBuildFailure\(e,\s*submittedSnapshot\)/, 'the catch must delegate to the bounded reporter')
+  assert.equal(submit.includes('console.error(e)'), false, 'submitBuild must not log the raw error object')
+})
+
+// Build a real axios 400 error whose config retains the submitted body and the
+// api-token header, the exact shape the response interceptor rejects.
+const staleCreateError = (fields) => new axios.AxiosError(
+  'Request failed with status code 400',
+  'ERR_BAD_REQUEST',
+  { data: JSON.stringify({ permanent_password: 'DUMMY_PASSWORD', key: 'DUMMY_KEY' }), headers: { 'api-token': 'DUMMY_TOKEN' } },
+  {},
+  { status: 400, data: { code: 101, data: { fields } } },
+)
+const serializedLogs = (logs) => logs
+  .map(args => args.map(value => {
+    if (typeof value === 'string') return value
+    try { return JSON.stringify(value) } catch { return String(value) }
+  }).join(' '))
+  .join('\n')
+
+test('a stale create response never logs the raw axios error (no secret leak)', async () => {
+  const ctx = fixture('linux')
+  ctx.form.key = 'submitted-key'
+  const snapshot = ctx.api.snapshotSubmittedFields()
+  ctx.form.key = 'edited-while-in-flight' // F-B: the response is now stale
+  const error = staleCreateError([{ field: 'key', code: 'required' }])
+  await ctx.api.reportCreateBuildFailure(error, snapshot)
+  assert.equal(ctx.logs.length, 0, 'a stale, already-handled response must not be logged')
+  assert.deepEqual(Object.keys(ctx.api.invalidFields.value), [], 'the stale response is dropped')
+})
+
+test('a 400 field-error response for the unchanged form is handled, not logged', async () => {
+  const ctx = fixture('linux')
+  ctx.form.key = 'submitted-key'
+  const snapshot = ctx.api.snapshotSubmittedFields()
+  const error = staleCreateError([{ field: 'key', code: 'required' }])
+  await ctx.api.reportCreateBuildFailure(error, snapshot)
+  assert.equal(ctx.logs.length, 0, 'expected per-field validation failures are not logged')
+  assert.equal(ctx.api.isFieldInvalid('key'), true, 'the server reason is still rendered')
+})
+
+test('a transport/network failure is treated as interceptor-handled and not logged', async () => {
+  const ctx = fixture('linux')
+  const error = new axios.AxiosError('Network Error', 'ERR_NETWORK', {}, {})
+  await ctx.api.reportCreateBuildFailure(error, ctx.api.snapshotSubmittedFields())
+  assert.equal(ctx.logs.length, 0, 'the interceptor already surfaced the transport failure')
+})
+
+test('an unexpected error is logged only in a bounded form without the raw axios object', async () => {
+  const ctx = fixture('linux')
+  const error = Object.assign(new Error('kaboom'), {
+    config: { data: 'DUMMY_PASSWORD', headers: { 'api-token': 'DUMMY_TOKEN' } },
+  })
+  await ctx.api.reportCreateBuildFailure(error, ctx.api.snapshotSubmittedFields())
+  assert.equal(ctx.logs.length, 1)
+  assert.equal(ctx.logs[0][0], 'Custom client build request failed:')
+  assert.equal(ctx.logs[0][1], 'kaboom')
+  const rendered = serializedLogs(ctx.logs)
+  assert.equal(rendered.includes('DUMMY_PASSWORD'), false, 'the request body must never be logged')
+  assert.equal(rendered.includes('DUMMY_TOKEN'), false, 'the api-token must never be logged')
+})
+
+// request.js rejects a failed envelope as the raw body object (`res`), so an
+// envelope create error carries no axios markers and may have data: null: the
+// controller returns {code:101,message:'OperationFailed',data:null} for an
+// expected create failure. The response interceptor has already toasted the
+// bounded message, so this must be handled and never logged as unexpected.
+// config is attached here only to prove nothing from it can leak.
+const envelopeCreateError = (data) => Object.assign(
+  { code: 101, message: 'OperationFailed', data },
+  { config: { data: JSON.stringify({ permanent_password: 'DUMMY_PASSWORD', key: 'DUMMY_KEY' }), headers: { 'api-token': 'DUMMY_TOKEN' } } },
+)
+
+test('an interceptor-handled envelope error without fields is handled, not logged', async () => {
+  const ctx = fixture('linux')
+  const error = envelopeCreateError(null)
+  await ctx.api.reportCreateBuildFailure(error, ctx.api.snapshotSubmittedFields())
+  assert.equal(ctx.logs.length, 0, 'the interceptor already toasted the envelope; no extra log')
+  const rendered = serializedLogs(ctx.logs)
+  assert.equal(rendered.includes('DUMMY_PASSWORD'), false, 'the request body must never be logged')
+  assert.equal(rendered.includes('DUMMY_TOKEN'), false, 'the api-token must never be logged')
+})
+
+test('an envelope error that carries data.fields still applies the server reasons', async () => {
+  const ctx = fixture('linux')
+  ctx.form.key = 'submitted-key'
+  const snapshot = ctx.api.snapshotSubmittedFields()
+  const error = envelopeCreateError({ fields: [{ field: 'key', code: 'required' }] })
+  await ctx.api.reportCreateBuildFailure(error, snapshot)
+  assert.equal(ctx.logs.length, 0, 'expected per-field envelope failures are not logged')
+  assert.equal(ctx.api.isFieldInvalid('key'), true, 'the server reason is still rendered')
+})
+
+test('a zero code object is not misread as a handled envelope', async () => {
+  const ctx = fixture('linux')
+  await ctx.api.reportCreateBuildFailure(
+    { code: 0, message: 'not a failure', data: null }, ctx.api.snapshotSubmittedFields())
+  assert.equal(ctx.logs.length, 1, 'only a numeric nonzero envelope code counts as handled')
 })
 
 test('clearing a field removes both its server and local error state', () => {

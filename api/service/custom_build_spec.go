@@ -339,8 +339,17 @@ func ValidateCustomBuildRecordFieldsRequired(platform, appName, version string) 
 
 // ValidateCustomBuildInput validates the normal typed request path without
 // changing the persisted custom_json representation. Empty custom_json keeps
-// the existing optional-payload behavior; a non-empty value must pass the
+// the existing optional-payload representation; a non-empty value must pass the
 // authoritative BuildSpec normalizer.
+//
+// This is the production build boundary. Create is always followed by dispatch,
+// and dispatch requires a valid non-empty public key on every platform
+// (RequireDispatchPublicKey), so the public key is required on every platform
+// here as well. Validating it only for Windows would report a false create
+// success for a Linux/Android row whose dispatch then fails without field
+// feedback. The remaining transport fields stay Windows-only. The permissive
+// draft/preset path (CreateNormalized without a resolved identity) intentionally
+// keeps its previous lenient contract.
 func ValidateCustomBuildInput(platform, customJSON, appName, version string) error {
 	if err := ValidateCustomBuildRecordFieldsRequired(platform, appName, version); err != nil {
 		return err
@@ -356,20 +365,29 @@ func ValidateCustomBuildInput(platform, customJSON, appName, version string) err
 	if err := ValidateCustomPlatform(platform); err != nil {
 		return err
 	}
-	if customJSON == "" && platform != string(PlatformAndroid) && platform != string(PlatformWindows) {
-		return nil
-	}
+	// An empty payload is still normalized so the platform-independent required
+	// contract is enforced before persistence. NormalizeCustomBuildJSON keeps the
+	// empty persisted representation for an empty payload, so this does not
+	// change the stored value.
 	normalized, err := NormalizeCustomBuildJSON(customJSON, context)
 	if err != nil {
 		return &ClientValidationError{Err: err}
+	}
+	// Keep the historical Windows classification order (server_ip, key,
+	// api_server, relay_server) while making the key requirement
+	// platform-independent: server_ip stays Windows-only, then the key is
+	// required on every platform, then the remaining Windows transport fields.
+	if platform == string(PlatformWindows) && strings.TrimSpace(normalized.Spec.ServerIP) == "" {
+		return &ClientValidationError{Err: NewFieldError("server_ip", FieldCodeRequired, fmt.Errorf("server_ip is required for Windows builds"))}
+	}
+	if strings.TrimSpace(normalized.Spec.Key) == "" {
+		return &ClientValidationError{Err: NewFieldError("key", FieldCodeRequired, fmt.Errorf("key is required"))}
 	}
 	if platform == string(PlatformWindows) {
 		for _, field := range []struct {
 			name  string
 			value string
 		}{
-			{name: "server_ip", value: normalized.Spec.ServerIP},
-			{name: "key", value: normalized.Spec.Key},
 			{name: "api_server", value: normalized.Spec.APIServer},
 			{name: "relay_server", value: normalized.Spec.RelayServer},
 		} {

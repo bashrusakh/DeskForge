@@ -659,16 +659,38 @@ export default defineComponent({
     }
     const serverFieldError = (field) => serverFieldErrors.value[field] || ''
 
+    // The requirement inputs (platform, hide_cm — see requiredFieldSet) decide
+    // which fields the server requires, so a change to either invalidates any
+    // snapshot captured before it. Shared by applyServerFieldErrors (per-field
+    // staleness) and isSubmittedSnapshotCurrent (whole-form staleness). Callers
+    // pass a captured snapshot; the caller decides what a missing snapshot means.
+    const submittedRequirementInputsMatch = (snapshot) =>
+      snapshot.platform === form.platform && snapshot.hide_cm === form.hide_cm
+
     // Apply the per-field reasons from a create response. Fields the form can
     // display (requiredFieldNames) are highlighted; unknown fields are ignored.
     // The server message is the display source (`:error`), while invalidFields
     // keeps ARIA and focus behavior aligned with the existing schema.
-    const applyServerFieldErrors = async (fields) => {
+    //
+    // A create response describes the exact form state that was submitted. If the
+    // user edits a field while the request is in flight, the response is stale for
+    // that field. Pass the snapshot captured at submit time so an old error is
+    // never mapped onto a newer value: a change to an input that decides which
+    // fields the server requires (platform, hide_cm — see requiredFieldSet)
+    // invalidates the whole classification, otherwise only the errors whose field
+    // value changed are dropped. Without a snapshot the caller is assumed to be
+    // applying a response for the current state (legacy/tests).
+    const applyServerFieldErrors = async (fields, snapshot) => {
       const applicable = (fields || []).filter((entry) => requiredFieldNames.includes(entry.field))
       if (!applicable.length) return false
+      if (snapshot && !submittedRequirementInputsMatch(snapshot)) return false
+      const current = snapshot
+        ? applicable.filter((entry) => snapshot.values[entry.field] === form[entry.field])
+        : applicable
+      if (!current.length) return false
       const nextMessages = { ...serverFieldErrors.value }
       const nextInvalidFields = { ...invalidFields.value }
-      for (const { field, code } of applicable) {
+      for (const { field, code } of current) {
         const message = serverFieldMessage(field, code)
         nextMessages[field] = message
         nextInvalidFields[field] = [message]
@@ -682,6 +704,64 @@ export default defineComponent({
       await focusFirstInvalid(nextInvalidFields)
       syncFieldAria()
       return true
+    }
+
+    // Every form field the create request actually sends. custom_json carries all
+    // of PRESET_FIELDS, while platform/version/app_name travel as record columns
+    // (`name` simply duplicates app_name). requiredFieldNames is a subset of this
+    // union, so the per-field error matching below still finds every displayable
+    // field. PRESET_FIELDS is declared further down as the single source of truth
+    // for custom_json, so read it lazily (at submit time) to avoid a TDZ reference
+    // during setup. All of these fields hold primitives (strings/booleans), so
+    // strict equality is an exact comparison.
+    const SUBMITTED_RECORD_FIELDS = ['platform', 'version', 'app_name']
+    const submittedFieldNames = () =>
+      Array.from(new Set([...PRESET_FIELDS, ...SUBMITTED_RECORD_FIELDS]))
+
+    // Capture the values of every submitted field so a late server response can be
+    // matched against the state it actually describes. platform and hide_cm are
+    // the requirement inputs (see requiredFieldSet); if either changes while the
+    // request is in flight, the whole classification is stale.
+    const snapshotSubmittedFields = () => {
+      const values = {}
+      for (const field of submittedFieldNames()) values[field] = form[field]
+      return { platform: values.platform, hide_cm: form.hide_cm, values }
+    }
+
+    // True when the live form still matches the exact state that was submitted.
+    // Reuses the error-path semantics: the requirement inputs must match and every
+    // submitted field must be unchanged. The create serializes the whole payload,
+    // so an in-flight edit to ANY sent field — required or not (company_name,
+    // enable_audio, app_icon_url, ...) — makes the response/clear stale. Clearing
+    // the form is only safe while this holds; otherwise the user edited a field in
+    // flight and we keep their edits (the build was still created).
+    const isSubmittedSnapshotCurrent = (snapshot) => {
+      if (!snapshot || !submittedRequirementInputsMatch(snapshot)) return false
+      return Object.keys(snapshot.values).every((field) => snapshot.values[field] === form[field])
+    }
+
+    // Classify a create failure. A 400 carries machine-readable per-field reasons
+    // (data.fields) and the axios response interceptor has already toasted a
+    // bounded server message; `applyServerFieldErrors` applies those reasons or,
+    // per F-B, intentionally drops a stale response. Both outcomes are expected
+    // and already surfaced, so they are reported without an error object.
+    // Logging the raw AxiosError would expose config.data.custom_json (including
+    // permanent_password) and config.headers['api-token'] in the console. Only a
+    // genuinely unexpected failure is logged, in a bounded form that never
+    // includes the request config.
+    const reportCreateBuildFailure = async (e, snapshot) => {
+      // A failed envelope arrives as the raw body object (request.js rejects
+      // `res`), so it carries neither axios markers nor necessarily data.fields.
+      // A numeric nonzero code is the interceptor's handled-envelope signal, the
+      // same predicate the upload flow uses (isInterceptorHandledFailure).
+      const envelopeFailure = Number.isInteger(e?.code) && e.code !== 0
+      const fields = e?.response?.data?.data?.fields
+        || (envelopeFailure ? e?.data?.fields : null)
+      if (fields || envelopeFailure || axios.isAxiosError(e) || Boolean(e?.response || e?.request) || e?.interceptorHandled) {
+        await applyServerFieldErrors(fields, snapshot)
+        return
+      }
+      console.error('Custom client build request failed:', e?.message || String(e))
     }
 
     // Presence predicate only: drives when a field needs its required rule.
@@ -1068,6 +1148,9 @@ export default defineComponent({
         return
       }
       submitting.value = true
+      // Snapshot the submitted displayable values so a response that arrives
+      // after an intervening edit is not applied to the newer form state.
+      const submittedSnapshot = snapshotSubmittedFields()
       try {
         // Derived from PRESET_FIELDS so submit + save preset stay in sync.
         const customPayload = {}
@@ -1080,17 +1163,24 @@ export default defineComponent({
           app_name: form.app_name,
           custom_json: customJson,
         })
+        // The build was created regardless of later edits, so always refresh the
+        // list and toast success. Clear the form only while it still matches what
+        // was submitted; if the user edited a field while the request was in
+        // flight (the same race as the error path), keep those edits instead of
+        // silently discarding them. `validateBuildForm` already cleared the field
+        // errors recorded by the previous attempt, and a create failure never
+        // reaches this branch, so no stale highlight can remain either way.
         ElMessage.success(T('OperationSuccess'))
-        resetForm()
+        if (isSubmittedSnapshotCurrent(submittedSnapshot)) resetForm()
         loadBuilds()
       } catch (e) {
         // The server returns machine-readable per-field validation reasons
         // (data.fields) derived from the authoritative Go validators. Highlight
         // those exact fields instead of one generic toast; the axios interceptor
-        // still toasts the bounded server message.
-        const fields = e?.response?.data?.data?.fields
-          || (Number.isInteger(e?.code) && e.code !== 0 ? e?.data?.fields : null)
-        if (!await applyServerFieldErrors(fields)) console.error(e)
+        // still toasts the bounded server message. reportCreateBuildFailure also
+        // drops a stale response (F-B) and never logs the raw request/response
+        // object, which would leak custom_json/permanent_password and api-token.
+        await reportCreateBuildFailure(e, submittedSnapshot)
       } finally {
         submitting.value = false
       }

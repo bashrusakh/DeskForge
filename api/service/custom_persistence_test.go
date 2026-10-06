@@ -1577,7 +1577,7 @@ func TestCustomBuildUpdateValidatedAllowlistPreservesProvenance(t *testing.T) {
 		Platform:           "linux",
 		Version:            "1.2.3",
 		AppName:            "rustqs",
-		CustomJson:         `{"enable_audio":true}`,
+		CustomJson:         `{"enable_audio":true,"key":"` + validRustDeskPublicKey + `"}`,
 		Status:             model.CustomBuildStatusBuilding,
 		FileSize:           42,
 		GithubRunId:        77,
@@ -1595,7 +1595,15 @@ func TestCustomBuildUpdateValidatedAllowlistPreservesProvenance(t *testing.T) {
 		t.Fatalf("CreateNormalized() error = %v", err)
 	}
 
+	// A provider-backed update uses the shared production validator, so the key is
+	// required here too: clearing the key-bearing payload (empty custom_json) is
+	// rejected fail-closed rather than silently dropping the key.
 	build.CustomJson = ""
+	if err := (&CustomBuildService{}).UpdateValidated(build); err == nil || !IsClientValidationError(err) {
+		t.Fatalf("UpdateValidated() clearing custom_json error = %v, want ClientValidationError", err)
+	}
+
+	build.CustomJson = `{"enable_audio":false,"key":"` + validRustDeskPublicKey + `"}`
 	build.Status = ""
 	build.FileSize = 0
 	if err := (&CustomBuildService{}).UpdateValidated(build); err != nil {
@@ -1605,12 +1613,13 @@ func TestCustomBuildUpdateValidatedAllowlistPreservesProvenance(t *testing.T) {
 	if err := db.First(&stored, build.Id).Error; err != nil {
 		t.Fatalf("read validated build: %v", err)
 	}
-	if stored.CustomJson != "" || stored.Status != model.CustomBuildStatusBuilding || stored.FileSize != 42 {
-		t.Fatalf("validated zero values were not saved: %#v", stored)
+	if stored.CustomJson == "" || stored.Status != model.CustomBuildStatusBuilding || stored.FileSize != 42 {
+		t.Fatalf("validated values were not saved: %#v", stored)
 	}
 	if stored.GithubRunId != 77 || stored.GithubArtifactID != 88 || stored.GithubRepo != "owner/repo" || stored.GithubSourceSha != strings.Repeat("a", 40) {
 		t.Fatalf("validated update erased immutable provenance: %#v", stored)
 	}
+	acceptedStoredJSON := stored.CustomJson
 
 	build.CustomJson = `{"enable_audio":"false"}`
 	if err := (&CustomBuildService{}).UpdateValidated(build); err == nil || !IsClientValidationError(err) {
@@ -1619,7 +1628,7 @@ func TestCustomBuildUpdateValidatedAllowlistPreservesProvenance(t *testing.T) {
 	if err := db.First(&stored, build.Id).Error; err != nil {
 		t.Fatalf("read build after rejected update: %v", err)
 	}
-	if stored.CustomJson != "" {
+	if stored.CustomJson != acceptedStoredJSON {
 		t.Fatalf("rejected validated update changed custom_json to %q", stored.CustomJson)
 	}
 }
@@ -1990,6 +1999,30 @@ func TestCustomPresetUpdateClearsPreviouslyPopulatedField(t *testing.T) {
 	}
 }
 
+func TestGenericCreateNormalizedStaysLenientForDraftPresets(t *testing.T) {
+	// F-A scope guard: only the production path (CreateNormalizedWithIdentity)
+	// becomes strict about the key. The generic Create/CreateNormalized path is
+	// used by intentionally incomplete draft/preset rows and must stay lenient so
+	// this change does not widen beyond the production build boundary.
+	db := newCustomPersistenceDB(t)
+	build := &model.CustomBuild{
+		Platform:   "linux",
+		Version:    "1.2.3",
+		AppName:    "draft",
+		CustomJson: `{"enable_audio":false}`,
+	}
+	if _, err := (&CustomBuildService{}).CreateNormalized(build); err != nil {
+		t.Fatalf("CreateNormalized() for key-less draft preset error = %v, want accepted", err)
+	}
+	var count int64
+	if err := db.Model(&model.CustomBuild{}).Count(&count).Error; err != nil {
+		t.Fatalf("count builds: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("lenient draft preset created %d row(s), want 1", count)
+	}
+}
+
 func TestValidateCustomBuildInput(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -1997,9 +2030,10 @@ func TestValidateCustomBuildInput(t *testing.T) {
 		customJSON string
 		wantErr    bool
 	}{
-		{name: "supported empty payload", platform: "linux"},
+		{name: "linux empty payload requires key", platform: "linux", wantErr: true},
+		{name: "linux payload with key is accepted", platform: "linux", customJSON: `{"key":"` + validRustDeskPublicKey + `"}`},
 		{name: "windows complete payload", platform: "windows", customJSON: `{"server_ip":"id.example:21116","key":"` + validRustDeskPublicKey + `","api_server":"https://api.example","relay_server":"relay.example:21117"}`},
-		{name: "supported typed payload", platform: "linux", customJSON: `{"enable_audio":false}`},
+		{name: "supported typed payload", platform: "linux", customJSON: `{"enable_audio":false,"key":"` + validRustDeskPublicKey + `"}`},
 		{name: "windows missing server endpoint", platform: "windows", customJSON: `{"key":"` + validRustDeskPublicKey + `","api_server":"https://api.example","relay_server":"relay.example:21117"}`, wantErr: true},
 		{name: "windows missing public key", platform: "windows", customJSON: `{"server_ip":"id.example:21116","api_server":"https://api.example","relay_server":"relay.example:21117"}`, wantErr: true},
 		{name: "windows missing API URL", platform: "windows", customJSON: `{"server_ip":"id.example:21116","key":"` + validRustDeskPublicKey + `","relay_server":"relay.example:21117"}`, wantErr: true},
@@ -2134,10 +2168,10 @@ func TestValidateCustomBuildInputRequiresCanonicalPublicKeyMaterial(t *testing.T
 	// F1 regression: after validation moved to the server (#69), a non-empty
 	// key that is not canonical 32-byte base64 public-key material must be
 	// rejected at create with a structured key/invalid_format error, mirroring
-	// the removed client-side isValidPublicKeyFormat check. Empty keys keep
-	// their separate per-platform required policy and must not raise a material
-	// error. Every other Windows-required field is valid so the failure is
-	// attributed to key.
+	// the removed client-side isValidPublicKeyFormat check. The key is required
+	// on every platform, so an empty key raises key/required (not
+	// invalid_format). Every other Windows-required field is valid so the
+	// failure is attributed to key.
 	windows := func(keyFragment string) string {
 		return `{"server_ip":"id.example:21116",` + keyFragment + `"api_server":"https://api.example","relay_server":"relay.example:21117"}`
 	}
@@ -2190,16 +2224,23 @@ func TestValidateCustomBuildInputRequiresCanonicalPublicKeyMaterial(t *testing.T
 			wantOK:   true,
 		},
 		{
-			name:      "empty key on windows stays required, not invalid format",
+			name:      "empty key on windows is required, not invalid format",
 			platform:  "windows",
 			custom:    windows(`"key":"",`),
 			wantField: "key",
 			wantCode:  FieldCodeRequired,
 		},
 		{
-			name:     "empty key on linux remains accepted",
+			name:      "empty key on linux is required",
+			platform:  "linux",
+			custom:    `{"enable_audio":false}`,
+			wantField: "key",
+			wantCode:  FieldCodeRequired,
+		},
+		{
+			name:     "canonical key on linux is accepted",
 			platform: "linux",
-			custom:   `{"enable_audio":false}`,
+			custom:   `{"key":"` + validRustDeskPublicKey + `"}`,
 			wantOK:   true,
 		},
 		{
@@ -2227,6 +2268,59 @@ func TestValidateCustomBuildInputRequiresCanonicalPublicKeyMaterial(t *testing.T
 			field, code, ok := FieldErrorMetadata(err)
 			if !ok || field != test.wantField || code != test.wantCode {
 				t.Fatalf("field/code = %s/%s ok=%v, want %s/%s (err=%v)", field, code, ok, test.wantField, test.wantCode, err)
+			}
+		})
+	}
+}
+
+func TestValidateCustomBuildInputRequiresKeyOnEveryPlatform(t *testing.T) {
+	// F-A: create must match the dispatch contract. DispatchBuild always calls
+	// NormalizeWorkflowDispatchParams and then RequireDispatchPublicKey, which
+	// rejects a missing/non-material key on any platform. Requiring the key only
+	// for Windows produced a false create success for Linux/Android rows that the
+	// subsequent dispatch rejected. This asserts the structured key/required
+	// classification on each supported platform.
+	const androidJSON = `{"android_app_id":"com.example.client"}`
+	cases := []struct {
+		name     string
+		platform string
+		custom   string
+	}{
+		{name: "linux missing key", platform: "linux", custom: `{"enable_audio":false}`},
+		{name: "android missing key", platform: "android", custom: androidJSON},
+		{name: "windows missing key", platform: "windows", custom: `{"server_ip":"id.example:21116","api_server":"https://api.example","relay_server":"relay.example:21117"}`},
+		{name: "linux empty-string key", platform: "linux", custom: `{"key":""}`},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			err := ValidateCustomBuildInput(test.platform, test.custom, "DeskForge", "1.2.3")
+			if err == nil {
+				t.Fatal("ValidateCustomBuildInput() error = nil, want structured key/required error")
+			}
+			if !IsClientValidationError(err) {
+				t.Fatalf("error type = %T, want ClientValidationError", err)
+			}
+			field, code, ok := FieldErrorMetadata(err)
+			if !ok || field != "key" || code != FieldCodeRequired {
+				t.Fatalf("field/code = %s/%s ok=%v, want key/%s (err=%v)", field, code, ok, FieldCodeRequired, err)
+			}
+		})
+	}
+
+	// A valid key is accepted on every supported platform.
+	accepted := []struct {
+		name     string
+		platform string
+		custom   string
+	}{
+		{name: "linux valid key", platform: "linux", custom: `{"key":"` + validRustDeskPublicKey + `"}`},
+		{name: "android valid key", platform: "android", custom: `{"key":"` + validRustDeskPublicKey + `","android_app_id":"com.example.client"}`},
+		{name: "windows valid key", platform: "windows", custom: `{"server_ip":"id.example:21116","key":"` + validRustDeskPublicKey + `","api_server":"https://api.example","relay_server":"relay.example:21117"}`},
+	}
+	for _, test := range accepted {
+		t.Run(test.name, func(t *testing.T) {
+			if err := ValidateCustomBuildInput(test.platform, test.custom, "DeskForge", "1.2.3"); err != nil {
+				t.Fatalf("ValidateCustomBuildInput() error = %v, want accepted", err)
 			}
 		})
 	}
