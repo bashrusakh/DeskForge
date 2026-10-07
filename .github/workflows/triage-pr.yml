@@ -1,7 +1,7 @@
 name: PR Metadata Triage
 
 # Thin caller shim for the reusable triage master in bashrusakh/.github, pinned at
-# e7add3fbe795d151702f9e13740bf9786aba5a84. The contract is read from THIS repository's
+# dfd7c61abb095df3ee998f64dddf364922977e3d. The contract is read from THIS repository's
 # PR base branch, never from the PR head (or from the default-branch head when the event
 # carries no pull request): the master fetches the contract_files below and fails closed
 # if a listed file is missing.
@@ -26,7 +26,7 @@ permissions:
 
 jobs:
   triage:
-    uses: bashrusakh/.github/.github/workflows/triage-pr.lock.yml@e7add3fbe795d151702f9e13740bf9786aba5a84
+    uses: bashrusakh/.github/.github/workflows/triage-pr.lock.yml@dfd7c61abb095df3ee998f64dddf364922977e3d
     secrets:
       OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
     with:
