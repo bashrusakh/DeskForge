@@ -1,7 +1,9 @@
 name: Issue Triage
 
-# Thin caller shim for the reusable triage master in bashrusakh/.github, pinned at
-# dfd7c61abb095df3ee998f64dddf364922977e3d. The contract is read from THIS repository at
+# Thin caller shim intentionally trusting bashrusakh/.github@main. Central updates
+# (including model/endpoint changes) apply automatically; this is not an immutable pin.
+# Provision TRIAGE_API_KEY for the central provider; forward only this named secret.
+# The contract is read from THIS repository at
 # its default-branch head: the master fetches the contract_files below and fails closed
 # if a listed file is missing.
 # The permissions are the union the called workflow's jobs require; `issues: write` and
@@ -29,9 +31,9 @@ permissions:
 
 jobs:
   triage:
-    uses: bashrusakh/.github/.github/workflows/triage-issue.lock.yml@dfd7c61abb095df3ee998f64dddf364922977e3d
+    uses: bashrusakh/.github/.github/workflows/triage-issue.lock.yml@main
     secrets:
-      OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+      TRIAGE_API_KEY: ${{ secrets.TRIAGE_API_KEY }}
     with:
       contract_files: "AGENTS.md CONTRIBUTING.md"
       issue_number: ${{ github.event.inputs.issue_number }}

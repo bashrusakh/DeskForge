@@ -1,7 +1,9 @@
 name: PR Metadata Triage
 
-# Thin caller shim for the reusable triage master in bashrusakh/.github, pinned at
-# dfd7c61abb095df3ee998f64dddf364922977e3d. The contract is read from THIS repository's
+# Thin caller shim intentionally trusting bashrusakh/.github@main. Central updates
+# (including model/endpoint changes) apply automatically; this is not an immutable pin.
+# Provision TRIAGE_API_KEY for the central provider; forward only this named secret.
+# The contract is read from THIS repository's
 # PR base branch, never from the PR head (or from the default-branch head when the event
 # carries no pull request): the master fetches the contract_files below and fails closed
 # if a listed file is missing.
@@ -26,9 +28,9 @@ permissions:
 
 jobs:
   triage:
-    uses: bashrusakh/.github/.github/workflows/triage-pr.lock.yml@dfd7c61abb095df3ee998f64dddf364922977e3d
+    uses: bashrusakh/.github/.github/workflows/triage-pr.lock.yml@main
     secrets:
-      OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+      TRIAGE_API_KEY: ${{ secrets.TRIAGE_API_KEY }}
     with:
       contract_files: "AGENTS.md CONTRIBUTING.md"
       pr_number: ${{ github.event.inputs.pr_number }}
