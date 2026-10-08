@@ -1069,7 +1069,10 @@ export default defineComponent({
 
     const saveCurrentAsPreset = async () => {
       try {
-        const name = await ElMessageBox.prompt(T('PresetName'), T('SaveAsPreset'), { inputPlaceholder: 'My Preset' })
+        const name = await ElMessageBox.prompt(T('PresetName'), T('SaveAsPreset'), {
+          inputPlaceholder: 'My Preset',
+          inputValue: selectedPreset.value?.name || '',
+        })
         if (!name || !name.value) return
         if (!await validatePresetPassword(name.value)) return
         // Derived from PRESET_FIELDS so submit + save preset stay in sync.
