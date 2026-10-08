@@ -67,6 +67,87 @@ function fixture(platform = 'linux') {
 }
 const key = Buffer.alloc(32, 7).toString('base64')
 
+// Exercise the real selection lookup and save handler; only the dialog/API and
+// unrelated form-loading effects are stubbed. The prompt spy simulates editing
+// the initial value before confirming.
+function presetSaveFixture() {
+  const calls = { prompts: [], payloads: [], refreshes: 0 }
+  const context = {
+    ref, computed, T: value => value, PRESET_FIELDS,
+    form: reactive(formState()), presetPasswordClearIntent: ref(false),
+    ElMessageBox: { prompt: async (message, title, options) => {
+      calls.prompts.push({ message, title, options })
+      return { value: context.editedName ?? options.inputValue ?? '' }
+    } },
+    ElMessage: { success: () => {} },
+    createPreset: async payload => { calls.payloads.push(payload) },
+    loadPresets: async () => { calls.refreshes++ },
+    loadPresetIntoForm: () => {},
+    resetForm: () => { context.api.selectedPresetId.value = null },
+    console,
+  }
+  vm.createContext(context)
+  vm.runInContext(between('    const presets = ref([])', '    const clearSavedPresetPassword') +
+    between('    const canPreservePresetPassword', '    const resetFormFields') +
+    between('    const onPresetSelect', '    const deletePreset') + `
+    globalThis.api = { presets, selectedPresetId, onPresetSelect, saveCurrentAsPreset };
+  `, context)
+  context.api.presets.value = [
+    { id: 1, name: 'First preset', has_permanent_password: true },
+    { id: 2, name: 'Second preset' },
+  ]
+  context.calls = calls
+  return context
+}
+
+test('Save preset initially fills the selected preset name', async () => {
+  const ctx = presetSaveFixture()
+  ctx.api.selectedPresetId.value = 1
+  ctx.api.onPresetSelect(1)
+  await ctx.api.saveCurrentAsPreset()
+  assert.equal(ctx.calls.prompts[0].options.inputValue, 'First preset')
+  assert.equal(ctx.calls.payloads[0].name, 'First preset')
+  assert.equal(ctx.calls.payloads[0].preserve_permanent_password, true)
+})
+
+test('Save preset reads the latest selection and clears the initial name after deselection', async () => {
+  const ctx = presetSaveFixture()
+  for (const id of [1, 2, null]) {
+    ctx.api.selectedPresetId.value = id
+    ctx.api.onPresetSelect(id)
+    await ctx.api.saveCurrentAsPreset()
+  }
+  assert.deepEqual(ctx.calls.prompts.map(call => call.options.inputValue), ['First preset', 'Second preset', ''])
+  assert.deepEqual(ctx.calls.payloads.map(payload => payload.name), ['First preset', 'Second preset'])
+})
+
+test('the editable prompt result remains the save name and preserves the payload shape', async () => {
+  const ctx = presetSaveFixture()
+  ctx.api.selectedPresetId.value = 1
+  ctx.editedName = 'User edited name'
+  await ctx.api.saveCurrentAsPreset()
+  const payload = ctx.calls.payloads[0]
+  assert.equal(ctx.calls.prompts[0].options.inputValue, 'First preset')
+  assert.equal(payload.name, 'User edited name')
+  assert.equal(payload.platform, ctx.form.platform)
+  assert.equal(payload.version, ctx.form.version)
+  assert.equal(payload.app_name, ctx.form.app_name)
+  assert.equal(payload.preserve_permanent_password, false, 'password preservation still uses the confirmed name')
+  assert.deepEqual(JSON.parse(payload.custom_json), Object.fromEntries(PRESET_FIELDS.map(field => [field, ctx.form[field]])))
+  assert.deepEqual(Object.keys(payload).sort(), ['app_name', 'custom_json', 'name', 'platform', 'preserve_permanent_password', 'version'])
+  assert.equal(ctx.calls.refreshes, 1)
+})
+
+test('without a selection Save preset keeps the blank editable new-preset prompt', async () => {
+  const ctx = presetSaveFixture()
+  ctx.editedName = 'New preset'
+  await ctx.api.saveCurrentAsPreset()
+  assert.equal(ctx.calls.prompts[0].options.inputValue ?? '', '')
+  assert.equal(ctx.calls.prompts[0].options.inputPlaceholder, 'My Preset')
+  assert.equal(ctx.calls.payloads[0].name, 'New preset')
+  assert.equal(ctx.calls.payloads[0].preserve_permanent_password, false)
+})
+
 // Fixture for the create-success path (F-D). It runs the same extracted SFC
 // logic as `fixture` (so isSubmittedSnapshotCurrent/snapshotSubmittedFields are
 // the real implementation), plus submitBuild's own body, with the request layer
