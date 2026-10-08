@@ -76,6 +76,9 @@
                   :validate-event="false"
                   @change="clearFieldError('version')"
                 >
+                  <template v-if="versionsState === 'loading'" #prefix>
+                    <el-icon class="is-loading" aria-hidden="true"><Loading /></el-icon>
+                  </template>
                   <el-option v-for="v in versions" :key="v.version" :label="v.version" :value="v.version" />
                 </el-select>
               </el-tooltip>
@@ -513,7 +516,7 @@ import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { T } from '@/utils/i18n'
 import { downBlob } from '@/utils/file'
-import { InfoFilled, Key } from '@element-plus/icons-vue'
+import { InfoFilled, Key, Loading } from '@element-plus/icons-vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import PageSection from '@/components/ui/PageSection.vue'
 import DataTable from '@/components/ui/DataTable.vue'
@@ -536,7 +539,7 @@ const extractApiError = (error, fallbackKey) => {
 
 export default defineComponent({
   name: 'CustomClientBuilds',
-  components: { PageHeader, PageSection, DataTable, InfoFilled, Key },
+  components: { PageHeader, PageSection, DataTable, InfoFilled, Key, Loading },
   setup () {
     const formRef = ref(null)
     const showPermanentPassword = ref(false)

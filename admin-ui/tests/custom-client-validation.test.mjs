@@ -42,6 +42,83 @@ const PRESET_FIELDS = sfcArrayLiteral('PRESET_FIELDS')
 const FORM_DEFAULTS = sfcObjectLiteral('FORM_DEFAULTS')
 const formState = (platform = 'linux') => ({ ...FORM_DEFAULTS, platform })
 
+function versionsFixture() {
+  let resolveVersions, rejectVersions
+  const response = new Promise((resolve, reject) => {
+    resolveVersions = resolve
+    rejectVersions = reject
+  })
+  const context = {
+    ref, computed, form: reactive(formState()), T: value => value,
+    getVersions: () => response,
+  }
+  vm.createContext(context)
+  vm.runInContext(between('const extractApiError =', '\nexport default') +
+    between('    const versionsState =', '\n    // B-017: при silent=true') +
+    between('    const loadVersions =', '\n    const loadConfig =') + `
+    lifecycleGuard.mounted = true;
+    globalThis.api = { loadVersions, versionsState, versionsReady, versions,
+      versionsError, lifecycleGuard };
+  `, context)
+  return { ...context, resolveVersions, rejectVersions }
+}
+
+test('Version has a loading-only native prefix without replacing its value or disabling selection', () => {
+  const field = between('            <el-form-item :label="T(\'Version\')"', '\n            </el-form-item>')
+  assert.match(field, /<template v-if="versionsState === 'loading'" #prefix>/)
+  assert.match(field, /<el-icon class="is-loading" aria-hidden="true"><Loading \/><\/el-icon>/)
+  assert.match(field, /v-model="form.version"/)
+  assert.match(field, /:aria-busy="versionsState === 'loading'"/)
+  const select = field.slice(field.indexOf('<el-select'), field.indexOf('</el-select>'))
+  assert.doesNotMatch(select, /:disabled=|v-loading=/)
+})
+
+test('Version stays loading until its own request settles and preserves explicit selection', async () => {
+  for (const [data, state] of [
+    [{ versions: [{ version: '1.4.8' }] }, 'ready'],
+    [{ versions: [] }, 'empty'],
+    [{ versions: [], error: true, message: 'Provider unavailable' }, 'error'],
+  ]) {
+    const ctx = versionsFixture()
+    ctx.form.version = 'saved-version'
+    const pending = ctx.api.loadVersions()
+    await nextTick()
+    assert.equal(ctx.api.versionsState.value, 'loading')
+    assert.equal(ctx.api.versionsReady.value, false)
+    ctx.resolveVersions({ data })
+    await pending
+    assert.equal(ctx.api.versionsState.value, state)
+    assert.equal(ctx.api.versionsReady.value, state === 'ready')
+    assert.equal(ctx.form.version, 'saved-version')
+    assert.equal(ctx.api.versions.value.length, data.versions.length)
+    // Keep the existing fallback for catalog errors without an API envelope code.
+    assert.equal(ctx.api.versionsError.value, state === 'error' ? 'VersionListError' : '')
+  }
+})
+
+test('Version request rejection ends loading without choosing a fallback', async () => {
+  const ctx = versionsFixture()
+  const pending = ctx.api.loadVersions()
+  ctx.rejectVersions(new Error('network failed'))
+  await pending
+  assert.equal(ctx.api.versionsState.value, 'error')
+  assert.equal(ctx.api.versionsReady.value, false)
+  assert.equal(ctx.api.versionsError.value, 'VersionListError')
+  assert.equal(ctx.api.versions.value.length, 0)
+  assert.equal(ctx.form.version, '')
+})
+
+test('Version response after unmount cannot update the disposed component', async () => {
+  const ctx = versionsFixture()
+  const pending = ctx.api.loadVersions()
+  ctx.api.lifecycleGuard.mounted = false
+  ctx.resolveVersions({ data: { versions: [{ version: '1.4.8' }] } })
+  await pending
+  assert.equal(ctx.api.versionsState.value, 'loading')
+  assert.equal(ctx.api.versions.value.length, 0)
+  assert.equal(ctx.form.version, '')
+})
+
 function fixture(platform = 'linux') {
   const logs = []
   const context = {
