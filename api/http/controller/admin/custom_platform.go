@@ -61,6 +61,8 @@ func customValidationMessage(err error) string {
 		return "AppName is required"
 	case strings.Contains(detail, "permanent_password is required"):
 		return "permanent password is required"
+	case strings.Contains(detail, "does not resolve to a preset"):
+		return "selected preset was not found"
 	case strings.Contains(detail, "invalid version format"),
 		strings.Contains(detail, "invalid display version"),
 		strings.Contains(detail, "version has invalid or unsafe format"):

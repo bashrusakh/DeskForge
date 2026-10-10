@@ -467,11 +467,15 @@
             { label: T('Platform'), prop: 'platform', width: 120, align: 'center' },
             { label: T('Version'), prop: 'version', width: 100, align: 'center' },
             { label: T('AppName'), prop: 'app_name', minWidth: 140 },
+            { label: T('PresetTemplate'), minWidth: 140, slot: 'preset' },
             { label: T('BuildStatus'), width: 120, align: 'center', slot: 'status' },
             { label: T('CreatedAt'), prop: 'created_at', width: 160, align: 'center' },
             { label: T('Actions'), width: 200, align: 'center', slot: 'actions' }
           ]"
       >
+        <template #preset="{ row }">
+          <span>{{ row.preset_name || '—' }}</span>
+        </template>
         <template #status="{ row }">
           <el-popover v-if="row.build_log" placement="top" trigger="click" :width="480" popper-class="build-log-popover">
             <template #default>
@@ -1162,13 +1166,18 @@ export default defineComponent({
         const customPayload = {}
         for (const f of PRESET_FIELDS) customPayload[f] = form[f]
         const customJson = JSON.stringify(customPayload)
-        await create({
+        const createPayload = {
           name: form.app_name,
           platform: form.platform,
           version: form.version,
           app_name: form.app_name,
           custom_json: customJson,
-        })
+        }
+        // Source-preset provenance: while a preset is loaded, send its id so the
+        // server snapshots the preset name onto the build at create time. With
+        // no preset selected the field is omitted and the build is a "—" row.
+        if (selectedPresetId.value) createPayload.preset_id = selectedPresetId.value
+        await create(createPayload)
         // The build was created regardless of later edits, so always refresh the
         // list and toast success. Clear the form only while it still matches what
         // was submitted; if the user edited a field while the request was in

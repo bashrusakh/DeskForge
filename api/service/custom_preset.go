@@ -47,6 +47,18 @@ func (ps *CustomPresetService) Info(id uint) (*model.CustomPreset, error) {
 	return p, nil
 }
 
+// InfoOwned is the ownership-scoped lookup used when a build snapshots its
+// source preset at create time. A preset that exists but belongs to another
+// user is indistinguishable from a missing one (gorm.ErrRecordNotFound), so a
+// provided id can never resolve across ownership.
+func (ps *CustomPresetService) InfoOwned(id, userId uint) (*model.CustomPreset, error) {
+	p := &model.CustomPreset{}
+	if err := DB.Where("id = ? AND user_id = ?", id, userId).First(p).Error; err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
 // Create — upsert по (user_id, name): если запись с таким именем у юзера уже есть,
 // перезаписывает её содержимое (§8.9 «Save as preset → перезаписывать при совпадении»).
 // Иначе создаёт новую. Поле Id у входящего p при upsert будет установлено на найденный.

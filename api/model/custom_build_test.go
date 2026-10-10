@@ -28,6 +28,7 @@ func TestCustomBuildAutoMigrateAddsProvenanceAndReadsLegacyRows(t *testing.T) {
 		"assets_release_assets",
 		"publication_recorded_at", "published_digest",
 		"producer_manifest_json",
+		"preset_id", "preset_name",
 	} {
 		if !db.Migrator().HasColumn(&CustomBuild{}, column) {
 			t.Errorf("AutoMigrate() missing provenance column %q", column)
@@ -43,5 +44,13 @@ func TestCustomBuildAutoMigrateAddsProvenanceAndReadsLegacyRows(t *testing.T) {
 	}
 	if loaded.GithubRunId != 77 || loaded.DownloadKey != "legacy-download-key" || loaded.GithubRepo != "" || loaded.GithubSourceSha != "" || loaded.PublicationRecordedAt != 0 || loaded.PublishedDigest != "" {
 		t.Fatalf("legacy row was not readable with empty provenance: %#v", loaded)
+	}
+	// Legacy rows predating source-preset provenance read as empty values, the
+	// representation the admin UI renders as "—".
+	if loaded.PresetId != 0 || loaded.PresetName != "" {
+		t.Fatalf("legacy row gained source-preset provenance: preset_id=%d preset_name=%q", loaded.PresetId, loaded.PresetName)
+	}
+	if safe := loaded.Safe(); safe == nil || safe.PresetId != 0 || safe.PresetName != "" {
+		t.Fatalf("legacy safe view gained source-preset provenance: %#v", safe)
 	}
 }
