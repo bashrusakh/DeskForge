@@ -27,3 +27,10 @@ export function all () {
     method: 'get',
   })
 }
+
+export function serverAddresses () {
+  return request({
+    url: '/config/server_addresses',
+    method: 'get',
+  })
+}

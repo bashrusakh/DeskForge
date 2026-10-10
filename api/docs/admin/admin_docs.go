@@ -1214,7 +1214,7 @@ const docTemplateadmin = `{
                         "token": []
                     }
                 ],
-                "description": "Admin-only configuration used by the admin panel.",
+                "description": "Admin-only configuration used by the admin panel. The public_* keys are optional external/public addresses used only to prefill the Custom Client Builder's server fields; they are distinct from the operational id_server/relay_server/api_server values, which may hold internal/Docker addresses.",
                 "produces": [
                     "application/json"
                 ],
@@ -1290,6 +1290,37 @@ const docTemplateadmin = `{
                     "ADMIN"
                 ],
                 "summary": "RUSTDESK",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/config/server_addresses": {
+            "get": {
+                "security": [
+                    {
+                        "token": []
+                    }
+                ],
+                "description": "Admin-only, server-side enumeration of the server's own network interface addresses, each labeled with its interface name and address family (ipv4/ipv6). Interfaces that are down or loopback and loopback/unspecified/multicast/link-local addresses are excluded; the remaining addresses may still be internal or Docker bridge/container addresses, so the client must present them as the server's own interface addresses. No external address lookup is performed.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ADMIN"
+                ],
+                "summary": "List server interface addresses",
                 "responses": {
                     "200": {
                         "description": "OK",
