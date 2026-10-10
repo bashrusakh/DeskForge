@@ -240,6 +240,7 @@ function successFixture(platform = 'linux') {
     ElMessage: { success: () => { calls.success++ }, warning: () => {}, error: () => {} },
     create: async () => ({ data: {} }),
     submitting: ref(false),
+    selectedPresetId: ref(null),
     versionsState: ref('ready'),
     productionPlatformReady: computed(() => true),
     validateBuildForm: async () => true,
@@ -287,6 +288,37 @@ test('create success with an unchanged form resets the form and refreshes the li
   await ctx.api.submitBuild()
   assert.equal(ctx.calls.resetForm, 1, 'an unchanged form is reset after a successful create')
   assert.equal(ctx.calls.loadBuilds, 1, 'the created build must appear in the list')
+})
+
+test('submitBuild sends preset_id only while a preset is selected', async () => {
+  // Source-preset provenance: a loaded preset is submitted as its id so the
+  // server can snapshot the preset name onto the build record at create time.
+  // Without a selection the field is omitted and the build is a "—" row.
+  const payloads = []
+  const capture = (ctx) => {
+    ctx.create = async (payload) => { payloads.push(payload); return { data: {} } }
+  }
+  const withPreset = successFixture('linux')
+  capture(withPreset)
+  withPreset.selectedPresetId.value = 3
+  await withPreset.api.submitBuild()
+  assert.equal(payloads[0].preset_id, 3, 'a loaded preset id must be sent as source provenance')
+
+  const withoutPreset = successFixture('linux')
+  capture(withoutPreset)
+  await withoutPreset.api.submitBuild()
+  assert.equal('preset_id' in payloads[1], false, 'a preset-less create must omit preset_id')
+})
+
+test('Build History shows source-preset provenance with a dash fallback', () => {
+  assert.match(sfc, /\{ label: T\('PresetTemplate'\), minWidth: 140, slot: 'preset' \}/)
+  const cell = between('        <template #preset="{ row }">', '</template>')
+  assert.match(cell, /row\.preset_name \|\| '—'/)
+  // The column label is localized in every shipped locale.
+  for (const lang of ['en', 'ru', 'zh_CN']) {
+    const messages = JSON.parse(readFileSync(new URL(`../src/utils/i18n/${lang}.json`, import.meta.url), 'utf8'))
+    assert.equal(typeof messages.PresetTemplate?.One, 'string', `${lang} must define PresetTemplate`)
+  }
 })
 
 test('a change to a requirement input (platform) also keeps the form on success', () => {

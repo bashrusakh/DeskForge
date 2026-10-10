@@ -92,6 +92,97 @@ func TestCustomBuildCreateCanonicalizesBeforePersistence(t *testing.T) {
 	}
 }
 
+func TestCustomBuildCreateSnapshotsOwnedPresetProvenance(t *testing.T) {
+	db := newCustomPersistenceDB(t)
+	owned := &model.CustomPreset{UserId: 7, Name: "Team preset", Platform: "linux", Version: "1.2.3", AppName: "rustqs"}
+	if err := db.Create(owned).Error; err != nil {
+		t.Fatalf("seed owned preset: %v", err)
+	}
+	foreign := &model.CustomPreset{UserId: 8, Name: "Foreign preset", Platform: "linux", Version: "1.2.3", AppName: "rustqs"}
+	if err := db.Create(foreign).Error; err != nil {
+		t.Fatalf("seed foreign preset: %v", err)
+	}
+	newBuild := func() *model.CustomBuild {
+		return &model.CustomBuild{Name: "preset-build", Platform: "linux", Version: "1.2.3", AppName: "rustqs", CustomJson: `{"enable_audio":true}`}
+	}
+
+	// A create with an owned preset id snapshots the resolved name at build
+	// time; the persisted row and the safe view keep the consistent pair.
+	build := newBuild()
+	ownedID := owned.Id
+	if err := (&CustomBuildService{}).AttachPresetProvenance(build, 7, &ownedID); err != nil {
+		t.Fatalf("AttachPresetProvenance() owned error = %v", err)
+	}
+	if build.PresetId != owned.Id || build.PresetName != "Team preset" {
+		t.Fatalf("owned preset was not snapshotted: %#v", build)
+	}
+	if _, err := (&CustomBuildService{}).CreateNormalized(build); err != nil {
+		t.Fatalf("CreateNormalized() with preset error = %v", err)
+	}
+	var stored model.CustomBuild
+	if err := db.First(&stored, build.Id).Error; err != nil {
+		t.Fatalf("read preset-backed build: %v", err)
+	}
+	if stored.PresetId != owned.Id || stored.PresetName != "Team preset" {
+		t.Fatalf("stored preset provenance = %d/%q, want %d/%q", stored.PresetId, stored.PresetName, owned.Id, "Team preset")
+	}
+	if safe := stored.Safe(); safe == nil || safe.PresetId != owned.Id || safe.PresetName != "Team preset" {
+		t.Fatalf("safe view lost preset provenance: %#v", safe)
+	}
+
+	// A create without a preset id succeeds with empty provenance (the "—" row).
+	plain := newBuild()
+	if err := (&CustomBuildService{}).AttachPresetProvenance(plain, 7, nil); err != nil {
+		t.Fatalf("AttachPresetProvenance() nil preset error = %v", err)
+	}
+	if plain.PresetId != 0 || plain.PresetName != "" {
+		t.Fatalf("nil preset gained provenance: %#v", plain)
+	}
+	if _, err := (&CustomBuildService{}).CreateNormalized(plain); err != nil {
+		t.Fatalf("CreateNormalized() without preset error = %v", err)
+	}
+	var storedPlain model.CustomBuild
+	if err := db.First(&storedPlain, plain.Id).Error; err != nil {
+		t.Fatalf("read preset-less build: %v", err)
+	}
+	if storedPlain.PresetId != 0 || storedPlain.PresetName != "" {
+		t.Fatalf("preset-less build gained provenance: %#v", storedPlain)
+	}
+
+	// A provided id that does not resolve for the current user — unknown or
+	// owned by someone else — rejects the create before persistence.
+	for _, tc := range []struct {
+		name string
+		id   uint
+	}{
+		{name: "unknown preset id", id: owned.Id + 100},
+		{name: "non-owned preset id", id: foreign.Id},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rejected := newBuild()
+			presetID := tc.id
+			err := (&CustomBuildService{}).AttachPresetProvenance(rejected, 7, &presetID)
+			if err == nil || !IsClientValidationError(err) {
+				t.Fatalf("AttachPresetProvenance() error = %v, want ClientValidationError", err)
+			}
+			field, code, ok := FieldErrorMetadata(err)
+			if !ok || field != "preset_id" || code != FieldCodeNotFound {
+				t.Fatalf("rejection metadata = (%q, %q, %v), want (preset_id, %q)", field, code, ok, FieldCodeNotFound)
+			}
+			if rejected.PresetId != 0 || rejected.PresetName != "" {
+				t.Fatalf("rejected create gained provenance: %#v", rejected)
+			}
+		})
+	}
+	var count int64
+	if err := db.Model(&model.CustomBuild{}).Count(&count).Error; err != nil {
+		t.Fatalf("count builds after rejected creates: %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("build rows = %d, want only the two accepted creates", count)
+	}
+}
+
 func TestCustomPersistenceRejectsInvalidPayloadBeforeWrite(t *testing.T) {
 	db := newCustomPersistenceDB(t)
 	var before int64
@@ -1590,6 +1681,8 @@ func TestCustomBuildUpdateValidatedAllowlistPreservesProvenance(t *testing.T) {
 		GithubRunUrl:       "https://api.github.com/repos/owner/repo/actions/runs/77",
 		GithubHtmlUrl:      "https://github.com/owner/repo/actions/runs/77",
 		GithubSourceSha:    strings.Repeat("a", 40),
+		PresetId:           5,
+		PresetName:         "Team preset",
 	}
 	if _, err := (&CustomBuildService{}).CreateNormalized(build); err != nil {
 		t.Fatalf("CreateNormalized() error = %v", err)
@@ -1619,6 +1712,9 @@ func TestCustomBuildUpdateValidatedAllowlistPreservesProvenance(t *testing.T) {
 	if stored.GithubRunId != 77 || stored.GithubArtifactID != 88 || stored.GithubRepo != "owner/repo" || stored.GithubSourceSha != strings.Repeat("a", 40) {
 		t.Fatalf("validated update erased immutable provenance: %#v", stored)
 	}
+	if stored.PresetId != 5 || stored.PresetName != "Team preset" {
+		t.Fatalf("validated update erased source-preset provenance: %#v", stored)
+	}
 	acceptedStoredJSON := stored.CustomJson
 
 	build.CustomJson = `{"enable_audio":"false"}`
@@ -1630,6 +1726,9 @@ func TestCustomBuildUpdateValidatedAllowlistPreservesProvenance(t *testing.T) {
 	}
 	if stored.CustomJson != acceptedStoredJSON {
 		t.Fatalf("rejected validated update changed custom_json to %q", stored.CustomJson)
+	}
+	if stored.PresetId != 5 || stored.PresetName != "Team preset" {
+		t.Fatalf("rejected validated update changed source-preset provenance: %#v", stored)
 	}
 }
 

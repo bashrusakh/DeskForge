@@ -678,6 +678,16 @@ func (ct *CustomBuild) Create(c *gin.Context) {
 
 	user := service.AllService.UserService.CurUser(c)
 	b.UserId = user.Id
+	// Snapshot source-preset provenance from the resolved owned preset row.
+	// A provided preset_id that does not resolve for this user is rejected here,
+	// before any provider/dispatch work.
+	if err := service.AllService.CustomBuildService.AttachPresetProvenance(b, b.UserId, f.PresetId); err != nil {
+		if failCustomServiceError(c, err) {
+			return
+		}
+		failCustomValidation(c, err)
+		return
+	}
 	b.Status = model.CustomBuildStatusPending
 	b.DownloadKey = utils.RandomString(32)
 	// BUGS.md B-006: capability-ссылка должна протухать. TTL из конфига,

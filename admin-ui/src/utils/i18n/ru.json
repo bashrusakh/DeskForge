@@ -766,6 +766,9 @@
   "PresetName": {
     "One": "Имя пресета"
   },
+  "PresetTemplate": {
+    "One": "Пресет / шаблон"
+  },
   "Branding": {
     "One": "Брендинг"
   },

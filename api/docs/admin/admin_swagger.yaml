@@ -121,6 +121,13 @@ definitions:
         type: string
       platform:
         type: string
+      preset_id:
+        description: |-
+          PresetId is the optional source-preset reference. It is request-only
+          provenance input: the server resolves it against presets owned by the
+          current user and persists the resolved id/name snapshot; a provided id
+          that does not resolve rejects the create. nil means no source preset.
+        type: integer
       version:
         type: string
     required:
@@ -732,6 +739,10 @@ definitions:
       name:
         type: string
       platform:
+        type: string
+      preset_id:
+        type: integer
+      preset_name:
         type: string
       status:
         type: string
