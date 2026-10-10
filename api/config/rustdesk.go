@@ -21,9 +21,17 @@ type Rustdesk struct {
 	RelayServer     string `mapstructure:"relay-server"`
 	RelayServerPort int    `mapstructure:"-"`
 	ApiServer       string `mapstructure:"api-server"`
-	Key             string `mapstructure:"key"`
-	KeyFile         string `mapstructure:"key-file"`
-	Personal        int    `mapstructure:"personal"`
+	// Public* — externally reachable addresses used ONLY to prefill the
+	// Custom Client Builder's server fields (issue #82). They are deliberately
+	// distinct from the operational IdServer/RelayServer/ApiServer values above,
+	// which may legitimately hold internal/Docker addresses consumed by the
+	// dashboard and server commands.
+	PublicIdServer    string `mapstructure:"public-id-server"`
+	PublicRelayServer string `mapstructure:"public-relay-server"`
+	PublicApiServer   string `mapstructure:"public-api-server"`
+	Key               string `mapstructure:"key"`
+	KeyFile           string `mapstructure:"key-file"`
+	Personal          int    `mapstructure:"personal"`
 	//webclient-magic-queryonline
 	WebclientMagicQueryonline int    `mapstructure:"webclient-magic-queryonline"`
 	WsHost                    string `mapstructure:"ws-host"`

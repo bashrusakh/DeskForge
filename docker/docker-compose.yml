@@ -35,6 +35,12 @@ services:
       - RUSTDESK_API_RUSTDESK_RELAY_SERVER=localhost:21117
       - RUSTDESK_API_RUSTDESK_API_SERVER=http://localhost:21114
       - RUSTDESK_API_RUSTDESK_WS_HOST=ws://localhost:21118
+      # Optional external/public addresses used only to prefill the Custom Client
+      # Builder's server fields. Distinct from the operational trio above; leave
+      # empty when the operational values are already reachable by clients.
+      - RUSTDESK_API_RUSTDESK_PUBLIC_ID_SERVER=
+      - RUSTDESK_API_RUSTDESK_PUBLIC_RELAY_SERVER=
+      - RUSTDESK_API_RUSTDESK_PUBLIC_API_SERVER=
       - RUSTDESK_API_KEY_FILE=/data/id_ed25519.pub
       - RUSTDESK_API_JWT_KEY=your-secret-jwt-key-change-this
     volumes:

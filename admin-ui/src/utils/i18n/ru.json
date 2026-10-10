@@ -95,6 +95,33 @@
   "CustomClientUseServerKey": {
     "One": "Использовать публичный ключ сервера"
   },
+  "CustomClientLocalIpHint": {
+    "One": "Local IP: подставить один из собственных сетевых адресов сервера"
+  },
+  "CustomClientLocalIpTitle": {
+    "One": "Local IP — сетевые адреса сервера"
+  },
+  "CustomClientLocalIpNote": {
+    "One": "Это адреса собственных сетевых интерфейсов сервера, полученные на стороне сервера. В окружениях Docker/NAT адрес моста или контейнера может быть недоступен клиентам — проверьте имя интерфейса перед использованием. Выбор строки подставляет значение в поле; его можно продолжить редактировать. Поле API Server сохраняет текущую схему URL (https://, если поле пустое)."
+  },
+  "CustomClientLocalIpEmpty": {
+    "One": "На сервере не найдено пригодных сетевых адресов."
+  },
+  "CustomClientLocalIpLoadError": {
+    "One": "Не удалось загрузить сетевые адреса сервера."
+  },
+  "CustomClientLocalIpSource": {
+    "One": "сетевой адрес сервера"
+  },
+  "CustomClientLocalIpIpv4": {
+    "One": "IPv4"
+  },
+  "CustomClientLocalIpIpv6": {
+    "One": "IPv6"
+  },
+  "CustomClientLocalIpUse": {
+    "One": "Использовать этот адрес"
+  },
   "ClearSavedPassword": {
     "One": "Очистить сохранённый пароль"
   },

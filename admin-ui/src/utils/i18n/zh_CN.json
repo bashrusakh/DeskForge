@@ -95,6 +95,33 @@
   "CustomClientUseServerKey": {
     "One": "使用服务器公钥"
   },
+  "CustomClientLocalIpHint": {
+    "One": "Local IP：填入服务器自身的网络接口地址"
+  },
+  "CustomClientLocalIpTitle": {
+    "One": "Local IP — 服务器网络地址"
+  },
+  "CustomClientLocalIpNote": {
+    "One": "这些是服务器自身网络接口的地址，由服务端解析。在 Docker/NAT 环境中，网桥或容器地址可能无法被客户端访问，使用前请确认接口名称。选择某一行会预填该字段，之后仍可继续编辑。API Server 字段会保留当前的 URL 协议（为空时使用 https://）。"
+  },
+  "CustomClientLocalIpEmpty": {
+    "One": "服务器上未找到可用的网络地址。"
+  },
+  "CustomClientLocalIpLoadError": {
+    "One": "无法加载服务器的网络地址。"
+  },
+  "CustomClientLocalIpSource": {
+    "One": "服务器接口地址"
+  },
+  "CustomClientLocalIpIpv4": {
+    "One": "IPv4"
+  },
+  "CustomClientLocalIpIpv6": {
+    "One": "IPv6"
+  },
+  "CustomClientLocalIpUse": {
+    "One": "使用此地址"
+  },
   "ClearSavedPassword": {
     "One": "清除已保存的密码"
   },

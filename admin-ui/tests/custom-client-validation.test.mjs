@@ -128,6 +128,9 @@ function fixture(platform = 'linux') {
     document: { getElementById: () => null },
     axios, console: { error: (...args) => logs.push(args) },
     PRESET_FIELDS,
+    // Overridden per test; a plain property so the vm's free-variable lookup
+    // picks up the test's stub at call time.
+    fetchServerAddresses: async () => ({ data: { addresses: [] } }),
     logs,
   }
   vm.createContext(context)
@@ -137,7 +140,9 @@ function fixture(platform = 'linux') {
     globalThis.api = { rules, requiredFieldSet, invalidFields, serverFieldErrors,
       serverFieldError, serverFieldMessage, applyServerFieldErrors,
       snapshotSubmittedFields, isSubmittedSnapshotCurrent, reportCreateBuildFailure,
-      useServerKey, isFieldInvalid, isRequiredField, clearFieldError, syncFieldAria };
+      useServerKey, isFieldInvalid, isRequiredField, clearFieldError, syncFieldAria,
+      localAddressPicker, openLocalAddressPicker, useLocalAddress, closeLocalAddressPicker,
+      localAddressPrefillValue };
     globalThis.logs = logs;
   `, context)
   return context
@@ -721,5 +726,205 @@ func main() {
     assert.deepEqual(go.urls, [false, false, false, true, true])
   } finally {
     rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+// --- issue #82: public_* env prefill precedence + Local-IP picker ---
+// The defaults live in serverConfigDefaults and are computed in loadConfig;
+// applyServerConfigDefaults stays a "fill only empty, non-explicit fields"
+// function. These tests exercise the SFC's real slices, not a copy.
+
+function configDefaultsFixture(cfg) {
+  const context = {
+    reactive, ref, T: value => value,
+    form: reactive(formState()),
+    serverConfigDefaults: reactive({ server_ip: '', key: '', api_server: '', relay_server: '' }),
+    explicitPresetFields: ref(new Set()),
+    fetchConfig: async () => ({ data: cfg }),
+    lifecycleGuard: { mounted: true, start: () => 1, isCurrent: () => true },
+    console,
+  }
+  vm.createContext(context)
+  vm.runInContext(
+    between('    const applyServerConfigDefaults =', '    const loadPresetIntoForm') +
+    between('    const loadConfig =', '    onMounted') + `
+    globalThis.api = { applyServerConfigDefaults, loadConfig, serverConfigDefaults, explicitPresetFields };
+  `, context)
+  return context
+}
+
+test('builder defaults prefer the env-configured public_* addresses over operational ones', async () => {
+  const ctx = configDefaultsFixture({
+    id_server: 'id-internal:21116',
+    key: 'server-key',
+    api_server: 'http://api-internal:21114',
+    relay_server: 'relay-internal:21117',
+    public_id_server: 'id.example.com:21116',
+    public_api_server: 'https://api.example.com',
+    public_relay_server: 'relay.example.com:21117',
+  })
+  await ctx.api.loadConfig()
+  assert.equal(ctx.api.serverConfigDefaults.server_ip, 'id.example.com:21116')
+  assert.equal(ctx.api.serverConfigDefaults.api_server, 'https://api.example.com')
+  assert.equal(ctx.api.serverConfigDefaults.relay_server, 'relay.example.com:21117')
+  // key stays operational-only.
+  assert.equal(ctx.api.serverConfigDefaults.key, 'server-key')
+  // The computed defaults are the values that fill the form.
+  assert.equal(ctx.form.server_ip, 'id.example.com:21116')
+  assert.equal(ctx.form.api_server, 'https://api.example.com')
+  assert.equal(ctx.form.relay_server, 'relay.example.com:21117')
+})
+
+test('builder defaults fall back to operational values when public_* are absent', async () => {
+  const ctx = configDefaultsFixture({
+    id_server: 'id-internal:21116',
+    key: 'server-key',
+    api_server: 'http://api-internal:21114',
+    relay_server: 'relay-internal:21117',
+  })
+  await ctx.api.loadConfig()
+  assert.equal(ctx.api.serverConfigDefaults.server_ip, 'id-internal:21116')
+  assert.equal(ctx.api.serverConfigDefaults.api_server, 'http://api-internal:21114')
+  assert.equal(ctx.api.serverConfigDefaults.relay_server, 'relay-internal:21117')
+  assert.equal(ctx.form.server_ip, 'id-internal:21116')
+})
+
+test('each builder default falls back independently on a mixed config', async () => {
+  const ctx = configDefaultsFixture({
+    id_server: 'id-internal:21116',
+    key: 'server-key',
+    api_server: 'http://api-internal:21114',
+    relay_server: 'relay-internal:21117',
+    public_id_server: 'id.example.com:21116',
+    public_api_server: '',
+  })
+  await ctx.api.loadConfig()
+  assert.equal(ctx.api.serverConfigDefaults.server_ip, 'id.example.com:21116')
+  assert.equal(ctx.api.serverConfigDefaults.api_server, 'http://api-internal:21114')
+  assert.equal(ctx.api.serverConfigDefaults.relay_server, 'relay-internal:21117')
+})
+
+test('public_* precedence never overwrites an explicit preset field', async () => {
+  const ctx = configDefaultsFixture({
+    id_server: 'id-internal:21116',
+    key: 'server-key',
+    api_server: 'http://api-internal:21114',
+    relay_server: 'relay-internal:21117',
+    public_id_server: 'id.example.com:21116',
+    public_api_server: 'https://api.example.com',
+    public_relay_server: 'relay.example.com:21117',
+  })
+  // A loaded preset stored server_ip explicitly; it must survive defaults.
+  ctx.form.server_ip = 'preset-host'
+  ctx.api.explicitPresetFields.value = new Set(['server_ip'])
+  await ctx.api.loadConfig()
+  assert.equal(ctx.form.server_ip, 'preset-host')
+  // Empty non-explicit fields are still filled (preserved semantics).
+  assert.equal(ctx.form.api_server, 'https://api.example.com')
+  assert.equal(ctx.form.relay_server, 'relay.example.com:21117')
+})
+
+test('the Local IP button targets Host, Relay and API server and the dialog is bound', () => {
+  for (const field of ['server_ip', 'api_server', 'relay_server']) {
+    assert.ok(
+      sfc.includes(`@click="openLocalAddressPicker('${field}')"`),
+      `field ${field} must expose the Local IP picker button`
+    )
+  }
+  assert.match(sfc, /v-model="localAddressPicker\.visible"/)
+  // The dialog must say where the addresses came from (Docker bridge caveat).
+  assert.match(sfc, /candidate\.interface/)
+  assert.match(sfc, /CustomClientLocalIpSource/)
+  assert.match(sfc, /CustomClientLocalIpNote/)
+})
+
+test('opening the Local IP picker loads the server-resolved candidates', async () => {
+  const ctx = fixture()
+  const calls = []
+  ctx.fetchServerAddresses = async () => {
+    calls.push(true)
+    return { data: { addresses: [{ interface: 'eth0', address: '172.17.0.1', family: 'ipv4' }] } }
+  }
+  await ctx.api.openLocalAddressPicker('server_ip')
+  assert.equal(calls.length, 1) // resolution is the server-side endpoint's job
+  assert.equal(ctx.api.localAddressPicker.visible, true)
+  assert.equal(ctx.api.localAddressPicker.field, 'server_ip')
+  assert.equal(ctx.api.localAddressPicker.loading, false)
+  assert.equal(ctx.api.localAddressPicker.error, '')
+  assert.deepEqual(ctx.api.localAddressPicker.addresses, [
+    { interface: 'eth0', address: '172.17.0.1', family: 'ipv4' },
+  ])
+})
+
+test('a picker failure reports a bounded message and leaves the field untouched', async () => {
+  const ctx = fixture()
+  ctx.fetchServerAddresses = async () => { throw new Error('boom') }
+  await ctx.api.openLocalAddressPicker('server_ip')
+  assert.equal(ctx.api.localAddressPicker.error, 'CustomClientLocalIpLoadError')
+  assert.equal(ctx.api.localAddressPicker.addresses.length, 0)
+  assert.equal(ctx.form.server_ip, '')
+})
+
+test('selecting a candidate prefills only its field and the field stays editable', async () => {
+  const ctx = fixture()
+  ctx.fetchServerAddresses = async () => ({
+    data: { addresses: [{ interface: 'eth0', address: '172.17.0.1', family: 'ipv4' }] },
+  })
+  await ctx.api.openLocalAddressPicker('relay_server')
+  await ctx.api.useLocalAddress(ctx.api.localAddressPicker.addresses[0])
+  assert.equal(ctx.form.relay_server, '172.17.0.1')
+  assert.equal(ctx.form.server_ip, '') // other fields untouched
+  assert.equal(ctx.form.api_server, '')
+  assert.equal(ctx.api.localAddressPicker.visible, false)
+  // Prefill only: the value is a plain assignment and remains editable.
+  ctx.form.relay_server = 'edited.example.com:21117'
+  assert.equal(ctx.form.relay_server, 'edited.example.com:21117')
+})
+
+test('api_server prefill wraps the address in the URL scheme the field carries', async () => {
+  const ctx = fixture()
+  ctx.fetchServerAddresses = async () => ({
+    data: { addresses: [{ interface: 'eth0', address: '10.0.0.5', family: 'ipv4' }] },
+  })
+  // Empty field defaults to https://.
+  await ctx.api.openLocalAddressPicker('api_server')
+  await ctx.api.useLocalAddress(ctx.api.localAddressPicker.addresses[0])
+  assert.equal(ctx.form.api_server, 'https://10.0.0.5')
+  // An explicit http:// choice is preserved across another prefill.
+  ctx.form.api_server = 'http://old-internal:21114'
+  await ctx.api.openLocalAddressPicker('api_server')
+  await ctx.api.useLocalAddress(ctx.api.localAddressPicker.addresses[0])
+  assert.equal(ctx.form.api_server, 'http://10.0.0.5')
+  // Host/Relay fields get the bare address, never a URL wrapper.
+  await ctx.api.openLocalAddressPicker('server_ip')
+  await ctx.api.useLocalAddress(ctx.api.localAddressPicker.addresses[0])
+  assert.equal(ctx.form.server_ip, '10.0.0.5')
+})
+
+test('api_server prefill brackets IPv6 literals so the composed URL passes server validation', async () => {
+  const ctx = fixture()
+  ctx.fetchServerAddresses = async () => ({
+    data: { addresses: [{ interface: 'eth0', address: 'fd00::1', family: 'ipv6' }] },
+  })
+  await ctx.api.openLocalAddressPicker('api_server')
+  await ctx.api.useLocalAddress(ctx.api.localAddressPicker.addresses[0])
+  // Bracketed literal: https://fd00::1 is deterministically rejected by
+  // validateAPIURL (url.ParseRequestURI "invalid port"), https://[fd00::1] is not.
+  assert.equal(ctx.form.api_server, 'https://[fd00::1]')
+  // Bracketing composes with a preserved http:// scheme too.
+  ctx.form.api_server = 'http://old-internal:21114'
+  await ctx.api.openLocalAddressPicker('api_server')
+  await ctx.api.useLocalAddress(ctx.api.localAddressPicker.addresses[0])
+  assert.equal(ctx.form.api_server, 'http://[fd00::1]')
+  // Host/Relay keep the bare address contract for the same IPv6 candidate.
+  await ctx.api.openLocalAddressPicker('server_ip')
+  await ctx.api.useLocalAddress(ctx.api.localAddressPicker.addresses[0])
+  assert.equal(ctx.form.server_ip, 'fd00::1')
+})
+
+test('the Local IP picker is exposed through the setup return, not merely declared', () => {
+  const setupReturn = between('    return {\n      form, formRef', '\n  },\n})')
+  for (const name of ['localAddressPicker', 'openLocalAddressPicker', 'useLocalAddress', 'closeLocalAddressPicker']) {
+    assert.match(setupReturn, new RegExp(`\\b${name}\\b`), `${name} must be returned from setup`)
   }
 })

@@ -58,6 +58,9 @@ data. Schema 282 remains the earlier workflow-approval migration.
 | `RUSTDESK_API_RUSTDESK_ID_SERVER`    | ID server (hbbs)                  |
 | `RUSTDESK_API_RUSTDESK_RELAY_SERVER` | Relay server (hbbr)               |
 | `RUSTDESK_API_RUSTDESK_API_SERVER`   | API server URL                    |
+| `RUSTDESK_API_RUSTDESK_PUBLIC_ID_SERVER`    | External/public ID server used to prefill the Custom Client Builder (optional) |
+| `RUSTDESK_API_RUSTDESK_PUBLIC_RELAY_SERVER` | External/public relay server used to prefill the Custom Client Builder (optional) |
+| `RUSTDESK_API_RUSTDESK_PUBLIC_API_SERVER`   | External/public API server URL used to prefill the Custom Client Builder (optional) |
 | `RUSTDESK_API_KEY_FILE`              | Path to public key file           |
 | `RUSTDESK_API_JWT_KEY`              | JWT secret                        |
 | `RUSTDESK_API_GORM_TYPE`            | sqlite / mysql / postgresql       |
@@ -68,6 +71,17 @@ data. Schema 282 remains the earlier workflow-approval migration.
 New non-empty secret writes and secret-bearing Custom Builder operations require this
 key and are rejected rather than stored as plaintext when it is missing. Legacy plaintext
 rows remain readable; saving them again encrypts them when the key exists.
+
+The `RUSTDESK_API_RUSTDESK_PUBLIC_*` variables are optional external/public addresses
+used only to prefill the Custom Client Builder's Host / Relay / API server fields
+(needed behind Docker/NAT where the server cannot discover its own external address).
+They are intentionally distinct from `RUSTDESK_API_RUSTDESK_ID_SERVER` /
+`RUSTDESK_API_RUSTDESK_RELAY_SERVER` / `RUSTDESK_API_RUSTDESK_API_SERVER`, which may
+legitimately hold internal or Docker addresses consumed by the dashboard and server
+commands. When a `PUBLIC_*` value is unset, the builder falls back to the operational
+value. The builder's "Local IP" button additionally resolves the server's own network
+interface addresses server-side; in Docker bridge setups those are container addresses,
+and the picker labels each candidate with its source interface.
 
 Rust build metadata uses `SOURCE_DATE_EPOCH` when supplied. Without it, active
 builds use the deterministic value `unknown`; wall-clock metadata is available
