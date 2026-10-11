@@ -892,24 +892,30 @@ test('selecting a candidate prefills only its field and the field stays editable
   assert.equal(ctx.form.relay_server, 'edited.example.com:21117')
 })
 
-test('api_server prefill wraps the address in the URL scheme the field carries', async () => {
+test('api_server prefill replaces only the host of a valid endpoint URL', async () => {
   const ctx = fixture()
   ctx.fetchServerAddresses = async () => ({
     data: { addresses: [{ interface: 'eth0', address: '10.0.0.5', family: 'ipv4' }] },
   })
-  // Empty field defaults to https://.
-  await ctx.api.openLocalAddressPicker('api_server')
-  await ctx.api.useLocalAddress(ctx.api.localAddressPicker.addresses[0])
-  assert.equal(ctx.form.api_server, 'https://10.0.0.5')
-  // An explicit http:// choice is preserved across another prefill.
-  ctx.form.api_server = 'http://old-internal:21114'
-  await ctx.api.openLocalAddressPicker('api_server')
-  await ctx.api.useLocalAddress(ctx.api.localAddressPicker.addresses[0])
-  assert.equal(ctx.form.api_server, 'http://10.0.0.5')
+  const candidate = { interface: 'eth0', address: '10.0.0.5', family: 'ipv4' }
+  const cases = [
+    ['', 'https://10.0.0.5'],
+    ['http://127.0.0.1:21114', 'http://10.0.0.5:21114'],
+    ['https://api.example.com:8443/rustdesk?tenant=one#api', 'https://10.0.0.5:8443/rustdesk?tenant=one#api'],
+  ]
+  for (const [existing, expected] of cases) {
+    ctx.form.api_server = existing
+    await ctx.api.openLocalAddressPicker('api_server')
+    await ctx.api.useLocalAddress(candidate)
+    assert.equal(ctx.form.api_server, expected)
+  }
   // Host/Relay fields get the bare address, never a URL wrapper.
   await ctx.api.openLocalAddressPicker('server_ip')
   await ctx.api.useLocalAddress(ctx.api.localAddressPicker.addresses[0])
   assert.equal(ctx.form.server_ip, '10.0.0.5')
+  await ctx.api.openLocalAddressPicker('relay_server')
+  await ctx.api.useLocalAddress(ctx.api.localAddressPicker.addresses[0])
+  assert.equal(ctx.form.relay_server, '10.0.0.5')
 })
 
 test('api_server prefill brackets IPv6 literals so the composed URL passes server validation', async () => {
@@ -917,16 +923,17 @@ test('api_server prefill brackets IPv6 literals so the composed URL passes serve
   ctx.fetchServerAddresses = async () => ({
     data: { addresses: [{ interface: 'eth0', address: 'fd00::1', family: 'ipv6' }] },
   })
+  const candidate = { interface: 'eth0', address: 'fd00::1', family: 'ipv6' }
   await ctx.api.openLocalAddressPicker('api_server')
-  await ctx.api.useLocalAddress(ctx.api.localAddressPicker.addresses[0])
+  await ctx.api.useLocalAddress(candidate)
   // Bracketed literal: https://fd00::1 is deterministically rejected by
   // validateAPIURL (url.ParseRequestURI "invalid port"), https://[fd00::1] is not.
   assert.equal(ctx.form.api_server, 'https://[fd00::1]')
-  // Bracketing composes with a preserved http:// scheme too.
-  ctx.form.api_server = 'http://old-internal:21114'
+  // Bracketing also preserves scheme, port, and path.
+  ctx.form.api_server = 'http://old-internal:21114/rustdesk'
   await ctx.api.openLocalAddressPicker('api_server')
-  await ctx.api.useLocalAddress(ctx.api.localAddressPicker.addresses[0])
-  assert.equal(ctx.form.api_server, 'http://[fd00::1]')
+  await ctx.api.useLocalAddress(candidate)
+  assert.equal(ctx.form.api_server, 'http://[fd00::1]:21114/rustdesk')
   // Host/Relay keep the bare address contract for the same IPv6 candidate.
   await ctx.api.openLocalAddressPicker('server_ip')
   await ctx.api.useLocalAddress(ctx.api.localAddressPicker.addresses[0])

@@ -873,16 +873,30 @@ export default defineComponent({
     })
     const LOCAL_ADDRESS_FIELDS = ['server_ip', 'api_server', 'relay_server']
     // api_server requires a full URL while interface candidates are bare
-    // addresses: wrap the selection in the scheme the field already carries,
-    // defaulting to https:// when it is empty. IPv6 literals are bracketed
-    // (https://[fd00::1]) so the composed value survives the server's URL
-    // validation; Host/Relay keep the bare address (their accepted contract).
-    // Nothing is locked afterwards.
+    // addresses. Replace only the host of an existing valid HTTP(S) URL so its
+    // scheme, port, path, and other endpoint components remain intact; an empty
+    // field defaults to https://. IPv6 literals are bracketed. Host/Relay keep
+    // the bare address (their accepted contract). Nothing is locked afterwards.
     const localAddressPrefillValue = (field, candidate) => {
       const address = candidate?.address || ''
       if (field !== 'api_server' || !address) return address
       const host = address.includes(':') && !address.startsWith('[') ? `[${address}]` : address
-      return (/^http:\/\//i.test(form[field]) ? 'http://' : 'https://') + host
+      const current = form[field]
+      const parts = current.match(/^([a-z][a-z\d+.-]*:\/\/)([^/?#]*)(.*)$/i)
+      if (parts) {
+        try {
+          const parsed = new URL(current)
+          if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+            const credentials = parts[2].includes('@') ? parts[2].slice(0, parts[2].lastIndexOf('@') + 1) : ''
+            const oldHostPort = parts[2].slice(credentials.length)
+            const hostPort = oldHostPort.match(/^(\[[^\]]+\]|[^:]+)(:\d+)?$/)
+            if (hostPort) return parts[1] + credentials + host + (hostPort[2] || '') + parts[3]
+          }
+        } catch (_) {
+          // Preserve the existing scheme-only fallback for invalid URLs.
+        }
+      }
+      return (/^http:\/\//i.test(current) ? 'http://' : 'https://') + host
     }
     const openLocalAddressPicker = async (field) => {
       if (!LOCAL_ADDRESS_FIELDS.includes(field)) return
