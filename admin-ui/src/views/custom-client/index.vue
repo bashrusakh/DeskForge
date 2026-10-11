@@ -882,18 +882,19 @@ export default defineComponent({
       if (field !== 'api_server' || !address) return address
       const host = address.includes(':') && !address.startsWith('[') ? `[${address}]` : address
       const current = form[field]
-      const parts = current.match(/^([a-z][a-z\d+.-]*:\/\/)([^/?#]*)(.*)$/i)
-      if (parts) {
-        try {
-          const parsed = new URL(current)
-          if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
-            const credentials = parts[2].includes('@') ? parts[2].slice(0, parts[2].lastIndexOf('@') + 1) : ''
-            const oldHostPort = parts[2].slice(credentials.length)
-            const hostPort = oldHostPort.match(/^(\[[^\]]+\]|[^:]+)(:\d+)?$/)
-            if (hostPort) return parts[1] + credentials + host + (hostPort[2] || '') + parts[3]
-          }
-        } catch (_) {
-          // Preserve the existing scheme-only fallback for invalid URLs.
+      // Do not use the browser URL parser here: Go's url.ParseRequestURI accepts
+      // endpoint forms such as scoped IPv6 and an explicit empty port that the
+      // browser normalizes or rejects. This is component surgery, not validation;
+      // retain the raw port suffix and path/query/fragment exactly as entered.
+      const parts = current.match(/^(https?:\/\/)([^/?#]*)([\s\S]*)$/i)
+      if (parts && !parts[2].includes('@')) {
+        const authority = parts[2]
+        if (authority.startsWith('[')) {
+          const close = authority.indexOf(']')
+          if (close !== -1) return parts[1] + host + authority.slice(close + 1) + parts[3]
+        } else {
+          const colon = authority.indexOf(':')
+          return parts[1] + host + (colon === -1 ? '' : authority.slice(colon)) + parts[3]
         }
       }
       return (/^http:\/\//i.test(current) ? 'http://' : 'https://') + host

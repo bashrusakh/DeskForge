@@ -716,7 +716,12 @@ func main() {
   if err := json.NewEncoder(os.Stdout).Encode(output); err != nil { panic(err) }
 }`)
     const endpoints = ['1:2:3:4:5:6:7::8', '1.2.3.4::1', '1:2:3:4:5:6:1.2.3.4']
-    const urls = ['http://host\\path', 'http:///host', 'http://ho%41st', 'http://host:65536', 'http://[fe80::1%25eth0]:80']
+    const urls = [
+      'http://host\\path', 'http:///host', 'http://ho%41st', 'http://host:65536',
+      'http://[fe80::1%25eth0]:80',
+      'http://[fe80::1%25eth0]:21114/rustdesk?tenant=one',
+      'https://api.example.com:/rustdesk?tenant=one',
+    ]
     const result = spawnSync('go', ['run', join(dir, 'main.go')], {
       input: JSON.stringify({ endpoints, urls }), encoding: 'utf8',
       env: { ...process.env, GOWORK: 'off' },
@@ -727,7 +732,7 @@ func main() {
     // verdict for them; the server (Go) is the contract, and the UI only renders
     // the field it reports.
     assert.deepEqual(go.endpoints, [false, false, true])
-    assert.deepEqual(go.urls, [false, false, false, true, true])
+    assert.deepEqual(go.urls, [false, false, false, true, true, true, true])
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
@@ -902,6 +907,8 @@ test('api_server prefill replaces only the host of a valid endpoint URL', async 
     ['', 'https://10.0.0.5'],
     ['http://127.0.0.1:21114', 'http://10.0.0.5:21114'],
     ['https://api.example.com:8443/rustdesk?tenant=one#api', 'https://10.0.0.5:8443/rustdesk?tenant=one#api'],
+    ['https://api.example.com:/rustdesk?tenant=one', 'https://10.0.0.5:/rustdesk?tenant=one'],
+    ['http://[fe80::1%25eth0]:21114/rustdesk?tenant=one', 'http://10.0.0.5:21114/rustdesk?tenant=one'],
   ]
   for (const [existing, expected] of cases) {
     ctx.form.api_server = existing
@@ -916,6 +923,15 @@ test('api_server prefill replaces only the host of a valid endpoint URL', async 
   await ctx.api.openLocalAddressPicker('relay_server')
   await ctx.api.useLocalAddress(ctx.api.localAddressPicker.addresses[0])
   assert.equal(ctx.form.relay_server, '10.0.0.5')
+  // The picker replaces the scoped IPv6 hostname with a bracketed IPv6
+  // candidate without losing the encoded zone, port, path, or query.
+  ctx.fetchServerAddresses = async () => ({
+    data: { addresses: [{ interface: 'eth0', address: 'fd00::5', family: 'ipv6' }] },
+  })
+  ctx.form.api_server = 'http://[fe80::1%25eth0]:21114/rustdesk?tenant=one'
+  await ctx.api.openLocalAddressPicker('api_server')
+  await ctx.api.useLocalAddress(ctx.api.localAddressPicker.addresses[0])
+  assert.equal(ctx.form.api_server, 'http://[fd00::5]:21114/rustdesk?tenant=one')
 })
 
 test('api_server prefill brackets IPv6 literals so the composed URL passes server validation', async () => {
