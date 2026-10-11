@@ -7,6 +7,13 @@ Single Docker image (s6-overlay): Rust hbbs/hbbr + Go API + Vue 3 admin panel + 
 
 ## Quick start
 
+For a fresh checkout, create the repository-root `.env` from `.env.example` before
+starting Compose (preserve any existing `.env`). To prefill the Custom Client Builder
+with client-reachable addresses, set the optional `RUSTDESK_API_RUSTDESK_PUBLIC_*`
+values there. When Compose is run from `docker/`, the combined service loads root
+`.env` through `env_file: ../.env`; these values only prefill builder fields and do
+not replace the operational server addresses.
+
 ```bash
 git clone https://github.com/bashrusakh/DeskForge.git
 cd DeskForge/docker
