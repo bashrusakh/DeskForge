@@ -191,7 +191,7 @@ unverified.
 
 ## Forks (for custom client builds)
 
-- [`bashrusakh/rustdesk`](https://github.com/bashrusakh/rustdesk) — owned RustDesk fork at published client source/ref 1.4.8; current local corrective API schema target is 283
+- [`bashrusakh/rustdesk`](https://github.com/bashrusakh/rustdesk) — owned RustDesk fork at published client source/ref 1.4.8; current local corrective API schema target is 284
 - [`bashrusakh/hbb_common`](https://github.com/bashrusakh/hbb_common) — intended fork of
   `rustdesk/hbb_common`; the configured RustDesk fork currently records the upstream
   `rustdesk/hbb_common` submodule, and its local checkout is dirty/unpublished, so clean
