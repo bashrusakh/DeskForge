@@ -239,6 +239,7 @@ const (
 	FieldCodeRequired        = "required"
 	FieldCodeInvalidFormat   = "invalid_format"
 	FieldCodeInvalidEndpoint = "invalid_endpoint"
+	FieldCodeNotFound        = "not_found"
 )
 
 // structuredFieldNames is the closed set of fields the admin UI can localize.
@@ -253,6 +254,7 @@ var structuredFieldNames = map[string]struct{}{
 	"api_server":         {},
 	"relay_server":       {},
 	"permanent_password": {},
+	"preset_id":          {},
 }
 
 // FieldError attaches a machine-readable field/reason pair to an input

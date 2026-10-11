@@ -91,6 +91,11 @@ func TestCustomValidationResponsesAreSafeAndActionable(t *testing.T) {
 			err:  errors.New("build_ref is system-derived and cannot be supplied"),
 			want: "build_ref is system-derived and cannot be supplied",
 		},
+		{
+			name: "unresolved source preset remains actionable",
+			err:  &service.ClientValidationError{Err: service.NewFieldError("preset_id", service.FieldCodeNotFound, errors.New("preset_id 42 does not resolve to a preset owned by the current user"))},
+			want: "selected preset was not found",
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			gin.SetMode(gin.TestMode)
@@ -157,6 +162,44 @@ func TestCustomValidationResponseCarriesStructuredFields(t *testing.T) {
 	}
 }
 
+func TestCustomValidationResponseCarriesPresetFieldMetadata(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	err := &service.ClientValidationError{Err: service.NewFieldError("preset_id", service.FieldCodeNotFound, errors.New("preset_id 42 does not resolve to a preset owned by the current user"))}
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+
+	// The create handler routes this failure through failCustomServiceError.
+	if !failCustomServiceError(context, err) {
+		t.Fatal("failCustomServiceError() did not handle the preset validation error")
+	}
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("validation status = %d, want %d", recorder.Code, http.StatusBadRequest)
+	}
+	var payload struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+		Data    struct {
+			Fields []struct {
+				Field string `json:"field"`
+				Code  string `json:"code"`
+			} `json:"fields"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("invalid validation response: %v", err)
+	}
+	if payload.Message != "selected preset was not found" {
+		t.Fatalf("validation message = %q, want %q", payload.Message, "selected preset was not found")
+	}
+	if len(payload.Data.Fields) != 1 {
+		t.Fatalf("structured fields = %#v, want one entry", payload.Data.Fields)
+	}
+	if payload.Data.Fields[0].Field != "preset_id" || payload.Data.Fields[0].Code != service.FieldCodeNotFound {
+		t.Fatalf("structured field = %#v, want preset_id/not_found", payload.Data.Fields[0])
+	}
+}
+
 func TestFailCustomServiceErrorMapsClientValidationSafely(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
@@ -170,6 +213,23 @@ func TestFailCustomServiceErrorMapsClientValidationSafely(t *testing.T) {
 	}
 	if strings.Contains(recorder.Body.String(), "attacker.example/private") {
 		t.Fatalf("client validation response leaked raw details: %s", recorder.Body.String())
+	}
+}
+
+func TestFailCustomServiceErrorLeavesInternalLookupFailuresUnhandled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+
+	// A transient preset-lookup failure is not client input: the create path
+	// must keep it on the documented 500 branch instead of a 400 validation
+	// response, so failCustomServiceError must not claim it.
+	internal := errors.New("resolve source preset 42 for user 7: simulated transient preset lookup failure")
+	if failCustomServiceError(context, internal) {
+		t.Fatal("failCustomServiceError() must leave internal lookup failures for the 5xx path")
+	}
+	if recorder.Body.Len() != 0 {
+		t.Fatalf("unhandled internal failure wrote a response: %s", recorder.Body.String())
 	}
 }
 

@@ -34,3 +34,15 @@ func TestCustomBuildFormToCustomBuildPreservesUserAuthoredAppName(t *testing.T) 
 		})
 	}
 }
+
+func TestCustomBuildFormToCustomBuildDoesNotCopyRequestedPresetID(t *testing.T) {
+	// preset_id is request-only input: provenance is attached later from the
+	// resolved owned preset row (AttachPresetProvenance), so the raw request id
+	// must never reach the persisted model with an empty name.
+	presetID := uint(42)
+	form := CustomBuildForm{Name: "windows-1.2.3", PresetId: &presetID}
+	build := form.ToCustomBuild()
+	if build.PresetId != 0 || build.PresetName != "" {
+		t.Fatalf("ToCustomBuild() copied raw preset provenance: preset_id=%d preset_name=%q", build.PresetId, build.PresetName)
+	}
+}

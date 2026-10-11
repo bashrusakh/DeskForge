@@ -779,6 +779,9 @@
   "PresetName": {
     "One": "预设名称"
   },
+  "PresetTemplate": {
+    "One": "预设 / 模板"
+  },
   "Branding": {
     "One": "品牌定制"
   },

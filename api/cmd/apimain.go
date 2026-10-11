@@ -25,7 +25,9 @@ import (
 	"rustdesk-server/api/utils"
 )
 
-// DatabaseVersion bumped to 283 to enforce one CustomPreset per (user_id,
+// DatabaseVersion bumped to 284 to snapshot source-preset provenance
+// (`preset_id`, `preset_name`) on `custom_builds` at create time. Earlier bump:
+// 283 to enforce one CustomPreset per (user_id,
 // name) after an explicit duplicate-data preflight. Earlier bump: 282 in
 // 2026-08-11 to persist the exact provider
 // resolved SHA captured by immutable workflow-tag approval. Earlier bump: 281
@@ -48,7 +50,7 @@ import (
 // (B-006), 269 `github_run_id` for restart-safe GitHub Actions polling (B-003).
 // AutoMigrate is idempotent so all tables/columns are still created.
 const (
-	DatabaseVersion                         = 283
+	DatabaseVersion                         = 284
 	customPresetUniqueIndexMigrationVersion = 283
 )
 

@@ -8,12 +8,20 @@ import (
 
 type CustomBuild struct {
 	IdModel
-	UserId      uint   `json:"user_id" gorm:"default:0;not null;"`
-	Name        string `json:"name" gorm:"size:128;default:'';not null;"`
-	Platform    string `json:"platform" gorm:"size:32;default:'';not null;"`
-	Version     string `json:"version" gorm:"size:32;default:'';not null;"`
-	Status      string `json:"status" gorm:"size:32;default:'pending';not null;"`
-	AppName     string `json:"app_name" gorm:"size:128;default:'';not null;"`
+	UserId   uint   `json:"user_id" gorm:"default:0;not null;"`
+	Name     string `json:"name" gorm:"size:128;default:'';not null;"`
+	Platform string `json:"platform" gorm:"size:32;default:'';not null;"`
+	Version  string `json:"version" gorm:"size:32;default:'';not null;"`
+	Status   string `json:"status" gorm:"size:32;default:'pending';not null;"`
+	AppName  string `json:"app_name" gorm:"size:128;default:'';not null;"`
+	// PresetId/PresetName are the immutable create-time provenance of the source
+	// preset/template. PresetName is a snapshot taken at build time, so a later
+	// preset rename/delete can neither lose nor corrupt the label. Both fields
+	// are plain text and deliberately outside the CustomJson encryption/redaction
+	// hooks. Legacy rows and builds created without a preset keep 0/"" and render
+	// as "—" in the admin UI.
+	PresetId    uint   `json:"preset_id" gorm:"default:0;not null;"`
+	PresetName  string `json:"preset_name" gorm:"size:128;default:'';not null;"`
 	CustomJson  string `json:"-" gorm:"type:text;"`
 	BuildLog    string `json:"build_log" gorm:"type:text;"`
 	FileSize    int64  `json:"file_size" gorm:"default:0;not null;"`
@@ -85,6 +93,8 @@ type CustomBuildSafe struct {
 	Version              string `json:"version"`
 	Status               string `json:"status"`
 	AppName              string `json:"app_name"`
+	PresetId             uint   `json:"preset_id"`
+	PresetName           string `json:"preset_name"`
 	CustomJson           string `json:"custom_json"`
 	BuildLog             string `json:"build_log"`
 	FileSize             int64  `json:"file_size"`
@@ -137,6 +147,8 @@ func (c *CustomBuild) Safe() *CustomBuildSafe {
 		Version:              c.Version,
 		Status:               c.Status,
 		AppName:              c.AppName,
+		PresetId:             c.PresetId,
+		PresetName:           c.PresetName,
 		CustomJson:           utils.RedactCustomBuilderJSON(c.CustomJson),
 		BuildLog:             c.BuildLog,
 		FileSize:             c.FileSize,

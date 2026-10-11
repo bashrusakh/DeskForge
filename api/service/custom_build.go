@@ -11,6 +11,8 @@ import (
 
 	"rustdesk-server/api/model"
 	"rustdesk-server/api/utils"
+
+	"gorm.io/gorm"
 )
 
 type CustomBuildService struct{}
@@ -111,6 +113,34 @@ func (is *CustomBuildService) Delete(u *model.CustomBuild) error {
 func (is *CustomBuildService) Create(u *model.CustomBuild) error {
 	_, err := is.CreateNormalized(u)
 	return err
+}
+
+// AttachPresetProvenance resolves the optional source-preset reference at build
+// create time and snapshots the resolved id/name pair onto the build record.
+// The pair is set only from the resolved owned row (id↔name consistent by
+// construction), so a request-supplied id can never persist with a stale or
+// foreign name. A nil presetID records no source preset (the "—" row). A
+// provided id that does not resolve to a preset owned by userID rejects the
+// create with the same field-level client-validation contract the build
+// validators use; any other lookup failure is an internal error and must not
+// be classified as client input.
+func (is *CustomBuildService) AttachPresetProvenance(u *model.CustomBuild, userID uint, presetID *uint) error {
+	if presetID == nil {
+		u.PresetId = 0
+		u.PresetName = ""
+		return nil
+	}
+	preset, err := (&CustomPresetService{}).InfoOwned(*presetID, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return &ClientValidationError{Err: NewFieldError("preset_id", FieldCodeNotFound,
+				fmt.Errorf("preset_id %d does not resolve to a preset owned by the current user", *presetID))}
+		}
+		return fmt.Errorf("resolve source preset %d for user %d: %w", *presetID, userID, err)
+	}
+	u.PresetId = preset.Id
+	u.PresetName = preset.Name
+	return nil
 }
 
 // CreateNormalized persists the canonical form and returns the same normalized
