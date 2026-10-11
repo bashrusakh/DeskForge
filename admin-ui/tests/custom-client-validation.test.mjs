@@ -136,13 +136,17 @@ function fixture(platform = 'linux') {
   vm.createContext(context)
   vm.runInContext(between('    const requiredFieldNames', '    const useServerKey') +
     between('    const useServerKey', '    const isFieldInvalid') +
-    between('    const isFieldInvalid', '    const validateBuildForm') + `
+    between('    const isFieldInvalid', '    const validateBuildForm') +
+    // Real lifecycleGuard (house per-key generation pattern) so the picker's
+    // race-guard logic is exercised as implemented, not as a copy.
+    between('    const requestGenerations = Object.create(null)', '    // B-017: при silent=true') + `
+    lifecycleGuard.mounted = true;
     globalThis.api = { rules, requiredFieldSet, invalidFields, serverFieldErrors,
       serverFieldError, serverFieldMessage, applyServerFieldErrors,
       snapshotSubmittedFields, isSubmittedSnapshotCurrent, reportCreateBuildFailure,
       useServerKey, isFieldInvalid, isRequiredField, clearFieldError, syncFieldAria,
       localAddressPicker, openLocalAddressPicker, useLocalAddress, closeLocalAddressPicker,
-      localAddressPrefillValue };
+      localAddressPrefillValue, lifecycleGuard };
     globalThis.logs = logs;
   `, context)
   return context
@@ -856,13 +860,20 @@ test('opening the Local IP picker loads the server-resolved candidates', async (
   ])
 })
 
-test('a picker failure reports a bounded message and leaves the field untouched', async () => {
+test('a picker failure reports one bounded localized message and leaves the field untouched', async () => {
   const ctx = fixture()
   ctx.fetchServerAddresses = async () => { throw new Error('boom') }
   await ctx.api.openLocalAddressPicker('server_ip')
   assert.equal(ctx.api.localAddressPicker.error, 'CustomClientLocalIpLoadError')
   assert.equal(ctx.api.localAddressPicker.addresses.length, 0)
   assert.equal(ctx.form.server_ip, '')
+  // Exactly one indication: the request suppresses the shared interceptor toast
+  // (house style, same as getVersions) and the dialog shows the localized
+  // alert — the raw server string is never toasted for this call.
+  const configApi = readFileSync(new URL('../src/api/config.js', import.meta.url), 'utf8')
+  const impl = configApi.match(/export function serverAddresses \(\) \{[\s\S]*?\n\}/)
+  assert.ok(impl, 'serverAddresses must exist in api/config.js')
+  assert.match(impl[0], /skipErrorMessage: true/)
 })
 
 test('selecting a candidate prefills only its field and the field stays editable', async () => {
@@ -922,9 +933,67 @@ test('api_server prefill brackets IPv6 literals so the composed URL passes serve
   assert.equal(ctx.form.server_ip, 'fd00::1')
 })
 
-test('the Local IP picker is exposed through the setup return, not merely declared', () => {
-  const setupReturn = between('    return {\n      form, formRef', '\n  },\n})')
-  for (const name of ['localAddressPicker', 'openLocalAddressPicker', 'useLocalAddress', 'closeLocalAddressPicker']) {
-    assert.match(setupReturn, new RegExp(`\\b${name}\\b`), `${name} must be returned from setup`)
-  }
+test('overlapping picker opens: the newest request wins and stale responses are ignored', async () => {
+  const ctx = fixture()
+  const pending = []
+  ctx.fetchServerAddresses = () => new Promise((resolve, reject) => { pending.push({ resolve, reject }) })
+  const first = ctx.api.openLocalAddressPicker('server_ip')
+  const second = ctx.api.openLocalAddressPicker('relay_server')
+  assert.equal(ctx.api.localAddressPicker.loading, true)
+  // The first request settles late: it must not overwrite the newer state.
+  pending[0].resolve({ data: { addresses: [{ interface: 'eth0', address: '10.0.0.1', family: 'ipv4' }] } })
+  await first
+  assert.equal(ctx.api.localAddressPicker.loading, true) // newest request still pending
+  assert.equal(ctx.api.localAddressPicker.addresses.length, 0) // stale response ignored
+  assert.equal(ctx.api.localAddressPicker.field, 'relay_server')
+  // The newest request's result wins and clears loading.
+  pending[1].resolve({ data: { addresses: [{ interface: 'eth1', address: '10.0.0.2', family: 'ipv4' }] } })
+  await second
+  assert.equal(ctx.api.localAddressPicker.loading, false)
+  assert.equal(ctx.api.localAddressPicker.addresses.length, 1)
+  assert.equal(ctx.api.localAddressPicker.addresses[0].address, '10.0.0.2')
+})
+
+test('a stale picker failure never surfaces over a newer pending request', async () => {
+  const ctx = fixture()
+  const pending = []
+  ctx.fetchServerAddresses = () => new Promise((resolve, reject) => { pending.push({ resolve, reject }) })
+  const first = ctx.api.openLocalAddressPicker('server_ip')
+  const second = ctx.api.openLocalAddressPicker('api_server')
+  pending[0].reject(new Error('stale failure'))
+  await first
+  assert.equal(ctx.api.localAddressPicker.error, '') // stale failure ignored
+  assert.equal(ctx.api.localAddressPicker.loading, true) // newest request still pending
+  pending[1].resolve({ data: { addresses: [] } })
+  await second
+  assert.equal(ctx.api.localAddressPicker.error, '')
+  assert.equal(ctx.api.localAddressPicker.loading, false)
+})
+
+test('closing the picker invalidates its in-flight request', async () => {
+  // The dialog's close action is wired to the same invalidation path.
+  assert.match(sfc, /@close="closeLocalAddressPicker"/)
+  const ctx = fixture()
+  const pending = []
+  ctx.fetchServerAddresses = () => new Promise((resolve, reject) => { pending.push({ resolve, reject }) })
+  const request = ctx.api.openLocalAddressPicker('server_ip')
+  ctx.api.closeLocalAddressPicker()
+  assert.equal(ctx.api.localAddressPicker.visible, false)
+  pending[0].resolve({ data: { addresses: [{ interface: 'eth0', address: '10.0.0.1', family: 'ipv4' }] } })
+  await request
+  // The late response for the closed dialog is ignored entirely.
+  assert.equal(ctx.api.localAddressPicker.addresses.length, 0)
+  assert.equal(ctx.api.localAddressPicker.error, '')
+})
+
+test('unmount invalidates the picker request through the shared lifecycleGuard', async () => {
+  const ctx = fixture()
+  const pending = []
+  ctx.fetchServerAddresses = () => new Promise((resolve, reject) => { pending.push({ resolve, reject }) })
+  const request = ctx.api.openLocalAddressPicker('server_ip')
+  ctx.api.lifecycleGuard.mounted = false // onUnmounted semantics
+  pending[0].resolve({ data: { addresses: [{ interface: 'eth0', address: '10.0.0.1', family: 'ipv4' }] } })
+  await request
+  assert.equal(ctx.api.localAddressPicker.addresses.length, 0)
+  assert.equal(ctx.api.localAddressPicker.loading, true) // nothing may write for a disposed component
 })

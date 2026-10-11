@@ -543,6 +543,7 @@
       width="560px"
       append-to-body
       :close-on-click-modal="false"
+      @close="closeLocalAddressPicker"
     >
       <p class="local-address-note">{{ T('CustomClientLocalIpNote') }}</p>
       <div v-if="localAddressPicker.loading" class="local-address-status" aria-busy="true">
@@ -885,6 +886,11 @@ export default defineComponent({
     }
     const openLocalAddressPicker = async (field) => {
       if (!LOCAL_ADDRESS_FIELDS.includes(field)) return
+      // House lifecycleGuard pattern with one key per request stream: reopening
+      // bumps the generation, so a response from the previous open can never
+      // overwrite the newer one and only the newest request clears `loading`;
+      // the shared `mounted` flag covers unmount.
+      const generation = lifecycleGuard.start('localAddresses')
       localAddressPicker.field = field
       localAddressPicker.visible = true
       localAddressPicker.loading = true
@@ -892,10 +898,12 @@ export default defineComponent({
       localAddressPicker.addresses = []
       try {
         const res = await fetchServerAddresses()
+        if (!lifecycleGuard.isCurrent('localAddresses', generation)) return
         localAddressPicker.addresses = res?.data?.addresses || []
+        localAddressPicker.loading = false
       } catch (e) {
+        if (!lifecycleGuard.isCurrent('localAddresses', generation)) return
         localAddressPicker.error = T('CustomClientLocalIpLoadError')
-      } finally {
         localAddressPicker.loading = false
       }
     }
@@ -907,7 +915,10 @@ export default defineComponent({
       syncFieldAria()
       localAddressPicker.visible = false
     }
+    // Wired to the dialog's @close: closing also invalidates whatever fetch is
+    // still in flight for that dialog so a late response is ignored.
     const closeLocalAddressPicker = () => {
+      lifecycleGuard.start('localAddresses')
       localAddressPicker.visible = false
     }
 
