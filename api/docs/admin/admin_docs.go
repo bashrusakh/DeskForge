@@ -7475,6 +7475,10 @@ const docTemplateadmin = `{
                 "platform": {
                     "type": "string"
                 },
+                "preset_id": {
+                    "description": "PresetId is the optional source-preset reference. It is request-only\nprovenance input: the server resolves it against presets owned by the\ncurrent user and persists the resolved id/name snapshot; a provided id\nthat does not resolve rejects the create. nil means no source preset.",
+                    "type": "integer"
+                },
                 "version": {
                     "type": "string"
                 }
@@ -8380,6 +8384,12 @@ const docTemplateadmin = `{
                     "type": "string"
                 },
                 "platform": {
+                    "type": "string"
+                },
+                "preset_id": {
+                    "type": "integer"
+                },
+                "preset_name": {
                     "type": "string"
                 },
                 "status": {

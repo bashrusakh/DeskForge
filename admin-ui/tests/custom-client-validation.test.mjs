@@ -125,6 +125,7 @@ function fixture(platform = 'linux') {
     reactive, ref, computed, nextTick, watch, atob, btoa, URL, T: value => value,
     form: reactive(formState(platform)), formRef: ref(null),
     serverConfigDefaults: reactive({ key: '' }),
+    selectedPresetId: ref(null),
     document: { getElementById: () => null },
     axios, console: { error: (...args) => logs.push(args) },
     PRESET_FIELDS,
@@ -249,6 +250,7 @@ function successFixture(platform = 'linux') {
     ElMessage: { success: () => { calls.success++ }, warning: () => {}, error: () => {} },
     create: async () => ({ data: {} }),
     submitting: ref(false),
+    selectedPresetId: ref(null),
     versionsState: ref('ready'),
     productionPlatformReady: computed(() => true),
     validateBuildForm: async () => true,
@@ -298,6 +300,37 @@ test('create success with an unchanged form resets the form and refreshes the li
   assert.equal(ctx.calls.loadBuilds, 1, 'the created build must appear in the list')
 })
 
+test('submitBuild sends preset_id only while a preset is selected', async () => {
+  // Source-preset provenance: a loaded preset is submitted as its id so the
+  // server can snapshot the preset name onto the build record at create time.
+  // Without a selection the field is omitted and the build is a "—" row.
+  const payloads = []
+  const capture = (ctx) => {
+    ctx.create = async (payload) => { payloads.push(payload); return { data: {} } }
+  }
+  const withPreset = successFixture('linux')
+  capture(withPreset)
+  withPreset.selectedPresetId.value = 3
+  await withPreset.api.submitBuild()
+  assert.equal(payloads[0].preset_id, 3, 'a loaded preset id must be sent as source provenance')
+
+  const withoutPreset = successFixture('linux')
+  capture(withoutPreset)
+  await withoutPreset.api.submitBuild()
+  assert.equal('preset_id' in payloads[1], false, 'a preset-less create must omit preset_id')
+})
+
+test('Build History shows source-preset provenance with a dash fallback', () => {
+  assert.match(sfc, /\{ label: T\('PresetTemplate'\), minWidth: 140, slot: 'preset' \}/)
+  const cell = between('        <template #preset="{ row }">', '</template>')
+  assert.match(cell, /row\.preset_name \|\| '—'/)
+  // The column label is localized in every shipped locale.
+  for (const lang of ['en', 'ru', 'zh_CN']) {
+    const messages = JSON.parse(readFileSync(new URL(`../src/utils/i18n/${lang}.json`, import.meta.url), 'utf8'))
+    assert.equal(typeof messages.PresetTemplate?.One, 'string', `${lang} must define PresetTemplate`)
+  }
+})
+
 test('a change to a requirement input (platform) also keeps the form on success', () => {
   // isSubmittedSnapshotCurrent reuses the error path's requirement-input rule:
   // platform/hide_cm decide which fields the server requires, so a change to
@@ -308,6 +341,66 @@ test('a change to a requirement input (platform) also keeps the form on success'
   assert.equal(ctx.api.isSubmittedSnapshotCurrent(snapshot), true)
   ctx.form.platform = 'windows'
   assert.equal(ctx.api.isSubmittedSnapshotCurrent(snapshot), false)
+})
+
+test('the stale guard treats a preset switch as an in-flight edit', () => {
+  // The preset selection is part of the submitted state: the create carries its
+  // preset_id provenance, so a switch must invalidate the guard match even when
+  // no form value and no requirement input changed.
+  const ctx = successFixture('linux')
+  ctx.form.key = 'submitted-key'
+  ctx.selectedPresetId.value = 1
+  const snapshot = ctx.api.snapshotSubmittedFields()
+  assert.equal(snapshot.presetId, 1, 'the snapshot must capture the preset selection')
+  assert.equal(ctx.api.isSubmittedSnapshotCurrent(snapshot), true)
+  ctx.selectedPresetId.value = 2 // equal-config preset: identical form values
+  assert.equal(ctx.api.isSubmittedSnapshotCurrent(snapshot), false)
+})
+
+test('switching to an equal-config preset while create is pending keeps the newer selection', async () => {
+  // OCR regression: with the guard comparing only PRESET_FIELDS + record fields,
+  // a preset switch with identical config passed the guard and resetForm()
+  // cleared the NEWER selectedPresetId, so the next build silently lost its
+  // preset provenance. The switch is now an in-flight edit like any other.
+  const ctx = successFixture('linux')
+  ctx.form.key = 'submitted-key'
+  ctx.selectedPresetId.value = 1
+  let releaseCreate
+  let createStarted
+  const started = new Promise((resolve) => { createStarted = resolve })
+  ctx.create = () => {
+    createStarted()
+    return new Promise((resolve) => { releaseCreate = resolve })
+  }
+  const pending = ctx.api.submitBuild()
+  await started
+  ctx.selectedPresetId.value = 2 // switch to a different preset, same config
+  releaseCreate()
+  await pending
+  assert.equal(ctx.selectedPresetId.value, 2, 'the newer preset selection must survive the create')
+  assert.equal(ctx.calls.resetForm, 0, 'resetForm must not clear a selection made in flight')
+  assert.equal(ctx.calls.loadBuilds, 1, 'the created build must still appear in the list')
+})
+
+test('an unchanged preset selection still resets the form after a successful create', async () => {
+  // Positive control for the preset-aware guard: a selection that did not change
+  // is not an in-flight edit, so the normal reset still runs.
+  const ctx = successFixture('linux')
+  ctx.form.key = 'submitted-key'
+  ctx.selectedPresetId.value = 1
+  let releaseCreate
+  let createStarted
+  const started = new Promise((resolve) => { createStarted = resolve })
+  ctx.create = () => {
+    createStarted()
+    return new Promise((resolve) => { releaseCreate = resolve })
+  }
+  const pending = ctx.api.submitBuild()
+  await started
+  releaseCreate()
+  await pending
+  assert.equal(ctx.calls.resetForm, 1, 'an unchanged selection still resets after success')
+  assert.equal(ctx.calls.loadBuilds, 1, 'the created build must appear in the list')
 })
 
 test('an in-flight edit to an optional submitted field keeps the form on success', async () => {

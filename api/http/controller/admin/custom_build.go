@@ -678,6 +678,20 @@ func (ct *CustomBuild) Create(c *gin.Context) {
 
 	user := service.AllService.UserService.CurUser(c)
 	b.UserId = user.Id
+	// Snapshot source-preset provenance from the resolved owned preset row.
+	// A provided preset_id that does not resolve for this user is rejected here,
+	// before any provider/dispatch work; a lookup failure that is not "not
+	// found" is an internal error on the documented 500 path.
+	if err := service.AllService.CustomBuildService.AttachPresetProvenance(b, b.UserId, f.PresetId); err != nil {
+		if failCustomServiceError(c, err) {
+			return
+		}
+		if global.Logger != nil {
+			global.Logger.Errorf("custom build preset provenance resolution failed: %s", service.GithubErrorDetail(err))
+		}
+		response.FailStatus(c, http.StatusInternalServerError, 101, "custom build could not be queued")
+		return
+	}
 	b.Status = model.CustomBuildStatusPending
 	b.DownloadKey = utils.RandomString(32)
 	// BUGS.md B-006: capability-ссылка должна протухать. TTL из конфига,

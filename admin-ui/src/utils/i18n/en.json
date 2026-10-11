@@ -1102,6 +1102,9 @@
   "PresetName": {
     "One": "Preset name"
   },
+  "PresetTemplate": {
+    "One": "Preset / Template"
+  },
   "Branding": {
     "One": "Branding"
   },

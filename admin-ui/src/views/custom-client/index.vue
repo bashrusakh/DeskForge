@@ -500,11 +500,15 @@
             { label: T('Platform'), prop: 'platform', width: 120, align: 'center' },
             { label: T('Version'), prop: 'version', width: 100, align: 'center' },
             { label: T('AppName'), prop: 'app_name', minWidth: 140 },
+            { label: T('PresetTemplate'), minWidth: 140, slot: 'preset' },
             { label: T('BuildStatus'), width: 120, align: 'center', slot: 'status' },
             { label: T('CreatedAt'), prop: 'created_at', width: 160, align: 'center' },
             { label: T('Actions'), width: 200, align: 'center', slot: 'actions' }
           ]"
       >
+        <template #preset="{ row }">
+          <span>{{ row.preset_name || '—' }}</span>
+        </template>
         <template #status="{ row }">
           <el-popover v-if="row.build_log" placement="top" trigger="click" :width="480" popper-class="build-log-popover">
             <template #default>
@@ -795,22 +799,33 @@ export default defineComponent({
     // Capture the values of every submitted field so a late server response can be
     // matched against the state it actually describes. platform and hide_cm are
     // the requirement inputs (see requiredFieldSet); if either changes while the
-    // request is in flight, the whole classification is stale.
+    // request is in flight, the whole classification is stale. The loaded preset
+    // selection is part of the submitted state too: the create carries its
+    // preset_id provenance, so switching presets in flight is an in-flight edit.
     const snapshotSubmittedFields = () => {
       const values = {}
       for (const field of submittedFieldNames()) values[field] = form[field]
-      return { platform: values.platform, hide_cm: form.hide_cm, values }
+      return {
+        platform: values.platform,
+        hide_cm: form.hide_cm,
+        presetId: selectedPresetId.value || null,
+        values,
+      }
     }
 
     // True when the live form still matches the exact state that was submitted.
-    // Reuses the error-path semantics: the requirement inputs must match and every
-    // submitted field must be unchanged. The create serializes the whole payload,
-    // so an in-flight edit to ANY sent field — required or not (company_name,
-    // enable_audio, app_icon_url, ...) — makes the response/clear stale. Clearing
-    // the form is only safe while this holds; otherwise the user edited a field in
-    // flight and we keep their edits (the build was still created).
+    // Reuses the error-path semantics: the requirement inputs must match, the
+    // preset selection must be unchanged, and every submitted field must be
+    // unchanged. A preset switch is an in-flight edit even when the new preset's
+    // config is identical, so the newer selection must never be cleared by
+    // resetForm. The create serializes the whole payload, so an in-flight edit
+    // to ANY sent field — required or not (company_name, enable_audio,
+    // app_icon_url, ...) — makes the response/clear stale. Clearing the form is
+    // only safe while this holds; otherwise the user edited something in flight
+    // and we keep it (the build was still created).
     const isSubmittedSnapshotCurrent = (snapshot) => {
       if (!snapshot || !submittedRequirementInputsMatch(snapshot)) return false
+      if ((snapshot.presetId || null) !== (selectedPresetId.value || null)) return false
       return Object.keys(snapshot.values).every((field) => snapshot.values[field] === form[field])
     }
 
@@ -1323,13 +1338,18 @@ export default defineComponent({
         const customPayload = {}
         for (const f of PRESET_FIELDS) customPayload[f] = form[f]
         const customJson = JSON.stringify(customPayload)
-        await create({
+        const createPayload = {
           name: form.app_name,
           platform: form.platform,
           version: form.version,
           app_name: form.app_name,
           custom_json: customJson,
-        })
+        }
+        // Source-preset provenance: while a preset is loaded, send its id so the
+        // server snapshots the preset name onto the build at create time. With
+        // no preset selected the field is omitted and the build is a "—" row.
+        if (selectedPresetId.value) createPayload.preset_id = selectedPresetId.value
+        await create(createPayload)
         // The build was created regardless of later edits, so always refresh the
         // list and toast success. Clear the form only while it still matches what
         // was submitted; if the user edited a field while the request was in
