@@ -1,13 +1,16 @@
 package admin
 
 import (
-	"github.com/gin-gonic/gin"
+	"net/http"
 	"os"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+
 	"rustdesk-server/api/global"
 	"rustdesk-server/api/http/response"
 	"rustdesk-server/api/model"
 	"rustdesk-server/api/service"
-	"strings"
 )
 
 // Config serves the admin config endpoints. networkEnumerator is nil in
@@ -99,7 +102,7 @@ func (co *Config) ServerAddresses(c *gin.Context) {
 	}
 	addresses, err := service.ListServerAddressCandidates(enumerate)
 	if err != nil {
-		response.Fail(c, 500, "failed to enumerate server addresses")
+		response.FailStatus(c, http.StatusInternalServerError, http.StatusInternalServerError, "failed to enumerate server addresses")
 		return
 	}
 	response.Success(c, &gin.H{

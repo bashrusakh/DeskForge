@@ -2,10 +2,12 @@ package admin
 
 import (
 	"encoding/json"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -129,5 +131,42 @@ func TestServerAddressesUsesInjectedEnumerator(t *testing.T) {
 	entry := payload.Data.Addresses[0]
 	if entry.Interface != "eth0" || entry.Address != "192.168.1.66" || entry.Family != "ipv4" {
 		t.Fatalf("entry = %+v, want eth0/192.168.1.66/ipv4", entry)
+	}
+}
+
+func TestServerAddressesEnumerationFailureReturnsHTTP500(t *testing.T) {
+	const enumerationDetail = "private interface enumeration detail"
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(http.MethodGet, "/api/admin/config/server_addresses", nil)
+	co := &Config{networkEnumerator: func() ([]service.NetworkInterface, error) {
+		return nil, errors.New(enumerationDetail)
+	}}
+	co.ServerAddresses(context)
+
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500; body=%s", recorder.Code, recorder.Body.String())
+	}
+	var payload struct {
+		Code    int             `json:"code"`
+		Message string          `json:"message"`
+		Data    json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("invalid response envelope: %v", err)
+	}
+	if payload.Code != http.StatusInternalServerError {
+		t.Fatalf("response code = %d, want 500", payload.Code)
+	}
+	if payload.Message != "failed to enumerate server addresses" {
+		t.Fatalf("response message = %q, want safe enumeration failure", payload.Message)
+	}
+	if string(payload.Data) != "null" {
+		t.Fatalf("response data = %s, want null", payload.Data)
+	}
+	if strings.Contains(recorder.Body.String(), enumerationDetail) {
+		t.Fatalf("response leaked enumerator error: %s", recorder.Body.String())
 	}
 }
