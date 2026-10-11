@@ -888,14 +888,13 @@ export default defineComponent({
       // retain the raw port suffix and path/query/fragment exactly as entered.
       const parts = current.match(/^(https?:\/\/)([^/?#]*)([\s\S]*)$/i)
       if (parts && !parts[2].includes('@')) {
-        const authority = parts[2]
-        if (authority.startsWith('[')) {
-          const close = authority.indexOf(']')
-          if (close !== -1) return parts[1] + host + authority.slice(close + 1) + parts[3]
-        } else {
-          const colon = authority.indexOf(':')
-          return parts[1] + host + (colon === -1 ? '' : authority.slice(colon)) + parts[3]
-        }
+        // Go's URL.Hostname/Port split at the last colon only if its suffix is
+        // an optional numeric port (including an explicit empty port). This
+        // also covers accepted unbracketed IPv6; colons inside brackets cannot
+        // match because the closing bracket follows them. Keep the raw suffix
+        // rather than serializing a parsed URL and normalizing other components.
+        const port = parts[2].match(/:[0-9]*$/)?.[0] || ''
+        return parts[1] + host + port + parts[3]
       }
       return (/^http:\/\//i.test(current) ? 'http://' : 'https://') + host
     }

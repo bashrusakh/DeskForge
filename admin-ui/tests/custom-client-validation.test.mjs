@@ -924,7 +924,7 @@ test('api_server prefill replaces only the host of a valid endpoint URL', async 
   await ctx.api.useLocalAddress(ctx.api.localAddressPicker.addresses[0])
   assert.equal(ctx.form.relay_server, '10.0.0.5')
   // The picker replaces the scoped IPv6 hostname with a bracketed IPv6
-  // candidate without losing the encoded zone, port, path, or query.
+  // candidate, removing the old host's zone but keeping port, path, and query.
   ctx.fetchServerAddresses = async () => ({
     data: { addresses: [{ interface: 'eth0', address: 'fd00::5', family: 'ipv6' }] },
   })
@@ -932,6 +932,75 @@ test('api_server prefill replaces only the host of a valid endpoint URL', async 
   await ctx.api.openLocalAddressPicker('api_server')
   await ctx.api.useLocalAddress(ctx.api.localAddressPicker.addresses[0])
   assert.equal(ctx.form.api_server, 'http://[fd00::5]:21114/rustdesk?tenant=one')
+})
+
+test('Local-IP replacement preserves components across the real server accepted URL domain', () => {
+  const ctx = fixture()
+  const originals = [
+    ['', 'https://', ''],
+    ['http://api.example.com:21114/rustdesk?tenant=one#api', 'http://', ':21114/rustdesk?tenant=one#api'],
+    ['https://127.0.0.1:8443/path%2Fpart?q=%23#fragment', 'https://', ':8443/path%2Fpart?q=%23#fragment'],
+    ['HTTPS://api.example.com/path?q=one#fragment', 'HTTPS://', '/path?q=one#fragment'],
+    ['https://api.example.com:/rustdesk?tenant=one#api', 'https://', ':/rustdesk?tenant=one#api'],
+    ['http://[2001:db8::1]:21114/rustdesk?tenant=one#api', 'http://', ':21114/rustdesk?tenant=one#api'],
+    ['https://[fe80::1%25eth0]:/path?q=one#fragment', 'https://', ':/path?q=one#fragment'],
+    ['http://[fe80::1%25eth0]/path?q=one#fragment', 'http://', '/path?q=one#fragment'],
+    ['http://2001:db8::1:21114/rustdesk?tenant=one', 'http://', ':21114/rustdesk?tenant=one'],
+    // Go treats the last numeric segment as a port even without brackets.
+    ['https://2001:db8::1/path?q=one#fragment', 'https://', ':1/path?q=one#fragment'],
+    ['http://2001:db8::/path?q=one#fragment', 'http://', ':/path?q=one#fragment'],
+  ]
+  const cases = originals.flatMap(([original, scheme, suffix]) =>
+    ['10.0.0.5', 'fd00::5'].map(address => {
+      ctx.form.api_server = original
+      const actual = ctx.api.localAddressPrefillValue('api_server', { address })
+      const host = address.includes(':') ? `[${address}]` : address
+      return { original, address, actual, expected: scheme + host + suffix }
+    }))
+  const service = readFileSync(new URL('../../api/service/custom_build_spec.go', import.meta.url), 'utf8')
+  const validator = service.match(/func validateAPIURL\([^]*?\n\}/)
+  assert.ok(validator, 'actual server validator must be extracted')
+  const dir = mkdtempSync(join(process.env.TMPDIR || tmpdir(), 'deskforge-prefill-'))
+  try {
+    writeFileSync(join(dir, 'main.go'), `package main
+import ("encoding/json"; "fmt"; "net/url"; "strings"; "os")
+${validator[0]}
+type Result struct { Valid bool; Hostname string; Port string }
+func main() {
+  var input []string
+  if err := json.NewDecoder(os.Stdin).Decode(&input); err != nil { panic(err) }
+  output := []Result{}
+  for _, value := range input {
+    r := Result{Valid: validateAPIURL("api_server", value) == nil}
+    if parsed, err := url.ParseRequestURI(value); err == nil { r.Hostname = parsed.Hostname(); r.Port = parsed.Port() }
+    output = append(output, r)
+  }
+  if err := json.NewEncoder(os.Stdout).Encode(output); err != nil { panic(err) }
+}`)
+    // Use the API module's Go-version defaults, not standalone-toolchain defaults
+    // (Go 1.26 changed HTTP authority parsing). No production validator copy.
+    const result = spawnSync('go', ['run', join(dir, 'main.go')], {
+      cwd: new URL('../../api/', import.meta.url),
+      input: JSON.stringify(cases.flatMap(c => [c.original, c.actual, c.expected])),
+      encoding: 'utf8', env: { ...process.env, GOWORK: 'off' },
+    })
+    assert.equal(result.status, 0, result.stderr)
+    const oracle = JSON.parse(result.stdout)
+    for (const [index, c] of cases.entries()) {
+      const [before, after, expected] = oracle.slice(index * 3, index * 3 + 3)
+      assert.equal(before.Valid, true, `server acceptance precondition: ${c.original}`)
+      assert.equal(expected.Valid, true, `expected URL must remain server-valid: ${c.expected}`)
+      assert.equal(c.actual, c.expected, `${c.original} -> ${c.address}`)
+      assert.equal(after.Valid, true)
+      assert.equal(after.Hostname, c.address)
+      assert.equal(after.Port, before.Port)
+      for (const field of ['server_ip', 'relay_server']) {
+        assert.equal(ctx.api.localAddressPrefillValue(field, { address: c.address }), c.address)
+      }
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 test('api_server prefill brackets IPv6 literals so the composed URL passes server validation', async () => {
