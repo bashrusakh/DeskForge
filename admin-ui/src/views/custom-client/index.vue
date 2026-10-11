@@ -728,22 +728,33 @@ export default defineComponent({
     // Capture the values of every submitted field so a late server response can be
     // matched against the state it actually describes. platform and hide_cm are
     // the requirement inputs (see requiredFieldSet); if either changes while the
-    // request is in flight, the whole classification is stale.
+    // request is in flight, the whole classification is stale. The loaded preset
+    // selection is part of the submitted state too: the create carries its
+    // preset_id provenance, so switching presets in flight is an in-flight edit.
     const snapshotSubmittedFields = () => {
       const values = {}
       for (const field of submittedFieldNames()) values[field] = form[field]
-      return { platform: values.platform, hide_cm: form.hide_cm, values }
+      return {
+        platform: values.platform,
+        hide_cm: form.hide_cm,
+        presetId: selectedPresetId.value || null,
+        values,
+      }
     }
 
     // True when the live form still matches the exact state that was submitted.
-    // Reuses the error-path semantics: the requirement inputs must match and every
-    // submitted field must be unchanged. The create serializes the whole payload,
-    // so an in-flight edit to ANY sent field — required or not (company_name,
-    // enable_audio, app_icon_url, ...) — makes the response/clear stale. Clearing
-    // the form is only safe while this holds; otherwise the user edited a field in
-    // flight and we keep their edits (the build was still created).
+    // Reuses the error-path semantics: the requirement inputs must match, the
+    // preset selection must be unchanged, and every submitted field must be
+    // unchanged. A preset switch is an in-flight edit even when the new preset's
+    // config is identical, so the newer selection must never be cleared by
+    // resetForm. The create serializes the whole payload, so an in-flight edit
+    // to ANY sent field — required or not (company_name, enable_audio,
+    // app_icon_url, ...) — makes the response/clear stale. Clearing the form is
+    // only safe while this holds; otherwise the user edited something in flight
+    // and we keep it (the build was still created).
     const isSubmittedSnapshotCurrent = (snapshot) => {
       if (!snapshot || !submittedRequirementInputsMatch(snapshot)) return false
+      if ((snapshot.presetId || null) !== (selectedPresetId.value || null)) return false
       return Object.keys(snapshot.values).every((field) => snapshot.values[field] === form[field])
     }
 

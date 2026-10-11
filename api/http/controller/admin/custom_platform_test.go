@@ -216,6 +216,23 @@ func TestFailCustomServiceErrorMapsClientValidationSafely(t *testing.T) {
 	}
 }
 
+func TestFailCustomServiceErrorLeavesInternalLookupFailuresUnhandled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+
+	// A transient preset-lookup failure is not client input: the create path
+	// must keep it on the documented 500 branch instead of a 400 validation
+	// response, so failCustomServiceError must not claim it.
+	internal := errors.New("resolve source preset 42 for user 7: simulated transient preset lookup failure")
+	if failCustomServiceError(context, internal) {
+		t.Fatal("failCustomServiceError() must leave internal lookup failures for the 5xx path")
+	}
+	if recorder.Body.Len() != 0 {
+		t.Fatalf("unhandled internal failure wrote a response: %s", recorder.Body.String())
+	}
+}
+
 func TestCustomBuildCreateValidationResponsesAreSafe(t *testing.T) {
 	previousValidator := global.Validator
 	global.ApiInitValidator()

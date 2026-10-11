@@ -18,17 +18,13 @@ type CustomBuildForm struct {
 }
 
 func (f *CustomBuildForm) ToCustomBuild() *model.CustomBuild {
-	b := &model.CustomBuild{
+	return &model.CustomBuild{
 		Name:       f.Name,
 		Platform:   f.Platform,
 		Version:    f.Version,
 		AppName:    f.AppName,
 		CustomJson: f.CustomJson,
 	}
-	if f.PresetId != nil {
-		b.PresetId = *f.PresetId
-	}
-	return b
 }
 
 type CustomBuildQuery struct {

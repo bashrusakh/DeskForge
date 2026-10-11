@@ -183,6 +183,39 @@ func TestCustomBuildCreateSnapshotsOwnedPresetProvenance(t *testing.T) {
 	}
 }
 
+func TestCustomBuildAttachPresetProvenanceClassifiesLookupFailureAsInternal(t *testing.T) {
+	db := newCustomPersistenceDB(t)
+	owned := &model.CustomPreset{UserId: 7, Name: "Team preset", Platform: "linux", Version: "1.2.3", AppName: "rustqs"}
+	if err := db.Create(owned).Error; err != nil {
+		t.Fatalf("seed owned preset: %v", err)
+	}
+	// Simulate a transient storage failure on the preset lookup with the same
+	// callback-injection machinery the delete-path error-contract tests use.
+	callbackName := "test:fail-custom-preset-lookup-" + strings.ReplaceAll(t.Name(), "/", "-")
+	if err := db.Callback().Query().Before("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		tx.AddError(errors.New("simulated transient preset lookup failure"))
+	}); err != nil {
+		t.Fatalf("register lookup failure callback: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Callback().Query().Remove(callbackName) })
+
+	build := &model.CustomBuild{Name: "preset-build", Platform: "linux", Version: "1.2.3", AppName: "rustqs", CustomJson: `{"enable_audio":true}`}
+	presetID := owned.Id
+	err := (&CustomBuildService{}).AttachPresetProvenance(build, 7, &presetID)
+	if err == nil {
+		t.Fatal("AttachPresetProvenance() error = nil, want internal lookup error")
+	}
+	if IsClientValidationError(err) {
+		t.Fatalf("transient lookup failure misclassified as client validation: %v", err)
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("transient lookup failure misclassified as not-found input: %v", err)
+	}
+	if build.PresetId != 0 || build.PresetName != "" {
+		t.Fatalf("failed lookup attached provenance: %#v", build)
+	}
+}
+
 func TestCustomPersistenceRejectsInvalidPayloadBeforeWrite(t *testing.T) {
 	db := newCustomPersistenceDB(t)
 	var before int64

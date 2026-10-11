@@ -11,6 +11,8 @@ import (
 
 	"rustdesk-server/api/model"
 	"rustdesk-server/api/utils"
+
+	"gorm.io/gorm"
 )
 
 type CustomBuildService struct{}
@@ -120,7 +122,8 @@ func (is *CustomBuildService) Create(u *model.CustomBuild) error {
 // foreign name. A nil presetID records no source preset (the "—" row). A
 // provided id that does not resolve to a preset owned by userID rejects the
 // create with the same field-level client-validation contract the build
-// validators use.
+// validators use; any other lookup failure is an internal error and must not
+// be classified as client input.
 func (is *CustomBuildService) AttachPresetProvenance(u *model.CustomBuild, userID uint, presetID *uint) error {
 	if presetID == nil {
 		u.PresetId = 0
@@ -129,8 +132,11 @@ func (is *CustomBuildService) AttachPresetProvenance(u *model.CustomBuild, userI
 	}
 	preset, err := (&CustomPresetService{}).InfoOwned(*presetID, userID)
 	if err != nil {
-		return &ClientValidationError{Err: NewFieldError("preset_id", FieldCodeNotFound,
-			fmt.Errorf("preset_id %d does not resolve to a preset owned by the current user", *presetID))}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return &ClientValidationError{Err: NewFieldError("preset_id", FieldCodeNotFound,
+				fmt.Errorf("preset_id %d does not resolve to a preset owned by the current user", *presetID))}
+		}
+		return fmt.Errorf("resolve source preset %d for user %d: %w", *presetID, userID, err)
 	}
 	u.PresetId = preset.Id
 	u.PresetName = preset.Name
