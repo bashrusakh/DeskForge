@@ -875,13 +875,25 @@ export default defineComponent({
     // api_server requires a full URL while interface candidates are bare
     // addresses. Replace only the host of an existing valid HTTP(S) URL so its
     // scheme, port, path, and other endpoint components remain intact; an empty
-    // field defaults to https://. IPv6 literals are bracketed. Host/Relay keep
-    // the bare address (their accepted contract). Nothing is locked afterwards.
+    // field defaults to https://. Host/Relay retain an existing explicit numeric
+    // port and bracket IPv6 only when adding that port; without a port, candidates
+    // stay bare. Nothing is locked afterwards.
     const localAddressPrefillValue = (field, candidate) => {
       const address = candidate?.address || ''
-      if (field !== 'api_server' || !address) return address
-      const host = address.includes(':') && !address.startsWith('[') ? `[${address}]` : address
+      if (!address) return address
       const current = form[field]
+      if (field !== 'api_server') {
+        // Host/Relay accept bare IP/hostname values or host:port endpoints;
+        // an unbracketed IPv6 literal has multiple colons and is not mistaken
+        // for an endpoint port. Keep the existing port text unchanged.
+        const explicitPort = current.match(/^\[[^\]]+\]:([0-9]+)$/)?.[1]
+          || current.match(/^[^:]+:([0-9]+)$/)?.[1]
+        const portNumber = Number(explicitPort)
+        if (!Number.isInteger(portNumber) || portNumber === 0 || portNumber > 65535) return address
+        const host = address.includes(':') && !address.startsWith('[') ? `[${address}]` : address
+        return `${host}:${explicitPort}`
+      }
+      const host = address.includes(':') && !address.startsWith('[') ? `[${address}]` : address
       // Do not use the browser URL parser here: Go's url.ParseRequestURI accepts
       // endpoint forms such as scoped IPv6 and an explicit empty port that the
       // browser normalizes or rejects. This is component surgery, not validation;

@@ -934,6 +934,88 @@ test('api_server prefill replaces only the host of a valid endpoint URL', async 
   assert.equal(ctx.form.api_server, 'http://[fd00::5]:21114/rustdesk?tenant=one')
 })
 
+test('Host and Relay Local-IP replacement preserves valid custom ports', () => {
+  const ctx = fixture()
+  const fields = ['server_ip', 'relay_server']
+  const cases = []
+  const withPort = [
+    ['relay.example.com:21116', '21116'],
+    ['192.0.2.10:21117', '21117'],
+    ['[2001:db8::1]:8443', '8443'],
+  ]
+  const withoutPort = ['relay.example.com', '192.0.2.10', '2001:db8::1']
+  const candidates = ['10.0.0.5', 'fd00::5']
+
+  for (const field of fields) {
+    for (const [original, port] of withPort) {
+      for (const address of candidates) {
+        ctx.form[field] = original
+        const actual = ctx.api.localAddressPrefillValue(field, { address })
+        const host = address.includes(':') ? `[${address}]` : address
+        const expected = `${host}:${port}`
+        assert.equal(actual, expected, `${field}: ${original} -> ${address}`)
+        cases.push({ field, original, actual })
+      }
+    }
+
+    for (const original of withoutPort) {
+      for (const address of candidates) {
+        ctx.form[field] = original
+        const actual = ctx.api.localAddressPrefillValue(field, { address })
+        assert.equal(actual, address, `${field}: no port in ${original} must stay bare`)
+        cases.push({ field, original, actual })
+      }
+    }
+  }
+
+  // Use the production Go endpoint validator as the oracle for both the
+  // existing values and their replacements; the Local-IP helper must not turn
+  // valid Host/Relay endpoint shapes into invalid values.
+  const service = readFileSync(new URL('../../api/service/custom_build_spec.go', import.meta.url), 'utf8')
+  const endpoint = service.match(/func validateEndpoint\([^]*?\n\}/)
+  const hostValidator = service.match(/func validateHost\([^]*?\n\}/)
+  assert.ok(endpoint, 'actual server endpoint validator must be extracted')
+  assert.ok(hostValidator, 'actual server host validator must be extracted')
+  const dir = mkdtempSync(join(process.env.TMPDIR || tmpdir(), 'deskforge-endpoint-prefill-'))
+  try {
+    writeFileSync(join(dir, 'main.go'), `package main
+import ("encoding/json"; "fmt"; "net"; "net/url"; "os"; "strconv"; "strings")
+${endpoint[0]}
+${hostValidator[0]}
+type Input struct { Field string; Value string }
+func main() {
+  var input []Input
+  if err := json.NewDecoder(os.Stdin).Decode(&input); err != nil { panic(err) }
+  output := []bool{}
+  for _, value := range input { output = append(output, validateEndpoint(value.Field, value.Value) == nil) }
+  if err := json.NewEncoder(os.Stdout).Encode(output); err != nil { panic(err) }
+  _ = fmt.Sprint
+  _ = net.ParseIP
+  _ = url.Parse
+  _ = strconv.Itoa
+  _ = strings.TrimSpace
+}`)
+    const inputs = cases.flatMap(({ field, original, actual }) => [
+      { field, value: original },
+      { field, value: actual },
+    ])
+    const result = spawnSync('go', ['run', join(dir, 'main.go')], {
+      cwd: new URL('../../api/', import.meta.url),
+      input: JSON.stringify(inputs),
+      encoding: 'utf8',
+      env: { ...process.env, GOWORK: 'off' },
+    })
+    assert.equal(result.status, 0, result.stderr)
+    const validity = JSON.parse(result.stdout)
+    for (const [index, item] of cases.entries()) {
+      assert.equal(validity[index * 2], true, `server acceptance precondition: ${item.original}`)
+      assert.equal(validity[index * 2 + 1], true, `server must accept replacement: ${item.actual}`)
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('Local-IP replacement preserves components across the real server accepted URL domain', () => {
   const ctx = fixture()
   const originals = [
