@@ -129,16 +129,25 @@ function fixture(platform = 'linux') {
     document: { getElementById: () => null },
     axios, console: { error: (...args) => logs.push(args) },
     PRESET_FIELDS,
+    // Overridden per test; a plain property so the vm's free-variable lookup
+    // picks up the test's stub at call time.
+    fetchServerAddresses: async () => ({ data: { addresses: [] } }),
     logs,
   }
   vm.createContext(context)
   vm.runInContext(between('    const requiredFieldNames', '    const useServerKey') +
     between('    const useServerKey', '    const isFieldInvalid') +
-    between('    const isFieldInvalid', '    const validateBuildForm') + `
+    between('    const isFieldInvalid', '    const validateBuildForm') +
+    // Real lifecycleGuard (house per-key generation pattern) so the picker's
+    // race-guard logic is exercised as implemented, not as a copy.
+    between('    const requestGenerations = Object.create(null)', '    // B-017: при silent=true') + `
+    lifecycleGuard.mounted = true;
     globalThis.api = { rules, requiredFieldSet, invalidFields, serverFieldErrors,
       serverFieldError, serverFieldMessage, applyServerFieldErrors,
       snapshotSubmittedFields, isSubmittedSnapshotCurrent, reportCreateBuildFailure,
-      useServerKey, isFieldInvalid, isRequiredField, clearFieldError, syncFieldAria };
+      useServerKey, isFieldInvalid, isRequiredField, clearFieldError, syncFieldAria,
+      localAddressPicker, openLocalAddressPicker, useLocalAddress, closeLocalAddressPicker,
+      localAddressPrefillValue, lifecycleGuard };
     globalThis.logs = logs;
   `, context)
   return context
@@ -800,7 +809,12 @@ func main() {
   if err := json.NewEncoder(os.Stdout).Encode(output); err != nil { panic(err) }
 }`)
     const endpoints = ['1:2:3:4:5:6:7::8', '1.2.3.4::1', '1:2:3:4:5:6:1.2.3.4']
-    const urls = ['http://host\\path', 'http:///host', 'http://ho%41st', 'http://host:65536', 'http://[fe80::1%25eth0]:80']
+    const urls = [
+      'http://host\\path', 'http:///host', 'http://ho%41st', 'http://host:65536',
+      'http://[fe80::1%25eth0]:80',
+      'http://[fe80::1%25eth0]:21114/rustdesk?tenant=one',
+      'https://api.example.com:/rustdesk?tenant=one',
+    ]
     const result = spawnSync('go', ['run', join(dir, 'main.go')], {
       input: JSON.stringify({ endpoints, urls }), encoding: 'utf8',
       env: { ...process.env, GOWORK: 'off' },
@@ -811,8 +825,442 @@ func main() {
     // verdict for them; the server (Go) is the contract, and the UI only renders
     // the field it reports.
     assert.deepEqual(go.endpoints, [false, false, true])
-    assert.deepEqual(go.urls, [false, false, false, true, true])
+    assert.deepEqual(go.urls, [false, false, false, true, true, true, true])
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+// --- issue #82: public_* env prefill precedence + Local-IP picker ---
+// The defaults live in serverConfigDefaults and are computed in loadConfig;
+// applyServerConfigDefaults stays a "fill only empty, non-explicit fields"
+// function. These tests exercise the SFC's real slices, not a copy.
+
+function configDefaultsFixture(cfg) {
+  const context = {
+    reactive, ref, T: value => value,
+    form: reactive(formState()),
+    serverConfigDefaults: reactive({ server_ip: '', key: '', api_server: '', relay_server: '' }),
+    explicitPresetFields: ref(new Set()),
+    fetchConfig: async () => ({ data: cfg }),
+    lifecycleGuard: { mounted: true, start: () => 1, isCurrent: () => true },
+    console,
+  }
+  vm.createContext(context)
+  vm.runInContext(
+    between('    const applyServerConfigDefaults =', '    const loadPresetIntoForm') +
+    between('    const loadConfig =', '    onMounted') + `
+    globalThis.api = { applyServerConfigDefaults, loadConfig, serverConfigDefaults, explicitPresetFields };
+  `, context)
+  return context
+}
+
+test('builder defaults prefer the env-configured public_* addresses over operational ones', async () => {
+  const ctx = configDefaultsFixture({
+    id_server: 'id-internal:21116',
+    key: 'server-key',
+    api_server: 'http://api-internal:21114',
+    relay_server: 'relay-internal:21117',
+    public_id_server: 'id.example.com:21116',
+    public_api_server: 'https://api.example.com',
+    public_relay_server: 'relay.example.com:21117',
+  })
+  await ctx.api.loadConfig()
+  assert.equal(ctx.api.serverConfigDefaults.server_ip, 'id.example.com:21116')
+  assert.equal(ctx.api.serverConfigDefaults.api_server, 'https://api.example.com')
+  assert.equal(ctx.api.serverConfigDefaults.relay_server, 'relay.example.com:21117')
+  // key stays operational-only.
+  assert.equal(ctx.api.serverConfigDefaults.key, 'server-key')
+  // The computed defaults are the values that fill the form.
+  assert.equal(ctx.form.server_ip, 'id.example.com:21116')
+  assert.equal(ctx.form.api_server, 'https://api.example.com')
+  assert.equal(ctx.form.relay_server, 'relay.example.com:21117')
+})
+
+test('builder defaults fall back to operational values when public_* are absent', async () => {
+  const ctx = configDefaultsFixture({
+    id_server: 'id-internal:21116',
+    key: 'server-key',
+    api_server: 'http://api-internal:21114',
+    relay_server: 'relay-internal:21117',
+  })
+  await ctx.api.loadConfig()
+  assert.equal(ctx.api.serverConfigDefaults.server_ip, 'id-internal:21116')
+  assert.equal(ctx.api.serverConfigDefaults.api_server, 'http://api-internal:21114')
+  assert.equal(ctx.api.serverConfigDefaults.relay_server, 'relay-internal:21117')
+  assert.equal(ctx.form.server_ip, 'id-internal:21116')
+})
+
+test('each builder default falls back independently on a mixed config', async () => {
+  const ctx = configDefaultsFixture({
+    id_server: 'id-internal:21116',
+    key: 'server-key',
+    api_server: 'http://api-internal:21114',
+    relay_server: 'relay-internal:21117',
+    public_id_server: 'id.example.com:21116',
+    public_api_server: '',
+  })
+  await ctx.api.loadConfig()
+  assert.equal(ctx.api.serverConfigDefaults.server_ip, 'id.example.com:21116')
+  assert.equal(ctx.api.serverConfigDefaults.api_server, 'http://api-internal:21114')
+  assert.equal(ctx.api.serverConfigDefaults.relay_server, 'relay-internal:21117')
+})
+
+test('public_* precedence never overwrites an explicit preset field', async () => {
+  const ctx = configDefaultsFixture({
+    id_server: 'id-internal:21116',
+    key: 'server-key',
+    api_server: 'http://api-internal:21114',
+    relay_server: 'relay-internal:21117',
+    public_id_server: 'id.example.com:21116',
+    public_api_server: 'https://api.example.com',
+    public_relay_server: 'relay.example.com:21117',
+  })
+  // A loaded preset stored server_ip explicitly; it must survive defaults.
+  ctx.form.server_ip = 'preset-host'
+  ctx.api.explicitPresetFields.value = new Set(['server_ip'])
+  await ctx.api.loadConfig()
+  assert.equal(ctx.form.server_ip, 'preset-host')
+  // Empty non-explicit fields are still filled (preserved semantics).
+  assert.equal(ctx.form.api_server, 'https://api.example.com')
+  assert.equal(ctx.form.relay_server, 'relay.example.com:21117')
+})
+
+test('the Local IP button targets Host, Relay and API server and the dialog is bound', () => {
+  for (const field of ['server_ip', 'api_server', 'relay_server']) {
+    assert.ok(
+      sfc.includes(`@click="openLocalAddressPicker('${field}')"`),
+      `field ${field} must expose the Local IP picker button`
+    )
+  }
+  assert.match(sfc, /v-model="localAddressPicker\.visible"/)
+  // The dialog must say where the addresses came from (Docker bridge caveat).
+  assert.match(sfc, /candidate\.interface/)
+  assert.match(sfc, /CustomClientLocalIpSource/)
+  assert.match(sfc, /CustomClientLocalIpNote/)
+})
+
+test('opening the Local IP picker loads the server-resolved candidates', async () => {
+  const ctx = fixture()
+  const calls = []
+  ctx.fetchServerAddresses = async () => {
+    calls.push(true)
+    return { data: { addresses: [{ interface: 'eth0', address: '172.17.0.1', family: 'ipv4' }] } }
+  }
+  await ctx.api.openLocalAddressPicker('server_ip')
+  assert.equal(calls.length, 1) // resolution is the server-side endpoint's job
+  assert.equal(ctx.api.localAddressPicker.visible, true)
+  assert.equal(ctx.api.localAddressPicker.field, 'server_ip')
+  assert.equal(ctx.api.localAddressPicker.loading, false)
+  assert.equal(ctx.api.localAddressPicker.error, '')
+  assert.deepEqual(ctx.api.localAddressPicker.addresses, [
+    { interface: 'eth0', address: '172.17.0.1', family: 'ipv4' },
+  ])
+})
+
+test('a picker failure reports one bounded localized message and leaves the field untouched', async () => {
+  const ctx = fixture()
+  ctx.fetchServerAddresses = async () => { throw new Error('boom') }
+  await ctx.api.openLocalAddressPicker('server_ip')
+  assert.equal(ctx.api.localAddressPicker.error, 'CustomClientLocalIpLoadError')
+  assert.equal(ctx.api.localAddressPicker.addresses.length, 0)
+  assert.equal(ctx.form.server_ip, '')
+  // Exactly one indication: the request suppresses the shared interceptor toast
+  // (house style, same as getVersions) and the dialog shows the localized
+  // alert — the raw server string is never toasted for this call.
+  const configApi = readFileSync(new URL('../src/api/config.js', import.meta.url), 'utf8')
+  const impl = configApi.match(/export function serverAddresses \(\) \{[\s\S]*?\n\}/)
+  assert.ok(impl, 'serverAddresses must exist in api/config.js')
+  assert.match(impl[0], /skipErrorMessage: true/)
+})
+
+test('selecting a candidate prefills only its field and the field stays editable', async () => {
+  const ctx = fixture()
+  ctx.fetchServerAddresses = async () => ({
+    data: { addresses: [{ interface: 'eth0', address: '172.17.0.1', family: 'ipv4' }] },
+  })
+  await ctx.api.openLocalAddressPicker('relay_server')
+  await ctx.api.useLocalAddress(ctx.api.localAddressPicker.addresses[0])
+  assert.equal(ctx.form.relay_server, '172.17.0.1')
+  assert.equal(ctx.form.server_ip, '') // other fields untouched
+  assert.equal(ctx.form.api_server, '')
+  assert.equal(ctx.api.localAddressPicker.visible, false)
+  // Prefill only: the value is a plain assignment and remains editable.
+  ctx.form.relay_server = 'edited.example.com:21117'
+  assert.equal(ctx.form.relay_server, 'edited.example.com:21117')
+})
+
+test('api_server prefill replaces only the host of a valid endpoint URL', async () => {
+  const ctx = fixture()
+  ctx.fetchServerAddresses = async () => ({
+    data: { addresses: [{ interface: 'eth0', address: '10.0.0.5', family: 'ipv4' }] },
+  })
+  const candidate = { interface: 'eth0', address: '10.0.0.5', family: 'ipv4' }
+  const cases = [
+    ['', 'https://10.0.0.5'],
+    ['http://127.0.0.1:21114', 'http://10.0.0.5:21114'],
+    ['https://api.example.com:8443/rustdesk?tenant=one#api', 'https://10.0.0.5:8443/rustdesk?tenant=one#api'],
+    ['https://api.example.com:/rustdesk?tenant=one', 'https://10.0.0.5:/rustdesk?tenant=one'],
+    ['http://[fe80::1%25eth0]:21114/rustdesk?tenant=one', 'http://10.0.0.5:21114/rustdesk?tenant=one'],
+  ]
+  for (const [existing, expected] of cases) {
+    ctx.form.api_server = existing
+    await ctx.api.openLocalAddressPicker('api_server')
+    await ctx.api.useLocalAddress(candidate)
+    assert.equal(ctx.form.api_server, expected)
+  }
+  // Host/Relay fields get the bare address, never a URL wrapper.
+  await ctx.api.openLocalAddressPicker('server_ip')
+  await ctx.api.useLocalAddress(ctx.api.localAddressPicker.addresses[0])
+  assert.equal(ctx.form.server_ip, '10.0.0.5')
+  await ctx.api.openLocalAddressPicker('relay_server')
+  await ctx.api.useLocalAddress(ctx.api.localAddressPicker.addresses[0])
+  assert.equal(ctx.form.relay_server, '10.0.0.5')
+  // The picker replaces the scoped IPv6 hostname with a bracketed IPv6
+  // candidate, removing the old host's zone but keeping port, path, and query.
+  ctx.fetchServerAddresses = async () => ({
+    data: { addresses: [{ interface: 'eth0', address: 'fd00::5', family: 'ipv6' }] },
+  })
+  ctx.form.api_server = 'http://[fe80::1%25eth0]:21114/rustdesk?tenant=one'
+  await ctx.api.openLocalAddressPicker('api_server')
+  await ctx.api.useLocalAddress(ctx.api.localAddressPicker.addresses[0])
+  assert.equal(ctx.form.api_server, 'http://[fd00::5]:21114/rustdesk?tenant=one')
+})
+
+test('Host and Relay Local-IP replacement preserves valid custom ports', () => {
+  const ctx = fixture()
+  const fields = ['server_ip', 'relay_server']
+  const cases = []
+  const withPort = [
+    ['relay.example.com:21116', '21116'],
+    ['192.0.2.10:21117', '21117'],
+    ['[2001:db8::1]:8443', '8443'],
+  ]
+  const withoutPort = ['relay.example.com', '192.0.2.10', '2001:db8::1']
+  const candidates = ['10.0.0.5', 'fd00::5']
+
+  for (const field of fields) {
+    for (const [original, port] of withPort) {
+      for (const address of candidates) {
+        ctx.form[field] = original
+        const actual = ctx.api.localAddressPrefillValue(field, { address })
+        const host = address.includes(':') ? `[${address}]` : address
+        const expected = `${host}:${port}`
+        assert.equal(actual, expected, `${field}: ${original} -> ${address}`)
+        cases.push({ field, original, actual })
+      }
+    }
+
+    for (const original of withoutPort) {
+      for (const address of candidates) {
+        ctx.form[field] = original
+        const actual = ctx.api.localAddressPrefillValue(field, { address })
+        assert.equal(actual, address, `${field}: no port in ${original} must stay bare`)
+        cases.push({ field, original, actual })
+      }
+    }
+  }
+
+  // Use the production Go endpoint validator as the oracle for both the
+  // existing values and their replacements; the Local-IP helper must not turn
+  // valid Host/Relay endpoint shapes into invalid values.
+  const service = readFileSync(new URL('../../api/service/custom_build_spec.go', import.meta.url), 'utf8')
+  const endpoint = service.match(/func validateEndpoint\([^]*?\n\}/)
+  const hostValidator = service.match(/func validateHost\([^]*?\n\}/)
+  assert.ok(endpoint, 'actual server endpoint validator must be extracted')
+  assert.ok(hostValidator, 'actual server host validator must be extracted')
+  const dir = mkdtempSync(join(process.env.TMPDIR || tmpdir(), 'deskforge-endpoint-prefill-'))
+  try {
+    writeFileSync(join(dir, 'main.go'), `package main
+import ("encoding/json"; "fmt"; "net"; "net/url"; "os"; "strconv"; "strings")
+${endpoint[0]}
+${hostValidator[0]}
+type Input struct { Field string; Value string }
+func main() {
+  var input []Input
+  if err := json.NewDecoder(os.Stdin).Decode(&input); err != nil { panic(err) }
+  output := []bool{}
+  for _, value := range input { output = append(output, validateEndpoint(value.Field, value.Value) == nil) }
+  if err := json.NewEncoder(os.Stdout).Encode(output); err != nil { panic(err) }
+  _ = fmt.Sprint
+  _ = net.ParseIP
+  _ = url.Parse
+  _ = strconv.Itoa
+  _ = strings.TrimSpace
+}`)
+    const inputs = cases.flatMap(({ field, original, actual }) => [
+      { field, value: original },
+      { field, value: actual },
+    ])
+    const result = spawnSync('go', ['run', join(dir, 'main.go')], {
+      cwd: new URL('../../api/', import.meta.url),
+      input: JSON.stringify(inputs),
+      encoding: 'utf8',
+      env: { ...process.env, GOWORK: 'off' },
+    })
+    assert.equal(result.status, 0, result.stderr)
+    const validity = JSON.parse(result.stdout)
+    for (const [index, item] of cases.entries()) {
+      assert.equal(validity[index * 2], true, `server acceptance precondition: ${item.original}`)
+      assert.equal(validity[index * 2 + 1], true, `server must accept replacement: ${item.actual}`)
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('Local-IP replacement preserves components across the real server accepted URL domain', () => {
+  const ctx = fixture()
+  const originals = [
+    ['', 'https://', ''],
+    ['http://api.example.com:21114/rustdesk?tenant=one#api', 'http://', ':21114/rustdesk?tenant=one#api'],
+    ['https://127.0.0.1:8443/path%2Fpart?q=%23#fragment', 'https://', ':8443/path%2Fpart?q=%23#fragment'],
+    ['HTTPS://api.example.com/path?q=one#fragment', 'HTTPS://', '/path?q=one#fragment'],
+    ['https://api.example.com:/rustdesk?tenant=one#api', 'https://', ':/rustdesk?tenant=one#api'],
+    ['http://[2001:db8::1]:21114/rustdesk?tenant=one#api', 'http://', ':21114/rustdesk?tenant=one#api'],
+    ['https://[fe80::1%25eth0]:/path?q=one#fragment', 'https://', ':/path?q=one#fragment'],
+    ['http://[fe80::1%25eth0]/path?q=one#fragment', 'http://', '/path?q=one#fragment'],
+    ['http://2001:db8::1:21114/rustdesk?tenant=one', 'http://', ':21114/rustdesk?tenant=one'],
+    // Go treats the last numeric segment as a port even without brackets.
+    ['https://2001:db8::1/path?q=one#fragment', 'https://', ':1/path?q=one#fragment'],
+    ['http://2001:db8::/path?q=one#fragment', 'http://', ':/path?q=one#fragment'],
+  ]
+  const cases = originals.flatMap(([original, scheme, suffix]) =>
+    ['10.0.0.5', 'fd00::5'].map(address => {
+      ctx.form.api_server = original
+      const actual = ctx.api.localAddressPrefillValue('api_server', { address })
+      const host = address.includes(':') ? `[${address}]` : address
+      return { original, address, actual, expected: scheme + host + suffix }
+    }))
+  const service = readFileSync(new URL('../../api/service/custom_build_spec.go', import.meta.url), 'utf8')
+  const validator = service.match(/func validateAPIURL\([^]*?\n\}/)
+  assert.ok(validator, 'actual server validator must be extracted')
+  const dir = mkdtempSync(join(process.env.TMPDIR || tmpdir(), 'deskforge-prefill-'))
+  try {
+    writeFileSync(join(dir, 'main.go'), `package main
+import ("encoding/json"; "fmt"; "net/url"; "strings"; "os")
+${validator[0]}
+type Result struct { Valid bool; Hostname string; Port string }
+func main() {
+  var input []string
+  if err := json.NewDecoder(os.Stdin).Decode(&input); err != nil { panic(err) }
+  output := []Result{}
+  for _, value := range input {
+    r := Result{Valid: validateAPIURL("api_server", value) == nil}
+    if parsed, err := url.ParseRequestURI(value); err == nil { r.Hostname = parsed.Hostname(); r.Port = parsed.Port() }
+    output = append(output, r)
+  }
+  if err := json.NewEncoder(os.Stdout).Encode(output); err != nil { panic(err) }
+}`)
+    // Use the API module's Go-version defaults, not standalone-toolchain defaults
+    // (Go 1.26 changed HTTP authority parsing). No production validator copy.
+    const result = spawnSync('go', ['run', join(dir, 'main.go')], {
+      cwd: new URL('../../api/', import.meta.url),
+      input: JSON.stringify(cases.flatMap(c => [c.original, c.actual, c.expected])),
+      encoding: 'utf8', env: { ...process.env, GOWORK: 'off' },
+    })
+    assert.equal(result.status, 0, result.stderr)
+    const oracle = JSON.parse(result.stdout)
+    for (const [index, c] of cases.entries()) {
+      const [before, after, expected] = oracle.slice(index * 3, index * 3 + 3)
+      assert.equal(before.Valid, true, `server acceptance precondition: ${c.original}`)
+      assert.equal(expected.Valid, true, `expected URL must remain server-valid: ${c.expected}`)
+      assert.equal(c.actual, c.expected, `${c.original} -> ${c.address}`)
+      assert.equal(after.Valid, true)
+      assert.equal(after.Hostname, c.address)
+      assert.equal(after.Port, before.Port)
+      for (const field of ['server_ip', 'relay_server']) {
+        assert.equal(ctx.api.localAddressPrefillValue(field, { address: c.address }), c.address)
+      }
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('api_server prefill brackets IPv6 literals so the composed URL passes server validation', async () => {
+  const ctx = fixture()
+  ctx.fetchServerAddresses = async () => ({
+    data: { addresses: [{ interface: 'eth0', address: 'fd00::1', family: 'ipv6' }] },
+  })
+  const candidate = { interface: 'eth0', address: 'fd00::1', family: 'ipv6' }
+  await ctx.api.openLocalAddressPicker('api_server')
+  await ctx.api.useLocalAddress(candidate)
+  // Bracketed literal: https://fd00::1 is deterministically rejected by
+  // validateAPIURL (url.ParseRequestURI "invalid port"), https://[fd00::1] is not.
+  assert.equal(ctx.form.api_server, 'https://[fd00::1]')
+  // Bracketing also preserves scheme, port, and path.
+  ctx.form.api_server = 'http://old-internal:21114/rustdesk'
+  await ctx.api.openLocalAddressPicker('api_server')
+  await ctx.api.useLocalAddress(candidate)
+  assert.equal(ctx.form.api_server, 'http://[fd00::1]:21114/rustdesk')
+  // Host/Relay keep the bare address contract for the same IPv6 candidate.
+  await ctx.api.openLocalAddressPicker('server_ip')
+  await ctx.api.useLocalAddress(ctx.api.localAddressPicker.addresses[0])
+  assert.equal(ctx.form.server_ip, 'fd00::1')
+})
+
+test('overlapping picker opens: the newest request wins and stale responses are ignored', async () => {
+  const ctx = fixture()
+  const pending = []
+  ctx.fetchServerAddresses = () => new Promise((resolve, reject) => { pending.push({ resolve, reject }) })
+  const first = ctx.api.openLocalAddressPicker('server_ip')
+  const second = ctx.api.openLocalAddressPicker('relay_server')
+  assert.equal(ctx.api.localAddressPicker.loading, true)
+  // The first request settles late: it must not overwrite the newer state.
+  pending[0].resolve({ data: { addresses: [{ interface: 'eth0', address: '10.0.0.1', family: 'ipv4' }] } })
+  await first
+  assert.equal(ctx.api.localAddressPicker.loading, true) // newest request still pending
+  assert.equal(ctx.api.localAddressPicker.addresses.length, 0) // stale response ignored
+  assert.equal(ctx.api.localAddressPicker.field, 'relay_server')
+  // The newest request's result wins and clears loading.
+  pending[1].resolve({ data: { addresses: [{ interface: 'eth1', address: '10.0.0.2', family: 'ipv4' }] } })
+  await second
+  assert.equal(ctx.api.localAddressPicker.loading, false)
+  assert.equal(ctx.api.localAddressPicker.addresses.length, 1)
+  assert.equal(ctx.api.localAddressPicker.addresses[0].address, '10.0.0.2')
+})
+
+test('a stale picker failure never surfaces over a newer pending request', async () => {
+  const ctx = fixture()
+  const pending = []
+  ctx.fetchServerAddresses = () => new Promise((resolve, reject) => { pending.push({ resolve, reject }) })
+  const first = ctx.api.openLocalAddressPicker('server_ip')
+  const second = ctx.api.openLocalAddressPicker('api_server')
+  pending[0].reject(new Error('stale failure'))
+  await first
+  assert.equal(ctx.api.localAddressPicker.error, '') // stale failure ignored
+  assert.equal(ctx.api.localAddressPicker.loading, true) // newest request still pending
+  pending[1].resolve({ data: { addresses: [] } })
+  await second
+  assert.equal(ctx.api.localAddressPicker.error, '')
+  assert.equal(ctx.api.localAddressPicker.loading, false)
+})
+
+test('closing the picker invalidates its in-flight request', async () => {
+  // The dialog's close action is wired to the same invalidation path.
+  assert.match(sfc, /@close="closeLocalAddressPicker"/)
+  const ctx = fixture()
+  const pending = []
+  ctx.fetchServerAddresses = () => new Promise((resolve, reject) => { pending.push({ resolve, reject }) })
+  const request = ctx.api.openLocalAddressPicker('server_ip')
+  ctx.api.closeLocalAddressPicker()
+  assert.equal(ctx.api.localAddressPicker.visible, false)
+  pending[0].resolve({ data: { addresses: [{ interface: 'eth0', address: '10.0.0.1', family: 'ipv4' }] } })
+  await request
+  // The late response for the closed dialog is ignored entirely.
+  assert.equal(ctx.api.localAddressPicker.addresses.length, 0)
+  assert.equal(ctx.api.localAddressPicker.error, '')
+})
+
+test('unmount invalidates the picker request through the shared lifecycleGuard', async () => {
+  const ctx = fixture()
+  const pending = []
+  ctx.fetchServerAddresses = () => new Promise((resolve, reject) => { pending.push({ resolve, reject }) })
+  const request = ctx.api.openLocalAddressPicker('server_ip')
+  ctx.api.lifecycleGuard.mounted = false // onUnmounted semantics
+  pending[0].resolve({ data: { addresses: [{ interface: 'eth0', address: '10.0.0.1', family: 'ipv4' }] } })
+  await request
+  assert.equal(ctx.api.localAddressPicker.addresses.length, 0)
+  assert.equal(ctx.api.localAddressPicker.loading, true) // nothing may write for a disposed component
 })

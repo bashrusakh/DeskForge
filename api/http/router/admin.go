@@ -280,6 +280,9 @@ func ConfigBind(rg *gin.RouterGroup) {
 
 	aR.Use(middleware.AdminPrivilege())
 	aR.GET("/all", rs.AllConfig)
+	// Server-side interface enumeration for the Custom Builder address prefill
+	// (issue #82). Admin-only: reports the server's own interface addresses.
+	aR.GET("/server_addresses", rs.ServerAddresses)
 }
 
 /*

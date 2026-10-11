@@ -128,6 +128,16 @@
                         <el-icon aria-hidden="true"><InfoFilled /></el-icon>
                       </button>
                     </el-tooltip>
+                    <el-tooltip :content="T('CustomClientLocalIpHint')" placement="top" :trigger="['hover', 'focus']">
+                      <button
+                        type="button"
+                        class="endpoint-hint-trigger endpoint-hint-trigger--action"
+                        :aria-label="T('CustomClientLocalIpHint')"
+                        @click="openLocalAddressPicker('server_ip')"
+                      >
+                        <el-icon aria-hidden="true"><Location /></el-icon>
+                      </button>
+                    </el-tooltip>
                   </template>
                 </el-input>
               </el-tooltip>
@@ -181,7 +191,20 @@
                   :aria-describedby="isFieldInvalid('api_server') ? fieldErrorId('api_server') : undefined"
                   :validate-event="false"
                   @input="clearFieldError('api_server')"
-                />
+                >
+                  <template #append>
+                    <el-tooltip :content="T('CustomClientLocalIpHint')" placement="top" :trigger="['hover', 'focus']">
+                      <button
+                        type="button"
+                        class="endpoint-hint-trigger endpoint-hint-trigger--action"
+                        :aria-label="T('CustomClientLocalIpHint')"
+                        @click="openLocalAddressPicker('api_server')"
+                      >
+                        <el-icon aria-hidden="true"><Location /></el-icon>
+                      </button>
+                    </el-tooltip>
+                  </template>
+                </el-input>
               </el-tooltip>
               <template #error="{ error }">
                 <span :id="fieldErrorId('api_server')" aria-live="polite">{{ error }}</span>
@@ -207,6 +230,16 @@
                     <el-tooltip :content="T('RelayEndpointHint')" placement="top" :trigger="['hover', 'focus']">
                       <button type="button" class="endpoint-hint-trigger" :aria-label="T('RelayEndpointHint')">
                         <el-icon aria-hidden="true"><InfoFilled /></el-icon>
+                      </button>
+                    </el-tooltip>
+                    <el-tooltip :content="T('CustomClientLocalIpHint')" placement="top" :trigger="['hover', 'focus']">
+                      <button
+                        type="button"
+                        class="endpoint-hint-trigger endpoint-hint-trigger--action"
+                        :aria-label="T('CustomClientLocalIpHint')"
+                        @click="openLocalAddressPicker('relay_server')"
+                      >
+                        <el-icon aria-hidden="true"><Location /></el-icon>
                       </button>
                     </el-tooltip>
                   </template>
@@ -507,6 +540,44 @@
                       v-model:current-page="page"
                       :total="total" />
     </page-section>
+
+    <el-dialog
+      v-model="localAddressPicker.visible"
+      :title="T('CustomClientLocalIpTitle')"
+      width="560px"
+      append-to-body
+      :close-on-click-modal="false"
+      @close="closeLocalAddressPicker"
+    >
+      <p class="local-address-note">{{ T('CustomClientLocalIpNote') }}</p>
+      <div v-if="localAddressPicker.loading" class="local-address-status" aria-busy="true">
+        <el-icon class="is-loading" aria-hidden="true"><Loading /></el-icon>
+      </div>
+      <el-alert
+        v-else-if="localAddressPicker.error"
+        :title="localAddressPicker.error"
+        type="warning"
+        :closable="false"
+      />
+      <p v-else-if="!localAddressPicker.addresses.length" class="local-address-status" role="status">
+        {{ T('CustomClientLocalIpEmpty') }}
+      </p>
+      <ul v-else class="local-address-list">
+        <li v-for="candidate in localAddressPicker.addresses" :key="`${candidate.interface}:${candidate.address}`">
+          <button
+            type="button"
+            class="local-address-option"
+            :aria-label="`${T('CustomClientLocalIpUse')}: ${candidate.address}`"
+            @click="useLocalAddress(candidate)"
+          >
+            <span class="local-address-option__value">{{ candidate.address }}</span>
+            <span class="local-address-option__source">
+              {{ candidate.interface }} · {{ T('CustomClientLocalIpSource') }} · {{ candidate.family === 'ipv4' ? T('CustomClientLocalIpIpv4') : T('CustomClientLocalIpIpv6') }}
+            </span>
+          </button>
+        </li>
+      </ul>
+    </el-dialog>
   </div>
 </template>
 
@@ -514,13 +585,13 @@
 import { defineComponent, ref, reactive, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { list, create, remove, download, getVersions } from '@/api/custom_client'
 import { list as listPresets, create as createPreset, remove as removePreset } from '@/api/custom_preset'
-import { all as fetchConfig } from '@/api/config'
+import { all as fetchConfig, serverAddresses as fetchServerAddresses } from '@/api/config'
 import { upload as uploadFile } from '@/api/file'
 import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { T } from '@/utils/i18n'
 import { downBlob } from '@/utils/file'
-import { InfoFilled, Key, Loading } from '@element-plus/icons-vue'
+import { InfoFilled, Key, Loading, Location } from '@element-plus/icons-vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import PageSection from '@/components/ui/PageSection.vue'
 import DataTable from '@/components/ui/DataTable.vue'
@@ -543,7 +614,7 @@ const extractApiError = (error, fallbackKey) => {
 
 export default defineComponent({
   name: 'CustomClientBuilds',
-  components: { PageHeader, PageSection, DataTable, InfoFilled, Key, Loading },
+  components: { PageHeader, PageSection, DataTable, InfoFilled, Key, Loading, Location },
   setup () {
     const formRef = ref(null)
     const showPermanentPassword = ref(false)
@@ -800,6 +871,96 @@ export default defineComponent({
       clearFieldError('key')
       // The key format is server-owned; only refresh presence/required state.
       syncFieldAria()
+    }
+
+    // --- Local-IP picker (issue #82) ---
+    // Candidates come from the admin-only GET /admin/config/server_addresses:
+    // the server's own interface addresses, enumerated server-side
+    // (api/service/network_addresses.go). Each row is labeled with its source
+    // interface so a Docker bridge/container address is recognizable. Prefill
+    // only — every field stays freely editable after selection.
+    const localAddressPicker = reactive({
+      visible: false,
+      field: '',
+      loading: false,
+      error: '',
+      addresses: [],
+    })
+    const LOCAL_ADDRESS_FIELDS = ['server_ip', 'api_server', 'relay_server']
+    // api_server requires a full URL while interface candidates are bare
+    // addresses. Replace only the host of an existing valid HTTP(S) URL so its
+    // scheme, port, path, and other endpoint components remain intact; an empty
+    // field defaults to https://. Host/Relay retain an existing explicit numeric
+    // port and bracket IPv6 only when adding that port; without a port, candidates
+    // stay bare. Nothing is locked afterwards.
+    const localAddressPrefillValue = (field, candidate) => {
+      const address = candidate?.address || ''
+      if (!address) return address
+      const current = form[field]
+      if (field !== 'api_server') {
+        // Host/Relay accept bare IP/hostname values or host:port endpoints;
+        // an unbracketed IPv6 literal has multiple colons and is not mistaken
+        // for an endpoint port. Keep the existing port text unchanged.
+        const explicitPort = current.match(/^\[[^\]]+\]:([0-9]+)$/)?.[1]
+          || current.match(/^[^:]+:([0-9]+)$/)?.[1]
+        const portNumber = Number(explicitPort)
+        if (!Number.isInteger(portNumber) || portNumber === 0 || portNumber > 65535) return address
+        const host = address.includes(':') && !address.startsWith('[') ? `[${address}]` : address
+        return `${host}:${explicitPort}`
+      }
+      const host = address.includes(':') && !address.startsWith('[') ? `[${address}]` : address
+      // Do not use the browser URL parser here: Go's url.ParseRequestURI accepts
+      // endpoint forms such as scoped IPv6 and an explicit empty port that the
+      // browser normalizes or rejects. This is component surgery, not validation;
+      // retain the raw port suffix and path/query/fragment exactly as entered.
+      const parts = current.match(/^(https?:\/\/)([^/?#]*)([\s\S]*)$/i)
+      if (parts && !parts[2].includes('@')) {
+        // Go's URL.Hostname/Port split at the last colon only if its suffix is
+        // an optional numeric port (including an explicit empty port). This
+        // also covers accepted unbracketed IPv6; colons inside brackets cannot
+        // match because the closing bracket follows them. Keep the raw suffix
+        // rather than serializing a parsed URL and normalizing other components.
+        const port = parts[2].match(/:[0-9]*$/)?.[0] || ''
+        return parts[1] + host + port + parts[3]
+      }
+      return (/^http:\/\//i.test(current) ? 'http://' : 'https://') + host
+    }
+    const openLocalAddressPicker = async (field) => {
+      if (!LOCAL_ADDRESS_FIELDS.includes(field)) return
+      // House lifecycleGuard pattern with one key per request stream: reopening
+      // bumps the generation, so a response from the previous open can never
+      // overwrite the newer one and only the newest request clears `loading`;
+      // the shared `mounted` flag covers unmount.
+      const generation = lifecycleGuard.start('localAddresses')
+      localAddressPicker.field = field
+      localAddressPicker.visible = true
+      localAddressPicker.loading = true
+      localAddressPicker.error = ''
+      localAddressPicker.addresses = []
+      try {
+        const res = await fetchServerAddresses()
+        if (!lifecycleGuard.isCurrent('localAddresses', generation)) return
+        localAddressPicker.addresses = res?.data?.addresses || []
+        localAddressPicker.loading = false
+      } catch (e) {
+        if (!lifecycleGuard.isCurrent('localAddresses', generation)) return
+        localAddressPicker.error = T('CustomClientLocalIpLoadError')
+        localAddressPicker.loading = false
+      }
+    }
+    const useLocalAddress = (candidate) => {
+      const field = localAddressPicker.field
+      if (!LOCAL_ADDRESS_FIELDS.includes(field) || !candidate?.address) return
+      form[field] = localAddressPrefillValue(field, candidate)
+      clearFieldError(field)
+      syncFieldAria()
+      localAddressPicker.visible = false
+    }
+    // Wired to the dialog's @close: closing also invalidates whatever fetch is
+    // still in flight for that dialog so a late response is ignored.
+    const closeLocalAddressPicker = () => {
+      lifecycleGuard.start('localAddresses')
+      localAddressPicker.visible = false
     }
 
     const isFieldInvalid = (field) => Boolean(invalidFields.value[field])
@@ -1311,12 +1472,17 @@ export default defineComponent({
         if (res?.data) {
           // B-016: retain server defaults separately so a partial preset can reset
           // the form and reapply them without overwriting explicit preset fields.
+          // Issue #82 precedence applies ONLY to these defaults: the
+          // env-configured public_* external address wins when set, otherwise
+          // fall back to the operational value (which may legitimately be an
+          // internal/Docker address). key stays operational-only.
+          // applyServerConfigDefaults semantics are unchanged.
           const cfg = res.data
           Object.assign(serverConfigDefaults, {
-            server_ip: cfg.id_server || '',
+            server_ip: cfg.public_id_server || cfg.id_server || '',
             key: cfg.key || '',
-            api_server: cfg.api_server || '',
-            relay_server: cfg.relay_server || '',
+            api_server: cfg.public_api_server || cfg.api_server || '',
+            relay_server: cfg.public_relay_server || cfg.relay_server || '',
           })
           applyServerConfigDefaults()
         }
@@ -1350,6 +1516,7 @@ export default defineComponent({
        clearSavedPresetPassword,
        useServerKey,
        serverConfigDefaults,
+       localAddressPicker, openLocalAddressPicker, useLocalAddress, closeLocalAddressPicker,
       requiredMessage, isRequiredField, fieldInputId, fieldErrorId, isFieldInvalid, serverFieldError, clearFieldError, onHideConnectionManagementChange, onPlatformChange,
     }
   },
@@ -1486,6 +1653,65 @@ export default defineComponent({
   &:hover {
     color: var(--el-color-primary-light-3);
   }
+}
+
+.local-address-note {
+  margin: 0 0 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.5;
+}
+
+.local-address-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  color: var(--el-text-color-secondary);
+}
+
+.local-address-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.local-address-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--el-color-primary);
+    color: var(--el-color-primary);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--el-color-primary);
+    outline-offset: 2px;
+  }
+}
+
+.local-address-option__value {
+  font-weight: 600;
+  font-family: monospace;
+}
+
+.local-address-option__source {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 
 .build-history {

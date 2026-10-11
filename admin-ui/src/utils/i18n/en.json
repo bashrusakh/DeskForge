@@ -95,6 +95,33 @@
   "CustomClientUseServerKey": {
     "One": "Use the server's public key"
   },
+  "CustomClientLocalIpHint": {
+    "One": "Local IP: prefill with one of the server's own interface addresses"
+  },
+  "CustomClientLocalIpTitle": {
+    "One": "Local IP — server interface addresses"
+  },
+  "CustomClientLocalIpNote": {
+    "One": "These are addresses of the server's own network interfaces, resolved server-side. In Docker/NAT setups a bridge or container address may not be reachable from clients, so check the interface name before use. Selecting a row prefills the field and you can keep editing it afterwards. The API Server field keeps its current URL scheme (https:// when empty)."
+  },
+  "CustomClientLocalIpEmpty": {
+    "One": "No usable interface addresses were found on the server."
+  },
+  "CustomClientLocalIpLoadError": {
+    "One": "Could not load the server's interface addresses."
+  },
+  "CustomClientLocalIpSource": {
+    "One": "server interface address"
+  },
+  "CustomClientLocalIpIpv4": {
+    "One": "IPv4"
+  },
+  "CustomClientLocalIpIpv6": {
+    "One": "IPv6"
+  },
+  "CustomClientLocalIpUse": {
+    "One": "Use this address"
+  },
   "ClearSavedPassword": {
     "One": "Clear saved password"
   },

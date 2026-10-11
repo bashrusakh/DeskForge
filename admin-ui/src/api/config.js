@@ -27,3 +27,15 @@ export function all () {
     method: 'get',
   })
 }
+
+export function serverAddresses () {
+  return request({
+    url: '/config/server_addresses',
+    method: 'get',
+    // One localized error indication: the picker shows CustomClientLocalIpLoadError
+    // itself, so the shared interceptor toast is suppressed for this call only
+    // (same house style as getVersions).
+    skipErrorMessage: true,
+    useServerErrorMessage: true,
+  })
+}
