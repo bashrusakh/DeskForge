@@ -89,8 +89,20 @@
   "CustomClientRelayServerInvalidFormat": {
     "One": "中继服务器地址必须是有效的 IP 或主机名，可带端口（例如 relay.example.com 或 1.2.3.4:21117）。"
   },
+  "CustomClientWebsiteUrlInvalidFormat": {
+    "One": "网站 URL 必须是绝对地址，且以 http:// 或 https:// 开头。"
+  },
+  "CustomClientPrivacyPolicyInvalidFormat": {
+    "One": "隐私政策 URL 必须是绝对地址，且以 http:// 或 https:// 开头。"
+  },
   "CustomClientFieldInvalidFormat": {
     "One": "该值对所选的平台而言格式无效。"
+  },
+  "CustomClientFieldIncompatible": {
+    "One": "该值无法与当前需求组合使用。"
+  },
+  "CustomClientPassApproveModeIncompatible": {
+    "One": "隐藏连接管理时，会话审批模式必须为“密码”（无人值守、仅密码配置）。"
   },
   "CustomClientUseServerKey": {
     "One": "使用服务器公钥"
@@ -820,6 +832,27 @@
   },
   "PrivacyScreen": {
     "One": "隐私屏幕 (PNG)"
+  },
+  "WebsiteUrl": {
+    "One": "网站（“关于”页）"
+  },
+  "WebsiteUrlHint": {
+    "One": "显示在客户端“关于”对话框中的网站链接，例如 https://example.com。"
+  },
+  "PrivacyPolicy": {
+    "One": "隐私政策"
+  },
+  "PrivacyPolicyHint": {
+    "One": "隐私政策网页 URL，例如 https://example.com/privacy。这是网页链接，不是隐私屏幕图像。"
+  },
+  "DirectionHint": {
+    "One": "仅入站 (QuickSupport) —— QuickSupport 风格的客户端：允许入站远程支持连接，同时隐藏或禁用对其他设备的常规出站连接。"
+  },
+  "HideConnectionManagementHint": {
+    "One": "隐藏用于入站会话的独立本地连接管理器界面。需要无人值守、仅密码的配置。"
+  },
+  "IncomingOnly": {
+    "One": "仅入站 (QuickSupport)"
   },
   "Upload": {
     "One": "上传"

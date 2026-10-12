@@ -89,8 +89,20 @@
   "CustomClientRelayServerInvalidFormat": {
     "One": "Relay server must be a valid IP address or a host with an optional port (e.g. relay.example.com or 1.2.3.4:21117)."
   },
+  "CustomClientWebsiteUrlInvalidFormat": {
+    "One": "Website URL must be an absolute http:// or https:// URL."
+  },
+  "CustomClientPrivacyPolicyInvalidFormat": {
+    "One": "Privacy policy URL must be an absolute http:// or https:// URL."
+  },
   "CustomClientFieldInvalidFormat": {
     "One": "The value has an invalid format for the selected platform."
+  },
+  "CustomClientFieldIncompatible": {
+    "One": "This value cannot be combined with the current requirements."
+  },
+  "CustomClientPassApproveModeIncompatible": {
+    "One": "Session approval mode must be “Password” when connection management is hidden (unattended, password-only configuration)."
   },
   "CustomClientUseServerKey": {
     "One": "Use the server's public key"
@@ -908,7 +920,7 @@
     "One": "Connection Direction"
   },
   "IncomingOnly": {
-    "One": "Incoming Only"
+    "One": "Incoming Only (QuickSupport)"
   },
   "OutgoingOnly": {
     "One": "Outgoing Only"
@@ -1116,6 +1128,24 @@
   },
   "PrivacyScreen": {
     "One": "Privacy screen (PNG)"
+  },
+  "WebsiteUrl": {
+    "One": "Website (About)"
+  },
+  "WebsiteUrlHint": {
+    "One": "Web link shown in the client's About dialog, e.g. https://example.com."
+  },
+  "PrivacyPolicy": {
+    "One": "Privacy Policy"
+  },
+  "PrivacyPolicyHint": {
+    "One": "Privacy policy web page URL, e.g. https://example.com/privacy. This is a web link, not the Privacy screen image."
+  },
+  "DirectionHint": {
+    "One": "Incoming only (QuickSupport) — a QuickSupport-style client: allows incoming remote support connections while hiding or disabling normal outgoing connections to other devices."
+  },
+  "HideConnectionManagementHint": {
+    "One": "Hides the separate local Connection Manager UI for incoming sessions. Requires an unattended, password-only configuration."
   },
   "Upload": {
     "One": "Upload"

@@ -261,16 +261,82 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <el-row :gutter="20">
+          <el-col :span="8">
+            <el-form-item :label="T('WebsiteUrl')" prop="website_url" :error="serverFieldError('website_url') || undefined">
+              <el-input
+                v-model="form.website_url"
+                placeholder="https://example.com"
+                clearable
+                :id="fieldInputId('website_url')"
+                :aria-required="isRequiredField('website_url')"
+                :aria-invalid="isFieldInvalid('website_url')"
+                :aria-describedby="isFieldInvalid('website_url') ? fieldErrorId('website_url') : undefined"
+                :validate-event="false"
+                @input="clearFieldError('website_url')"
+              >
+                <template #append>
+                  <el-tooltip :content="T('WebsiteUrlHint')" placement="top">
+                    <button type="button" class="endpoint-hint-trigger" :aria-label="T('WebsiteUrlHint')">
+                      <el-icon aria-hidden="true"><InfoFilled /></el-icon>
+                    </button>
+                  </el-tooltip>
+                </template>
+              </el-input>
+              <template #error="{ error }">
+                <span :id="fieldErrorId('website_url')" aria-live="polite">{{ error }}</span>
+              </template>
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item :label="T('PrivacyPolicy')" prop="privacy_policy_url" :error="serverFieldError('privacy_policy_url') || undefined">
+              <el-input
+                v-model="form.privacy_policy_url"
+                placeholder="https://example.com/privacy"
+                clearable
+                :id="fieldInputId('privacy_policy_url')"
+                :aria-required="isRequiredField('privacy_policy_url')"
+                :aria-invalid="isFieldInvalid('privacy_policy_url')"
+                :aria-describedby="isFieldInvalid('privacy_policy_url') ? fieldErrorId('privacy_policy_url') : undefined"
+                :validate-event="false"
+                @input="clearFieldError('privacy_policy_url')"
+              >
+                <template #append>
+                  <el-tooltip :content="T('PrivacyPolicyHint')" placement="top">
+                    <button type="button" class="endpoint-hint-trigger" :aria-label="T('PrivacyPolicyHint')">
+                      <el-icon aria-hidden="true"><InfoFilled /></el-icon>
+                    </button>
+                  </el-tooltip>
+                </template>
+              </el-input>
+              <template #error="{ error }">
+                <span :id="fieldErrorId('privacy_policy_url')" aria-live="polite">{{ error }}</span>
+              </template>
+            </el-form-item>
+          </el-col>
+        </el-row>
 
         <el-divider content-position="left">{{ T('Security') }}</el-divider>
         <el-row :gutter="20">
           <el-col :span="8">
-            <el-form-item :label="T('PasswordApproveMode')">
-              <el-select v-model="form.pass_approve_mode" style="width:100%">
+            <el-form-item :label="T('PasswordApproveMode')" prop="pass_approve_mode" :error="serverFieldError('pass_approve_mode') || undefined">
+              <el-select
+                v-model="form.pass_approve_mode"
+                style="width:100%"
+                :id="fieldInputId('pass_approve_mode')"
+                :aria-required="isRequiredField('pass_approve_mode')"
+                :aria-invalid="isFieldInvalid('pass_approve_mode')"
+                :aria-describedby="isFieldInvalid('pass_approve_mode') ? fieldErrorId('pass_approve_mode') : undefined"
+                :validate-event="false"
+                @change="onApproveModeChange"
+              >
                 <el-option :label="T('Password')" value="password" />
                 <el-option :label="T('Click')" value="click" />
                 <el-option :label="T('PasswordAndClick')" value="password-click" />
               </el-select>
+              <template #error="{ error }">
+                <span :id="fieldErrorId('pass_approve_mode')" aria-live="polite">{{ error }}</span>
+              </template>
             </el-form-item>
           </el-col>
           <el-col :span="8">
@@ -315,7 +381,12 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item :label="T('Direction')">
+            <el-form-item>
+              <template #label>
+                <el-tooltip :content="T('DirectionHint')" placement="top">
+                  <span>{{ T('Direction') }}</span>
+                </el-tooltip>
+              </template>
               <el-select v-model="form.direction" style="width:100%">
                 <el-option :label="T('IncomingOnly')" value="incoming" />
                 <el-option :label="T('OutgoingOnly')" value="outgoing" />
@@ -343,7 +414,7 @@
           <el-col :span="6">
             <el-form-item>
               <template #label>
-                <el-tooltip content="Remove the connection management UI from the client tray/menu" placement="top">
+                <el-tooltip :content="T('HideConnectionManagementHint')" placement="top">
                   <span>{{ T('HideConnectionManagement') }}</span>
                 </el-tooltip>
               </template>
@@ -628,6 +699,8 @@ export default defineComponent({
       relay_server: '',
       company_name: '',
       download_url: '',
+      website_url: '',
+      privacy_policy_url: '',
       direction: 'both',
       pass_approve_mode: 'password-click',
       permanent_password: '',
@@ -730,12 +803,29 @@ export default defineComponent({
       relay_server: 'CustomClientRelayServerInvalidFormat',
       version: 'CustomClientFieldInvalidFormat',
       app_name: 'CustomClientFieldInvalidFormat',
+      website_url: 'CustomClientWebsiteUrlInvalidFormat',
+      privacy_policy_url: 'CustomClientPrivacyPolicyInvalidFormat',
+    }
+    // `incompatible` marks a value that is valid on its own but cannot combine
+    // with the current requirements (hide_cm — see ValidateHiddenConnectionManagement).
+    // Unlike format codes, the remedy is another field's value, so the message
+    // explains the combination rather than the value's format.
+    const serverIncompatibleMessageKeys = {
+      pass_approve_mode: 'CustomClientPassApproveModeIncompatible',
     }
     const serverFieldMessage = (field, code) => {
       if (code === 'required') return requiredMessage(field)
+      if (code === 'incompatible') return T(serverIncompatibleMessageKeys[field] || 'CustomClientFieldIncompatible')
       return T(serverFormatMessageKeys[field] || 'CustomClientFieldInvalidFormat')
     }
     const serverFieldError = (field) => serverFieldErrors.value[field] || ''
+    // Optional fields the form can display server errors for. They are never
+    // locally required (requiredFieldNames), so their errors arrive only from
+    // the create response: URL format codes (website_url/privacy_policy_url)
+    // and the hide_cm/pass_approve_mode compatibility code.
+    const serverErrorFieldNames = [
+      ...requiredFieldNames, 'website_url', 'privacy_policy_url', 'pass_approve_mode',
+    ]
 
     // The requirement inputs (platform, hide_cm — see requiredFieldSet) decide
     // which fields the server requires, so a change to either invalidates any
@@ -746,7 +836,7 @@ export default defineComponent({
       snapshot.platform === form.platform && snapshot.hide_cm === form.hide_cm
 
     // Apply the per-field reasons from a create response. Fields the form can
-    // display (requiredFieldNames) are highlighted; unknown fields are ignored.
+    // display (serverErrorFieldNames) are highlighted; unknown fields are ignored.
     // The server message is the display source (`:error`), while invalidFields
     // keeps ARIA and focus behavior aligned with the existing schema.
     //
@@ -759,7 +849,7 @@ export default defineComponent({
     // value changed are dropped. Without a snapshot the caller is assumed to be
     // applying a response for the current state (legacy/tests).
     const applyServerFieldErrors = async (fields, snapshot) => {
-      const applicable = (fields || []).filter((entry) => requiredFieldNames.includes(entry.field))
+      const applicable = (fields || []).filter((entry) => serverErrorFieldNames.includes(entry.field))
       if (!applicable.length) return false
       if (snapshot && !submittedRequirementInputsMatch(snapshot)) return false
       const current = snapshot
@@ -968,7 +1058,7 @@ export default defineComponent({
     const syncFieldAria = async () => {
       if (typeof document === 'undefined') return
       await nextTick()
-      for (const field of requiredFieldNames) {
+      for (const field of serverErrorFieldNames) {
         const control = document.getElementById(fieldInputId(field))
         if (!control) continue
         const invalid = isFieldInvalid(field)
@@ -996,8 +1086,27 @@ export default defineComponent({
       formRef.value?.clearValidate?.(field)
       syncFieldAria()
     }
+    // The hide_cm compatibility rule is server-owned
+    // (ValidateHiddenConnectionManagement: pass_approve_mode must be
+    // "password"). Surfacing explains the combination through the same
+    // field-error pipeline a create response uses (`incompatible` code path in
+    // serverFieldMessage); approve mode is never switched automatically.
+    const hideCmApproveModeConflict = () =>
+      form.hide_cm && form.pass_approve_mode !== 'password'
+    const surfacePassApproveModeIncompatibility = async () => {
+      const message = serverFieldMessage('pass_approve_mode', 'incompatible')
+      serverFieldErrors.value = { ...serverFieldErrors.value, pass_approve_mode: message }
+      invalidFields.value = { ...invalidFields.value, pass_approve_mode: [message] }
+      await focusFirstInvalid({ pass_approve_mode: [message] })
+    }
     const onHideConnectionManagementChange = () => {
       clearFieldError('permanent_password')
+      clearFieldError('pass_approve_mode')
+      if (hideCmApproveModeConflict()) surfacePassApproveModeIncompatibility()
+    }
+    const onApproveModeChange = () => {
+      clearFieldError('pass_approve_mode')
+      if (hideCmApproveModeConflict()) surfacePassApproveModeIncompatibility()
     }
     const onPlatformChange = () => {
       invalidFields.value = {}
@@ -1006,7 +1115,7 @@ export default defineComponent({
       syncFieldAria()
     }
     const focusFirstInvalid = async (fields) => {
-      const firstInvalidField = requiredFieldNames.find((field) => fields?.[field])
+      const firstInvalidField = serverErrorFieldNames.find((field) => fields?.[field])
       if (!firstInvalidField) return
       await nextTick()
       const field = formRef.value?.fields?.find((entry) => entry.prop === firstInvalidField)
@@ -1185,7 +1294,7 @@ export default defineComponent({
     // Used by loadPresetIntoForm + saveCurrentAsPreset + submitBuild — extending one
     // without the other reintroduces the "saved but not restored" bug (audit §8.9).
     // platform/version/app_name are stored on the preset record itself, not in custom_json.
-    const PRESET_FIELDS = ['server_ip','key','api_server','relay_server','company_name','download_url','direction','pass_approve_mode','permanent_password','deny_lan','enable_direct_ip','auto_close','hide_cm','theme','remove_wallpaper','remove_new_version_notif','permissions_type','enable_keyboard','enable_clipboard','enable_file_transfer','enable_audio','enable_tcp','enable_remote_restart','enable_recording','enable_blocking_input','enable_remote_modi','enable_printer','enable_camera','enable_terminal','cycle_monitor','x_offline','android_app_id','app_icon_url','app_logo_url','privacy_screen_url']
+    const PRESET_FIELDS = ['server_ip','key','api_server','relay_server','company_name','download_url','website_url','privacy_policy_url','direction','pass_approve_mode','permanent_password','deny_lan','enable_direct_ip','auto_close','hide_cm','theme','remove_wallpaper','remove_new_version_notif','permissions_type','enable_keyboard','enable_clipboard','enable_file_transfer','enable_audio','enable_tcp','enable_remote_restart','enable_recording','enable_blocking_input','enable_remote_modi','enable_printer','enable_camera','enable_terminal','cycle_monitor','x_offline','android_app_id','app_icon_url','app_logo_url','privacy_screen_url']
 
     const applyServerConfigDefaults = () => {
       for (const field of Object.keys(serverConfigDefaults)) {
@@ -1517,7 +1626,7 @@ export default defineComponent({
        useServerKey,
        serverConfigDefaults,
        localAddressPicker, openLocalAddressPicker, useLocalAddress, closeLocalAddressPicker,
-      requiredMessage, isRequiredField, fieldInputId, fieldErrorId, isFieldInvalid, serverFieldError, clearFieldError, onHideConnectionManagementChange, onPlatformChange,
+      requiredMessage, isRequiredField, fieldInputId, fieldErrorId, isFieldInvalid, serverFieldError, clearFieldError, onHideConnectionManagementChange, onApproveModeChange, onPlatformChange,
     }
   },
 })

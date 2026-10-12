@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -26,9 +27,15 @@ import (
 )
 
 // DatabaseVersion bumped to 284 to snapshot source-preset provenance
-// (`preset_id`, `preset_name`) on `custom_builds` at create time. Earlier bump:
-// 283 to enforce one CustomPreset per (user_id,
-// name) after an explicit duplicate-data preflight. Earlier bump: 282 in
+// (`preset_id`, `preset_name`) on `custom_builds` at create time and to
+// persist the `website_url` and `privacy_policy_url` custom-client branding
+// fields in canonical custom_json (issue 80). The branding columns live
+// inside custom_json text, so AutoMigrate stays idempotent and no data
+// conversion is required; the branding preflight still fails closed when a
+// stored row already carries a non-string branding value that the stricter
+// typed boundary would later reject. Earlier bump: 283 to enforce one
+// CustomPreset per (user_id, name) after an
+// explicit duplicate-data preflight. Earlier bump: 282 in
 // 2026-08-11 to persist the exact provider
 // resolved SHA captured by immutable workflow-tag approval. Earlier bump: 281
 // persisted workflow-ref provider
@@ -52,9 +59,12 @@ import (
 const (
 	DatabaseVersion                         = 284
 	customPresetUniqueIndexMigrationVersion = 283
+	customBrandingFieldsMigrationVersion    = 284
 )
 
 var errDuplicateCustomPresetNames = errors.New("duplicate custom preset owner/name rows")
+
+var errInvalidCustomBrandingFields = errors.New("non-string custom branding field values")
 
 // @title API
 // @version 1.0
@@ -334,11 +344,70 @@ func migrateSchemaAndRecordVersion(db *gorm.DB, version uint, migrate func(*gorm
 	if err := preflightCustomPresetUniqueIndex(db, version); err != nil {
 		return fmt.Errorf("custom preset unique index preflight: %w", err)
 	}
+	if err := preflightCustomBuildBrandingFields(db, version); err != nil {
+		return fmt.Errorf("custom branding fields preflight: %w", err)
+	}
 	if err := migrate(db); err != nil {
 		return fmt.Errorf("auto migrate: %w", err)
 	}
 	if err := db.Create(&model.Version{Version: version}).Error; err != nil {
 		return fmt.Errorf("record database version %d: %w", version, err)
+	}
+	return nil
+}
+
+// preflightCustomBuildBrandingFields fails closed before the version bump that
+// makes `website_url` and `privacy_policy_url` canonical custom_json fields:
+// an existing row carrying either name with a non-string value (only reachable
+// outside the storage allowlist) would later be rejected by the typed
+// BuildSpec boundary, so migration stops instead of recording success over
+// unusable storage. Encrypted rows remain opaque and are skipped.
+func preflightCustomBuildBrandingFields(db *gorm.DB, version uint) error {
+	if version < customBrandingFieldsMigrationVersion {
+		return nil
+	}
+	type storedCustomJSON struct {
+		Id         uint
+		CustomJson string
+	}
+	for _, table := range []struct {
+		name  string
+		model any
+	}{
+		{name: "custom_builds", model: &model.CustomBuild{}},
+		{name: "custom_presets", model: &model.CustomPreset{}},
+	} {
+		if !db.Migrator().HasTable(table.model) {
+			continue
+		}
+		if !db.Migrator().HasColumn(table.model, "custom_json") {
+			// A table created before custom_json existed carries no such
+			// row data to check; AutoMigrate adds the column afterwards.
+			continue
+		}
+		var rows []storedCustomJSON
+		if err := db.Model(table.model).
+			Select("id", "custom_json").
+			Where("custom_json LIKE ? OR custom_json LIKE ?", "%website_url%", "%privacy_policy_url%").
+			Find(&rows).Error; err != nil {
+			return fmt.Errorf("query stored custom branding values in %s: %w", table.name, err)
+		}
+		for _, row := range rows {
+			if utils.IsEncryptedSecret(row.CustomJson) {
+				continue
+			}
+			var decoded map[string]any
+			if err := json.Unmarshal([]byte(row.CustomJson), &decoded); err != nil {
+				continue
+			}
+			for _, field := range []string{"website_url", "privacy_policy_url"} {
+				if value, ok := decoded[field]; ok && value != nil {
+					if _, isString := value.(string); !isString {
+						return fmt.Errorf("%w: %s row %d field %q", errInvalidCustomBrandingFields, table.name, row.Id, field)
+					}
+				}
+			}
+		}
 	}
 	return nil
 }

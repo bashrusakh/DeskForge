@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -76,8 +77,15 @@ func TestDispatchTestParamsUseTypedConfiguredValues(t *testing.T) {
 		t.Fatalf("normalizeDispatchTestParams() error = %v", err)
 	}
 	customTxt, ok := params["custom_txt"].(service.NormalizedCustomTxt)
-	if !ok || customTxt.Value() != "" || params["server"] != "id.example:21116" || params["key"] != "5Qbwsde3unUcJBtrx9ZkvUmwFNoExHzpryHuPUdqlWM=" || params["app_name"] != "deskforge-smoketest" {
+	if !ok || params["server"] != "id.example:21116" || params["key"] != "5Qbwsde3unUcJBtrx9ZkvUmwFNoExHzpryHuPUdqlWM=" || params["app_name"] != "deskforge-smoketest" {
 		t.Fatalf("normalized smoke-test params = %#v", params)
+	}
+	decoded, err := base64.StdEncoding.DecodeString(customTxt.Value())
+	if err != nil {
+		t.Fatalf("smoke-test custom_txt is not base64: %v", err)
+	}
+	if string(decoded) != `{"app-name":"deskforge-smoketest"}` {
+		t.Fatalf("smoke-test custom_txt = %q, want top-level app-name payload", decoded)
 	}
 
 	for _, test := range []struct {

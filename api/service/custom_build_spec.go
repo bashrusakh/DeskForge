@@ -48,8 +48,9 @@ const (
 )
 
 // BuildRecordContext contains values owned by the build record rather than by
-// custom_json. These values may be sent to the workflow, but never enter the
-// generated custom_.txt mapping.
+// custom_json. These values may be sent to the workflow; AppName is also
+// emitted into the generated custom_.txt as the native top-level "app-name"
+// key, while the other context values never enter that mapping.
 type BuildRecordContext struct {
 	BuildID       uint
 	Platform      string
@@ -64,10 +65,11 @@ type BuildRecordContext struct {
 
 // BuildSpec is the typed form of user-authored Custom Client settings.
 // ServerIP and Key are persisted L1 dispatch fields and are intentionally not
-// serialized into custom_.txt; record context is also excluded from that
-// payload. Persisted-only fields retain form values for preset/build restore,
-// but have no proven native runtime consumer and are never emitted to
-// custom_.txt.
+// serialized into custom_.txt. Persisted-only fields retain form values for
+// preset/build restore; CompanyName/DownloadURL/WebsiteURL/PrivacyPolicyURL
+// and the AppIconURL/AppLogoURL/PrivacyScreenURL image URLs are also delivered
+// into the workflow branding context, but have no proven native runtime
+// consumer inside custom_.txt and are never emitted there.
 type BuildSpec struct {
 	BuildID       uint
 	Platform      Platform
@@ -80,6 +82,8 @@ type BuildSpec struct {
 
 	CompanyName           string
 	DownloadURL           string
+	WebsiteURL            string
+	PrivacyPolicyURL      string
 	RemoveNewVersionNotif *bool
 	CycleMonitor          *bool
 	XOffline              *bool
@@ -140,6 +144,8 @@ var buildSpecStringFields = []buildSpecStringField{
 	{name: "permissions_type", persisted: true, get: func(spec BuildSpec) string { return spec.PermissionsType }, set: func(spec *BuildSpec, value string) { spec.PermissionsType = value }},
 	{name: "company_name", persistedOnly: true, get: func(spec BuildSpec) string { return spec.CompanyName }, set: func(spec *BuildSpec, value string) { spec.CompanyName = value }},
 	{name: "download_url", persistedOnly: true, get: func(spec BuildSpec) string { return spec.DownloadURL }, set: func(spec *BuildSpec, value string) { spec.DownloadURL = value }},
+	{name: "website_url", persistedOnly: true, get: func(spec BuildSpec) string { return spec.WebsiteURL }, set: func(spec *BuildSpec, value string) { spec.WebsiteURL = value }},
+	{name: "privacy_policy_url", persistedOnly: true, get: func(spec BuildSpec) string { return spec.PrivacyPolicyURL }, set: func(spec *BuildSpec, value string) { spec.PrivacyPolicyURL = value }},
 	{name: "android_app_id", persistedOnly: true, get: func(spec BuildSpec) string { return spec.AndroidAppID }, set: func(spec *BuildSpec, value string) { spec.AndroidAppID = value }},
 	{name: "app_icon_url", persistedOnly: true, get: func(spec BuildSpec) string { return spec.AppIconURL }, set: func(spec *BuildSpec, value string) { spec.AppIconURL = value }},
 	{name: "app_logo_url", persistedOnly: true, get: func(spec BuildSpec) string { return spec.AppLogoURL }, set: func(spec *BuildSpec, value string) { spec.AppLogoURL = value }},
@@ -240,6 +246,10 @@ const (
 	FieldCodeInvalidFormat   = "invalid_format"
 	FieldCodeInvalidEndpoint = "invalid_endpoint"
 	FieldCodeNotFound        = "not_found"
+	// FieldCodeIncompatible marks a valid field value that cannot be combined
+	// with the current values of other fields, keeping the rejecting
+	// combination explicit instead of silently switching behavior.
+	FieldCodeIncompatible = "incompatible"
 )
 
 // structuredFieldNames is the closed set of fields the admin UI can localize.
@@ -255,6 +265,9 @@ var structuredFieldNames = map[string]struct{}{
 	"relay_server":       {},
 	"permanent_password": {},
 	"preset_id":          {},
+	"pass_approve_mode":  {},
+	"website_url":        {},
+	"privacy_policy_url": {},
 }
 
 // FieldError attaches a machine-readable field/reason pair to an input
@@ -519,6 +532,29 @@ func NormalizeCustomBuild(raw map[string]any, context BuildRecordContext) (Norma
 			params["android_app_id"] = spec.AndroidAppID
 		}
 	}
+	// Branding context delivered to the workflow like app_name/custom_txt.
+	// Empty values are omitted so the client keeps the corresponding defaults.
+	if spec.CompanyName != "" {
+		params["company_name"] = spec.CompanyName
+	}
+	if spec.DownloadURL != "" {
+		params["download_url"] = spec.DownloadURL
+	}
+	if spec.WebsiteURL != "" {
+		params["website_url"] = spec.WebsiteURL
+	}
+	if spec.PrivacyPolicyURL != "" {
+		params["privacy_policy_url"] = spec.PrivacyPolicyURL
+	}
+	if spec.AppIconURL != "" {
+		params["app_icon_url"] = spec.AppIconURL
+	}
+	if spec.AppLogoURL != "" {
+		params["app_logo_url"] = spec.AppLogoURL
+	}
+	if spec.PrivacyScreenURL != "" {
+		params["privacy_screen_url"] = spec.PrivacyScreenURL
+	}
 	params["custom_txt"] = newNormalizedCustomTxt(customTxt)
 
 	persistedJSON, err := spec.PersistedJSON()
@@ -530,9 +566,11 @@ func NormalizeCustomBuild(raw map[string]any, context BuildRecordContext) (Norma
 
 // PersistedJSON serializes the typed fields used by custom_json, including L1
 // dispatch values needed for preset restore/retry and persisted-only form
-// values without a proven native runtime consumer. Record context, unsupported
-// fields, and raw custom_txt are not included. The custom_.txt encoder has its
-// own explicit native allowlist, so none of the persisted-only fields enter it.
+// values whose native runtime consumers are outside custom_.txt, including the
+// workflow branding image URLs. Record
+// context, unsupported fields, and raw custom_txt are not included. The
+// custom_.txt encoder has its own explicit native allowlist, so none of the
+// persisted-only fields enter it.
 // Non-nil bool pointers are intentionally emitted even when false so authored
 // false remains distinct from omission.
 func (spec BuildSpec) PersistedJSON() (string, error) {
@@ -641,8 +679,14 @@ func parseBuildSpec(raw map[string]any) (BuildSpec, error) {
 	if err := validateAPIURL("api_server", spec.APIServer); err != nil {
 		return BuildSpec{}, NewFieldError("api_server", FieldCodeInvalidFormat, err)
 	}
-	if spec.HideCM != nil && *spec.HideCM && strings.TrimSpace(spec.PermanentPassword) == "" {
-		return BuildSpec{}, NewFieldError("permanent_password", FieldCodeRequired, fmt.Errorf("permanent_password is required when hide_cm is true"))
+	if err := validateAPIURL("website_url", spec.WebsiteURL); err != nil {
+		return BuildSpec{}, NewFieldError("website_url", FieldCodeInvalidFormat, err)
+	}
+	if err := validateAPIURL("privacy_policy_url", spec.PrivacyPolicyURL); err != nil {
+		return BuildSpec{}, NewFieldError("privacy_policy_url", FieldCodeInvalidFormat, err)
+	}
+	if err := validateHideCMCombination(spec); err != nil {
+		return BuildSpec{}, err
 	}
 
 	return spec, nil
@@ -697,8 +741,8 @@ func (spec BuildSpec) hasString(name string) bool {
 	return ok
 }
 
-// EncodeCustomTxt serializes the exact native contract. Password and
-// conn-type are flat; all other options are consumed from one selected
+// EncodeCustomTxt serializes the exact native contract. App-name, password,
+// and conn-type are flat; all other options are consumed from one selected
 // default-settings or override-settings object.
 func EncodeCustomTxt(spec BuildSpec) (string, error) {
 	if err := validateBuildSpec(spec); err != nil {
@@ -706,6 +750,11 @@ func EncodeCustomTxt(spec BuildSpec) (string, error) {
 	}
 
 	config := make(map[string]any)
+	// The native top-level runtime application name read by read_custom_client().
+	// It is owned by the build record, not by custom_json.
+	if spec.AppName != "" {
+		config["app-name"] = spec.AppName
+	}
 	if spec.Direction != "" && spec.Direction != "both" {
 		config["conn-type"] = spec.Direction
 	}
@@ -796,10 +845,12 @@ func EncodeCustomTxt(spec BuildSpec) (string, error) {
 
 // nativeCustomTxt is the typed/native schema boundary for generated
 // custom_.txt. Password is accepted only so it can be removed; it is never
-// included in the public representation. The settings type has its own
-// allowlist so unknown or secret-like fields cannot pass through as raw JSON.
+// included in the public representation. App-name is the non-secret record
+// identity and is preserved. The settings type has its own allowlist so
+// unknown or secret-like fields cannot pass through as raw JSON.
 type nativeCustomTxt struct {
 	ConnType         string                  `json:"conn-type,omitempty"`
+	AppName          string                  `json:"app-name,omitempty"`
 	Password         string                  `json:"password,omitempty"`
 	DefaultSettings  nativeCustomTxtSettings `json:"default-settings,omitempty"`
 	OverrideSettings nativeCustomTxtSettings `json:"override-settings,omitempty"`
@@ -869,10 +920,10 @@ func (s *nativeCustomTxtSettings) UnmarshalJSON(data []byte) error {
 }
 
 // PublicCustomTxt parses generated base64(JSON) custom_.txt content and
-// returns a canonical public variant. It preserves conn-type and allowlisted
-// non-secret L2 settings, while removing password, allow-hide-cm, and
-// verification-method together. Unknown fields fail closed so callers can
-// omit the file instead of exposing opaque private bytes.
+// returns a canonical public variant. It preserves conn-type, app-name, and
+// allowlisted non-secret L2 settings, while removing password,
+// allow-hide-cm, and verification-method together. Unknown fields fail closed
+// so callers can omit the file instead of exposing opaque private bytes.
 func PublicCustomTxt(encoded string) (string, error) {
 	if encoded == "" {
 		return "", errors.New("custom_.txt payload is empty")
@@ -924,10 +975,18 @@ func PublicCustomTxt(encoded string) (string, error) {
 			return "", err
 		}
 	}
+	if native.AppName != "" {
+		if err := ValidateOutputAppName(native.AppName); err != nil {
+			return "", err
+		}
+	}
 
-	public := make(map[string]any, 3)
+	public := make(map[string]any, 4)
 	if native.ConnType != "" {
 		public["conn-type"] = native.ConnType
+	}
+	if native.AppName != "" {
+		public["app-name"] = native.AppName
 	}
 	if len(native.DefaultSettings) > 0 {
 		public["default-settings"] = native.DefaultSettings
@@ -940,6 +999,30 @@ func PublicCustomTxt(encoded string) (string, error) {
 		return "", fmt.Errorf("marshal public custom_.txt JSON: %w", err)
 	}
 	return base64.StdEncoding.EncodeToString(canonical), nil
+}
+
+// validateHideCMCombination enforces the native Hide Connection Management
+// contract at the typed spec boundary: hide_cm=true only has an effect when a
+// permanent password is configured, verification-method becomes
+// use-permanent-password, and the native approve-mode is explicitly
+// "password". An incompatible combination is rejected with an actionable
+// error instead of silently switching the approve mode.
+func validateHideCMCombination(spec BuildSpec) error {
+	if spec.HideCM == nil || !*spec.HideCM {
+		return nil
+	}
+	if strings.TrimSpace(spec.PermanentPassword) == "" {
+		return NewFieldError("permanent_password", FieldCodeRequired, fmt.Errorf("permanent_password is required when hide_cm is true"))
+	}
+	if spec.PassApproveMode == "" {
+		return NewFieldError("pass_approve_mode", FieldCodeIncompatible,
+			fmt.Errorf("pass_approve_mode must be \"password\" when hide_cm is true; hide connection management only takes effect with approve mode \"password\""))
+	}
+	if spec.PassApproveMode != "password" {
+		return NewFieldError("pass_approve_mode", FieldCodeIncompatible,
+			fmt.Errorf("pass_approve_mode %q is incompatible with hide_cm; hide connection management only takes effect with approve mode \"password\"", spec.PassApproveMode))
+	}
+	return nil
 }
 
 func validateBuildSpec(spec BuildSpec) error {
@@ -973,8 +1056,14 @@ func validateBuildSpec(spec BuildSpec) error {
 			return err
 		}
 	}
-	if spec.HideCM != nil && *spec.HideCM && strings.TrimSpace(spec.PermanentPassword) == "" {
-		return NewFieldError("permanent_password", FieldCodeRequired, fmt.Errorf("permanent_password is required when hide_cm is true"))
+	if err := validateHideCMCombination(spec); err != nil {
+		return err
+	}
+	if err := validateAPIURL("website_url", spec.WebsiteURL); err != nil {
+		return NewFieldError("website_url", FieldCodeInvalidFormat, err)
+	}
+	if err := validateAPIURL("privacy_policy_url", spec.PrivacyPolicyURL); err != nil {
+		return NewFieldError("privacy_policy_url", FieldCodeInvalidFormat, err)
 	}
 	if err := validateBuildSpecTransportFields(spec); err != nil {
 		return err
@@ -1153,6 +1242,25 @@ func NormalizeWorkflowDispatchParams(platform string, raw map[string]any) (map[s
 				return nil, err
 			}
 			normalized[name] = integer
+		case "company_name", "download_url", "website_url", "privacy_policy_url",
+			"app_icon_url", "app_logo_url", "privacy_screen_url":
+			// Branding context keys are generated by NormalizeCustomBuild from
+			// the typed spec; forged caller values are validated but never
+			// replaced with provider-derived data. The image-URL values may be
+			// relative upload paths, so no API-URL format rule applies here.
+			stringValue, err := dispatchStringValue(name, value)
+			if err != nil {
+				return nil, err
+			}
+			if err := validateWorkflowValue(name, stringValue); err != nil {
+				return nil, err
+			}
+			if name == "website_url" || name == "privacy_policy_url" {
+				if err := validateAPIURL(name, stringValue); err != nil {
+					return nil, NewFieldError(name, FieldCodeInvalidFormat, err)
+				}
+			}
+			normalized[name] = stringValue
 		case "release_assets":
 			assets, ok := value.([]ReleaseAsset)
 			if !ok {

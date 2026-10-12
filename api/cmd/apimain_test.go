@@ -20,6 +20,84 @@ func (legacyCustomPreset) TableName() string {
 	return "custom_presets"
 }
 
+type legacyCustomPresetWithJSON struct {
+	Id         uint   `gorm:"primaryKey"`
+	UserId     uint   `gorm:"not null"`
+	Name       string `gorm:"size:128;not null"`
+	CustomJson string
+}
+
+func (legacyCustomPresetWithJSON) TableName() string {
+	return "custom_presets"
+}
+
+func TestMigrateSchemaAndRecordVersionRejectsNonStringCustomBrandingFields(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.Version{}, &legacyCustomPresetWithJSON{}); err != nil {
+		t.Fatalf("create legacy tables: %v", err)
+	}
+	if err := db.Create(&legacyCustomPresetWithJSON{UserId: 7, Name: "forged", CustomJson: `{"website_url":123}`}).Error; err != nil {
+		t.Fatalf("seed forged legacy preset: %v", err)
+	}
+
+	migrateCalled := false
+	err = migrateSchemaAndRecordVersion(db, DatabaseVersion, func(db *gorm.DB) error {
+		migrateCalled = true
+		return db.AutoMigrate(&model.CustomPreset{})
+	})
+	if !errors.Is(err, errInvalidCustomBrandingFields) {
+		t.Fatalf("migrateSchemaAndRecordVersion() error = %v, want non-string branding field error", err)
+	}
+	if migrateCalled {
+		t.Fatal("AutoMigrate ran after branding preflight failure")
+	}
+	var count int64
+	if err := db.Model(&model.Version{}).Count(&count).Error; err != nil {
+		t.Fatalf("count database versions: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("database version count = %d, want 0 after branding preflight failure", count)
+	}
+}
+
+func TestMigrateSchemaAndRecordVersionAcceptsStringCustomBrandingFields(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.Version{}, &legacyCustomPresetWithJSON{}); err != nil {
+		t.Fatalf("create legacy tables: %v", err)
+	}
+	if err := db.Create(&legacyCustomPresetWithJSON{
+		UserId:     7,
+		Name:       "branding",
+		CustomJson: `{"website_url":"https://www.example.com","privacy_policy_url":"https://www.example.com/privacy"}`,
+	}).Error; err != nil {
+		t.Fatalf("seed preset: %v", err)
+	}
+	// An opaque secret-bearing row must not block the preflight: it is not a
+	// plain-JSON value and carries no plaintext branding names.
+	if err := db.Create(&legacyCustomPresetWithJSON{UserId: 8, Name: "encrypted", CustomJson: "Salted__opaque-ciphertext"}).Error; err != nil {
+		t.Fatalf("seed encrypted preset: %v", err)
+	}
+
+	if err := migrateSchemaAndRecordVersion(db, DatabaseVersion, func(db *gorm.DB) error {
+		return db.AutoMigrate(&model.CustomPreset{})
+	}); err != nil {
+		t.Fatalf("migrateSchemaAndRecordVersion() error = %v", err)
+	}
+	var versions []model.Version
+	if err := db.Find(&versions).Error; err != nil {
+		t.Fatalf("read database version: %v", err)
+	}
+	if len(versions) != 1 || versions[0].Version != DatabaseVersion {
+		t.Fatalf("database versions = %#v, want one version %d", versions, DatabaseVersion)
+	}
+}
+
 func TestMigrateSchemaAndRecordVersionFailsClosed(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {

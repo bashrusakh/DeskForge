@@ -41,7 +41,7 @@ func TestParsePlatform(t *testing.T) {
 }
 
 func TestPublicCustomTxtRedactsPrivateNativeSettings(t *testing.T) {
-	raw := `{"conn-type":"incoming","password":"password-secret","default-settings":{"allow-hide-cm":"Y","verification-method":"use-permanent-password","enable-audio":"Y","theme":"dark"}}`
+	raw := `{"app-name":"Acme Support","conn-type":"incoming","password":"password-secret","default-settings":{"allow-hide-cm":"Y","verification-method":"use-permanent-password","enable-audio":"Y","theme":"dark"}}`
 	encoded := base64.StdEncoding.EncodeToString([]byte(raw))
 	got, err := PublicCustomTxt(encoded)
 	if err != nil {
@@ -54,6 +54,9 @@ func TestPublicCustomTxtRedactsPrivateNativeSettings(t *testing.T) {
 	var public map[string]any
 	if err := json.Unmarshal(decoded, &public); err != nil {
 		t.Fatalf("public custom_.txt is not client-compatible JSON: %v", err)
+	}
+	if public["app-name"] != "Acme Support" {
+		t.Fatalf("public app-name = %#v, want preserved runtime application identity", public["app-name"])
 	}
 	if public["conn-type"] != "incoming" {
 		t.Fatalf("public conn-type = %#v, want incoming", public["conn-type"])
@@ -90,6 +93,7 @@ func TestPublicCustomTxtFailsClosedForMalformedOrUnsafePayloads(t *testing.T) {
 		{name: "unknown secret field", encoded: base64.StdEncoding.EncodeToString([]byte(`{"token":"token-secret"}`))},
 		{name: "unsafe nested field", encoded: base64.StdEncoding.EncodeToString([]byte(`{"default-settings":{"payload-key":"payload-secret"}}`))},
 		{name: "null nested setting", encoded: base64.StdEncoding.EncodeToString([]byte(`{"default-settings":{"enable-audio":null}}`))},
+		{name: "unknown persisted-only branding field", encoded: base64.StdEncoding.EncodeToString([]byte(`{"company_name":"Acme Ltd"}`))},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			got, err := PublicCustomTxt(test.encoded)
@@ -253,7 +257,7 @@ func TestNormalizeCustomBuildFullNativeMapping(t *testing.T) {
 		"deny_lan":              true,
 		"enable_direct_ip":      false,
 		"auto_close":            true,
-		"hide_cm":               true,
+		"hide_cm":               false,
 		"remove_wallpaper":      true,
 		"enable_remote_modi":    false,
 		"enable_keyboard":       false,
@@ -282,13 +286,14 @@ func TestNormalizeCustomBuildFullNativeMapping(t *testing.T) {
 	}
 	decoded := decodeCustomTxt(t, got.CustomTxt)
 	want := map[string]any{
+		"app-name":  "record-app",
 		"conn-type": "incoming",
 		"password":  "secret",
 		"default-settings": map[string]any{
 			"access-mode":                      "custom",
 			"approve-mode":                     "password-click",
-			"verification-method":              "use-permanent-password",
-			"allow-hide-cm":                    "Y",
+			"verification-method":              "use-both-passwords",
+			"allow-hide-cm":                    "N",
 			"enable-keyboard":                  "N",
 			"enable-clipboard":                 "N",
 			"enable-file-transfer":             "N",
@@ -368,6 +373,9 @@ func TestEncodeCustomTxtSettingsScope(t *testing.T) {
 	if _, ok := decodeCustomTxt(t, encoded)["default-settings"]; !ok {
 		t.Error("ordinary form must default to default-settings")
 	}
+	if _, ok := decodeCustomTxt(t, encoded)["app-name"]; ok {
+		t.Error("no record context means no top-level app-name")
+	}
 }
 
 func TestBuildCustomTxtBooleanSemantics(t *testing.T) {
@@ -433,7 +441,7 @@ func TestBuildCustomTxtOverrideBooleanMatrix(t *testing.T) {
 		{"enable_terminal", "enable-terminal"},
 	}
 	for _, value := range []bool{true, false} {
-		raw := map[string]any{"permanent_password": "secret"}
+		raw := map[string]any{"permanent_password": "secret", "pass_approve_mode": "password"}
 		for _, field := range fields {
 			raw[field.input] = value
 		}
@@ -486,8 +494,28 @@ func TestBuildCustomTxtHideConnectionManagement(t *testing.T) {
 		},
 		{
 			name: "true uses permanent password",
-			raw:  map[string]any{"hide_cm": true, "permanent_password": "secret"},
-			want: map[string]any{"allow-hide-cm": "Y", "verification-method": "use-permanent-password"},
+			raw:  map[string]any{"hide_cm": true, "permanent_password": "secret", "pass_approve_mode": "password"},
+			want: map[string]any{"allow-hide-cm": "Y", "verification-method": "use-permanent-password", "approve-mode": "password"},
+		},
+		{
+			name:    "true with password-click approve mode rejected",
+			raw:     map[string]any{"hide_cm": true, "permanent_password": "secret", "pass_approve_mode": "password-click"},
+			wantErr: true,
+		},
+		{
+			name:    "true with click approve mode rejected",
+			raw:     map[string]any{"hide_cm": true, "permanent_password": "secret", "pass_approve_mode": "click"},
+			wantErr: true,
+		},
+		{
+			name:    "true with both approve mode rejected",
+			raw:     map[string]any{"hide_cm": true, "permanent_password": "secret", "pass_approve_mode": "both"},
+			wantErr: true,
+		},
+		{
+			name:    "true with absent approve mode rejected",
+			raw:     map[string]any{"hide_cm": true, "permanent_password": "secret"},
+			wantErr: true,
 		},
 		{
 			name: "absent emits neither key",
@@ -544,6 +572,7 @@ func TestNormalizeCustomBuildPreservesNonEmptyPermanentPassword(t *testing.T) {
 	normalized, err := NormalizeCustomBuild(map[string]any{
 		"hide_cm":            true,
 		"permanent_password": password,
+		"pass_approve_mode":  "password",
 	}, BuildRecordContext{Platform: "linux", AppName: "rustqs", Version: "1.2.3"})
 	if err != nil {
 		t.Fatalf("NormalizeCustomBuild() error = %v", err)
@@ -838,6 +867,8 @@ func TestCanonicalPersistedPRESETFieldsAndCustomTxtBoundary(t *testing.T) {
 		"relay_server":             "relay.example:21117",
 		"company_name":             "DeskForge",
 		"download_url":             "https://download.example/client",
+		"website_url":              "https://www.example.com",
+		"privacy_policy_url":       "https://www.example.com/privacy",
 		"direction":                "incoming",
 		"pass_approve_mode":        "password-click",
 		"permanent_password":       "secret",
@@ -880,7 +911,8 @@ func TestCanonicalPersistedPRESETFieldsAndCustomTxtBoundary(t *testing.T) {
 		}
 	}
 	for _, key := range []string{
-		"server_ip", "key", "company_name", "download_url", "remove_new_version_notif",
+		"server_ip", "key", "company_name", "download_url", "website_url", "privacy_policy_url",
+		"remove_new_version_notif",
 		"cycle_monitor", "x_offline", "android_app_id", "app_icon_url", "app_logo_url",
 		"privacy_screen_url",
 	} {
@@ -889,10 +921,17 @@ func TestCanonicalPersistedPRESETFieldsAndCustomTxtBoundary(t *testing.T) {
 		}
 	}
 	assertNoKeys(t, decodeCustomTxt(t, got.CustomTxt), []string{
-		"server_ip", "key", "company_name", "download_url", "remove_new_version_notif",
+		"server_ip", "key", "company_name", "download_url", "website_url", "privacy_policy_url", "remove_new_version_notif",
 		"cycle_monitor", "x_offline", "android_app_id", "app_icon_url", "app_logo_url",
 		"privacy_screen_url",
 	})
+	// Persisted-only image-URL branding fields now also dispatch to the
+	// workflow build steps while staying out of custom_.txt.
+	for _, key := range []string{"app_icon_url", "app_logo_url", "privacy_screen_url"} {
+		if got := got.DispatchParams[key]; got != raw[key] {
+			t.Errorf("dispatch[%q] = %v, want %v", key, got, raw[key])
+		}
+	}
 	if got.DispatchParams["server"] != raw["server_ip"] || got.DispatchParams["key"] != raw["key"] {
 		t.Fatalf("dispatch params did not use normalized L1 values: %#v", got.DispatchParams)
 	}
@@ -1001,5 +1040,144 @@ func assertNoLegacyAliases(t *testing.T, value any) {
 		if strings.Contains(typed, "permissions-mode") {
 			t.Errorf("legacy alias leaked into value %q", typed)
 		}
+	}
+}
+
+func TestNormalizeCustomBuildDispatchesBrandingContext(t *testing.T) {
+	normalized, err := NormalizeCustomBuild(map[string]any{
+		"company_name":       "Acme Ltd",
+		"download_url":       "https://download.example/app",
+		"website_url":        "https://www.example.com",
+		"privacy_policy_url": "https://www.example.com/privacy",
+		"app_icon_url":       "/upload/icon.png",
+		"app_logo_url":       "/upload/logo.png",
+		"privacy_screen_url": "/upload/privacy.png",
+		"enable_audio":       true,
+	}, BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"})
+	if err != nil {
+		t.Fatalf("NormalizeCustomBuild() error = %v", err)
+	}
+	for key, want := range map[string]any{
+		"company_name":       "Acme Ltd",
+		"download_url":       "https://download.example/app",
+		"website_url":        "https://www.example.com",
+		"privacy_policy_url": "https://www.example.com/privacy",
+		"app_icon_url":       "/upload/icon.png",
+		"app_logo_url":       "/upload/logo.png",
+		"privacy_screen_url": "/upload/privacy.png",
+	} {
+		if got := normalized.DispatchParams[key]; got != want {
+			t.Errorf("dispatch[%q] = %v, want %q", key, got, want)
+		}
+	}
+
+	// Empty branding values are omitted so provider-side defaults stay intact.
+	empty, err := NormalizeCustomBuild(map[string]any{"enable_audio": true}, BuildRecordContext{
+		Platform: "windows", AppName: "rustqs", Version: "1.2.3",
+	})
+	if err != nil {
+		t.Fatalf("NormalizeCustomBuild() error = %v", err)
+	}
+	for _, key := range []string{"company_name", "download_url", "website_url", "privacy_policy_url", "app_icon_url", "app_logo_url", "privacy_screen_url"} {
+		if _, ok := empty.DispatchParams[key]; ok {
+			t.Errorf("empty branding field %q was emitted to dispatch", key)
+		}
+	}
+
+	// Forged caller values cannot bypass the typed boundary.
+	if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{
+		"company_name": 123,
+	}); err == nil {
+		t.Fatal("NormalizeWorkflowDispatchParams() accepted non-string company_name")
+	}
+	if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{
+		"website_url": "not a url",
+	}); err == nil {
+		t.Fatal("NormalizeWorkflowDispatchParams() accepted invalid website_url")
+	}
+	if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{
+		"app_icon_url": "line\nbreak",
+	}); err == nil {
+		t.Fatal("NormalizeWorkflowDispatchParams() accepted unsafe app_icon_url")
+	}
+
+	providerParams, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), normalized.DispatchParams)
+	if err != nil {
+		t.Fatalf("NormalizeWorkflowDispatchParams() rejected typed branding params: %v", err)
+	}
+	for key, want := range map[string]any{
+		"company_name":       "Acme Ltd",
+		"website_url":        "https://www.example.com",
+		"privacy_policy_url": "https://www.example.com/privacy",
+		"app_icon_url":       "/upload/icon.png",
+		"app_logo_url":       "/upload/logo.png",
+		"privacy_screen_url": "/upload/privacy.png",
+	} {
+		if got := providerParams[key]; got != want {
+			t.Errorf("provider params[%q] = %v, want %q", key, got, want)
+		}
+	}
+}
+
+func TestHideCmIncompatibleApproveModeIsExplicitClientError(t *testing.T) {
+	for _, approve := range []string{"", "password-click", "click", "both"} {
+		t.Run("approve="+approve, func(t *testing.T) {
+			raw := `{"hide_cm":true,"permanent_password":"secret"`
+			if approve != "" {
+				raw += `,"pass_approve_mode":"` + approve + `"`
+			}
+			raw += `}`
+			err := ValidateCustomBuildInput("windows", raw, "rustqs", "1.2.3")
+			if !IsClientValidationError(err) {
+				t.Fatalf("ValidateCustomBuildInput() error = %v, want ClientValidationError", err)
+			}
+			field, code, ok := FieldErrorMetadata(err)
+			if !ok || field != "pass_approve_mode" || code != FieldCodeIncompatible {
+				t.Fatalf("FieldErrorMetadata() = (%q, %q, %v), want pass_approve_mode/%s", field, code, ok, FieldCodeIncompatible)
+			}
+		})
+	}
+}
+
+func TestNormalizeCustomBuildBrandFieldsPresetRestoreRoundTrip(t *testing.T) {
+	first, err := NormalizeCustomBuild(map[string]any{
+		"server_ip":                "id.example:21116",
+		"key":                      validRustDeskPublicKey,
+		"company_name":             "Acme Ltd",
+		"download_url":             "https://download.example/app",
+		"website_url":              "https://www.example.com",
+		"privacy_policy_url":       "https://www.example.com/privacy",
+		"hide_cm":                  true,
+		"permanent_password":       "secret",
+		"pass_approve_mode":        "password",
+		"remove_new_version_notif": true,
+	}, BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"})
+	if err != nil {
+		t.Fatalf("NormalizeCustomBuild() error = %v", err)
+	}
+
+	// Preset restore/rebuild path: the persisted form restores the same spec.
+	restored, err := NormalizeCustomBuildJSON(first.PersistedJSON, BuildRecordContext{
+		Platform: "windows", AppName: "rustqs", Version: "1.2.3",
+	})
+	if err != nil {
+		t.Fatalf("NormalizeCustomBuildJSON(persisted) error = %v", err)
+	}
+	if restored.CustomTxt != first.CustomTxt {
+		t.Error("restored custom_txt differs from the original build")
+	}
+	if got, want := restored.DispatchParams, first.DispatchParams; len(got) != len(want) {
+		t.Fatalf("restored dispatch params = %#v, want %#v", got, want)
+	} else {
+		for key, wantValue := range want {
+			if gotValue, ok := got[key]; !ok || !reflect.DeepEqual(gotValue, wantValue) {
+				t.Errorf("restored dispatch[%q] = %#v, want %#v", key, gotValue, wantValue)
+			}
+		}
+	}
+
+	// New branding fields that were unknown before 284 keep failing closed.
+	if _, err := NormalizeCustomBuildJSON(`{"website_url":123}`, BuildRecordContext{Platform: "windows", AppName: "rustqs"}); err == nil {
+		t.Fatal("NormalizeCustomBuildJSON() accepted non-string website_url")
 	}
 }

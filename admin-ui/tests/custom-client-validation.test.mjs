@@ -773,10 +773,18 @@ test('ARIA reflects server field errors without changing required policy', async
 })
 
 test('every displayable field binds the server error to its form item', () => {
-  for (const field of ['platform', 'version', 'app_name', 'server_ip', 'key', 'api_server', 'relay_server', 'permanent_password']) {
+  for (const field of ['platform', 'version', 'app_name', 'server_ip', 'key', 'api_server', 'relay_server',
+    'permanent_password', 'pass_approve_mode', 'website_url', 'privacy_policy_url']) {
+    // Both halves of the contract: `:error` renders the server message via the
+    // form item's documented display source, and `prop` registers the item with
+    // the form so focusFirstInvalid can reach it.
     assert.ok(
       sfc.includes(`serverFieldError('${field}')`),
       `field ${field} must bind :error to the server message`
+    )
+    assert.ok(
+      sfc.includes(`prop="${field}"`),
+      `field ${field} must register prop= on its form item`
     )
   }
 })
