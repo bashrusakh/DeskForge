@@ -1,17 +1,198 @@
+<!-- generated-by: repo-docs-sync; file: CONTRIBUTING.md -->
+
 # Contributing to DeskForge
 
-## Branch model
+## Project Context
+Repository: `bashrusakh/DeskForge` — default branch: `main` — observed commit: `9017b71340563bced7ea6571f271087ceb4d692c`.
 
-`main` is the protected default branch:
+Project purpose: Not recorded in the collected context.
 
-- direct push is **disabled** (force-pushes and branch deletion too)
-- every change goes through a Pull Request
-- 0 approving reviews required (solo-maintainer setup) — open + merge in one click
-- admin can temporarily lift the rule via GitHub UI for emergency hotfixes
+Facts not found in the repository context:
+- testing: Detailed test commands beyond those in build\_test workflow not observed
 
-This protects against accidental `git push` to the wrong branch and gives a clean
-history of "what landed when".
+Facts the repository does not support:
+- policy.version\_file: no version source-of-truth file documented
 
+## Branch Model
+Use this stable policy:
+- `main` is the protected default branch when it is the repository default branch.
+- If the repository default branch has another name, treat that default branch as protected.
+- Direct push to the default branch is disabled.
+- Force-pushes and branch deletion on protected branches are disabled.
+- Every change goes through a Pull Request.
+- One approving review is required when the repository policy requires review.
+- Emergency hotfixes may temporarily change branch protection only via GitHub UI/admin action.
+- This protects against accidental pushes to the wrong branch and keeps a clean history.
+
+## Workflow
+```bash
+git checkout main
+git pull --ff-only
+git checkout -b feature/short-description
+# or fix/, chore/, docs/
+# edit, commit, validate
+git push -u origin feature/short-description
+gh pr create --fill
+```
+Replace `main` with the repository's actual default branch when needed. Merge happens after review and CI/checks pass.
+
+Branch prefixes:
+- `feature/` — new functionality
+- `fix/` — bug fix
+- `chore/` — tooling, dependencies, CI, or refactor without behavior change
+- `docs/` — documentation only
+
+## Getting Started
+Prerequisites observed for repository commands:
+- `docker/Dockerfile` (listed by build-docker)
+- `docker/docker-compose.yml` (listed by build-docker)
+- `server/Cargo.toml` (listed by build-rust)
+- `api/go.mod` (listed by build-go)
+- `admin-ui/package.json` (listed by dev-admin-ui)
+
+## Dev Commands
+**build-docker** — working directory `.`; prerequisites: `docker/Dockerfile`, `docker/docker-compose.yml`; evidence: `AGENTS.md`
+
+```bash
+docker compose build
+```
+
+**run-docker** — working directory `docker`; prerequisites: `docker/docker-compose.yml`; evidence: `AGENTS.md`
+
+```bash
+docker compose up -d
+```
+
+**build-rust** — working directory `server`; prerequisites: `server/Cargo.toml`; evidence: `AGENTS.md`
+
+```bash
+cargo build --release && cargo clippy && cargo test
+```
+
+**build-go** — working directory `api`; prerequisites: `api/go.mod`; evidence: `AGENTS.md`
+
+```bash
+go build -o release/apimain cmd/apimain.go
+```
+
+**dev-admin-ui** — working directory `admin-ui`; prerequisites: `admin-ui/package.json`; evidence: `AGENTS.md`
+
+```bash
+npm install && npm run dev && npm run build
+```
+
+## Before Submitting
+**go-tests** — working directory `api`; prerequisites: `api/go.mod`; evidence: `.github/workflows/build_test.yml`
+
+```bash
+go test ./... && go vet ./...
+```
+- Check git status.
+- Review the full diff.
+- Make sure only intended files are included.
+- Run the narrowest relevant tests/checks from repository evidence.
+- If tests cannot run, report the exact command and exact error.
+
+## Code Style
+
+- Keep changes focused.
+- Prefer clear, simple code over clever code.
+- Avoid unrelated refactors.
+- Do not silently change behavior outside the task scope.
+- Reuse existing project style and architecture.
+- Do not introduce new dependencies, frameworks, tooling, generated files, or large artifacts unless the change explicitly requires it.
+- Do not commit secrets, tokens, credentials, local-only config, logs, cache files, benchmark outputs, or generated runtime artifacts unless explicitly required.
+
+## Commit Messages
+Use this convention:
+```text
+scope: short imperative summary
+```
+- English only.
+- Lowercase scope.
+- Short imperative summary.
+- No trailing period.
+- Keep each commit specific to one logical change.
+Observed commit-message scopes:
+- `admin-ui` — Vue admin panel changes (commit messages)
+- `api` — Go backend/API changes (commit messages)
+- `server` — Rust hbbs/hbbr changes (commit messages)
+- `docker` — Dockerfile / compose changes (commit messages)
+- `workflow` — GitHub Actions / CI changes (commit messages)
+- `docs` — Documentation updates (commit messages)
+
+## Pull Requests
+PR titles should be concise and describe the change. When the repository uses scoped PR titles, use:
+```text
+scope: short imperative summary
+```
+The PR body should include, at minimum:
+- summary
+- why/context
+- validation/tests run
+- screenshots or manual verification steps for UI changes, when relevant
+
+This PR guidance is independent of the commit-message convention above. Do not import an unrelated title grammar or require a scope when the repository does not use scoped PR titles.
+Do not mark work as ready if checks are unknown or failing.
+AI-assisted contributions should include a co-author trailer when appropriate:
+
+```text
+Co-Authored-By: opencode
+```
+
+## Triage labels
+Labels are triage metadata, not a correctness determination or merge approval. Apply the correct type label when opening an issue or pull request, subject to available labels.
+
+Apply exactly one type label:
+- `bug` — something is broken or behaves incorrectly.
+- `enhancement` — new functionality or a feature request.
+- `documentation` — documentation-only change or doc issue.
+- `question` — a usage or support question.
+- `refactor` — internal change with no behavior change.
+- `ci` — CI, build, or tooling change.
+
+Automation-managed labels (do not apply by hand): `needs-info` and `duplicate`.
+`confirmed` is not automation-managed. It records human or verification-owned confirmation and must be applied only by maintainers or authorized triagers after relevant verification.
+`priority-*` and other operational labels are maintainer-owned.
+
+## Issues
+Before opening an issue, verify the problem against the current code/state and search existing issues if possible. Describe facts only; do not invent root cause. If root cause is only suspected, label it as a hypothesis. Include the category's relevant reproduction, expected behavior, affected component, environment/version, evidence, and constraints. Keep the issue actionable and specific.
+
+## Project Policies
+
+### Licensing
+The combined DeskForge distribution is identified as AGPL‑3.0 for the covered work; separate components retain upstream MIT or other notices as documented in LICENSE and NOTICE.
+evidence: `README.md`
+
+## Documentation Maintenance
+Project structure changes over time. AGENTS.md and CONTRIBUTING.md are guidance, not a replacement for checking the actual tree. If project structure, commands, architecture, test flow, contribution rules, release flow, or important entry points change, update the relevant Markdown file in the same PR. Keep docs useful and stable, and keep Markdown updates small. Do not duplicate the full file tree unless the project explicitly requires it. Describe stable conventions and important entry points, not every file.
+
+## Releases
+Every release must include meaningful release notes. Before publishing, check previous notes, review changes since the previous tag, and use actual commits, merged PRs, linked issues, and final code changes. Do not invent features, fixes, impact, or breaking changes. Call out user-visible, breaking, migration, compatibility, security, benchmark/default, and data-format changes when relevant. If a release is created automatically by GitHub Actions, its body must still be reviewed and updated before completion. A GitHub Release with an empty, placeholder, too thin, or unreviewed auto-generated-only body is considered unfinished, even if the tag and assets were created successfully. Before marking release work as done, verify the GitHub Release page contains the correct tag, title, body, and assets.
+
+## Project Structure
+Components and important paths observed in the repository:
+- **server** — Rust hbbs/hbbr server code (paths: `server/Cargo.toml`; evidence: `server/Cargo.toml`)
+- **api** — Go REST API source (paths: `api/go.mod`; evidence: `api/go.mod`)
+- **admin-ui** — Vue 3 admin panel code (paths: `admin-ui/package.json`; evidence: `admin-ui/package.json`)
+- **docker** — Docker build definition for combined image (paths: `docker/Dockerfile`; evidence: `docker/Dockerfile`)
+- **rdgen** — Python/Django reference workflow generator (paths: `rdgen/Dockerfile`; evidence: `rdgen/Dockerfile`)
+- **libs/hbb\_common** — Shared Rust library used by server (paths: `server/Cargo.toml`; evidence: `server/Cargo.toml`)
+
+## Security and Runtime Notes
+Runtime environments: Not recorded in the collected context.
+
+Security notes: Not found in repository.
+
+## Questions / Support
+Not found in repository.
+
+## License
+`LICENSE` is present in the repository.
+
+## Preserved from previous CONTRIBUTING
+
+<!-- carry-forward: bashrusakh/DeskForge@9017b71340563bced7ea6571f271087ceb4d692c; section: Workflow -->
 ## Workflow
 
 ```bash
@@ -39,46 +220,7 @@ Branch prefixes (loose convention, not enforced):
 | `chore/` | tooling, deps, CI, refactor without behavior change |
 | `docs/` | docs only |
 
-## Commit messages
-
-Commits should use one standard template.
-
-Template:
-
-```text
-<scope>: <imperative summary>
-```
-
-Rules:
-
-- English only
-- lowercase scope
-- short imperative summary
-- no trailing period
-- keep it specific to one logical change
-
-Preferred scopes are based on the touched area:
-
-| Scope | When |
-|---|---|
-| `admin-ui` | Vue admin panel changes |
-| `api` | Go backend/API changes |
-| `server` | Rust hbbs/hbbr changes |
-| `docker` | Dockerfiles / compose |
-| `workflow` | GitHub Actions / CI |
-| `docs` | docs only |
-| `fix(<area>)` | focused bug fix when that reads better |
-
-Examples:
-
-```text
-admin-ui: migrate remaining tables to DataTable
-docker: fix build-win copy paths
-api: add nocache middleware for /admin/*
-fix(custom-client): enforce hostname-only server_ip
-docs: clarify L2 custom_.txt flow
-```
-
+<!-- carry-forward: bashrusakh/DeskForge@9017b71340563bced7ea6571f271087ceb4d692c; section: Pull Request titles -->
 ## Pull Request titles
 
 Pull Request titles should follow the same template as commit messages.
@@ -109,31 +251,7 @@ Co-author trailers welcome when AI agents contributed:
 Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
-## Triage labels
-
-Labels are the source of truth for triage. Apply the correct label when you open an
-issue or pull request; triage automation only verifies labels and fills gaps — it does
-not overwrite a correct one.
-
-Apply exactly one **type** label:
-
-| Label | Use for |
-| --- | --- |
-| `bug` | Something is broken or behaves incorrectly. |
-| `enhancement` | New functionality or a feature request. |
-| `documentation` | Documentation-only change or doc issue. |
-| `question` | A usage or support question. |
-| `refactor` | Internal change with no behavior change. |
-| `ci` | CI, build, or tooling change. |
-
-Automation-managed labels (do not apply by hand):
-
-- `needs-info` — required information is missing from the report.
-- `confirmed` — the report has been reproduced and validated.
-- `duplicate` — already tracked by another issue or pull request.
-
-`priority-*` and other operational labels are maintainer-owned.
-
+<!-- carry-forward: bashrusakh/DeskForge@9017b71340563bced7ea6571f271087ceb4d692c; section: License & attribution (AGPL-3.0) -->
 ## License & attribution (AGPL-3.0)
 
 The covered DeskForge distribution is identified as **AGPL-3.0** because `server/` is
@@ -150,6 +268,7 @@ When you add new files derived from upstream sources:
 
 See [NOTICE](NOTICE) for the full list of bundled components and their copyrights.
 
+<!-- carry-forward: bashrusakh/DeskForge@9017b71340563bced7ea6571f271087ceb4d692c; section: Local development -->
 ## Local development
 
 Working tree is **Windows-friendly** (LF/CRLF auto-conversion). If you want
@@ -180,6 +299,8 @@ the earlier workflow-approval migration. Live provider execution remains unverif
 Migration evidence is SQLite-only; MySQL/PostgreSQL migration/read/write coverage
 remains unverified.
 
+<!-- carry-forward: bashrusakh/DeskForge@9017b71340563bced7ea6571f271087ceb4d692c; section: What goes where -->
+<!-- carry-forward-stale: references manifest-absent path(s): Dockerfile -->
 ## What goes where
 
 | Directory | What |
