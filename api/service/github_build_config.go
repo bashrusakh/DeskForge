@@ -866,6 +866,8 @@ func GithubSafeErrorMessage(err error) string {
 			return "GitHub access was denied; verify the PAT permissions and repository access"
 		case http.StatusNotFound:
 			return "GitHub repository or workflow resource was not found; verify the repository name and PAT access"
+		case http.StatusUnprocessableEntity:
+			return "GitHub rejected the dispatch request as invalid"
 		default:
 			if apiErr.Retryable {
 				return "GitHub provider is temporarily unavailable or rate-limited; retry shortly"
@@ -1110,8 +1112,10 @@ func (s *GithubBuildConfigService) DispatchBuild(ctx context.Context, c *model.G
 	}
 	body := map[string]any{
 		// The resolved SHA is used by readiness and polling, not as this selector.
-		"ref":                dispatchRef,
-		"return_run_details": true,
+		// No return_run_details field: GitHub retired it from workflow_dispatch
+		// (2026-03-10 API breaking change) and 422-rejects requests that still
+		// send it. The dispatch now always returns HTTP 200 with run details.
+		"ref": dispatchRef,
 		"inputs": map[string]string{
 			"enc_payload":  enc,
 			"workflow_sha": identity.WorkflowSHA,

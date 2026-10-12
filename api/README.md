@@ -264,9 +264,12 @@ tests.
 
 This policy is a provider-boundary contract, not live-provider evidence: the
 worktree has focused fake-transport coverage but no live GitHub/provider
-approval, dispatch, run, or artifact pass. Dispatch requires the provider's
-exact HTTP 200 run-details response with `return_run_details=true`; a standard
-204 response and latest-run inference are unsupported. The local pending →
+approval, dispatch, run, or artifact pass. Dispatch sends only the `ref` and
+required `inputs`. GitHub retired the `return_run_details` dispatch parameter
+(2026-03-10 API breaking change) and always returns an exact HTTP 200
+run-details response now; requests that still send the retired parameter are
+422-rejected. A standard 204 response and latest-run inference remain
+unsupported. The local pending →
 building identity write is atomic, but there is no durable outbox or distributed
 lease coordinating provider dispatch with that database write. A provider
 dispatch can therefore succeed while the local write fails; no end-to-end
