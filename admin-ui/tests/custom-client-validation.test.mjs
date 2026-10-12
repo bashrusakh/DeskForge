@@ -137,13 +137,14 @@ function fixture(platform = 'linux') {
   vm.createContext(context)
   vm.runInContext(between('    const requiredFieldNames', '    const useServerKey') +
     between('    const useServerKey', '    const isFieldInvalid') +
-    between('    const isFieldInvalid', '    const validateBuildForm') +
+    between('    const isFieldInvalid', '    const resetFormFields') +
     // Real lifecycleGuard (house per-key generation pattern) so the picker's
     // race-guard logic is exercised as implemented, not as a copy.
     between('    const requestGenerations = Object.create(null)', '    // B-017: при silent=true') + `
     lifecycleGuard.mounted = true;
     globalThis.api = { rules, requiredFieldSet, invalidFields, serverFieldErrors,
       serverFieldError, serverFieldMessage, applyServerFieldErrors,
+      applyUploadFieldError, validateBuildForm,
       snapshotSubmittedFields, isSubmittedSnapshotCurrent, reportCreateBuildFailure,
       useServerKey, isFieldInvalid, isRequiredField, clearFieldError, syncFieldAria,
       localAddressPicker, openLocalAddressPicker, useLocalAddress, closeLocalAddressPicker,
@@ -498,6 +499,30 @@ test('server field errors map to localized per-field messages and invalidFields'
   // invalidFields follows the existing highlight/ARIA schema.
   assert.deepEqual(Object.keys(ctx.api.invalidFields.value).sort(), ['api_server', 'key', 'server_ip'])
   assert.equal(ctx.api.isFieldInvalid('server_ip'), true)
+})
+
+test('an active image-upload error is preserved by validateBuildForm and blocks submit', async () => {
+  // F-1: validateBuildForm wipes serverFieldErrors/invalidFields before
+  // formRef.validate, but image fields are optional with no rules and the
+  // create response carries no per-field codes for them, so a client-side
+  // guard error (e.g. >5 MB / non-PNG / non-square icon) would be dropped at
+  // submit and the build would proceed with the rejected/old branding value.
+  // The real implementation must keep the inline error visible, block submit,
+  // and self-clear once the user fixes or edits the field (applyUploadFieldError
+  // consumers clear the error on a new attempt or on input).
+  const ctx = fixture('windows')
+  ctx.formRef.value = { validate: async () => true, fields: [], scrollToField: () => {} }
+  ctx.api.applyUploadFieldError('app_icon_url', 'ImageFieldSizeError')
+  const ok = await ctx.api.validateBuildForm()
+  assert.equal(ok, false, 'submit must stay blocked while an image-upload error is active')
+  assert.equal(ctx.api.serverFieldError('app_icon_url'), 'ImageFieldSizeError', 'inline error must remain displayed at submit')
+  assert.equal(ctx.api.isFieldInvalid('app_icon_url'), true, 'ARIA must keep the field marked invalid')
+  // Once the field is fixed (uploadImage/input clears the error), submit passes
+  // and the plain wipe still clears every remaining error map.
+  ctx.api.clearFieldError('app_icon_url')
+  assert.equal(await ctx.api.validateBuildForm(), true)
+  assert.equal(ctx.api.serverFieldError('app_icon_url'), '')
+  assert.deepEqual(Object.keys(ctx.api.serverFieldErrors.value), [])
 })
 
 test('unknown or non-displayable server fields are ignored', async () => {

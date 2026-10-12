@@ -471,8 +471,18 @@
         <el-divider content-position="left">{{ T('Branding') }}</el-divider>
         <el-row :gutter="20">
           <el-col :span="8">
-            <el-form-item :label="T('AppIcon')">
-              <el-input v-model="form.app_icon_url" placeholder="/upload/20260101/icon.png" clearable>
+            <el-form-item :label="T('AppIcon')" prop="app_icon_url" :error="serverFieldError('app_icon_url') || undefined">
+              <el-input
+                v-model="form.app_icon_url"
+                placeholder="/upload/20260101/icon.png"
+                clearable
+                :id="fieldInputId('app_icon_url')"
+                :aria-required="isRequiredField('app_icon_url')"
+                :aria-invalid="isFieldInvalid('app_icon_url')"
+                :aria-describedby="isFieldInvalid('app_icon_url') ? fieldErrorId('app_icon_url') : undefined"
+                :validate-event="false"
+                @input="clearFieldError('app_icon_url')"
+              >
                 <template #append>
                   <el-tooltip :content="T('AppIconHint')" placement="top">
                     <button type="button" class="endpoint-hint-trigger" :aria-label="T('AppIconHint')">
@@ -484,11 +494,25 @@
                   </el-upload>
                 </template>
               </el-input>
+              <div class="image-field-note">{{ T('ImageFieldNoteIcon') }}</div>
+              <template #error="{ error }">
+                <span :id="fieldErrorId('app_icon_url')" aria-live="polite">{{ error }}</span>
+              </template>
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item :label="T('AppLogo')">
-              <el-input v-model="form.app_logo_url" placeholder="/upload/20260101/logo.png" clearable>
+            <el-form-item :label="T('AppLogo')" prop="app_logo_url" :error="serverFieldError('app_logo_url') || undefined">
+              <el-input
+                v-model="form.app_logo_url"
+                placeholder="/upload/20260101/logo.png"
+                clearable
+                :id="fieldInputId('app_logo_url')"
+                :aria-required="isRequiredField('app_logo_url')"
+                :aria-invalid="isFieldInvalid('app_logo_url')"
+                :aria-describedby="isFieldInvalid('app_logo_url') ? fieldErrorId('app_logo_url') : undefined"
+                :validate-event="false"
+                @input="clearFieldError('app_logo_url')"
+              >
                 <template #append>
                   <el-tooltip :content="T('AppLogoHint')" placement="top">
                     <button type="button" class="endpoint-hint-trigger" :aria-label="T('AppLogoHint')">
@@ -500,11 +524,25 @@
                   </el-upload>
                 </template>
               </el-input>
+              <div class="image-field-note">{{ T('ImageFieldNoteLogo') }}</div>
+              <template #error="{ error }">
+                <span :id="fieldErrorId('app_logo_url')" aria-live="polite">{{ error }}</span>
+              </template>
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item :label="T('PrivacyScreen')">
-              <el-input v-model="form.privacy_screen_url" placeholder="/upload/20260101/privacy.png" clearable>
+            <el-form-item :label="T('PrivacyScreen')" prop="privacy_screen_url" :error="serverFieldError('privacy_screen_url') || undefined">
+              <el-input
+                v-model="form.privacy_screen_url"
+                placeholder="/upload/20260101/privacy.png"
+                clearable
+                :id="fieldInputId('privacy_screen_url')"
+                :aria-required="isRequiredField('privacy_screen_url')"
+                :aria-invalid="isFieldInvalid('privacy_screen_url')"
+                :aria-describedby="isFieldInvalid('privacy_screen_url') ? fieldErrorId('privacy_screen_url') : undefined"
+                :validate-event="false"
+                @input="clearFieldError('privacy_screen_url')"
+              >
                 <template #append>
                   <el-tooltip :content="T('PrivacyScreenHint')" placement="top">
                     <button type="button" class="endpoint-hint-trigger" :aria-label="T('PrivacyScreenHint')">
@@ -516,6 +554,10 @@
                   </el-upload>
                 </template>
               </el-input>
+              <div class="image-field-note">{{ T('ImageFieldNoteScreen') }}</div>
+              <template #error="{ error }">
+                <span :id="fieldErrorId('privacy_screen_url')" aria-live="polite">{{ error }}</span>
+              </template>
             </el-form-item>
           </el-col>
         </el-row>
@@ -840,7 +882,100 @@ export default defineComponent({
     // and the hide_cm/pass_approve_mode compatibility code.
     const serverErrorFieldNames = [
       ...requiredFieldNames, 'website_url', 'privacy_policy_url', 'pass_approve_mode',
+      // Image branding fields: no local format rules, but upload rejections and
+      // server create-response reasons for them are displayed inline.
+      'app_icon_url', 'app_logo_url', 'privacy_screen_url',
     ]
+
+    // --- Image-field upload guard ---
+    // The upload endpoint (/admin/file/upload) accepts PNG only, up to 5 MB by
+    // actual bytes (api/http/controller/admin/file.go). Guard the selection
+    // client-side so the obvious rejections never leave the browser, and map a
+    // server-side rejection (a concurrent editor can consume the whole cap) to
+    // the same per-field inline error instead of only a global toast.
+    const IMAGE_UPLOAD_FIELDS = ['app_icon_url', 'app_logo_url', 'privacy_screen_url']
+    const IMAGE_UPLOAD_MAX_BYTES = 5 * 1024 * 1024
+    const applyUploadFieldError = (field, message) => {
+      if (!IMAGE_UPLOAD_FIELDS.includes(field)) return
+      serverFieldErrors.value = { ...serverFieldErrors.value, [field]: message }
+      invalidFields.value = { ...invalidFields.value, [field]: [message] }
+      syncFieldAria()
+    }
+    // Classifies a rejected upload envelope/HTTP error into a localized inline
+    // message. The two known server rejections use fixed English strings
+    // ("file too large (max 5 MB)", "only PNG files allowed"); matching them
+    // keeps the field error consistent with the client-side guard messages.
+    const uploadRejectionMessage = (e) => {
+      const raw = Number.isInteger(e?.code) ? e?.message : e?.response?.data?.message
+      const text = typeof raw === 'string' ? raw : ''
+      if (/file too large/i.test(text)) return T('ImageFieldSizeError')
+      if (/only PNG/i.test(text)) return T('ImageFieldPngOnlyError')
+      return T('ImageFieldUploadFailedError')
+    }
+    // Decodes a selected File cheaply to check icon geometry. Resolves null
+    // when the bytes are not a decodable image. Never called for pasted URLs.
+    const readImageDimensions = (file) => new Promise((resolve) => {
+      const url = URL.createObjectURL(file)
+      const image = new Image()
+      image.onload = () => {
+        URL.revokeObjectURL(url)
+        resolve({ width: image.naturalWidth, height: image.naturalHeight })
+      }
+      image.onerror = () => {
+        URL.revokeObjectURL(url)
+        resolve(null)
+      }
+      image.src = url
+    })
+    const uploadImage = async (opts, field) => {
+      if (!IMAGE_UPLOAD_FIELDS.includes(field)) return
+      const file = opts?.file
+      if (!file) return
+      clearFieldError(field)
+      if (file.type !== 'image/png' && !file.name.toLowerCase().endsWith('.png')) {
+        applyUploadFieldError(field, T('ImageFieldPngOnlyError'))
+        return
+      }
+      if (file.size > IMAGE_UPLOAD_MAX_BYTES) {
+        applyUploadFieldError(field, T('ImageFieldSizeError'))
+        return
+      }
+      if (field === 'app_icon_url') {
+        const dimensions = await readImageDimensions(file)
+        if (!dimensions) {
+          applyUploadFieldError(field, T('ImageFieldNotImageError'))
+          return
+        }
+        if (dimensions.width !== dimensions.height || dimensions.width < 16) {
+          applyUploadFieldError(field, T('ImageFieldSquareError'))
+          return
+        }
+      }
+      try {
+        const fd = new FormData()
+        fd.append('file', file)
+        const res = await uploadFile(fd)
+        if (res?.data?.url) {
+          form[field] = res.data.url
+          ElMessage.success(T('OperationSuccess'))
+        } else {
+          applyUploadFieldError(field, T('ImageFieldUploadFailedError'))
+        }
+      } catch (e) {
+        // The request is configured with skipErrorMessage, so the interceptor
+        // does not toast here: the field inline error below is the only
+        // failure surface. Unexpected non-axios failures are still logged.
+        const isInterceptorHandledFailure = axios.isAxiosError(e)
+          || Boolean(e?.response || e?.request)
+          || (Number.isInteger(e?.code) && e.code !== 0)
+        if (isInterceptorHandledFailure) {
+          applyUploadFieldError(field, uploadRejectionMessage(e))
+        } else {
+          applyUploadFieldError(field, T('ImageFieldUploadFailedError'))
+          console.error(e)
+        }
+      }
+    }
 
     // The requirement inputs (platform, hide_cm — see requiredFieldSet) decide
     // which fields the server requires, so a change to either invalidates any
@@ -1141,6 +1276,20 @@ export default defineComponent({
     }
     const validateBuildForm = async () => {
       if (!formRef.value) return false
+      // An active image-upload error (client-side guard or a rejected upload
+      // response, applied by applyUploadFieldError) is invisible to
+      // formRef.validate: image fields are optional with no rules and the
+      // create response carries no per-field codes for them, so the plain wipe
+      // below would drop the inline error and submit with branding silently
+      // dropped. Snapshot the upload-field messages and, while one is active,
+      // block submit and keep it displayed either way; both display paths are
+      // self-clearing (input @input / uploadImage on a new attempt), so an
+      // error reaching submit is current for the value being sent.
+      const activeUploadMessages = Object.fromEntries(
+        IMAGE_UPLOAD_FIELDS
+          .filter((field) => serverFieldErrors.value[field])
+          .map((field) => [field, serverFieldErrors.value[field]]),
+      )
       invalidFields.value = {}
       serverFieldErrors.value = {}
       const valid = await formRef.value.validate().catch(async (fields) => {
@@ -1148,6 +1297,20 @@ export default defineComponent({
         await focusFirstInvalid(fields)
         return false
       })
+      // serverFieldErrors stores the display message, invalidFields the
+      // message array — same shapes the wipe just reset them to.
+      if (Object.keys(activeUploadMessages).length) {
+        serverFieldErrors.value = { ...serverFieldErrors.value, ...activeUploadMessages }
+        invalidFields.value = {
+          ...invalidFields.value,
+          ...Object.fromEntries(Object.entries(activeUploadMessages).map(([field, message]) => [field, [message]])),
+        }
+        // Schema validation already focused its own first invalid field on
+        // failure; focus the upload error only when the schema itself passed.
+        if (valid !== false) await focusFirstInvalid(activeUploadMessages)
+        syncFieldAria()
+        return false
+      }
       return valid !== false
     }
     const canPreservePresetPassword = (presetName) =>
@@ -1409,31 +1572,6 @@ export default defineComponent({
       } catch (e) {
         // Errors are toasted globally by the axios interceptor; just log here.
         if (e !== 'cancel') console.error(e)
-      }
-    }
-
-    const uploadImage = async (opts, field) => {
-      try {
-        const file = opts.file
-        if (!file) return
-        if (file.type !== 'image/png' && !file.name.toLowerCase().endsWith('.png')) {
-          ElMessage.error('PNG only')
-          return
-        }
-        const fd = new FormData()
-        fd.append('file', file)
-        const res = await uploadFile(fd)
-        if (res?.data?.url) {
-          form[field] = res.data.url
-          ElMessage.success(T('OperationSuccess'))
-        } else {
-          throw new Error('Upload response did not include a URL')
-        }
-      } catch (e) {
-        const isInterceptorHandledFailure = axios.isAxiosError(e)
-          || Boolean(e?.response || e?.request)
-          || (Number.isInteger(e?.code) && e.code !== 0)
-        if (!isInterceptorHandledFailure) ElMessage.error('Upload failed')
       }
     }
 
@@ -1777,6 +1915,16 @@ export default defineComponent({
   &:hover {
     color: var(--el-color-primary-light-3);
   }
+}
+
+// Permanent under-input fact line for the image fields; follows the muted
+// secondary-text convention (.local-address-option__source). Deliberately not
+// red: it is guidance, not a validation state — errors render in #error.
+.image-field-note {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--el-text-color-secondary);
 }
 
 .local-address-note {

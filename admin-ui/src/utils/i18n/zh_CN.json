@@ -828,19 +828,43 @@
     "One": "应用图标 (PNG)"
   },
   "AppIconHint": {
-    "One": "PNG，正方形，16×16 到 4096×4096，通过公共 URL 不超过 10 MB（“上传”按钮本身仅接受最大 5 MB 的文件），8 位非交错。大于 256×256 的正方形会自动缩放为 256×256 以用作 Windows 图标。取值必须是公网可访问的绝对 http(s) 地址；通过“上传”按钮上传的文件以服务器相对路径引用，DeskForge 在调度构建时会根据部署的 API 服务器地址解析出完整 URL。"
+    "One": "源文件最大 4096×4096，8 位非交错。粘贴的取值必须是公网可访问的绝对 http(s) 地址；通过“上传”按钮上传的文件以服务器相对路径引用，DeskForge 在调度构建时会根据部署的 API 服务器地址解析出完整 URL。"
   },
   "AppLogo": {
     "One": "应用 Logo (PNG)"
   },
   "AppLogoHint": {
-    "One": "PNG，最大 4096×4096，通过公共 URL 不超过 10 MB（“上传”按钮本身仅接受最大 5 MB 的文件），8 位非交错。客户端渲染 Logo 时限制为 300×60——建议文件不超过 300×60。取值必须是公网可访问的绝对 http(s) 地址；通过“上传”按钮上传的文件以服务器相对路径引用，DeskForge 在调度构建时会根据部署的 API 服务器地址解析出完整 URL。"
+    "One": "源文件最大 4096×4096，8 位非交错。粘贴的取值必须是公网可访问的绝对 http(s) 地址；通过“上传”按钮上传的文件以服务器相对路径引用，DeskForge 在调度构建时会根据部署的 API 服务器地址解析出完整 URL。"
   },
   "PrivacyScreen": {
     "One": "隐私屏幕 (PNG)"
   },
   "PrivacyScreenHint": {
-    "One": "PNG，最大 4096×4096，通过公共 URL 不超过 20 MB（“上传”按钮本身仅接受最大 5 MB 的文件），8 位非交错。隐私模式激活时全屏显示。取值必须是公网可访问的绝对 http(s) 地址；通过“上传”按钮上传的文件以服务器相对路径引用，DeskForge 在调度构建时会根据部署的 API 服务器地址解析出完整 URL。"
+    "One": "源文件最大 4096×4096，8 位非交错。粘贴的取值必须是公网可访问的绝对 http(s) 地址；通过“上传”按钮上传的文件以服务器相对路径引用，DeskForge 在调度构建时会根据部署的 API 服务器地址解析出完整 URL。"
+  },
+  "ImageFieldNoteIcon": {
+    "One": "PNG，正方形 16×16 起，ICO 会缩至 256×256 · 上传 ≤5 MB · URL ≤10 MB"
+  },
+  "ImageFieldNoteLogo": {
+    "One": "PNG · 渲染 ≤300×60 · 上传 ≤5 MB · URL ≤10 MB"
+  },
+  "ImageFieldNoteScreen": {
+    "One": "PNG · 全屏 · 上传 ≤5 MB · URL ≤20 MB"
+  },
+  "ImageFieldPngOnlyError": {
+    "One": "仅支持 PNG 图片"
+  },
+  "ImageFieldSizeError": {
+    "One": "文件超过 5 MB 上传限制"
+  },
+  "ImageFieldSquareError": {
+    "One": "图标必须是至少 16×16 的正方形 PNG"
+  },
+  "ImageFieldNotImageError": {
+    "One": "文件无法作为图像读取"
+  },
+  "ImageFieldUploadFailedError": {
+    "One": "上传失败"
   },
   "WebsiteUrl": {
     "One": "网站（“关于”页）"
