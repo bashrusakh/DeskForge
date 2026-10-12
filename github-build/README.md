@@ -10,10 +10,13 @@ execution details; this directory does not define or deploy them.
 
 The dispatch contract under test sends only the `ref` selector and required `inputs`
 (no `return_run_details` — GitHub retired that parameter in the 2026-03-10 API
-breaking-change set and 422-rejects requests that still send it) and accepts only
-an exact HTTP 200 run-details response containing the provider run identity. Standard
-204 is intentionally unsupported because it does not provide an accepted exact run
-correlation. Local fake-transport/static checks cover this contract; no normal GitHub
+breaking-change set and 422-rejects requests that still send it) and pins the
+dispatch request to the `X-GitHub-Api-Version: 2026-03-10` version (the client-wide
+pin stays `2022-11-28`), under which the response must be an exact HTTP 200
+run-details response containing the provider run identity. Under the pinned legacy
+version the dispatch still behaves legacy 204, which is intentionally unsupported
+because it does not provide an accepted exact run correlation.
+Local fake-transport/static checks cover this contract; no normal GitHub
 dispatch, poll, or download operation is verified.
 
 The legacy compatibility ref `rustqs/workflows` is retained for read-only

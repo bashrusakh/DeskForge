@@ -273,6 +273,19 @@ func decryptPayloadCBC(key, iv, ciphertext []byte) ([]byte, error) {
 
 const githubAPI = "https://api.github.com"
 
+// ghDefaultAPIVersion pins the client-wide REST API version contract.
+const ghDefaultAPIVersion = "2022-11-28"
+
+// ghWorkflowDispatchAPIVersion overrides the pinned version for the single
+// workflow_dispatch POST. GitHub's 2026-03-10 breaking change retired
+// return_run_details (422 for requests that still send it) and changed a
+// standard dispatch response from 204 to 200 with run details
+// (workflow_run_id, run_url, html_url). The pinned pre-2026 version still
+// behaves legacy-204, which cannot satisfy the run-details contract, so the
+// dispatch request is pinned to the new version while every other GitHub
+// request keeps ghDefaultAPIVersion.
+const ghWorkflowDispatchAPIVersion = "2026-03-10"
+
 const (
 	githubErrorBodyLimit = 4 << 10
 	githubJSONBodyLimit  = 4 << 20
@@ -562,6 +575,12 @@ func safeGithubURL(raw string) bool {
 // конфига. Если body == nil — GET; иначе — JSON-кодируется и Content-Type
 // выставляется автоматически. Таймаут контролируется через ctx вызывающего.
 func (s *GithubBuildConfigService) ghReq(ctx context.Context, c *model.GithubBuildConfig, method, path string, body any, expected ...int) (*http.Response, error) {
+	return s.ghReqVersioned(ctx, c, method, path, body, ghDefaultAPIVersion, expected...)
+}
+
+// ghReqVersioned is ghReq with an explicit X-GitHub-Api-Version override for
+// the one request; all other callers keep the pinned default version.
+func (s *GithubBuildConfigService) ghReqVersioned(ctx context.Context, c *model.GithubBuildConfig, method, path string, body any, apiVersion string, expected ...int) (*http.Response, error) {
 	if c == nil {
 		return nil, errors.New("GitHub build config is missing")
 	}
@@ -584,7 +603,7 @@ func (s *GithubBuildConfigService) ghReq(ctx context.Context, c *model.GithubBui
 		req.Header.Set("Authorization", "Bearer "+c.Token)
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	req.Header.Set("X-GitHub-Api-Version", apiVersion)
 	if br != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -1114,7 +1133,9 @@ func (s *GithubBuildConfigService) DispatchBuild(ctx context.Context, c *model.G
 		// The resolved SHA is used by readiness and polling, not as this selector.
 		// No return_run_details field: GitHub retired it from workflow_dispatch
 		// (2026-03-10 API breaking change) and 422-rejects requests that still
-		// send it. The dispatch now always returns HTTP 200 with run details.
+		// send it. The 2026-03-10 dispatch returns HTTP 200 with run details;
+		// the pinned legacy version cannot satisfy this contract (legacy 204),
+		// so this single request overrides the client-wide API-version pin below.
 		"ref": dispatchRef,
 		"inputs": map[string]string{
 			"enc_payload":  enc,
@@ -1125,7 +1146,7 @@ func (s *GithubBuildConfigService) DispatchBuild(ctx context.Context, c *model.G
 	if err != nil {
 		return nil, err
 	}
-	resp, err := s.ghReq(ctx, c, "POST", path, body, http.StatusOK)
+	resp, err := s.ghReqVersioned(ctx, c, "POST", path, body, ghWorkflowDispatchAPIVersion, http.StatusOK)
 	if err != nil {
 		var apiErr *GithubAPIError
 		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNoContent {

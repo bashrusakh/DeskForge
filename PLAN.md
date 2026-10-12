@@ -16,10 +16,13 @@
 > production capability admitted by the API gate; Linux/Android remain gated pending
 > PR11 evidence. The dispatch contract under test sends only the `ref` selector
 > and required `inputs` — GitHub retired `return_run_details` (2026-03-10 API
-> breaking change) and always returns an exact HTTP 200 run-details response
-> containing the run identity; requests that still send the retired parameter
-> are 422-rejected. Standard 204 is intentionally unsupported because it cannot
-> correlate the exact run. No normal GitHub operation is verified. The Go API owns
+> breaking change) and returns an exact HTTP 200 run-details response
+> containing the run identity when the dispatch request pins the
+> `X-GitHub-Api-Version: 2026-03-10` version (the client-wide pin stays
+> `2022-11-28`, and under it the dispatch still behaves legacy 204); requests
+> that still send the retired parameter are 422-rejected. Standard 204 is
+> intentionally unsupported because it cannot correlate the exact run. No
+> normal GitHub operation is verified. The Go API owns
 > port 21114; Rust services use 21115–21119, with relay WebSocket on 21119; current
 > production Compose exposure remains
 > 21114–21118. No live provider run or clean-environment build proof is claimed.
@@ -149,7 +152,10 @@ require the key, and a resave with the key encrypts legacy plaintext values.
 
 Focused fake-transport and SQLite checks do not prove live GitHub/provider
 approval, dispatch, polling, or artifact delivery. Dispatch requires the exact
-HTTP 200 run-details contract and sends only the ref/inputs body (GitHub retired
+HTTP 200 run-details contract, pins the dispatch request to the
+`X-GitHub-Api-Version: 2026-03-10` version (the client-wide pin stays
+`2022-11-28`; under the legacy version the dispatch still behaves legacy 204),
+and sends only the ref/inputs body (GitHub retired
 `return_run_details` in the 2026-03-10 API breaking change set); a standard 204 or
 latest-run inference is unsupported. The local identity write is atomic, but no durable outbox
 or distributed lease makes provider dispatch plus the database write one atomic

@@ -297,6 +297,12 @@ func TestDispatchBuildOmitsRetiredReturnRunDetailsAndUsesExact200RunDetails(t *t
 		if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 			return nil, fmt.Errorf("decode request: %w", err)
 		}
+		// The dispatch must pin the workflow API version: under the pinned
+		// legacy version GitHub still responds legacy 204 without run details,
+		// which cannot satisfy the run-details contract.
+		if req.Header.Get("X-GitHub-Api-Version") != ghWorkflowDispatchAPIVersion {
+			return githubResponse(http.StatusUnprocessableEntity, `{"message":"dispatch did not pin the workflow API version"}`, nil), nil
+		}
 		// GitHub retired return_run_details from workflow_dispatch and
 		// 422-rejects requests that still send it (2026-03-10 breaking change).
 		if _, retired := payload["return_run_details"]; retired {
