@@ -484,6 +484,7 @@
                 :link-placeholder="T('ImageAttachLinkPlaceholder')"
                 :clear-label="T('ImageAttachClear')"
                 :preview-empty-label="T('ImageAttachPreviewEmpty')"
+                :range-hint="T('ImageRangeIcon')"
                 :note-text="T('ImageFieldNoteIcon')"
                 @input="clearFieldError('app_icon_url')"
               />
@@ -505,6 +506,7 @@
                 :link-placeholder="T('ImageAttachLinkPlaceholder')"
                 :clear-label="T('ImageAttachClear')"
                 :preview-empty-label="T('ImageAttachPreviewEmpty')"
+                :range-hint="T('ImageRangeLogo')"
                 :note-text="T('ImageFieldNoteLogo')"
                 @input="clearFieldError('app_logo_url')"
               />
@@ -526,6 +528,7 @@
                 :link-placeholder="T('ImageAttachLinkPlaceholder')"
                 :clear-label="T('ImageAttachClear')"
                 :preview-empty-label="T('ImageAttachPreviewEmpty')"
+                :range-hint="T('ImageRangeScreen')"
                 :note-text="T('ImageFieldNoteScreen')"
                 @input="clearFieldError('privacy_screen_url')"
               />

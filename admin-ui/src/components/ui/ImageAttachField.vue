@@ -35,7 +35,15 @@
         :validate-event="false"
         @update:model-value="onInputValue"
         @input="onInputEvent"
-      />
+      >
+        <template v-if="rangeHint" #suffix>
+          <el-tooltip :content="rangeHint" placement="top" popper-class="image-attach-field-hint-popper">
+            <button type="button" class="image-attach-field__hint" :aria-label="rangeHint">
+              <el-icon aria-hidden="true"><InfoFilled /></el-icon>
+            </button>
+          </el-tooltip>
+        </template>
+      </el-input>
       <div class="image-attach-field__note">{{ noteText }}</div>
     </div>
   </div>
@@ -43,7 +51,7 @@
 
 <script setup>
 import { ref, watch } from 'vue'
-import { Close, Picture } from '@element-plus/icons-vue'
+import { Close, InfoFilled, Picture } from '@element-plus/icons-vue'
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
@@ -56,6 +64,9 @@ const props = defineProps({
   linkPlaceholder: { type: String, default: '' },
   clearLabel: { type: String, default: '' },
   previewEmptyLabel: { type: String, default: '' },
+  // Allowed-range hover text (variants/limits). Required format lives in the
+  // permanent note below the input; mechanics live in the section note.
+  rangeHint: { type: String, default: '' },
   // Upload submission stays in the owning view: the file flows back through
   // this handler into the existing guard/inline-error pipeline untouched.
   uploadRequest: { type: Function, default: () => {} },
@@ -86,6 +97,10 @@ const onInputEvent = (value) => {
 </script>
 
 <style scoped lang="scss">
+:global(.image-attach-field-hint-popper) {
+  max-width: 320px;
+}
+
 .image-attach-field {
   display: flex;
   align-items: flex-start;
@@ -165,5 +180,24 @@ const onInputEvent = (value) => {
   font-size: 12px;
   line-height: 1.5;
   color: var(--el-text-color-secondary);
+}
+
+// Small in-input info trigger for the allowed-range tooltip; mirrors the
+// endpoint-hint-trigger convention (transparent, help cursor, visible focus).
+.image-attach-field__hint {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: help;
+  font: inherit;
+
+  &:focus-visible {
+    outline: 2px solid var(--el-color-primary);
+    outline-offset: 2px;
+  }
 }
 </style>

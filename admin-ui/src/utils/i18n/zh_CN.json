@@ -849,13 +849,22 @@
     "One": "隐私屏幕 (PNG)"
   },
   "ImageFieldNoteIcon": {
-    "One": "PNG，正方形 16×16–4096×4096，ICO 会缩至 256×256 · 上传 ≤5 MB · URL ≤10 MB"
+    "One": "要求：PNG，正方形；建议 256×256（最小 16×16）"
   },
   "ImageFieldNoteLogo": {
-    "One": "PNG ≤4096×4096 · 渲染 ≤300×60 · 上传 ≤5 MB · URL ≤10 MB"
+    "One": "要求：PNG；建议 ≤300×60（渲染不超过此宽度）"
   },
   "ImageFieldNoteScreen": {
-    "One": "PNG ≤4096×4096 · 全屏 · 上传 ≤5 MB · URL ≤20 MB"
+    "One": "要求：PNG（全屏显示）"
+  },
+  "ImageRangeIcon": {
+    "One": "允许：正方形 16×16–4096×4096；大于 256×256 会缩至 256 用作 Windows 图标；文件 ≤5 MB，链接 ≤10 MB"
+  },
+  "ImageRangeLogo": {
+    "One": "允许：PNG 最大 4096×4096；文件 ≤5 MB，链接 ≤10 MB"
+  },
+  "ImageRangeScreen": {
+    "One": "允许：PNG 最大 4096×4096；文件 ≤5 MB，链接 ≤20 MB"
   },
   "ImageFieldPngOnlyError": {
     "One": "仅支持 PNG 图片"
