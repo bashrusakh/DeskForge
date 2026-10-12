@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"rustdesk-server/api/config"
 )
 
 func TestParsePlatform(t *testing.T) {
@@ -1044,6 +1046,9 @@ func assertNoLegacyAliases(t *testing.T, value any) {
 }
 
 func TestNormalizeCustomBuildDispatchesBrandingContext(t *testing.T) {
+	// Without a configured api-server base, server-relative image values are
+	// passed through unchanged; the fork build workflow rejects them itself.
+	setBrandingBaseForTest(t, "")
 	normalized, err := NormalizeCustomBuild(map[string]any{
 		"company_name":       "Acme Ltd",
 		"download_url":       "https://download.example/app",
@@ -1117,6 +1122,93 @@ func TestNormalizeCustomBuildDispatchesBrandingContext(t *testing.T) {
 			t.Errorf("provider params[%q] = %v, want %q", key, got, want)
 		}
 	}
+
+	// With a configured api-server base, server-relative image values are
+	// absolutized in the dispatch payload so the fork workflow can fetch them;
+	// persisted custom_json keeps the stored relative value.
+	setBrandingBaseForTest(t, "https://api.example.com")
+	relative, err := NormalizeCustomBuild(map[string]any{
+		"app_icon_url":       "/upload/icon.png",
+		"app_logo_url":       "/upload/logo.png",
+		"privacy_screen_url": "/upload/privacy.png",
+	}, BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"})
+	if err != nil {
+		t.Fatalf("NormalizeCustomBuild() with configured base error = %v", err)
+	}
+	for key, want := range map[string]string{
+		// Persisted custom_json keeps the stored relative value; only the
+		// dispatch payload is absolutized.
+		"app_icon_url":       "/upload/icon.png",
+		"app_logo_url":       "/upload/logo.png",
+		"privacy_screen_url": "/upload/privacy.png",
+	} {
+		if got := relative.DispatchParams[key]; got != "https://api.example.com"+want {
+			t.Errorf("dispatch[%q] = %v, want %q", key, got, "https://api.example.com"+want)
+		}
+	}
+	for key, want := range map[string]string{
+		"app_icon_url":       "/upload/icon.png",
+		"app_logo_url":       "/upload/logo.png",
+		"privacy_screen_url": "/upload/privacy.png",
+	} {
+		if got := decodeJSON(t, relative.PersistedJSON)[key]; got != want {
+			t.Errorf("persisted[%q] = %v, want the stored relative value %q", key, got, want)
+		}
+	}
+
+	// Already-absolute http(s) values stay untouched.
+	absolute, err := NormalizeCustomBuild(map[string]any{
+		"app_icon_url": "https://files.example/upload/icon.png",
+	}, BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"})
+	if err != nil {
+		t.Fatalf("NormalizeCustomBuild() with absolute image URL error = %v", err)
+	}
+	if got := absolute.DispatchParams["app_icon_url"]; got != "https://files.example/upload/icon.png" {
+		t.Errorf("dispatch[app_icon_url] = %v, want untouched absolute URL", got)
+	}
+
+	// The dispatch gate absolutizes forged relative values too and stays
+	// idempotent for provider-derived absolute params.
+	forged, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{
+		"app_icon_url": "/upload/forged.png",
+	})
+	if err != nil {
+		t.Fatalf("NormalizeWorkflowDispatchParams() rejected forged relative image URL: %v", err)
+	}
+	if got := forged["app_icon_url"]; got != "https://api.example.com/upload/forged.png" {
+		t.Errorf("forged dispatch[app_icon_url] = %v, want absolutized value", got)
+	}
+	gated, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), relative.DispatchParams)
+	if err != nil {
+		t.Fatalf("NormalizeWorkflowDispatchParams() rejected absolutized params: %v", err)
+	}
+	for key, want := range map[string]any{
+		"app_icon_url":       "https://api.example.com/upload/icon.png",
+		"app_logo_url":       "https://api.example.com/upload/logo.png",
+		"privacy_screen_url": "https://api.example.com/upload/privacy.png",
+	} {
+		if got := gated[key]; got != want {
+			t.Errorf("gated params[%q] = %v, want %q", key, got, want)
+		}
+	}
+
+	// Existing string safety gates still run before absolutization, even with
+	// a configured base.
+	if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{
+		"app_icon_url": "line\nbreak",
+	}); err == nil {
+		t.Fatal("NormalizeWorkflowDispatchParams() accepted unsafe app_icon_url with configured base")
+	}
+}
+
+// setBrandingBaseForTest pins the service package config so branding image
+// absolutization sees (or does not see) a configured api-server base; the
+// package global is restored on cleanup.
+func setBrandingBaseForTest(t *testing.T, apiServer string) {
+	t.Helper()
+	original := Config
+	Config = &config.Config{Rustdesk: config.Rustdesk{ApiServer: apiServer}}
+	t.Cleanup(func() { Config = original })
 }
 
 func TestHideCmIncompatibleApproveModeIsExplicitClientError(t *testing.T) {
