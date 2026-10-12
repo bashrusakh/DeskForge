@@ -1123,29 +1123,35 @@
   "AppIcon": {
     "One": "App Icon (PNG)"
   },
-  "AppIconHint": {
-    "One": "Source up to 4096×4096, 8-bit non-interlaced. Pasted values must be an absolute, publicly reachable http(s) URL; a file from the Upload button is stored as a server-relative path and resolved against the deployment's API server address when the build is dispatched."
+  "ImageAttachFileButton": {
+    "One": "Upload file (≤5 MB)"
+  },
+  "ImageAttachLinkPlaceholder": {
+    "One": "or paste http(s)…"
+  },
+  "ImageAttachClear": {
+    "One": "Clear"
+  },
+  "ImageAttachPreviewEmpty": {
+    "One": "No preview"
+  },
+  "BrandingImagesMechanicsNote": {
+    "One": "Files are stored on the server; at build time the link is automatically resolved against the API server address. A pasted link must be a publicly reachable http(s) URL."
   },
   "AppLogo": {
     "One": "App Logo (PNG)"
   },
-  "AppLogoHint": {
-    "One": "Source up to 4096×4096, 8-bit non-interlaced. Pasted values must be an absolute, publicly reachable http(s) URL; a file from the Upload button is stored as a server-relative path and resolved against the deployment's API server address when the build is dispatched."
-  },
   "PrivacyScreen": {
     "One": "Privacy screen (PNG)"
   },
-  "PrivacyScreenHint": {
-    "One": "Source up to 4096×4096, 8-bit non-interlaced. Pasted values must be an absolute, publicly reachable http(s) URL; a file from the Upload button is stored as a server-relative path and resolved against the deployment's API server address when the build is dispatched."
-  },
   "ImageFieldNoteIcon": {
-    "One": "PNG, square 16×16+, downscales to 256×256 for ICO · upload ≤5 MB · URL ≤10 MB"
+    "One": "PNG, square 16×16–4096×4096, downscales to 256×256 for ICO · upload ≤5 MB · URL ≤10 MB"
   },
   "ImageFieldNoteLogo": {
-    "One": "PNG · render ≤300×60 · upload ≤5 MB · URL ≤10 MB"
+    "One": "PNG ≤4096×4096 · render ≤300×60 · upload ≤5 MB · URL ≤10 MB"
   },
   "ImageFieldNoteScreen": {
-    "One": "PNG · fullscreen · upload ≤5 MB · URL ≤20 MB"
+    "One": "PNG ≤4096×4096 · fullscreen · upload ≤5 MB · URL ≤20 MB"
   },
   "ImageFieldPngOnlyError": {
     "One": "Only PNG images are allowed"

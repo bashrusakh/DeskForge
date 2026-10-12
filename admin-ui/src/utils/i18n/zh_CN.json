@@ -827,29 +827,35 @@
   "AppIcon": {
     "One": "应用图标 (PNG)"
   },
-  "AppIconHint": {
-    "One": "源文件最大 4096×4096，8 位非交错。粘贴的取值必须是公网可访问的绝对 http(s) 地址；通过“上传”按钮上传的文件以服务器相对路径引用，DeskForge 在调度构建时会根据部署的 API 服务器地址解析出完整 URL。"
+  "ImageAttachFileButton": {
+    "One": "上传文件（≤5 MB）"
+  },
+  "ImageAttachLinkPlaceholder": {
+    "One": "或粘贴 http(s)…"
+  },
+  "ImageAttachClear": {
+    "One": "清除"
+  },
+  "ImageAttachPreviewEmpty": {
+    "One": "无预览"
+  },
+  "BrandingImagesMechanicsNote": {
+    "One": "文件保存到服务器；构建时会根据 API 服务器地址自动解析链接。粘贴的链接必须是公网可访问的 http(s) 地址。"
   },
   "AppLogo": {
     "One": "应用 Logo (PNG)"
   },
-  "AppLogoHint": {
-    "One": "源文件最大 4096×4096，8 位非交错。粘贴的取值必须是公网可访问的绝对 http(s) 地址；通过“上传”按钮上传的文件以服务器相对路径引用，DeskForge 在调度构建时会根据部署的 API 服务器地址解析出完整 URL。"
-  },
   "PrivacyScreen": {
     "One": "隐私屏幕 (PNG)"
   },
-  "PrivacyScreenHint": {
-    "One": "源文件最大 4096×4096，8 位非交错。粘贴的取值必须是公网可访问的绝对 http(s) 地址；通过“上传”按钮上传的文件以服务器相对路径引用，DeskForge 在调度构建时会根据部署的 API 服务器地址解析出完整 URL。"
-  },
   "ImageFieldNoteIcon": {
-    "One": "PNG，正方形 16×16 起，ICO 会缩至 256×256 · 上传 ≤5 MB · URL ≤10 MB"
+    "One": "PNG，正方形 16×16–4096×4096，ICO 会缩至 256×256 · 上传 ≤5 MB · URL ≤10 MB"
   },
   "ImageFieldNoteLogo": {
-    "One": "PNG · 渲染 ≤300×60 · 上传 ≤5 MB · URL ≤10 MB"
+    "One": "PNG ≤4096×4096 · 渲染 ≤300×60 · 上传 ≤5 MB · URL ≤10 MB"
   },
   "ImageFieldNoteScreen": {
-    "One": "PNG · 全屏 · 上传 ≤5 MB · URL ≤20 MB"
+    "One": "PNG ≤4096×4096 · 全屏 · 上传 ≤5 MB · URL ≤20 MB"
   },
   "ImageFieldPngOnlyError": {
     "One": "仅支持 PNG 图片"

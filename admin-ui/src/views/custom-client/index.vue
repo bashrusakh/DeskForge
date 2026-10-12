@@ -469,32 +469,24 @@
         </el-row>
 
         <el-divider content-position="left">{{ T('Branding') }}</el-divider>
+        <p class="branding-mechanics-note">{{ T('BrandingImagesMechanicsNote') }}</p>
         <el-row :gutter="20">
           <el-col :span="8">
             <el-form-item :label="T('AppIcon')" prop="app_icon_url" :error="serverFieldError('app_icon_url') || undefined">
-              <el-input
+              <image-attach-field
                 v-model="form.app_icon_url"
-                placeholder="/upload/20260101/icon.png"
-                clearable
-                :id="fieldInputId('app_icon_url')"
-                :aria-required="isRequiredField('app_icon_url')"
-                :aria-invalid="isFieldInvalid('app_icon_url')"
-                :aria-describedby="isFieldInvalid('app_icon_url') ? fieldErrorId('app_icon_url') : undefined"
-                :validate-event="false"
+                :input-id="fieldInputId('app_icon_url')"
+                :required="isRequiredField('app_icon_url')"
+                :invalid="isFieldInvalid('app_icon_url')"
+                :described-by="isFieldInvalid('app_icon_url') ? fieldErrorId('app_icon_url') : undefined"
+                :upload-request="(opts) => uploadImage(opts, 'app_icon_url')"
+                :file-button-label="T('ImageAttachFileButton')"
+                :link-placeholder="T('ImageAttachLinkPlaceholder')"
+                :clear-label="T('ImageAttachClear')"
+                :preview-empty-label="T('ImageAttachPreviewEmpty')"
+                :note-text="T('ImageFieldNoteIcon')"
                 @input="clearFieldError('app_icon_url')"
-              >
-                <template #append>
-                  <el-tooltip :content="T('AppIconHint')" placement="top">
-                    <button type="button" class="endpoint-hint-trigger" :aria-label="T('AppIconHint')">
-                      <el-icon aria-hidden="true"><InfoFilled /></el-icon>
-                    </button>
-                  </el-tooltip>
-                  <el-upload :show-file-list="false" :auto-upload="true" :http-request="(opts) => uploadImage(opts, 'app_icon_url')" accept="image/png">
-                    <el-button>{{ T('Upload') }}</el-button>
-                  </el-upload>
-                </template>
-              </el-input>
-              <div class="image-field-note">{{ T('ImageFieldNoteIcon') }}</div>
+              />
               <template #error="{ error }">
                 <span :id="fieldErrorId('app_icon_url')" aria-live="polite">{{ error }}</span>
               </template>
@@ -502,29 +494,20 @@
           </el-col>
           <el-col :span="8">
             <el-form-item :label="T('AppLogo')" prop="app_logo_url" :error="serverFieldError('app_logo_url') || undefined">
-              <el-input
+              <image-attach-field
                 v-model="form.app_logo_url"
-                placeholder="/upload/20260101/logo.png"
-                clearable
-                :id="fieldInputId('app_logo_url')"
-                :aria-required="isRequiredField('app_logo_url')"
-                :aria-invalid="isFieldInvalid('app_logo_url')"
-                :aria-describedby="isFieldInvalid('app_logo_url') ? fieldErrorId('app_logo_url') : undefined"
-                :validate-event="false"
+                :input-id="fieldInputId('app_logo_url')"
+                :required="isRequiredField('app_logo_url')"
+                :invalid="isFieldInvalid('app_logo_url')"
+                :described-by="isFieldInvalid('app_logo_url') ? fieldErrorId('app_logo_url') : undefined"
+                :upload-request="(opts) => uploadImage(opts, 'app_logo_url')"
+                :file-button-label="T('ImageAttachFileButton')"
+                :link-placeholder="T('ImageAttachLinkPlaceholder')"
+                :clear-label="T('ImageAttachClear')"
+                :preview-empty-label="T('ImageAttachPreviewEmpty')"
+                :note-text="T('ImageFieldNoteLogo')"
                 @input="clearFieldError('app_logo_url')"
-              >
-                <template #append>
-                  <el-tooltip :content="T('AppLogoHint')" placement="top">
-                    <button type="button" class="endpoint-hint-trigger" :aria-label="T('AppLogoHint')">
-                      <el-icon aria-hidden="true"><InfoFilled /></el-icon>
-                    </button>
-                  </el-tooltip>
-                  <el-upload :show-file-list="false" :auto-upload="true" :http-request="(opts) => uploadImage(opts, 'app_logo_url')" accept="image/png">
-                    <el-button>{{ T('Upload') }}</el-button>
-                  </el-upload>
-                </template>
-              </el-input>
-              <div class="image-field-note">{{ T('ImageFieldNoteLogo') }}</div>
+              />
               <template #error="{ error }">
                 <span :id="fieldErrorId('app_logo_url')" aria-live="polite">{{ error }}</span>
               </template>
@@ -532,29 +515,20 @@
           </el-col>
           <el-col :span="8">
             <el-form-item :label="T('PrivacyScreen')" prop="privacy_screen_url" :error="serverFieldError('privacy_screen_url') || undefined">
-              <el-input
+              <image-attach-field
                 v-model="form.privacy_screen_url"
-                placeholder="/upload/20260101/privacy.png"
-                clearable
-                :id="fieldInputId('privacy_screen_url')"
-                :aria-required="isRequiredField('privacy_screen_url')"
-                :aria-invalid="isFieldInvalid('privacy_screen_url')"
-                :aria-describedby="isFieldInvalid('privacy_screen_url') ? fieldErrorId('privacy_screen_url') : undefined"
-                :validate-event="false"
+                :input-id="fieldInputId('privacy_screen_url')"
+                :required="isRequiredField('privacy_screen_url')"
+                :invalid="isFieldInvalid('privacy_screen_url')"
+                :described-by="isFieldInvalid('privacy_screen_url') ? fieldErrorId('privacy_screen_url') : undefined"
+                :upload-request="(opts) => uploadImage(opts, 'privacy_screen_url')"
+                :file-button-label="T('ImageAttachFileButton')"
+                :link-placeholder="T('ImageAttachLinkPlaceholder')"
+                :clear-label="T('ImageAttachClear')"
+                :preview-empty-label="T('ImageAttachPreviewEmpty')"
+                :note-text="T('ImageFieldNoteScreen')"
                 @input="clearFieldError('privacy_screen_url')"
-              >
-                <template #append>
-                  <el-tooltip :content="T('PrivacyScreenHint')" placement="top">
-                    <button type="button" class="endpoint-hint-trigger" :aria-label="T('PrivacyScreenHint')">
-                      <el-icon aria-hidden="true"><InfoFilled /></el-icon>
-                    </button>
-                  </el-tooltip>
-                  <el-upload :show-file-list="false" :auto-upload="true" :http-request="(opts) => uploadImage(opts, 'privacy_screen_url')" accept="image/png">
-                    <el-button>{{ T('Upload') }}</el-button>
-                  </el-upload>
-                </template>
-              </el-input>
-              <div class="image-field-note">{{ T('ImageFieldNoteScreen') }}</div>
+              />
               <template #error="{ error }">
                 <span :id="fieldErrorId('privacy_screen_url')" aria-live="polite">{{ error }}</span>
               </template>
@@ -723,6 +697,7 @@ import { InfoFilled, Key, Loading, Location } from '@element-plus/icons-vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import PageSection from '@/components/ui/PageSection.vue'
 import DataTable from '@/components/ui/DataTable.vue'
+import ImageAttachField from '@/components/ui/ImageAttachField.vue'
 
 // Версии загружаются с API (GET /admin/custom_build/versions) при монтировании.
 // Список формируется из GitHub-релизов форка с тегами offline-assets-*.
@@ -742,7 +717,7 @@ const extractApiError = (error, fallbackKey) => {
 
 export default defineComponent({
   name: 'CustomClientBuilds',
-  components: { PageHeader, PageSection, DataTable, InfoFilled, Key, Loading, Location },
+  components: { PageHeader, PageSection, DataTable, ImageAttachField, InfoFilled, Key, Loading, Location },
   setup () {
     const formRef = ref(null)
     const showPermanentPassword = ref(false)
@@ -1920,8 +1895,10 @@ export default defineComponent({
 // Permanent under-input fact line for the image fields; follows the muted
 // secondary-text convention (.local-address-option__source). Deliberately not
 // red: it is guidance, not a validation state — errors render in #error.
-.image-field-note {
-  margin-top: 4px;
+// Permanently visible mechanics note under the Branding section divider —
+// shared across all three image fields; muted, never a validation state.
+.branding-mechanics-note {
+  margin: 0 0 8px;
   font-size: 12px;
   line-height: 1.5;
   color: var(--el-text-color-secondary);
