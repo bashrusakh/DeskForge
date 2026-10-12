@@ -359,7 +359,9 @@ func migrateSchemaAndRecordVersion(db *gorm.DB, version uint, migrate func(*gorm
 // preflightCustomBuildBrandingFields fails closed before the version bump that
 // makes `website_url` and `privacy_policy_url` canonical custom_json fields:
 // an existing row carrying either name with a non-string value (only reachable
-// outside the storage allowlist) would later be rejected by the typed
+// outside the storage allowlist), including an explicit JSON null (which the
+// typed field reader treats like any other non-string, while decoding still
+// distinguishes it from an absent key), would later be rejected by the typed
 // BuildSpec boundary, so migration stops instead of recording success over
 // unusable storage. Encrypted rows remain opaque and are skipped.
 func preflightCustomBuildBrandingFields(db *gorm.DB, version uint) error {
@@ -401,10 +403,12 @@ func preflightCustomBuildBrandingFields(db *gorm.DB, version uint) error {
 				continue
 			}
 			for _, field := range []string{"website_url", "privacy_policy_url"} {
-				if value, ok := decoded[field]; ok && value != nil {
-					if _, isString := value.(string); !isString {
-						return fmt.Errorf("%w: %s row %d field %q", errInvalidCustomBrandingFields, table.name, row.Id, field)
-					}
+				value, ok := decoded[field]
+				if !ok {
+					continue
+				}
+				if _, isString := value.(string); !isString {
+					return fmt.Errorf("%w: %s row %d field %q", errInvalidCustomBrandingFields, table.name, row.Id, field)
 				}
 			}
 		}

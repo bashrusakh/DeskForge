@@ -42,6 +42,12 @@ func TestMigrateSchemaAndRecordVersionRejectsNonStringCustomBrandingFields(t *te
 	if err := db.Create(&legacyCustomPresetWithJSON{UserId: 7, Name: "forged", CustomJson: `{"website_url":123}`}).Error; err != nil {
 		t.Fatalf("seed forged legacy preset: %v", err)
 	}
+	// An explicit JSON null is present-but-non-string: the typed field reader
+	// rejects it exactly like any other non-string value, so the preflight
+	// must fail closed on it too instead of skipping it.
+	if err := db.Create(&legacyCustomPresetWithJSON{UserId: 9, Name: "nulled", CustomJson: `{"website_url":null}`}).Error; err != nil {
+		t.Fatalf("seed nulled legacy preset: %v", err)
+	}
 
 	migrateCalled := false
 	err = migrateSchemaAndRecordVersion(db, DatabaseVersion, func(db *gorm.DB) error {
@@ -77,6 +83,11 @@ func TestMigrateSchemaAndRecordVersionAcceptsStringCustomBrandingFields(t *testi
 		CustomJson: `{"website_url":"https://www.example.com","privacy_policy_url":"https://www.example.com/privacy"}`,
 	}).Error; err != nil {
 		t.Fatalf("seed preset: %v", err)
+	}
+	// Absent branding keys must remain allowed even when unrelated fields are
+	// present: only a present non-string/null value fails the gate.
+	if err := db.Create(&legacyCustomPresetWithJSON{UserId: 9, Name: "absent-fields", CustomJson: `{"app_name":"rustqs","version":"1.0"}`}).Error; err != nil {
+		t.Fatalf("seed absent-field preset: %v", err)
 	}
 	// An opaque secret-bearing row must not block the preflight: it is not a
 	// plain-JSON value and carries no plaintext branding names.
