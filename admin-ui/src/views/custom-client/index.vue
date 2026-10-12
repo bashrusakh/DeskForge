@@ -474,6 +474,11 @@
             <el-form-item :label="T('AppIcon')">
               <el-input v-model="form.app_icon_url" placeholder="/upload/20260101/icon.png" clearable>
                 <template #append>
+                  <el-tooltip :content="T('AppIconHint')" placement="top">
+                    <button type="button" class="endpoint-hint-trigger" :aria-label="T('AppIconHint')">
+                      <el-icon aria-hidden="true"><InfoFilled /></el-icon>
+                    </button>
+                  </el-tooltip>
                   <el-upload :show-file-list="false" :auto-upload="true" :http-request="(opts) => uploadImage(opts, 'app_icon_url')" accept="image/png">
                     <el-button>{{ T('Upload') }}</el-button>
                   </el-upload>
@@ -485,6 +490,11 @@
             <el-form-item :label="T('AppLogo')">
               <el-input v-model="form.app_logo_url" placeholder="/upload/20260101/logo.png" clearable>
                 <template #append>
+                  <el-tooltip :content="T('AppLogoHint')" placement="top">
+                    <button type="button" class="endpoint-hint-trigger" :aria-label="T('AppLogoHint')">
+                      <el-icon aria-hidden="true"><InfoFilled /></el-icon>
+                    </button>
+                  </el-tooltip>
                   <el-upload :show-file-list="false" :auto-upload="true" :http-request="(opts) => uploadImage(opts, 'app_logo_url')" accept="image/png">
                     <el-button>{{ T('Upload') }}</el-button>
                   </el-upload>
@@ -496,6 +506,11 @@
             <el-form-item :label="T('PrivacyScreen')">
               <el-input v-model="form.privacy_screen_url" placeholder="/upload/20260101/privacy.png" clearable>
                 <template #append>
+                  <el-tooltip :content="T('PrivacyScreenHint')" placement="top">
+                    <button type="button" class="endpoint-hint-trigger" :aria-label="T('PrivacyScreenHint')">
+                      <el-icon aria-hidden="true"><InfoFilled /></el-icon>
+                    </button>
+                  </el-tooltip>
                   <el-upload :show-file-list="false" :auto-upload="true" :http-request="(opts) => uploadImage(opts, 'privacy_screen_url')" accept="image/png">
                     <el-button>{{ T('Upload') }}</el-button>
                   </el-upload>

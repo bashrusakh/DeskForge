@@ -1123,11 +1123,20 @@
   "AppIcon": {
     "One": "App Icon (PNG)"
   },
+  "AppIconHint": {
+    "One": "PNG, square, from 16×16 to 4096×4096, up to 10 MB via a public URL (the Upload button itself accepts files up to 5 MB), 8-bit non-interlaced. A square larger than 256×256 is automatically resized to 256×256 for the Windows app icon. Must be an absolute, publicly reachable http(s) URL; a file uploaded with the Upload button is referenced by a server-relative path, and DeskForge resolves it to the full URL from the deployment's API server address when the build is dispatched."
+  },
   "AppLogo": {
     "One": "App Logo (PNG)"
   },
+  "AppLogoHint": {
+    "One": "PNG up to 4096×4096, up to 10 MB via a public URL (the Upload button itself accepts files up to 5 MB), 8-bit non-interlaced. The client renders the logo limited to 300×60 — a file of 300×60 or smaller is recommended. Must be an absolute, publicly reachable http(s) URL; a file uploaded with the Upload button is referenced by a server-relative path, and DeskForge resolves it to the full URL from the deployment's API server address when the build is dispatched."
+  },
   "PrivacyScreen": {
     "One": "Privacy screen (PNG)"
+  },
+  "PrivacyScreenHint": {
+    "One": "PNG up to 4096×4096, up to 20 MB via a public URL (the Upload button itself accepts files up to 5 MB), 8-bit non-interlaced. Shown full-screen while privacy mode is active. Must be an absolute, publicly reachable http(s) URL; a file uploaded with the Upload button is referenced by a server-relative path, and DeskForge resolves it to the full URL from the deployment's API server address when the build is dispatched."
   },
   "WebsiteUrl": {
     "One": "Website (About)"
