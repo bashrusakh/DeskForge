@@ -297,16 +297,18 @@ func TestDispatchBuildOmitsRetiredReturnRunDetailsAndUsesExact200RunDetails(t *t
 		if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 			return nil, fmt.Errorf("decode request: %w", err)
 		}
-		// The dispatch must pin the workflow API version: under the pinned
-		// legacy version GitHub still responds legacy 204 without run details,
-		// which cannot satisfy the run-details contract.
+		// Harness check, not a model of GitHub: the client must pin this dispatch
+		// to the newer API contract. A mismatch is the test's own failure signal;
+		// GitHub's response for an unsupported version is not asserted here.
 		if req.Header.Get("X-GitHub-Api-Version") != ghWorkflowDispatchAPIVersion {
-			return githubResponse(http.StatusUnprocessableEntity, `{"message":"dispatch did not pin the workflow API version"}`, nil), nil
+			return nil, fmt.Errorf("dispatch did not pin the workflow API version: %q", req.Header.Get("X-GitHub-Api-Version"))
 		}
-		// GitHub retired return_run_details from workflow_dispatch and
-		// 422-rejects requests that still send it (2026-03-10 breaking change).
+		// Harness check, not a model of GitHub: the client must not send the
+		// retired return_run_details parameter (removed under the 2026-03-10
+		// contract). What GitHub returns to a client that still sends it is
+		// undocumented, so this double does not assert a status for it.
 		if _, retired := payload["return_run_details"]; retired {
-			return githubResponse(http.StatusUnprocessableEntity, `{"message":"return_run_details is not a supported parameter"}`, nil), nil
+			return nil, fmt.Errorf("dispatch sent the retired return_run_details parameter")
 		}
 		if payload["ref"] != "workflow-v1" {
 			return githubResponse(http.StatusBadRequest, `{"message":"workflow selector was not used"}`, nil), nil

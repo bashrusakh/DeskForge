@@ -277,13 +277,16 @@ const githubAPI = "https://api.github.com"
 const ghDefaultAPIVersion = "2022-11-28"
 
 // ghWorkflowDispatchAPIVersion overrides the pinned version for the single
-// workflow_dispatch POST. GitHub's 2026-03-10 breaking change retired
-// return_run_details (422 for requests that still send it) and changed a
-// standard dispatch response from 204 to 200 with run details
-// (workflow_run_id, run_url, html_url). The pinned pre-2026 version still
-// behaves legacy-204, which cannot satisfy the run-details contract, so the
-// dispatch request is pinned to the new version while every other GitHub
-// request keeps ghDefaultAPIVersion.
+// workflow_dispatch POST only. GitHub's 2026-03-10 breaking change removed the
+// return_run_details parameter and made the endpoint always return HTTP 200
+// with the run details (workflow_run_id, run_url, html_url). This request
+// deliberately adopts that newer contract so the dispatch reads the run
+// details directly from an always-200 response. Every other GitHub request
+// keeps ghDefaultAPIVersion.
+//
+// This is a deliberate contract modernization, not a #80 requirement: the
+// pinned 2022-11-28 version with return_run_details=true also returns the run
+// details.
 const ghWorkflowDispatchAPIVersion = "2026-03-10"
 
 const (
@@ -1131,11 +1134,13 @@ func (s *GithubBuildConfigService) DispatchBuild(ctx context.Context, c *model.G
 	}
 	body := map[string]any{
 		// The resolved SHA is used by readiness and polling, not as this selector.
-		// No return_run_details field: GitHub retired it from workflow_dispatch
-		// (2026-03-10 API breaking change) and 422-rejects requests that still
-		// send it. The 2026-03-10 dispatch returns HTTP 200 with run details;
-		// the pinned legacy version cannot satisfy this contract (legacy 204),
-		// so this single request overrides the client-wide API-version pin below.
+		// No return_run_details field: the 2026-03-10 API version removed it, and
+		// this request is intentionally pinned to that newer contract (see
+		// ghWorkflowDispatchAPIVersion), so the dispatch reads run details
+		// directly from the always-200 response instead of opting in per request.
+		// This is a deliberate contract modernization, not a #80 requirement: the
+		// client-wide 2022-11-28 pin with return_run_details=true also returns the
+		// run details.
 		"ref": dispatchRef,
 		"inputs": map[string]string{
 			"enc_payload":  enc,
