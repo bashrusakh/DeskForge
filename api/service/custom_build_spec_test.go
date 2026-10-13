@@ -2243,3 +2243,190 @@ func TestBrandingFetchURLWireFormBoundaries(t *testing.T) {
 		}
 	})
 }
+
+// TestBrandingFetchURLPortRangeMatchesConsumer pins the port rule of the fetch
+// URL the build workflow sends. The runner's fetcher
+// (fetch_branding_image.py) parses the URL with Python's urllib.parse and reads
+// SplitResult.port, which raises ValueError("Port out of range 0-65535") for a
+// port above 65535; port 0 parses but is not a dialable destination. Go's
+// net/url accepts any all-digit port, so the producer is the only place that
+// can refuse such a value before the build is dispatched. Every seam that can
+// emit a fetch URL — the typed build-spec boundary, the dispatch gate, the
+// configured public origin, and the stored-data seam — refuses it, and the API
+// boundaries report the structured app_icon_url/invalid_format field error.
+// Ports inside 1..65535, including both boundaries, stay accepted.
+func TestBrandingFetchURLPortRangeMatchesConsumer(t *testing.T) {
+	context := BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"}
+
+	for _, port := range []string{"0", "00000", "65536", "99999"} {
+		t.Run("refused-port-"+port, func(t *testing.T) {
+			setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+			value := "https://cdn.example:" + port + "/i.png"
+
+			_, err := NormalizeCustomBuild(map[string]any{"app_icon_url": value}, context)
+			if err == nil {
+				t.Fatalf("typed boundary accepted unfetchable image port %q", port)
+			}
+			if f, code, ok := FieldErrorMetadata(err); !ok || f != "app_icon_url" || code != FieldCodeInvalidFormat {
+				t.Fatalf("typed field/code = %s/%s ok=%v, want app_icon_url/%s (err=%v)", f, code, ok, FieldCodeInvalidFormat, err)
+			}
+			if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{"app_icon_url": value}); err == nil {
+				t.Fatalf("dispatch gate accepted unfetchable image port %q", port)
+			}
+			if err := ValidateStoredCustomBrandingField("app_icon_url", value); err == nil {
+				t.Fatalf("stored-data seam accepted unfetchable image port %q", port)
+			}
+
+			setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://cdn.example:"+port)
+			if _, err := NormalizeCustomBuild(map[string]any{"app_icon_url": "/upload/x.png"}, context); err == nil {
+				t.Fatalf("configured public origin accepted unfetchable port %q", port)
+			}
+		})
+	}
+
+	for _, port := range []string{"1", "65535"} {
+		t.Run("accepted-port-"+port, func(t *testing.T) {
+			setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+			value := "https://cdn.example:" + port + "/i.png"
+
+			normalized, err := NormalizeCustomBuild(map[string]any{"app_icon_url": value}, context)
+			if err != nil {
+				t.Fatalf("typed boundary rejected fetchable image port %q: %v", port, err)
+			}
+			if got := normalized.DispatchParams["app_icon_url"]; got != value {
+				t.Fatalf("dispatch[app_icon_url] = %q, want %q", got, value)
+			}
+			if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{"app_icon_url": value}); err != nil {
+				t.Fatalf("dispatch gate rejected fetchable image port %q: %v", port, err)
+			}
+			if err := ValidateStoredCustomBrandingField("app_icon_url", value); err != nil {
+				t.Fatalf("stored-data seam rejected fetchable image port %q: %v", port, err)
+			}
+		})
+	}
+}
+
+// TestBrandingFetchURLWireFormPreservesOperatorURL pins the ASCII wire form the
+// workflow fetcher receives for a non-ASCII URL: exactly the operator's URL
+// with only the bytes above 0x7F percent-encoded in the path and query. Every
+// existing %XX escape, every reserved character, and the case of an ASCII host
+// are preserved byte-for-byte, so an escape such as %2F, %2E%2E or %41 keeps the
+// meaning the operator authored. A "#fragment" is dropped instead of being
+// folded into the path: a fragment is not part of a request target and the
+// fetcher's urlsplit separates it without sending it. An already-ASCII URL is
+// returned byte-for-byte unchanged, fragment and all.
+func TestBrandingFetchURLWireFormPreservesOperatorURL(t *testing.T) {
+	context := BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"}
+	setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+
+	cases := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{"encoded-dotdot", "https://cdn.example/%2E%2E/x/и.png", "https://cdn.example/%2E%2E/x/%D0%B8.png"},
+		{"encoded-slash", "https://cdn.example/a%2Fb/и.png", "https://cdn.example/a%2Fb/%D0%B8.png"},
+		{"encoded-ascii", "https://cdn.example/%41%2Eи.png", "https://cdn.example/%41%2E%D0%B8.png"},
+		{"fragment-dropped", "https://cdn.example/и.png#frag", "https://cdn.example/%D0%B8.png"},
+		{"escapes-and-non-ascii-mixed", "https://cdn.example/a%2Eb/и.png?x=%2Fи&y=и", "https://cdn.example/a%2Eb/%D0%B8.png?x=%2F%D0%B8&y=%D0%B8"},
+		{"valid-port-preserved", "https://cdn.example:8443/и.png", "https://cdn.example:8443/%D0%B8.png"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			normalized, err := NormalizeCustomBuild(map[string]any{"app_icon_url": tc.value}, context)
+			if err != nil {
+				t.Fatalf("typed boundary rejected %q: %v", tc.value, err)
+			}
+			if got := normalized.DispatchParams["app_icon_url"]; got != tc.want {
+				t.Fatalf("dispatch[app_icon_url] = %q, want %q", got, tc.want)
+			}
+			gateParams, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{"app_icon_url": tc.value})
+			if err != nil {
+				t.Fatalf("dispatch gate rejected %q: %v", tc.value, err)
+			}
+			if got := gateParams["app_icon_url"]; got != tc.want {
+				t.Fatalf("gate[app_icon_url] = %q, want %q", got, tc.want)
+			}
+			if err := ValidateStoredCustomBrandingField("app_icon_url", tc.value); err != nil {
+				t.Fatalf("stored-data seam rejected %q: %v", tc.value, err)
+			}
+		})
+	}
+
+	for _, value := range []string{
+		"https://cdn.example/%D0%B8.png?q=%D0%B8#frag",
+		"https://CDN.Example/a%2Fb?q=%2E#x",
+	} {
+		normalized, err := NormalizeCustomBuild(map[string]any{"app_icon_url": value}, context)
+		if err != nil {
+			t.Fatalf("typed boundary rejected ASCII fetch URL %q: %v", value, err)
+		}
+		if got := normalized.DispatchParams["app_icon_url"]; got != value {
+			t.Fatalf("dispatch[app_icon_url] = %q, want the accepted value %q", got, value)
+		}
+	}
+}
+
+// TestBrandingFetchHostIDNAAgreementWithConsumer pins non-ASCII host conversion
+// against the runner fetcher's encoder. fetch_branding_image.py refuses a raw
+// non-ASCII host and only ever sends the producer's ASCII form, and Python
+// resolves a str host through the IDNA codec (socket.getaddrinfo encodes it
+// with "idna"), so the producer must emit the host Python's
+// "<host>".encode("idna") yields. The expectations below were verified with
+// Python 3.12.15; transitional mappings are the known divergence point between
+// the consumer's IDNA2003/nameprep codec and UTS #46, so the producer enables
+// transitional processing (straße.de becomes strasse.de, not xn--strae-oqa.de)
+// and leaves all-ASCII labels untouched, matching the codec's per-label ASCII
+// fast path (Bücher.Example becomes xn--bcher-kva.Example, not lowercased).
+// Hosts the consumer can send are converted, not refused: underscores are
+// accepted because the codec does not apply the STD3 rules.
+//
+// Residual divergence, reported rather than asserted: the consumer's nameprep
+// uses Unicode 3.2 data and UTS #46 does not, so code points assigned after
+// Unicode 3.2 (and a few compatibility mappings) can disagree in either
+// direction. ẞ (U+1E9E) is punycoded as xn--kkg.example by Python but maps to
+// ss.example here, and the Georgian Asomtavruli capitals (U+10A0..U+10C5) are
+// refused here while Python punycodes them; a code-point sweep over everything
+// Python's codec encodes found 1251 disagreeing single-code-point hosts among
+// those the host-plausibility rule admits. The available IDNA implementation
+// cannot reproduce the consumer's 3.2 tables, so that class is escalated for a
+// decision instead of being silently asserted here. The hosts below are the
+// agreed, discriminating cases.
+func TestBrandingFetchHostIDNAAgreementWithConsumer(t *testing.T) {
+	context := BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"}
+	setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+
+	cases := []struct{ host, ascii string }{
+		{"example.com", "example.com"},
+		{"bücher.example", "xn--bcher-kva.example"},
+		{"exämple_test.com", "xn--exmple_test-m8a.com"},
+		{"foo_bar.example.com", "foo_bar.example.com"},
+		{"xn--bcher-kva.example", "xn--bcher-kva.example"},
+		{"straße.de", "strasse.de"},
+		{"Bücher.Example", "xn--bcher-kva.Example"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.host, func(t *testing.T) {
+			value := "https://" + tc.host + "/i.png"
+			want := "https://" + tc.ascii + "/i.png"
+
+			normalized, err := NormalizeCustomBuild(map[string]any{"app_icon_url": value}, context)
+			if err != nil {
+				t.Fatalf("typed boundary rejected host %q: %v", tc.host, err)
+			}
+			if got := normalized.DispatchParams["app_icon_url"]; got != want {
+				t.Fatalf("dispatch[app_icon_url] = %q, want %q", got, want)
+			}
+			gateParams, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{"app_icon_url": value})
+			if err != nil {
+				t.Fatalf("dispatch gate rejected host %q: %v", tc.host, err)
+			}
+			if got := gateParams["app_icon_url"]; got != want {
+				t.Fatalf("gate[app_icon_url] = %q, want %q", got, want)
+			}
+			if err := ValidateStoredCustomBrandingField("app_icon_url", value); err != nil {
+				t.Fatalf("stored-data seam rejected host %q: %v", tc.host, err)
+			}
+		})
+	}
+}

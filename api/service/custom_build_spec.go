@@ -1170,9 +1170,10 @@ func validateBuildSpecTransportFields(spec BuildSpec) error {
 // api-server, which may hold an internal/Docker address such as
 // http://localhost:21114. The returned value is the ASCII wire form the
 // workflow's HTTP client can send (publicURLWireForm): an ASCII value is
-// returned unchanged, while a raw non-ASCII host/path/query is converted (IDNA
-// host, percent-encoded path/query). The rewrite is idempotent for the values a
-// caller derived from a prior resolution.
+// returned unchanged, while a raw non-ASCII host/path/query is converted (host
+// by the consumer-compatible IDNA rule, only the non-ASCII path/query bytes
+// percent-encoded). The rewrite is idempotent for the values a caller derived
+// from a prior resolution.
 //
 // It fails closed with an error instead of a value when the value cannot become
 // a fetchable public URL: a relative value with no configured/usable public
@@ -1674,10 +1675,11 @@ func validateBrandingURL(name, value string) error {
 	return err
 }
 
-// validatePublicHTTPURL applies the public-fetch URL rule and rejects an empty
-// value. It is used for the public origin (public-api-server) and for a stored
-// absolute branding image URL; the typed boundary and the dispatch gate use
-// publicURLWireForm, which additionally returns the value they must dispatch.
+// validatePublicHTTPURL applies the public-fetch URL rule (including the
+// 1..65535 port rule) and rejects an empty value. It is used for the public
+// origin (public-api-server) and for a stored absolute branding image URL; the
+// typed boundary and the dispatch gate use publicURLWireForm, which additionally
+// returns the value they must dispatch.
 func validatePublicHTTPURL(name, value string) error {
 	_, err := publicURLWireForm(name, value)
 	return err
@@ -1699,19 +1701,34 @@ func validatePublicHTTPURL(name, value string) error {
 // boundary.
 //
 // Wire form: the workflow fetcher (fetch_branding_image.py) builds a Python
-// http.client request, which encodes the request-target as ASCII and the Host
-// header as latin-1 and hands the host to getaddrinfo. A raw non-ASCII host,
-// path, or query would therefore fail or be mangled at fetch time, after the
-// producer accepted the value. The producer instead normalizes the dispatched
-// value to the ASCII wire form: the host is converted with the IDNA (UTS #46)
-// lookup profile to its punycode form and the path and query are
-// percent-encoded. An already-ASCII URL is returned byte-for-byte unchanged, so
-// every value accepted for dispatch before this rule still reaches the runner
-// with the same bytes. The converted host is re-classified with the shared
-// public-host rule before use, because a Unicode spelling can map to a
-// non-public literal (for example the full-width digit spelling
-// "１２７.０.０.１" maps to 127.0.0.1); a conversion that fails or lands outside
-// the public-address policy is refused fail-closed.
+// http.client request; the runner's Python resolves the host through its IDNA
+// codec and encodes the request-target as ASCII, so a raw non-ASCII host, path,
+// or query would fail or be mangled at fetch time, after the producer accepted
+// the value. The producer instead derives the ASCII wire form:
+//
+//   - A present port must be an integer in 1..65535 (validateFetchURLPort):
+//     Python's urllib.parse raises ValueError outside that range and the
+//     fetcher reads the port before connecting, while Go's net/url accepts any
+//     all-digit port. Port 0 is refused as an undialable destination.
+//   - The host is converted label by label with asciiFetchHost, which matches
+//     the host Python's "<host>".encode("idna") yields for the values the
+//     consumer can send. The converted host is re-classified with the shared
+//     public-host rule before use, because a Unicode spelling can map to a
+//     non-public literal (for example the full-width digit spelling
+//     "１２７.０.０.１" maps to 127.0.0.1); a conversion that fails or lands
+//     outside the public-address policy is refused fail-closed.
+//   - The path and query keep every byte the operator authored and percent-
+//     encode only the bytes above 0x7F (percentEncodeNonASCII). Existing %XX
+//     escapes — including ones whose decoded form would change the request
+//     target, such as %2F or %2E%2E — reserved characters, and the case of an
+//     ASCII host are preserved; the value is never decoded and re-encoded.
+//   - A "#fragment" is dropped: it is not part of a request target and the
+//     fetcher's urlsplit separates it without sending it. It is never folded
+//     into the path.
+//
+// An already-ASCII URL is returned byte-for-byte unchanged, so every value
+// accepted for dispatch before this rule still reaches the runner with the
+// same bytes.
 //
 // The stored custom_json value keeps its original spelling (PersistedJSON vs
 // DispatchParams): only the dispatch payload the runner consumes must be in
@@ -1728,35 +1745,128 @@ func publicURLWireForm(name, value string) (string, error) {
 	if isNonPublicFetchHost(host) {
 		return "", fmt.Errorf("%s must use a public host %q", name, host)
 	}
-	if isASCIIText(value) {
-		return value, nil
-	}
 	parsed, err := url.ParseRequestURI(value)
 	if err != nil {
 		return "", fmt.Errorf("%s has invalid URL %q", name, value)
 	}
+	if err := validateFetchURLPort(name, parsed.Port()); err != nil {
+		return "", err
+	}
+	if isASCIIText(value) {
+		return value, nil
+	}
+
+	// Non-ASCII conversion. Rebuild the wire form from the raw value instead of
+	// parsed.String(): ParseRequestURI keeps a "#" inside the path, and String()
+	// decodes and re-encodes the path, which would rewrite existing escapes and
+	// fold a fragment into the path.
+	authorityStart := strings.Index(value, "://") + len("://")
+	remainder := value[authorityStart:]
+	authorityEnd := strings.IndexAny(remainder, "/?#")
+	if authorityEnd < 0 {
+		authorityEnd = len(remainder)
+	}
+	hostPart := remainder[:authorityEnd]
 	if !isASCIIText(parsed.Hostname()) {
-		asciiHost, err := idna.Lookup.ToASCII(parsed.Hostname())
+		asciiHost, err := asciiFetchHost(parsed.Hostname())
 		if err != nil {
 			return "", fmt.Errorf("%s has a host that cannot be sent as an ASCII (IDNA) name: %w", name, err)
 		}
 		if isNonPublicFetchHost(asciiHost) {
 			return "", fmt.Errorf("%s must use a public host %q", name, host)
 		}
+		hostPart = asciiHost
 		if port := parsed.Port(); port != "" {
-			parsed.Host = net.JoinHostPort(asciiHost, port)
-		} else {
-			parsed.Host = asciiHost
+			hostPart += ":" + port
 		}
 	}
-	if !isASCIIText(parsed.RawQuery) {
-		parsed.RawQuery = percentEncodeNonASCII(parsed.RawQuery)
+	pathAndQuery := remainder[authorityEnd:]
+	if fragmentStart := strings.IndexByte(pathAndQuery, '#'); fragmentStart >= 0 {
+		pathAndQuery = pathAndQuery[:fragmentStart]
 	}
-	wire := parsed.String()
+	path, query := pathAndQuery, ""
+	hasQuery := false
+	if queryStart := strings.IndexByte(pathAndQuery, '?'); queryStart >= 0 {
+		path, query = pathAndQuery[:queryStart], pathAndQuery[queryStart+1:]
+		hasQuery = true
+	}
+	wire := value[:authorityStart] + hostPart + percentEncodeNonASCII(path)
+	if hasQuery {
+		wire += "?" + percentEncodeNonASCII(query)
+	}
 	if !isASCIIText(wire) {
 		return "", fmt.Errorf("%s cannot be represented as the ASCII form the build workflow sends", name)
 	}
 	return wire, nil
+}
+
+// idnaFetchHostProfile converts a non-ASCII host label to the ASCII form the
+// runner's Python IDNA encoder produces. fetch_branding_image.py refuses a raw
+// non-ASCII host and the fetcher only ever sees the producer's ASCII form, so
+// the two must agree. The profile is pinned to what Python's "idna" codec
+// accepts and produces, as far as UTS #46 allows: transitional mapping is
+// enabled because the consumer's IDNA2003/nameprep always maps the deviation
+// characters (ß -> ss, final sigma, joiners), and the transitional mappings are
+// the known divergence point between the two profiles; the STD3 rules are off
+// because the consumer accepts underscores; and the hyphen and joiner checks
+// are off because the consumer does not apply them. A host the consumer can
+// send must convert here, not be refused. asciiFetchHost applies the profile
+// label by label. A residual divergence remains where the consumer's nameprep
+// (Unicode 3.2 data) and UTS #46 disagree — mostly code points assigned after
+// Unicode 3.2 and a few compatibility mappings: for example U+1E9E converts to
+// "ss" here while Python punycodes it as "xn--kkg", and the Georgian Asomtavruli
+// capitals (U+10A0..U+10C5) are refused here while Python punycodes them. That
+// class cannot be reproduced with this IDNA implementation; it is documented in
+// the review report rather than silently rewritten.
+var idnaFetchHostProfile = idna.New(
+	idna.MapForLookup(),
+	idna.StrictDomainName(false),
+	idna.Transitional(true),
+	idna.CheckHyphens(false),
+	idna.CheckJoiners(false),
+)
+
+// asciiFetchHost returns the ASCII form of a host name. An already-ASCII host is
+// returned unchanged, and inside a mixed host every all-ASCII label keeps its
+// spelling, matching the consumer codec's per-label ASCII fast path (Python's
+// encode("idna") neither lowercases nor remaps an ASCII label). A label with
+// non-ASCII characters is converted with idnaFetchHostProfile, so the result
+// differs from the input only in the converted labels.
+func asciiFetchHost(host string) (string, error) {
+	if isASCIIText(host) {
+		return host, nil
+	}
+	labels := strings.Split(host, ".")
+	for i, label := range labels {
+		if isASCIIText(label) {
+			continue
+		}
+		asciiLabel, err := idnaFetchHostProfile.ToASCII(label)
+		if err != nil {
+			return "", err
+		}
+		labels[i] = asciiLabel
+	}
+	return strings.Join(labels, "."), nil
+}
+
+// validateFetchURLPort refuses a URL port the workflow fetcher cannot dial. Go's
+// net/url accepts any all-digit port, but the runner parses the URL with
+// Python's urllib.parse, whose SplitResult.port raises ValueError outside
+// 0-65535, so a port such as 65536 or 99999 fails in prepare_branding_assets
+// after the build was already dispatched. Port 0 parses in Python but is not a
+// dialable destination, so a present port must be an integer in 1..65535. A URL
+// without a port is accepted; the caller reports the error as the structured
+// invalid_format field error at the API boundaries.
+func validateFetchURLPort(name, port string) error {
+	if port == "" {
+		return nil
+	}
+	number, err := strconv.ParseUint(port, 10, 16)
+	if err != nil || number == 0 {
+		return fmt.Errorf("%s has port %q outside the fetchable range 1-65535", name, port)
+	}
+	return nil
 }
 
 // isASCIIText reports whether value contains only ASCII bytes.
