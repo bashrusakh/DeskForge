@@ -1592,6 +1592,51 @@ func validateCompanyName(value string) error {
 	return nil
 }
 
+// customBrandingFieldNames is the closed, ordered set of custom_json branding
+// fields the typed BuildSpec boundary reads. The migration preflight selects
+// and validates exactly these fields so the branding domain stays single-source
+// instead of drifting across boundaries.
+var customBrandingFieldNames = []string{
+	"company_name",
+	"download_url",
+	"website_url",
+	"privacy_policy_url",
+	"app_icon_url",
+	"app_logo_url",
+	"privacy_screen_url",
+}
+
+// CustomBrandingFieldNames returns the branding fields the migration preflight
+// must inspect. It returns a copy so a caller cannot mutate the shared domain.
+func CustomBrandingFieldNames() []string {
+	return append([]string(nil), customBrandingFieldNames...)
+}
+
+// ValidateStoredCustomBrandingField applies the authoritative branding rules to
+// one present custom_json branding field value. A non-string value (including an
+// explicit JSON null) or a string the branding validation rejects returns a
+// non-nil error naming the field, so a caller (the migration preflight) can fail
+// closed with the same rules the typed and dispatch boundaries enforce instead
+// of re-implementing them. The image branding keys carry server-relative upload
+// paths, so they share the dispatch control-character safety rule rather than
+// the absolute http(s) URL rule.
+func ValidateStoredCustomBrandingField(field string, value any) error {
+	stringValue, ok := value.(string)
+	if !ok {
+		return fmt.Errorf("%s must be a string", field)
+	}
+	switch field {
+	case "website_url", "privacy_policy_url", "download_url":
+		return validateBrandingURL(field, stringValue)
+	case "company_name":
+		return validateCompanyName(stringValue)
+	case "app_icon_url", "app_logo_url", "privacy_screen_url":
+		return validateWorkflowValue(field, stringValue)
+	default:
+		return fmt.Errorf("unsupported custom branding field %q", field)
+	}
+}
+
 func validateHost(value string) error {
 	if value == "" {
 		return fmt.Errorf("invalid host")

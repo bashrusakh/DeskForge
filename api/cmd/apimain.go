@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -357,13 +358,17 @@ func migrateSchemaAndRecordVersion(db *gorm.DB, version uint, migrate func(*gorm
 }
 
 // preflightCustomBuildBrandingFields fails closed before the version bump that
-// makes `website_url` and `privacy_policy_url` canonical custom_json fields:
-// an existing row carrying either name with a non-string value (only reachable
-// outside the storage allowlist), including an explicit JSON null (which the
-// typed field reader treats like any other non-string, while decoding still
-// distinguishes it from an absent key), would later be rejected by the typed
-// BuildSpec boundary, so migration stops instead of recording success over
-// unusable storage. Encrypted rows remain opaque and are skipped.
+// makes the custom-client branding fields canonical custom_json fields: an
+// existing row carrying any branding field the typed BuildSpec boundary reads
+// with a value that boundary would later reject — a non-string value (only
+// reachable outside the storage allowlist), including an explicit JSON null
+// (which the typed field reader treats like any other non-string, while decoding
+// still distinguishes it from an absent key), or a string the shared branding
+// rules refuse — stops the migration instead of recording success over unusable
+// storage. The branding field set and its rules stay single-source in service so
+// this preflight cannot drift from the typed/dispatch boundaries, and only
+// branding fields are inspected so unrelated legacy fields keep their own
+// boundaries. Encrypted rows remain opaque and are skipped.
 func preflightCustomBuildBrandingFields(db *gorm.DB, version uint) error {
 	if version < customBrandingFieldsMigrationVersion {
 		return nil
@@ -371,6 +376,13 @@ func preflightCustomBuildBrandingFields(db *gorm.DB, version uint) error {
 	type storedCustomJSON struct {
 		Id         uint
 		CustomJson string
+	}
+	brandingFields := service.CustomBrandingFieldNames()
+	likeConditions := make([]string, 0, len(brandingFields))
+	likeArgs := make([]any, 0, len(brandingFields))
+	for _, field := range brandingFields {
+		likeConditions = append(likeConditions, "custom_json LIKE ?")
+		likeArgs = append(likeArgs, "%"+field+"%")
 	}
 	for _, table := range []struct {
 		name  string
@@ -390,7 +402,7 @@ func preflightCustomBuildBrandingFields(db *gorm.DB, version uint) error {
 		var rows []storedCustomJSON
 		if err := db.Model(table.model).
 			Select("id", "custom_json").
-			Where("custom_json LIKE ? OR custom_json LIKE ?", "%website_url%", "%privacy_policy_url%").
+			Where(strings.Join(likeConditions, " OR "), likeArgs...).
 			Find(&rows).Error; err != nil {
 			return fmt.Errorf("query stored custom branding values in %s: %w", table.name, err)
 		}
@@ -402,13 +414,13 @@ func preflightCustomBuildBrandingFields(db *gorm.DB, version uint) error {
 			if err := json.Unmarshal([]byte(row.CustomJson), &decoded); err != nil {
 				continue
 			}
-			for _, field := range []string{"website_url", "privacy_policy_url"} {
+			for _, field := range brandingFields {
 				value, ok := decoded[field]
 				if !ok {
 					continue
 				}
-				if _, isString := value.(string); !isString {
-					return fmt.Errorf("%w: %s row %d field %q", errInvalidCustomBrandingFields, table.name, row.Id, field)
+				if err := service.ValidateStoredCustomBrandingField(field, value); err != nil {
+					return fmt.Errorf("%w: %s row %d field %q: %v", errInvalidCustomBrandingFields, table.name, row.Id, field, err)
 				}
 			}
 		}

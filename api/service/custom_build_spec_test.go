@@ -1274,6 +1274,62 @@ func TestNormalizeCustomBuildBrandFieldsPresetRestoreRoundTrip(t *testing.T) {
 	}
 }
 
+func TestValidateStoredCustomBrandingField(t *testing.T) {
+	// The migration preflight delegates to this single seam so the branding
+	// field set and its rules cannot drift from the typed/dispatch boundaries.
+	wantFields := []string{
+		"company_name", "download_url", "website_url", "privacy_policy_url",
+		"app_icon_url", "app_logo_url", "privacy_screen_url",
+	}
+	if got := CustomBrandingFieldNames(); !reflect.DeepEqual(got, wantFields) {
+		t.Fatalf("CustomBrandingFieldNames() = %v, want %v", got, wantFields)
+	}
+	// The returned list must be a copy so a caller cannot mutate the domain.
+	fields := CustomBrandingFieldNames()
+	fields[0] = "mutated"
+	if got := CustomBrandingFieldNames()[0]; got != "company_name" {
+		t.Fatalf("CustomBrandingFieldNames() leaked mutable state: got %q", got)
+	}
+
+	for _, tc := range []struct {
+		name    string
+		field   string
+		value   any
+		wantErr bool
+	}{
+		{"valid-download", "download_url", "https://download.example/app", false},
+		{"valid-website", "website_url", "https://www.example.com", false},
+		{"valid-privacy", "privacy_policy_url", "https://www.example.com/privacy", false},
+		{"valid-company", "company_name", "Acme Ltd", false},
+		{"valid-image-relative", "app_icon_url", "/upload/icon.png", false},
+		{"empty-accepted", "company_name", "", false},
+		{"relative-download", "download_url", "example.com/app", true},
+		{"mixed-case-scheme", "download_url", "HTTP://x", true},
+		{"punctuation-host", "privacy_policy_url", "https://.", true},
+		{"over-length-url", "website_url", "https://x.example/" + strings.Repeat("a", 2049), true},
+		{"company-control-char", "company_name", "Acme\nLtd", true},
+		{"company-over-length", "company_name", strings.Repeat("x", 257), true},
+		{"image-control-char", "app_logo_url", "bad\nvalue", true},
+		{"non-string", "download_url", 123, true},
+		{"explicit-null", "company_name", nil, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := ValidateStoredCustomBrandingField(tc.field, tc.value)
+			if tc.wantErr && err == nil {
+				t.Fatalf("ValidateStoredCustomBrandingField(%q, %v) = nil, want error", tc.field, tc.value)
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("ValidateStoredCustomBrandingField(%q, %v) = %v, want accepted", tc.field, tc.value, err)
+			}
+		})
+	}
+	// A non-branding field is outside this seam's domain; callers must not use
+	// it to inspect unrelated legacy fields.
+	if err := ValidateStoredCustomBrandingField("server_ip", "not a valid host"); err == nil {
+		t.Fatal("ValidateStoredCustomBrandingField accepted a non-branding field")
+	}
+}
+
 func TestNormalizeCustomBuildDownloadURLValidation(t *testing.T) {
 	// download_url reaches the Windows fork build workflow, which requires an
 	// absolute http(s) URL. The typed boundary must reject the same values the

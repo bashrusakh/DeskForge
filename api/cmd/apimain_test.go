@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"rustdesk-server/api/model"
@@ -106,6 +107,97 @@ func TestMigrateSchemaAndRecordVersionAcceptsStringCustomBrandingFields(t *testi
 	}
 	if len(versions) != 1 || versions[0].Version != DatabaseVersion {
 		t.Fatalf("database versions = %#v, want one version %d", versions, DatabaseVersion)
+	}
+}
+
+func TestMigrateSchemaAndRecordVersionCustomBrandingPreflight(t *testing.T) {
+	// Every case seeds one legacy custom_presets row (the table named by the
+	// original preflight test) with the given custom_json, then runs the real
+	// migration gate at DatabaseVersion (>= the branding migration version) and
+	// asserts whether it fails closed with errInvalidCustomBrandingFields.
+	overLongURL := "https://download.example/" + strings.Repeat("a", 2049)
+	overLongCompany := strings.Repeat("x", 257)
+	cases := []struct {
+		name       string
+		customJSON string
+		abort      bool
+	}{
+		// download_url is newly validated by this PR; a stored value the typed
+		// boundary rejects must stop the migration instead of passing it.
+		{"download-relative", `{"download_url":"example.com/app"}`, true},
+		{"download-mixed-case-scheme", `{"download_url":"HTTP://x"}`, true},
+		{"download-punctuation-host", `{"download_url":"https://."}`, true},
+		{"download-over-length", `{"download_url":"` + overLongURL + `"}`, true},
+		// company_name is newly validated too (control characters and length).
+		{"company-control-char", `{"company_name":"Acme\nLtd"}`, true},
+		{"company-over-length", `{"company_name":"` + overLongCompany + `"}`, true},
+		// A present non-string / explicit null for the new fields.
+		{"download-non-string", `{"download_url":123}`, true},
+		{"company-null", `{"company_name":null}`, true},
+		{"app-logo-non-string", `{"app_logo_url":["/upload/logo.png"]}`, true},
+		// A branding image key shares the dispatch control-character rule.
+		{"privacy-screen-control-char", `{"privacy_screen_url":"bad\nvalue"}`, true},
+		// The existing website_url tightening is preserved: a format-invalid
+		// stored string now fails too, not just a non-string value.
+		{"website-mixed-case-scheme", `{"website_url":"HTTP://x"}`, true},
+		// Valid branding values, absent keys, and unrelated invalid fields must
+		// all pass: the preflight must not over-block a row for a non-branding
+		// field, nor run the whole typed boundary over legacy rows.
+		{"valid-branding", `{"company_name":"Acme Ltd","download_url":"http://download.example/app","website_url":"https://www.example.com","privacy_policy_url":"https://www.example.com/privacy","app_icon_url":"/upload/icon.png","app_logo_url":"/upload/logo.png","privacy_screen_url":"/upload/privacy.png"}`, false},
+		{"absent-keys", `{"app_name":"rustqs","version":"1.0"}`, false},
+		{"unrelated-invalid-only", `{"server_ip":"bad host","direction":"sideways"}`, false},
+		{"unrelated-invalid-with-valid-branding", `{"website_url":"https://www.example.com","direction":"sideways"}`, false},
+		// A substring LIKE match without an exact branding key (the row is
+		// selected, but only "company_name_note" is present) plus an unrelated
+		// invalid field must still pass: only exact branding keys are inspected.
+		{"unrelated-invalid-selected-via-substring", `{"direction":"sideways","company_name_note":"x"}`, false},
+		// An encrypted row whose ciphertext happens to contain branding names is
+		// selected by the LIKE filter but stays opaque and is skipped.
+		{"encrypted-skipped", "Salted__opaque-website_url-download_url-company_name", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+			if err != nil {
+				t.Fatalf("open sqlite: %v", err)
+			}
+			if err := db.AutoMigrate(&model.Version{}, &legacyCustomPresetWithJSON{}); err != nil {
+				t.Fatalf("create legacy tables: %v", err)
+			}
+			if err := db.Create(&legacyCustomPresetWithJSON{UserId: 7, Name: "seed", CustomJson: tc.customJSON}).Error; err != nil {
+				t.Fatalf("seed legacy preset: %v", err)
+			}
+
+			migrateCalled := false
+			err = migrateSchemaAndRecordVersion(db, DatabaseVersion, func(db *gorm.DB) error {
+				migrateCalled = true
+				return nil
+			})
+			if tc.abort {
+				if !errors.Is(err, errInvalidCustomBrandingFields) {
+					t.Fatalf("migrateSchemaAndRecordVersion() error = %v, want errInvalidCustomBrandingFields", err)
+				}
+				if migrateCalled {
+					t.Fatal("AutoMigrate ran after branding preflight failure")
+				}
+			} else if err != nil {
+				t.Fatalf("migrateSchemaAndRecordVersion() error = %v, want accepted", err)
+			} else if !migrateCalled {
+				t.Fatal("AutoMigrate was not called for an accepted row")
+			}
+
+			var count int64
+			if err := db.Model(&model.Version{}).Count(&count).Error; err != nil {
+				t.Fatalf("count database versions: %v", err)
+			}
+			wantCount := int64(1)
+			if tc.abort {
+				wantCount = 0
+			}
+			if count != wantCount {
+				t.Fatalf("database version count = %d, want %d", count, wantCount)
+			}
+		})
 	}
 }
 
