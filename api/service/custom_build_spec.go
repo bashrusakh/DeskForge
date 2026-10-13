@@ -1527,11 +1527,17 @@ func validateAPIURL(name, value string) error {
 // website_url, and privacy_policy_url, so a value accepted here is never
 // rejected late at build time. It requires an absolute URL with a lowercase
 // http:// or https:// prefix, no whitespace anywhere, at most
-// maxBrandingURLBytes bytes, and no userinfo. The lowercase prefix test is
-// deliberately case-sensitive: the fork uses a case-sensitive prefix match, so
-// the mixed-case scheme net/url would otherwise normalize (HTTP://example.com)
-// must be rejected here instead of passing this boundary. An empty value stays
-// allowed so callers can omit the field. api_server keeps validateAPIURL,
+// maxBrandingURLBytes bytes, no userinfo, and a usable host. The lowercase
+// prefix test is deliberately case-sensitive: the fork uses a case-sensitive
+// prefix match, so the mixed-case scheme net/url would otherwise normalize
+// (HTTP://example.com) must be rejected here instead of passing this boundary.
+// The host check is the minimal non-narrowing one: net/url accepts degenerate
+// hosts that are pure punctuation ("https://.", "https://..", "https://-"),
+// which would render as website/download/privacy links with no usable domain,
+// so a hostname containing no letter or digit is rejected. Every host with at
+// least one alphanumeric character stays accepted, including DNS names,
+// single-label hosts, IPv4/IPv6 literals, and IDN/punycode. An empty value
+// stays allowed so callers can omit the field. api_server keeps validateAPIURL,
 // whose permissive scheme handling is part of its existing contract.
 func validateBrandingURL(name, value string) error {
 	if value == "" {
@@ -1550,7 +1556,23 @@ func validateBrandingURL(name, value string) error {
 	if err != nil || parsed.Host == "" || parsed.User != nil {
 		return fmt.Errorf("%s has invalid URL %q", name, value)
 	}
+	if !hasAlphanumeric(parsed.Hostname()) {
+		return fmt.Errorf("%s has invalid URL %q: host has no usable domain", name, value)
+	}
 	return nil
+}
+
+// hasAlphanumeric reports whether value contains at least one letter or digit.
+// It backs the branding-URL usable-host rule: a host made only of punctuation
+// has no usable domain, while any host with a letter or digit (DNS name,
+// single-label host, IPv4/IPv6 literal, IDN/punycode) is left accepted.
+func hasAlphanumeric(value string) bool {
+	for _, char := range value {
+		if unicode.IsLetter(char) || unicode.IsNumber(char) {
+			return true
+		}
+	}
+	return false
 }
 
 // validateCompanyName enforces the fork build workflow's company_name length

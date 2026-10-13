@@ -1420,6 +1420,16 @@ func TestNormalizeCustomBuildBrandingFieldForkSubset(t *testing.T) {
 			// unchanged.
 			accept(t, field, "https://branding.example/path")
 			accept(t, field, "http://branding.example/path")
+			// Every host with at least one letter or digit stays accepted: DNS
+			// names, single-label hosts, IPv4/IPv6 literals, IDN/punycode, and a
+			// host carrying an explicit port.
+			accept(t, field, "https://localhost")
+			accept(t, field, "https://example.com")
+			accept(t, field, "https://192.168.1.1")
+			accept(t, field, "https://[::1]")
+			accept(t, field, "http://localhost:8080/path")
+			accept(t, field, "https://xn--bcher-kva.example")
+			accept(t, field, "https://bücher.example")
 			// Exactly the 2048-byte cap is accepted.
 			base := "https://branding.example/"
 			accept(t, field, base+strings.Repeat("a", brandingURLMax-len(base)))
@@ -1432,6 +1442,12 @@ func TestNormalizeCustomBuildBrandingFieldForkSubset(t *testing.T) {
 			rejectTyped(t, field, "https://branding.example/a\tb")
 			// One byte over the cap.
 			reject(t, field, base+strings.Repeat("a", brandingURLMax-len(base)+1))
+			// A host made only of punctuation parses in net/url but has no usable
+			// domain, so it must be rejected instead of persisting a link with an
+			// empty/nonsense host.
+			reject(t, field, "https://.")
+			reject(t, field, "https://..")
+			reject(t, field, "https://-")
 		})
 	}
 
@@ -1485,6 +1501,11 @@ func TestNormalizeCustomBuildBrandingFieldForkSubset(t *testing.T) {
 		{"privacy_policy_url", "https://example.com/a b"},
 		{"download_url", "https://example.com/" + strings.Repeat("a", brandingURLMax)},
 		{"company_name", strings.Repeat("x", companyNameMax+1)},
+		// A degenerate punctuation-only host is a field-level invalid_format at
+		// the production create boundary too, so the admin UI localizes it inline.
+		{"website_url", "https://."},
+		{"privacy_policy_url", "https://.."},
+		{"download_url", "https://-"},
 	} {
 		t.Run("create-"+test.field, func(t *testing.T) {
 			custom := mustJSON(t, map[string]any{
