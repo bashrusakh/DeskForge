@@ -1649,12 +1649,21 @@ func brandingURLHost(name, value string) (string, error) {
 }
 
 // validateBrandingURL enforces the fork build workflow's branding-URL
-// acceptance domain at the typed and dispatch boundaries for download_url,
-// website_url, and privacy_policy_url, so a value accepted here is never
-// rejected late at build time. An empty value stays allowed so callers can omit
-// the field. api_server keeps validateAPIURL, whose permissive scheme handling
-// is part of its existing contract.
+// acceptance domain at the typed boundary, the dispatch gate, and the stored
+// seam for download_url, website_url, and privacy_policy_url, so the three
+// boundaries accept exactly the same values and a value accepted here is never
+// rejected late at build time or by the migration preflight. It applies the
+// shared control-character safety rule (validateWorkflowValue) before the URL
+// shape rule: those fields reach the fork workflow as raw text, so a control
+// character that is neither whitespace nor caught by url.ParseRequestURI (for
+// example U+0086) must fail closed here with the same rule the dispatch gate
+// and the stored seam otherwise apply. An empty value stays allowed so callers
+// can omit the field. api_server keeps validateAPIURL, whose permissive scheme
+// handling is part of its existing contract.
 func validateBrandingURL(name, value string) error {
+	if err := validateWorkflowValue(name, value); err != nil {
+		return err
+	}
 	_, err := brandingURLHost(name, value)
 	return err
 }
@@ -1685,16 +1694,141 @@ func validatePublicHTTPURL(name, value string) error {
 // unique-local (RFC 4193), or link-local unicast address. These hosts are not
 // reachable from the public build runner. Only literal addresses are inspected;
 // the name is never resolved.
+//
+// The literal test normalizes the host first, because a resolver accepts more
+// IPv4 spellings than net.ParseIP: any number of trailing dots, and the
+// inet_aton decimal/hex/octal integer forms ("2130706433", "0x7f000001",
+// "0177.0.0.1", "127.1"). Without that normalization those forms slip past the
+// "public" check and the runner resolves them back to a private address. A host
+// that is neither a recognizable IP literal nor a plausible hostname also fails
+// closed, so an ambiguous form cannot be treated as public by omission.
 func isPrivateOrLoopbackHost(host string) bool {
-	name := strings.TrimSuffix(strings.ToLower(host), ".")
+	name := strings.TrimRight(strings.ToLower(host), ".")
+	if name == "" {
+		return true
+	}
 	if name == "localhost" || strings.HasSuffix(name, ".localhost") {
 		return true
 	}
-	ip := net.ParseIP(host)
-	if ip == nil {
-		return false
+	ip, ok := literalHostIP(name)
+	if !ok {
+		return !isPlausibleHostname(name)
 	}
 	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast()
+}
+
+// literalHostIP reports whether host is a literal IP address and returns it. It
+// accepts the canonical forms net.ParseIP understands (dotted-quad decimal
+// IPv4, IPv6) plus the inet_aton IPv4 spellings (decimal, octal, and hex
+// integers, with one to four dot-separated parts) that a resolver also accepts
+// but net.ParseIP rejects.
+func literalHostIP(host string) (net.IP, bool) {
+	if ip := net.ParseIP(host); ip != nil {
+		return ip, true
+	}
+	if ip := parseLooseIPv4(host); ip != nil {
+		return ip, true
+	}
+	return nil, false
+}
+
+// parseLooseIPv4 interprets host as an IPv4 literal in every textual form an
+// inet_aton-style resolver accepts. A single part may be up to 32 bits; with two
+// parts the final part absorbs 24 bits; with three, 16 bits; with four, each
+// part is one octet. Each part may be decimal, octal (leading "0"), or hex
+// ("0x"). It returns nil when host is not such a literal.
+func parseLooseIPv4(host string) net.IP {
+	parts := strings.Split(host, ".")
+	if len(parts) == 0 || len(parts) > 4 {
+		return nil
+	}
+	values := make([]uint64, len(parts))
+	for i, part := range parts {
+		value, ok := parseLooseIPv4Part(part)
+		if !ok {
+			return nil
+		}
+		values[i] = value
+	}
+	var raw uint64
+	switch len(values) {
+	case 1:
+		if values[0] > 0xFFFFFFFF {
+			return nil
+		}
+		raw = values[0]
+	case 2:
+		if values[0] > 0xFF || values[1] > 0xFFFFFF {
+			return nil
+		}
+		raw = values[0]<<24 | values[1]
+	case 3:
+		if values[0] > 0xFF || values[1] > 0xFF || values[2] > 0xFFFF {
+			return nil
+		}
+		raw = values[0]<<24 | values[1]<<16 | values[2]
+	default:
+		for _, value := range values {
+			if value > 0xFF {
+				return nil
+			}
+		}
+		raw = values[0]<<24 | values[1]<<16 | values[2]<<8 | values[3]
+	}
+	return net.IPv4(byte(raw>>24), byte(raw>>16), byte(raw>>8), byte(raw))
+}
+
+// parseLooseIPv4Part parses one inet_aton numeric IPv4 part. A "0x"/"0X" prefix
+// selects base 16, a bare leading "0" selects base 8, and anything else is
+// base 10. It returns false for an empty part or a non-numeric one.
+func parseLooseIPv4Part(part string) (uint64, bool) {
+	if part == "" {
+		return 0, false
+	}
+	base := 10
+	switch {
+	case strings.HasPrefix(part, "0x") || strings.HasPrefix(part, "0X"):
+		part = part[2:]
+		base = 16
+	case len(part) > 1 && part[0] == '0':
+		part = part[1:]
+		base = 8
+	}
+	if part == "" {
+		return 0, false
+	}
+	value, err := strconv.ParseUint(part, base, 64)
+	if err != nil {
+		return 0, false
+	}
+	return value, true
+}
+
+// isPlausibleHostname reports whether host is a syntactically plausible DNS
+// hostname, so the public-host rule can fail closed on a host that is neither a
+// recognizable IP literal nor a hostname a resolver would treat as a name.
+// Unicode letters are accepted for IDN hosts and underscores for the hosts that
+// use them; empty and over-long labels and labels that begin or end with a
+// hyphen are refused. Any trailing dot has already been stripped by the caller.
+func isPlausibleHostname(host string) bool {
+	if host == "" || len(host) > 253 {
+		return false
+	}
+	for _, label := range strings.Split(host, ".") {
+		if label == "" || len(label) > 63 {
+			return false
+		}
+		if strings.HasPrefix(label, "-") || strings.HasSuffix(label, "-") {
+			return false
+		}
+		for _, char := range label {
+			if unicode.IsLetter(char) || unicode.IsNumber(char) || char == '-' || char == '_' {
+				continue
+			}
+			return false
+		}
+	}
+	return true
 }
 
 // hasAlphanumeric reports whether value contains at least one letter or digit.

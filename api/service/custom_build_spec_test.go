@@ -1658,6 +1658,76 @@ func TestNormalizeCustomBuildBrandingFieldForkSubset(t *testing.T) {
 	})
 }
 
+func TestBrandingURLTextFieldBoundaryAgreement(t *testing.T) {
+	// D-a: the typed boundary (NormalizeCustomBuild), the dispatch gate
+	// (NormalizeWorkflowDispatchParams), and the stored-data seam
+	// (ValidateStoredCustomBrandingField) must make exactly the same
+	// accept/refuse decision for download_url/website_url/privacy_policy_url.
+	// They now share one rule because validateBrandingURL applies the
+	// control-character safety rule (validateWorkflowValue) before the URL shape
+	// rule, so a C1 control character such as U+0086 — which is neither
+	// whitespace nor rejected by url.ParseRequestURI — can no longer be written
+	// by the producer and then abort the migration preflight.
+	context := BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"}
+	urlFields := []string{"download_url", "website_url", "privacy_policy_url"}
+	values := []struct {
+		name  string
+		value string
+	}{
+		{"accepted-https", "https://branding.example/path"},
+		{"accepted-http", "http://branding.example"},
+		{"c1-control", "https://branding.example/\u0086"},
+		{"nul-control", "https://branding.example/a\x00b"},
+		{"tab-control", "https://branding.example/a\tb"},
+		{"interior-space", "https://branding.example/a b"},
+		{"relative", "branding.example/path"},
+		{"punctuation-host", "https://."},
+		{"mixed-case-scheme", "HTTP://branding.example/path"},
+	}
+	for _, field := range urlFields {
+		for _, tc := range values {
+			t.Run(field+"/"+tc.name, func(t *testing.T) {
+				typedAccepted := func() bool {
+					_, err := NormalizeCustomBuild(map[string]any{field: tc.value}, context)
+					return err == nil
+				}()
+				gateAccepted := func() bool {
+					_, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{field: tc.value})
+					return err == nil
+				}()
+				storedAccepted := ValidateStoredCustomBrandingField(field, tc.value) == nil
+				if typedAccepted != gateAccepted || gateAccepted != storedAccepted {
+					t.Fatalf("boundary disagreement for %s=%q: typed=%v gate=%v stored=%v",
+						field, tc.value, typedAccepted, gateAccepted, storedAccepted)
+				}
+			})
+		}
+	}
+
+	// A control character in each URL text field is rejected at build creation
+	// with the existing structured invalid_format field error, so the admin UI
+	// can localize it inline instead of the value aborting the build later.
+	for _, field := range urlFields {
+		t.Run("create-"+field+"-c1-control", func(t *testing.T) {
+			custom := mustJSON(t, map[string]any{
+				"server_ip":    "id.example:21116",
+				"key":          validRustDeskPublicKey,
+				"api_server":   "https://api.example",
+				"relay_server": "relay.example:21117",
+				field:          "https://branding.example/\u0086",
+			})
+			err := ValidateCustomBuildInput("windows", custom, "rustqs", "1.2.3")
+			if !IsClientValidationError(err) {
+				t.Fatalf("ValidateCustomBuildInput() error = %v, want ClientValidationError", err)
+			}
+			f, code, ok := FieldErrorMetadata(err)
+			if !ok || f != field || code != FieldCodeInvalidFormat {
+				t.Fatalf("field/code = %s/%s ok=%v, want %s/%s (err=%v)", f, code, ok, field, FieldCodeInvalidFormat, err)
+			}
+		})
+	}
+}
+
 func TestBrandingImageURLOriginAndValidation(t *testing.T) {
 	context := BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"}
 
@@ -1763,5 +1833,73 @@ func TestBrandingImageURLOriginAndValidation(t *testing.T) {
 	overLong := "https://cdn.example/" + strings.Repeat("a", maxBrandingURLBytes)
 	if _, err := NormalizeCustomBuild(map[string]any{"app_icon_url": overLong}, context); err == nil {
 		t.Fatal("NormalizeCustomBuild() accepted an over-length image URL")
+	}
+}
+
+func TestBrandingLiteralHostAliasRejection(t *testing.T) {
+	// D-b: net.ParseIP accepts only canonical IPv4/IPv6, so a resolver-only
+	// spelling of a loopback/RFC1918 address slips past a naive literal test.
+	// The public-host rule must normalize the host and reject the trailing-dot
+	// and inet_aton decimal/hex/octal integer forms, and must fail closed on a
+	// host that is neither a literal nor a plausible hostname — as a configured
+	// public origin and as an absolute branding image value.
+	context := BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"}
+
+	blockedHosts := []struct {
+		name string
+		host string
+	}{
+		{"trailing-dot", "127.0.0.1."},
+		{"trailing-dots", "127.0.0.1.."},
+		{"decimal-integer", "2130706433"},
+		{"hex-integer", "0x7f000001"},
+		{"octal-octets", "0177.0.0.1"},
+		{"two-part-shorthand", "127.1"},
+		{"decimal-rfc1918", "167772161"},
+		{"ipv6-loopback", "[::1]"},
+		{"ipv6-expanded-loopback", "[0:0:0:0:0:0:0:1]"},
+		{"implausible-hostname", "foo..bar"},
+	}
+	for _, tc := range blockedHosts {
+		t.Run("origin/"+tc.name, func(t *testing.T) {
+			setBrandingConfigForTest(t, "http://127.0.0.1:21114", "http://"+tc.host)
+			if _, err := NormalizeCustomBuild(map[string]any{"app_icon_url": "/upload/x.png"}, context); err == nil {
+				t.Fatalf("NormalizeCustomBuild() accepted a relative asset with blocked origin host %q", tc.host)
+			}
+		})
+		t.Run("image/"+tc.name, func(t *testing.T) {
+			setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+			value := "http://" + tc.host + "/i.png"
+			typedErr := func() error {
+				_, err := NormalizeCustomBuild(map[string]any{"app_icon_url": value}, context)
+				return err
+			}()
+			if typedErr == nil {
+				t.Fatalf("typed boundary accepted an absolute image with blocked host %q", tc.host)
+			}
+			if f, code, ok := FieldErrorMetadata(typedErr); !ok || f != "app_icon_url" || code != FieldCodeInvalidFormat {
+				t.Fatalf("typed field/code = %s/%s ok=%v, want app_icon_url/%s (err=%v)", f, code, ok, FieldCodeInvalidFormat, typedErr)
+			}
+			if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{"app_icon_url": value}); err == nil {
+				t.Fatalf("dispatch gate accepted an absolute image with blocked host %q", tc.host)
+			}
+		})
+	}
+
+	// The stored-data seam must refuse a stored absolute image whose host is a
+	// normalized loopback form, so the schema-285 preflight fails closed instead
+	// of passing a row the producer would reject.
+	if err := ValidateStoredCustomBrandingField("app_icon_url", "http://2130706433/i.png"); err == nil {
+		t.Fatal("ValidateStoredCustomBrandingField accepted a decimal-integer loopback image host")
+	}
+
+	// A genuine public host is still accepted as an origin and as an absolute
+	// image value.
+	setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+	if _, err := NormalizeCustomBuild(map[string]any{"app_logo_url": "/upload/logo.png"}, context); err != nil {
+		t.Fatalf("NormalizeCustomBuild() rejected a public origin: %v", err)
+	}
+	if _, err := NormalizeCustomBuild(map[string]any{"app_logo_url": "https://cdn.example/logo.png"}, context); err != nil {
+		t.Fatalf("NormalizeCustomBuild() rejected a public absolute image: %v", err)
 	}
 }
