@@ -2,11 +2,15 @@ package main
 
 import (
 	"errors"
+	"io"
 	"strings"
 	"testing"
 
+	"rustdesk-server/api/config"
+	"rustdesk-server/api/global"
 	"rustdesk-server/api/model"
 
+	"github.com/sirupsen/logrus"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -316,4 +320,185 @@ func TestMigrateSchemaAndRecordVersionRejectsDuplicateCustomPresetNamesBeforeAut
 	if count != 0 {
 		t.Fatalf("database version count = %d, want 0 after duplicate preflight failure", count)
 	}
+}
+
+// preUpgradeTipVersion is the DatabaseVersion that `main` carried before this
+// change (283->284 added the branding preflight). An install already at this
+// version is exactly the population the preflight must now reach, so the
+// startup regression tests seed a real Version row at this literal value
+// rather than at the current DatabaseVersion constant.
+const preUpgradeTipVersion = 284
+
+// runStartupGate exercises the real process startup path — DatabaseAutoUpdate
+// against global.DB — with a seeded sqlite database, restoring the
+// process-global state the gate depends on afterwards. It is deliberately not
+// a direct call to migrateSchemaAndRecordVersion: the defect this guards
+// against lives in the version gate around Migrate, above the helper.
+func runStartupGate(t *testing.T, seed func(*gorm.DB)) error {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	seed(db)
+
+	prevDB, prevLogger, prevGormType := global.DB, global.Logger, global.Config.Gorm.Type
+	logger := logrus.New()
+	logger.SetOutput(io.Discard)
+	global.DB = db
+	global.Logger = logger
+	global.Config.Gorm.Type = config.TypeSqlite
+	t.Cleanup(func() {
+		global.DB = prevDB
+		global.Logger = prevLogger
+		global.Config.Gorm.Type = prevGormType
+	})
+	return DatabaseAutoUpdate()
+}
+
+// seedLegacyCustomJSON inserts one plaintext custom_json row the way a legacy
+// install would carry it: hooks skipped so the boundary/encryption layer does
+// not rewrite or reject the stored value before the preflight can inspect it.
+func seedLegacyCustomJSON(t *testing.T, db *gorm.DB, table string, customJSON string) {
+	t.Helper()
+	var err error
+	switch table {
+	case "custom_builds":
+		err = db.Session(&gorm.Session{SkipHooks: true}).
+			Create(&model.CustomBuild{UserId: 1, Name: "legacy", CustomJson: customJSON}).Error
+	case "custom_presets":
+		err = db.Session(&gorm.Session{SkipHooks: true}).
+			Create(&model.CustomPreset{UserId: 1, Name: "legacy", CustomJson: customJSON}).Error
+	default:
+		t.Fatalf("unsupported seed table %q", table)
+	}
+	if err != nil {
+		t.Fatalf("seed %s row: %v", table, err)
+	}
+}
+
+// TestDatabaseAutoUpdateBrandingPreflightOnExistingVersion284 is the real
+// startup regression: an install whose Version row is 284 (the pre-PR tip)
+// must still run the branding preflight during DatabaseAutoUpdate and fail
+// closed on a persisted branding value the shared seam rejects. Against the
+// pre-fix code the `v.Version < DatabaseVersion` gate was 284 < 284 = false, so
+// Migrate never ran, no error was returned, and this test fails.
+func TestDatabaseAutoUpdateBrandingPreflightOnExistingVersion284(t *testing.T) {
+	cases := []struct {
+		name       string
+		table      string
+		customJSON string
+	}{
+		// A control character in company_name is rejected by validateCompanyName
+		// independent of the separate image-URL format rules in flight.
+		{"custom-builds-control-char", "custom_builds", `{"company_name":"Acme\nLtd"}`},
+		// A present non-string value is rejected by the seam regardless of field.
+		{"custom-builds-non-string", "custom_builds", `{"company_name":123}`},
+		{"custom-presets-control-char", "custom_presets", `{"company_name":"Acme\nLtd"}`},
+		{"custom-presets-non-string", "custom_presets", `{"company_name":123}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var db *gorm.DB
+			err := runStartupGate(t, func(seeded *gorm.DB) {
+				db = seeded
+				if err := seeded.AutoMigrate(&model.Version{}, &model.CustomBuild{}, &model.CustomPreset{}); err != nil {
+					t.Fatalf("create install tables: %v", err)
+				}
+				if err := seeded.Create(&model.Version{Version: preUpgradeTipVersion}).Error; err != nil {
+					t.Fatalf("seed version %d: %v", preUpgradeTipVersion, err)
+				}
+				seedLegacyCustomJSON(t, seeded, tc.table, tc.customJSON)
+			})
+			if !errors.Is(err, errInvalidCustomBrandingFields) {
+				t.Fatalf("DatabaseAutoUpdate() error = %v, want errInvalidCustomBrandingFields", err)
+			}
+			var versions []model.Version
+			if err := db.Find(&versions).Error; err != nil {
+				t.Fatalf("read database versions: %v", err)
+			}
+			if len(versions) != 1 || versions[0].Version != preUpgradeTipVersion {
+				t.Fatalf("database versions = %#v, want only the existing version %d after fail-closed preflight", versions, preUpgradeTipVersion)
+			}
+		})
+	}
+}
+
+// TestDatabaseAutoUpdateUpgradesExistingVersion284WithValidBranding is the
+// clean counterpart: a 284 install whose persisted branding values are
+// accepted upgrades and records the new DatabaseVersion.
+func TestDatabaseAutoUpdateUpgradesExistingVersion284WithValidBranding(t *testing.T) {
+	var db *gorm.DB
+	err := runStartupGate(t, func(seeded *gorm.DB) {
+		db = seeded
+		if err := seeded.AutoMigrate(&model.Version{}, &model.CustomBuild{}, &model.CustomPreset{}); err != nil {
+			t.Fatalf("create install tables: %v", err)
+		}
+		if err := seeded.Create(&model.Version{Version: preUpgradeTipVersion}).Error; err != nil {
+			t.Fatalf("seed version %d: %v", preUpgradeTipVersion, err)
+		}
+		valid := `{"company_name":"Acme Ltd","website_url":"https://www.example.com"}`
+		seedLegacyCustomJSON(t, seeded, "custom_builds", valid)
+		seedLegacyCustomJSON(t, seeded, "custom_presets", valid)
+	})
+	if err != nil {
+		t.Fatalf("DatabaseAutoUpdate() error = %v, want accepted upgrade", err)
+	}
+	var latest model.Version
+	if err := db.Last(&latest).Error; err != nil {
+		t.Fatalf("read latest database version: %v", err)
+	}
+	if latest.Version != DatabaseVersion {
+		t.Fatalf("latest database version = %d, want %d after a 284 install upgraded", latest.Version, DatabaseVersion)
+	}
+	if DatabaseVersion <= preUpgradeTipVersion {
+		t.Fatalf("DatabaseVersion = %d must exceed the pre-upgrade tip %d for this test to be meaningful", DatabaseVersion, preUpgradeTipVersion)
+	}
+}
+
+// TestDatabaseAutoUpdateBrandingPreflightGate confirms the version gate the
+// fix relies on: an install below the pre-upgrade tip and a fresh database run
+// the branding preflight, while an install already at the current version does
+// not re-inspect stored rows.
+func TestDatabaseAutoUpdateBrandingPreflightGate(t *testing.T) {
+	badRow := `{"company_name":"Acme\nLtd"}`
+	cases := []struct {
+		name            string
+		seedVersion     *uint
+		wantInvalidRows bool
+	}{
+		{"fresh-database-runs-preflight", nil, true},
+		{"version-283-runs-preflight", ptr(uint(283)), true},
+		{"version-284-runs-preflight", ptr(uint(preUpgradeTipVersion)), true},
+		{"version-285-skips-preflight", ptr(uint(DatabaseVersion)), false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := runStartupGate(t, func(seeded *gorm.DB) {
+				tables := []any{&model.CustomBuild{}}
+				if tc.seedVersion != nil {
+					tables = append(tables, &model.Version{})
+				}
+				if err := seeded.AutoMigrate(tables...); err != nil {
+					t.Fatalf("create install tables: %v", err)
+				}
+				if tc.seedVersion != nil {
+					if err := seeded.Create(&model.Version{Version: *tc.seedVersion}).Error; err != nil {
+						t.Fatalf("seed version %d: %v", *tc.seedVersion, err)
+					}
+				}
+				seedLegacyCustomJSON(t, seeded, "custom_builds", badRow)
+			})
+			if tc.wantInvalidRows && !errors.Is(err, errInvalidCustomBrandingFields) {
+				t.Fatalf("DatabaseAutoUpdate() error = %v, want errInvalidCustomBrandingFields", err)
+			}
+			if !tc.wantInvalidRows && err != nil {
+				t.Fatalf("DatabaseAutoUpdate() error = %v, want an already-current install left untouched", err)
+			}
+		})
+	}
+}
+
+func ptr[T any](value T) *T {
+	return &value
 }

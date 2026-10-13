@@ -27,10 +27,20 @@ import (
 	"rustdesk-server/api/utils"
 )
 
-// DatabaseVersion bumped to 284 to snapshot source-preset provenance
-// (`preset_id`, `preset_name`) on `custom_builds` at create time and to
-// persist the `website_url` and `privacy_policy_url` custom-client branding
-// fields in canonical custom_json (issue 80). The branding columns live
+// DatabaseVersion bumped to 285 so the branding preflight below actually runs
+// on an install that is already at 284 — the pre-PR tip of `main`. The 283->284
+// bump added the preflight but gated it at migration version 284; because
+// DatabaseAutoUpdate only calls Migrate when the recorded version is strictly
+// lower than DatabaseVersion, a normal install already at 284 never re-entered
+// Migrate, so the fail-closed branding check was permanently skipped for
+// exactly the population it was written to protect. Moving the branding
+// migration version to 285 re-runs Migrate once on every install below 285 and
+// then never again.
+//
+// The 284 bump snapshotted source-preset provenance
+// (`preset_id`, `preset_name`) on `custom_builds` at create time and persisted
+// the `website_url` and `privacy_policy_url` custom-client branding fields in
+// canonical custom_json (issue 80). The branding columns live
 // inside custom_json text, so AutoMigrate stays idempotent and no data
 // conversion is required; the branding preflight still fails closed when a
 // stored row already carries a non-string branding value that the stricter
@@ -58,9 +68,9 @@ import (
 // (B-006), 269 `github_run_id` for restart-safe GitHub Actions polling (B-003).
 // AutoMigrate is idempotent so all tables/columns are still created.
 const (
-	DatabaseVersion                         = 284
+	DatabaseVersion                         = 285
 	customPresetUniqueIndexMigrationVersion = 283
-	customBrandingFieldsMigrationVersion    = 284
+	customBrandingFieldsMigrationVersion    = 285
 )
 
 var errDuplicateCustomPresetNames = errors.New("duplicate custom preset owner/name rows")
