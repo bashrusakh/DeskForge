@@ -1340,3 +1340,161 @@ func TestNormalizeCustomBuildDownloadURLValidation(t *testing.T) {
 		t.Fatal("NormalizeWorkflowDispatchParams() accepted relative download_url")
 	}
 }
+
+func TestNormalizeCustomBuildBrandingFieldForkSubset(t *testing.T) {
+	// The fork Windows build workflow's validate_branding_url requires a
+	// case-sensitive lowercase http:// or https:// prefix, rejects any
+	// [[:space:]], and caps URL text at 2048 bytes; company_name is capped at
+	// 256 bytes. DeskForge's acceptance domain must be a subset of that at the
+	// typed boundary AND the dispatch gate, so an accepted value never fails
+	// late at build time with no field-level feedback. api_server keeps its own
+	// (looser) validateAPIURL contract and is intentionally not covered here.
+	context := BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"}
+	urlFields := []string{"download_url", "website_url", "privacy_policy_url"}
+	// Literal fork limits (kept independent of the implementation constants so
+	// this test still compiles against the pre-fix source for the falsification
+	// probe and fails on the behavior, not on a missing symbol).
+	const brandingURLMax = 2048
+	const companyNameMax = 256
+
+	accept := func(t *testing.T, field, value string) {
+		t.Helper()
+		got, err := NormalizeCustomBuild(map[string]any{field: value}, context)
+		if err != nil {
+			t.Fatalf("NormalizeCustomBuild(%s=%q) error = %v, want accepted", field, value, err)
+		}
+		if got.DispatchParams[field] != value {
+			t.Errorf("dispatch[%s] = %v, want %q", field, got.DispatchParams[field], value)
+		}
+		if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{field: value}); err != nil {
+			t.Fatalf("NormalizeWorkflowDispatchParams(%s=%q) error = %v, want accepted", field, value, err)
+		}
+	}
+	reject := func(t *testing.T, field, value string) {
+		t.Helper()
+		typedErr := func() error {
+			_, err := NormalizeCustomBuild(map[string]any{field: value}, context)
+			return err
+		}()
+		if typedErr == nil {
+			t.Fatalf("typed boundary accepted %s=%q", field, value)
+		}
+		if f, code, ok := FieldErrorMetadata(typedErr); !ok || f != field || code != FieldCodeInvalidFormat {
+			t.Fatalf("typed field/code = %s/%s ok=%v, want %s/%s (err=%v)", f, code, ok, field, FieldCodeInvalidFormat, typedErr)
+		}
+		gateErr := func() error {
+			_, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{field: value})
+			return err
+		}()
+		if gateErr == nil {
+			t.Fatalf("dispatch gate accepted %s=%q", field, value)
+		}
+		if f, code, ok := FieldErrorMetadata(gateErr); !ok || f != field || code != FieldCodeInvalidFormat {
+			t.Fatalf("dispatch field/code = %s/%s ok=%v, want %s/%s (err=%v)", f, code, ok, field, FieldCodeInvalidFormat, gateErr)
+		}
+	}
+	// A control-character value (e.g. a tab) is whitespace the fork rejects. At
+	// the typed boundary it is a field-level invalid_format; at the dispatch
+	// gate the pre-existing control-character gate runs first and returns a
+	// plain error, which is preserved.
+	rejectTyped := func(t *testing.T, field, value string) {
+		t.Helper()
+		typedErr := func() error {
+			_, err := NormalizeCustomBuild(map[string]any{field: value}, context)
+			return err
+		}()
+		if typedErr == nil {
+			t.Fatalf("typed boundary accepted %s=%q", field, value)
+		}
+		if f, code, ok := FieldErrorMetadata(typedErr); !ok || f != field || code != FieldCodeInvalidFormat {
+			t.Fatalf("typed field/code = %s/%s ok=%v, want %s/%s (err=%v)", f, code, ok, field, FieldCodeInvalidFormat, typedErr)
+		}
+		if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{field: value}); err == nil {
+			t.Fatalf("dispatch gate accepted %s=%q", field, value)
+		}
+	}
+
+	for _, field := range urlFields {
+		t.Run(field, func(t *testing.T) {
+			// Lowercase absolute http(s) stays accepted and reaches the payload
+			// unchanged.
+			accept(t, field, "https://branding.example/path")
+			accept(t, field, "http://branding.example/path")
+			// Exactly the 2048-byte cap is accepted.
+			base := "https://branding.example/"
+			accept(t, field, base+strings.Repeat("a", brandingURLMax-len(base)))
+			// Mixed/upper-case scheme: net/url would lowercase it, the fork does not.
+			reject(t, field, "HTTP://branding.example/path")
+			reject(t, field, "Https://branding.example/path")
+			// Interior whitespace the fork's [[:space:]] rejects; net/url accepts a
+			// plain interior space, which is the original late-build defect.
+			reject(t, field, "https://branding.example/a b")
+			rejectTyped(t, field, "https://branding.example/a\tb")
+			// One byte over the cap.
+			reject(t, field, base+strings.Repeat("a", brandingURLMax-len(base)+1))
+		})
+	}
+
+	// Exactly the 256-byte company_name cap is accepted; one over is rejected.
+	acceptCompany := func(t *testing.T, value string) {
+		t.Helper()
+		got, err := NormalizeCustomBuild(map[string]any{"company_name": value}, context)
+		if err != nil {
+			t.Fatalf("NormalizeCustomBuild(company_name len %d) error = %v, want accepted", len(value), err)
+		}
+		if got.DispatchParams["company_name"] != value {
+			t.Errorf("dispatch[company_name] length = %v, want length %d", got.DispatchParams["company_name"], len(value))
+		}
+		if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{"company_name": value}); err != nil {
+			t.Fatalf("NormalizeWorkflowDispatchParams(company_name len %d) error = %v, want accepted", len(value), err)
+		}
+	}
+	t.Run("company_name", func(t *testing.T) {
+		acceptCompany(t, "Acme Ltd")
+		acceptCompany(t, strings.Repeat("x", companyNameMax))
+		reject(t, "company_name", strings.Repeat("x", companyNameMax+1))
+	})
+
+	// Empty branding values stay allowed and are omitted from dispatch.
+	t.Run("empty-omitted", func(t *testing.T) {
+		for _, field := range append(append([]string{}, urlFields...), "company_name") {
+			got, err := NormalizeCustomBuild(map[string]any{field: ""}, context)
+			if err != nil {
+				t.Fatalf("NormalizeCustomBuild(%s=\"\") error = %v, want accepted", field, err)
+			}
+			if _, ok := got.DispatchParams[field]; ok {
+				t.Errorf("empty %s was emitted to dispatch", field)
+			}
+		}
+	})
+
+	// The production create boundary returns the same {field, code} the admin UI
+	// localizes, wrapped as a client validation error.
+	for _, test := range []struct {
+		field string
+		value string
+	}{
+		{"website_url", "HTTP://example.com"},
+		{"privacy_policy_url", "https://example.com/a b"},
+		{"download_url", "https://example.com/" + strings.Repeat("a", brandingURLMax)},
+		{"company_name", strings.Repeat("x", companyNameMax+1)},
+	} {
+		t.Run("create-"+test.field, func(t *testing.T) {
+			custom := mustJSON(t, map[string]any{
+				"server_ip":    "id.example:21116",
+				"key":          validRustDeskPublicKey,
+				"api_server":   "https://api.example",
+				"relay_server": "relay.example:21117",
+				test.field:     test.value,
+			})
+			err := ValidateCustomBuildInput("windows", custom, "rustqs", "1.2.3")
+			if !IsClientValidationError(err) {
+				t.Fatalf("ValidateCustomBuildInput() error = %v, want ClientValidationError", err)
+			}
+			f, code, ok := FieldErrorMetadata(err)
+			if !ok || f != test.field || code != FieldCodeInvalidFormat {
+				t.Fatalf("field/code = %s/%s ok=%v, want %s/%s (err=%v)", f, code, ok, test.field, FieldCodeInvalidFormat, err)
+			}
+		})
+	}
+}

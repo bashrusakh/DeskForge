@@ -30,6 +30,16 @@ const (
 
 const maxBuildAppNameBytes = 128
 
+// maxBrandingURLBytes bounds a branding URL value (download_url, website_url,
+// privacy_policy_url). The fork Windows build workflow caps the URL text at
+// 2048 bytes, so DeskForge rejects a longer value here instead of accepting it
+// and failing late at build time.
+const maxBrandingURLBytes = 2048
+
+// maxCompanyNameBytes bounds the company_name branding value. The fork build
+// workflow caps it at 256 bytes, so DeskForge rejects a longer value here.
+const maxCompanyNameBytes = 256
+
 var androidAppIDPattern = regexp.MustCompile(`^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$`)
 
 // MaxPublicCustomTxtBytes bounds the generated native payload that may be
@@ -269,6 +279,7 @@ var structuredFieldNames = map[string]struct{}{
 	"download_url":       {},
 	"website_url":        {},
 	"privacy_policy_url": {},
+	"company_name":       {},
 }
 
 // FieldError attaches a machine-readable field/reason pair to an input
@@ -680,14 +691,17 @@ func parseBuildSpec(raw map[string]any) (BuildSpec, error) {
 	if err := validateAPIURL("api_server", spec.APIServer); err != nil {
 		return BuildSpec{}, NewFieldError("api_server", FieldCodeInvalidFormat, err)
 	}
-	if err := validateAPIURL("website_url", spec.WebsiteURL); err != nil {
+	if err := validateBrandingURL("website_url", spec.WebsiteURL); err != nil {
 		return BuildSpec{}, NewFieldError("website_url", FieldCodeInvalidFormat, err)
 	}
-	if err := validateAPIURL("privacy_policy_url", spec.PrivacyPolicyURL); err != nil {
+	if err := validateBrandingURL("privacy_policy_url", spec.PrivacyPolicyURL); err != nil {
 		return BuildSpec{}, NewFieldError("privacy_policy_url", FieldCodeInvalidFormat, err)
 	}
-	if err := validateAPIURL("download_url", spec.DownloadURL); err != nil {
+	if err := validateBrandingURL("download_url", spec.DownloadURL); err != nil {
 		return BuildSpec{}, NewFieldError("download_url", FieldCodeInvalidFormat, err)
+	}
+	if err := validateCompanyName(spec.CompanyName); err != nil {
+		return BuildSpec{}, NewFieldError("company_name", FieldCodeInvalidFormat, err)
 	}
 	if err := validateHideCMCombination(spec); err != nil {
 		return BuildSpec{}, err
@@ -1063,14 +1077,17 @@ func validateBuildSpec(spec BuildSpec) error {
 	if err := validateHideCMCombination(spec); err != nil {
 		return err
 	}
-	if err := validateAPIURL("website_url", spec.WebsiteURL); err != nil {
+	if err := validateBrandingURL("website_url", spec.WebsiteURL); err != nil {
 		return NewFieldError("website_url", FieldCodeInvalidFormat, err)
 	}
-	if err := validateAPIURL("privacy_policy_url", spec.PrivacyPolicyURL); err != nil {
+	if err := validateBrandingURL("privacy_policy_url", spec.PrivacyPolicyURL); err != nil {
 		return NewFieldError("privacy_policy_url", FieldCodeInvalidFormat, err)
 	}
-	if err := validateAPIURL("download_url", spec.DownloadURL); err != nil {
+	if err := validateBrandingURL("download_url", spec.DownloadURL); err != nil {
 		return NewFieldError("download_url", FieldCodeInvalidFormat, err)
+	}
+	if err := validateCompanyName(spec.CompanyName); err != nil {
+		return NewFieldError("company_name", FieldCodeInvalidFormat, err)
 	}
 	if err := validateBuildSpecTransportFields(spec); err != nil {
 		return err
@@ -1276,8 +1293,9 @@ func NormalizeWorkflowDispatchParams(platform string, raw map[string]any) (map[s
 			// the typed spec; forged caller values are validated but never
 			// replaced with provider-derived data. download_url/website_url/
 			// privacy_policy_url reach the fork workflow as absolute http(s)
-			// URLs, so they share validateAPIURL here as well as at the typed
-			// boundary. The image-URL values may be relative upload paths and
+			// URLs, so they share the fork-subset validateBrandingURL rule here
+			// as well as at the typed boundary. company_name shares the fork
+			// length cap. The image-URL values may be relative upload paths and
 			// carry no API-URL format rule; they are only absolutized against
 			// the configured api-server base at this dispatch boundary
 			// (idempotent for already-absolute values).
@@ -1288,8 +1306,13 @@ func NormalizeWorkflowDispatchParams(platform string, raw map[string]any) (map[s
 			if err := validateWorkflowValue(name, stringValue); err != nil {
 				return nil, err
 			}
-			if name == "download_url" || name == "website_url" || name == "privacy_policy_url" {
-				if err := validateAPIURL(name, stringValue); err != nil {
+			switch name {
+			case "download_url", "website_url", "privacy_policy_url":
+				if err := validateBrandingURL(name, stringValue); err != nil {
+					return nil, NewFieldError(name, FieldCodeInvalidFormat, err)
+				}
+			case "company_name":
+				if err := validateCompanyName(stringValue); err != nil {
 					return nil, NewFieldError(name, FieldCodeInvalidFormat, err)
 				}
 			}
@@ -1495,6 +1518,46 @@ func validateAPIURL(name, value string) error {
 	parsed, err := url.ParseRequestURI(value)
 	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil {
 		return fmt.Errorf("%s has invalid URL %q", name, value)
+	}
+	return nil
+}
+
+// validateBrandingURL enforces the fork build workflow's branding-URL
+// acceptance domain at the typed and dispatch boundaries for download_url,
+// website_url, and privacy_policy_url, so a value accepted here is never
+// rejected late at build time. It requires an absolute URL with a lowercase
+// http:// or https:// prefix, no whitespace anywhere, at most
+// maxBrandingURLBytes bytes, and no userinfo. The lowercase prefix test is
+// deliberately case-sensitive: the fork uses a case-sensitive prefix match, so
+// the mixed-case scheme net/url would otherwise normalize (HTTP://example.com)
+// must be rejected here instead of passing this boundary. An empty value stays
+// allowed so callers can omit the field. api_server keeps validateAPIURL,
+// whose permissive scheme handling is part of its existing contract.
+func validateBrandingURL(name, value string) error {
+	if value == "" {
+		return nil
+	}
+	if len(value) > maxBrandingURLBytes {
+		return fmt.Errorf("%s exceeds %d bytes", name, maxBrandingURLBytes)
+	}
+	if !strings.HasPrefix(value, "http://") && !strings.HasPrefix(value, "https://") {
+		return fmt.Errorf("%s must be an absolute http(s) URL", name)
+	}
+	if strings.ContainsFunc(value, unicode.IsSpace) {
+		return fmt.Errorf("%s must not contain whitespace", name)
+	}
+	parsed, err := url.ParseRequestURI(value)
+	if err != nil || parsed.Host == "" || parsed.User != nil {
+		return fmt.Errorf("%s has invalid URL %q", name, value)
+	}
+	return nil
+}
+
+// validateCompanyName enforces the fork build workflow's company_name length
+// cap at the typed and dispatch boundaries. An empty value stays allowed.
+func validateCompanyName(value string) error {
+	if len(value) > maxCompanyNameBytes {
+		return fmt.Errorf("company_name exceeds %d bytes", maxCompanyNameBytes)
 	}
 	return nil
 }
