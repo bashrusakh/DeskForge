@@ -98,6 +98,9 @@
   "CustomClientDownloadUrlInvalidFormat": {
     "One": "Download URL must be an absolute http:// or https:// URL."
   },
+  "CustomClientCompanyNameInvalidFormat": {
+    "One": "Company name must be at most 256 bytes."
+  },
   "CustomClientFieldInvalidFormat": {
     "One": "The value has an invalid format for the selected platform."
   },

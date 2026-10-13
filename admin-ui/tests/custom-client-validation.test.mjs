@@ -491,6 +491,7 @@ test('server field errors map to localized per-field messages and invalidFields'
     { field: 'key', code: 'required' },
     { field: 'api_server', code: 'invalid_format' },
     { field: 'download_url', code: 'invalid_format' },
+    { field: 'company_name', code: 'invalid_format' },
   ])
   assert.equal(applied, true)
   // `required` reuses the existing per-field required key.
@@ -498,8 +499,11 @@ test('server field errors map to localized per-field messages and invalidFields'
   assert.equal(ctx.api.serverFieldError('server_ip'), 'CustomClientHostInvalidFormat')
   assert.equal(ctx.api.serverFieldError('api_server'), 'CustomClientApiServerInvalidFormat')
   assert.equal(ctx.api.serverFieldError('download_url'), 'CustomClientDownloadUrlInvalidFormat')
+  // company_name (optional, not locally required) maps its server length-cap code
+  // to the same inline error channel as the URL branding fields.
+  assert.equal(ctx.api.serverFieldError('company_name'), 'CustomClientCompanyNameInvalidFormat')
   // invalidFields follows the existing highlight/ARIA schema.
-  assert.deepEqual(Object.keys(ctx.api.invalidFields.value).sort(), ['api_server', 'download_url', 'key', 'server_ip'])
+  assert.deepEqual(Object.keys(ctx.api.invalidFields.value).sort(), ['api_server', 'company_name', 'download_url', 'key', 'server_ip'])
   assert.equal(ctx.api.isFieldInvalid('server_ip'), true)
 })
 
@@ -801,7 +805,7 @@ test('ARIA reflects server field errors without changing required policy', async
 
 test('every displayable field binds the server error to its form item', () => {
   for (const field of ['platform', 'version', 'app_name', 'server_ip', 'key', 'api_server', 'relay_server',
-    'permanent_password', 'pass_approve_mode', 'website_url', 'privacy_policy_url', 'download_url']) {
+    'permanent_password', 'pass_approve_mode', 'website_url', 'privacy_policy_url', 'download_url', 'company_name']) {
     // Both halves of the contract: `:error` renders the server message via the
     // form item's documented display source, and `prop` registers the item with
     // the form so focusFirstInvalid can reach it.
@@ -813,6 +817,25 @@ test('every displayable field binds the server error to its form item', () => {
       sfc.includes(`prop="${field}"`),
       `field ${field} must register prop= on its form item`
     )
+  }
+})
+
+test('company_name server error renders inline with its own localized message', () => {
+  // The create response reports an over-length company_name as
+  // {field, code: invalid_format} (api/service/custom_build_spec.go
+  // validateCompanyName, exposed via structuredFieldNames). Like the URL
+  // branding fields, the form must render it on the field itself, not only via
+  // the generic interceptor toast.
+  const item = between("            <el-form-item :label=\"T('CompanyName')\"", '\n            </el-form-item>')
+  assert.match(item, /prop="company_name"/)
+  assert.match(item, /:error="serverFieldError\('company_name'\) \|\| undefined"/)
+  assert.match(item, /:id="fieldInputId\('company_name'\)"/)
+  assert.match(item, /:aria-invalid="isFieldInvalid\('company_name'\)"/)
+  assert.match(item, /@input="clearFieldError\('company_name'\)"/)
+  assert.match(item, /<span :id="fieldErrorId\('company_name'\)" aria-live="polite">\{\{ error \}\}<\/span>/)
+  for (const lang of ['en', 'ru', 'zh_CN']) {
+    const messages = JSON.parse(readFileSync(new URL(`../src/utils/i18n/${lang}.json`, import.meta.url), 'utf8'))
+    assert.equal(typeof messages.CustomClientCompanyNameInvalidFormat?.One, 'string', `${lang} must define CustomClientCompanyNameInvalidFormat`)
   }
 })
 

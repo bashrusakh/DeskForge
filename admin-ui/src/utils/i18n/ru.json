@@ -98,6 +98,9 @@
   "CustomClientDownloadUrlInvalidFormat": {
     "One": "URL загрузки должен быть абсолютным и начинаться с http:// или https://."
   },
+  "CustomClientCompanyNameInvalidFormat": {
+    "One": "Название компании должно содержать не более 256 байт."
+  },
   "CustomClientFieldInvalidFormat": {
     "One": "Значение имеет недопустимый формат для выбранной платформы."
   },

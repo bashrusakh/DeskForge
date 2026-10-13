@@ -98,6 +98,9 @@
   "CustomClientDownloadUrlInvalidFormat": {
     "One": "下载 URL 必须是绝对地址，且以 http:// 或 https:// 开头。"
   },
+  "CustomClientCompanyNameInvalidFormat": {
+    "One": "公司名称不得超过 256 字节。"
+  },
   "CustomClientFieldInvalidFormat": {
     "One": "该值对所选的平台而言格式无效。"
   },

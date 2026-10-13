@@ -251,8 +251,18 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item :label="T('CompanyName')">
-              <el-input v-model="form.company_name" />
+            <el-form-item :label="T('CompanyName')" prop="company_name" :error="serverFieldError('company_name') || undefined">
+              <el-input
+                v-model="form.company_name"
+                :id="fieldInputId('company_name')"
+                :aria-invalid="isFieldInvalid('company_name')"
+                :aria-describedby="isFieldInvalid('company_name') ? fieldErrorId('company_name') : undefined"
+                :validate-event="false"
+                @input="clearFieldError('company_name')"
+              />
+              <template #error="{ error }">
+                <span :id="fieldErrorId('company_name')" aria-live="polite">{{ error }}</span>
+              </template>
             </el-form-item>
           </el-col>
           <el-col :span="8">
@@ -852,6 +862,7 @@ export default defineComponent({
       website_url: 'CustomClientWebsiteUrlInvalidFormat',
       privacy_policy_url: 'CustomClientPrivacyPolicyInvalidFormat',
       download_url: 'CustomClientDownloadUrlInvalidFormat',
+      company_name: 'CustomClientCompanyNameInvalidFormat',
     }
     // `incompatible` marks a value that is valid on its own but cannot combine
     // with the current requirements (hide_cm — see ValidateHiddenConnectionManagement).
@@ -868,10 +879,11 @@ export default defineComponent({
     const serverFieldError = (field) => serverFieldErrors.value[field] || ''
     // Optional fields the form can display server errors for. They are never
     // locally required (requiredFieldNames), so their errors arrive only from
-    // the create response: URL format codes (website_url/privacy_policy_url)
-    // and the hide_cm/pass_approve_mode compatibility code.
+    // the create response: URL format codes (website_url/privacy_policy_url/
+    // download_url), the company_name length cap, and the hide_cm/
+    // pass_approve_mode compatibility code.
     const serverErrorFieldNames = [
-      ...requiredFieldNames, 'website_url', 'privacy_policy_url', 'download_url', 'pass_approve_mode',
+      ...requiredFieldNames, 'website_url', 'privacy_policy_url', 'download_url', 'company_name', 'pass_approve_mode',
       // Image branding fields: no local format rules, but upload rejections and
       // server create-response reasons for them are displayed inline.
       'app_icon_url', 'app_logo_url', 'privacy_screen_url',
