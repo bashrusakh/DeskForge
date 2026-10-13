@@ -95,6 +95,9 @@
   "CustomClientPrivacyPolicyInvalidFormat": {
     "One": "隐私政策 URL 必须是绝对地址，且以 http:// 或 https:// 开头。"
   },
+  "CustomClientDownloadUrlInvalidFormat": {
+    "One": "下载 URL 必须是绝对地址，且以 http:// 或 https:// 开头。"
+  },
   "CustomClientFieldInvalidFormat": {
     "One": "该值对所选的平台而言格式无效。"
   },

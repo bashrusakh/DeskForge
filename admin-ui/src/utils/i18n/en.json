@@ -95,6 +95,9 @@
   "CustomClientPrivacyPolicyInvalidFormat": {
     "One": "Privacy policy URL must be an absolute http:// or https:// URL."
   },
+  "CustomClientDownloadUrlInvalidFormat": {
+    "One": "Download URL must be an absolute http:// or https:// URL."
+  },
   "CustomClientFieldInvalidFormat": {
     "One": "The value has an invalid format for the selected platform."
   },

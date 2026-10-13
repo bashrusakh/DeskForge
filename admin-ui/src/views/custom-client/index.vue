@@ -256,8 +256,19 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item :label="T('CustomUrl')">
-              <el-input v-model="form.download_url" placeholder="download URL" />
+            <el-form-item :label="T('CustomUrl')" prop="download_url" :error="serverFieldError('download_url') || undefined">
+              <el-input
+                v-model="form.download_url"
+                placeholder="download URL"
+                :id="fieldInputId('download_url')"
+                :aria-invalid="isFieldInvalid('download_url')"
+                :aria-describedby="isFieldInvalid('download_url') ? fieldErrorId('download_url') : undefined"
+                :validate-event="false"
+                @input="clearFieldError('download_url')"
+              />
+              <template #error="{ error }">
+                <span :id="fieldErrorId('download_url')" aria-live="polite">{{ error }}</span>
+              </template>
             </el-form-item>
           </el-col>
         </el-row>
@@ -840,6 +851,7 @@ export default defineComponent({
       app_name: 'CustomClientFieldInvalidFormat',
       website_url: 'CustomClientWebsiteUrlInvalidFormat',
       privacy_policy_url: 'CustomClientPrivacyPolicyInvalidFormat',
+      download_url: 'CustomClientDownloadUrlInvalidFormat',
     }
     // `incompatible` marks a value that is valid on its own but cannot combine
     // with the current requirements (hide_cm — see ValidateHiddenConnectionManagement).
@@ -859,7 +871,7 @@ export default defineComponent({
     // the create response: URL format codes (website_url/privacy_policy_url)
     // and the hide_cm/pass_approve_mode compatibility code.
     const serverErrorFieldNames = [
-      ...requiredFieldNames, 'website_url', 'privacy_policy_url', 'pass_approve_mode',
+      ...requiredFieldNames, 'website_url', 'privacy_policy_url', 'download_url', 'pass_approve_mode',
       // Image branding fields: no local format rules, but upload rejections and
       // server create-response reasons for them are displayed inline.
       'app_icon_url', 'app_logo_url', 'privacy_screen_url',

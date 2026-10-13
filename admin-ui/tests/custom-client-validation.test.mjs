@@ -490,14 +490,16 @@ test('server field errors map to localized per-field messages and invalidFields'
     { field: 'server_ip', code: 'invalid_endpoint' },
     { field: 'key', code: 'required' },
     { field: 'api_server', code: 'invalid_format' },
+    { field: 'download_url', code: 'invalid_format' },
   ])
   assert.equal(applied, true)
   // `required` reuses the existing per-field required key.
   assert.equal(ctx.api.serverFieldError('key'), 'CustomClientKeyRequired')
   assert.equal(ctx.api.serverFieldError('server_ip'), 'CustomClientHostInvalidFormat')
   assert.equal(ctx.api.serverFieldError('api_server'), 'CustomClientApiServerInvalidFormat')
+  assert.equal(ctx.api.serverFieldError('download_url'), 'CustomClientDownloadUrlInvalidFormat')
   // invalidFields follows the existing highlight/ARIA schema.
-  assert.deepEqual(Object.keys(ctx.api.invalidFields.value).sort(), ['api_server', 'key', 'server_ip'])
+  assert.deepEqual(Object.keys(ctx.api.invalidFields.value).sort(), ['api_server', 'download_url', 'key', 'server_ip'])
   assert.equal(ctx.api.isFieldInvalid('server_ip'), true)
 })
 
@@ -799,7 +801,7 @@ test('ARIA reflects server field errors without changing required policy', async
 
 test('every displayable field binds the server error to its form item', () => {
   for (const field of ['platform', 'version', 'app_name', 'server_ip', 'key', 'api_server', 'relay_server',
-    'permanent_password', 'pass_approve_mode', 'website_url', 'privacy_policy_url']) {
+    'permanent_password', 'pass_approve_mode', 'website_url', 'privacy_policy_url', 'download_url']) {
     // Both halves of the contract: `:error` renders the server message via the
     // form item's documented display source, and `prop` registers the item with
     // the form so focusFirstInvalid can reach it.

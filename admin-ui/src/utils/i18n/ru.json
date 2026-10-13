@@ -95,6 +95,9 @@
   "CustomClientPrivacyPolicyInvalidFormat": {
     "One": "URL политики конфиденциальности должен быть абсолютным и начинаться с http:// или https://."
   },
+  "CustomClientDownloadUrlInvalidFormat": {
+    "One": "URL загрузки должен быть абсолютным и начинаться с http:// или https://."
+  },
   "CustomClientFieldInvalidFormat": {
     "One": "Значение имеет недопустимый формат для выбранной платформы."
   },
