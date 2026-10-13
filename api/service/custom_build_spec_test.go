@@ -1909,9 +1909,10 @@ func TestBrandingPublicLiteralAddressPolicyBoundaries(t *testing.T) {
 	// boundary. It must refuse the IANA special-purpose ranges the old
 	// loopback/private/link-local check accepted (unspecified, resolver aliases,
 	// shared/CGNAT, documentation, benchmarking, multicast, reserved, IPv6
-	// documentation, ...) as a configured public origin, as an absolute branding
-	// image value at the typed boundary, at the dispatch gate, and at the
-	// stored-data seam — and still accept public literals.
+	// documentation, the dummy IPv6 prefix, SRv6 SIDs, the deprecated
+	// IPv4-compatible form, ...) as a configured public origin, as an absolute
+	// branding image value at the typed boundary, at the dispatch gate, and at
+	// the stored-data seam — and still accept public literals.
 	context := BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"}
 
 	blocked := []string{
@@ -1919,6 +1920,7 @@ func TestBrandingPublicLiteralAddressPolicyBoundaries(t *testing.T) {
 		"169.254.1.1", "10.0.0.1", "100.64.0.1", "192.0.2.1", "198.18.0.1",
 		"198.51.100.1", "203.0.113.1", "224.0.0.1", "240.0.0.1", "255.255.255.255",
 		"[::]", "[::1]", "[fc00::1]", "[fe80::1]", "[2001:db8::1]",
+		"[3fff::1]", "[5f00::1]", "[100:0:0:1::1]", "[::127.0.0.1]",
 	}
 	for _, host := range blocked {
 		t.Run("origin/"+host, func(t *testing.T) {
@@ -1969,11 +1971,18 @@ func TestBrandingPublicLiteralAddressPolicyBoundaries(t *testing.T) {
 	}
 
 	// Public absolute image URLs (public literals and DNS names) stay accepted
-	// at every boundary.
+	// at every boundary, including the registry Globally Reachable blocks
+	// adjacent to the refused special-purpose ranges: the DRIP prefix
+	// (2001:30::/28), AMT (2001:3::/32), and the AS112 blocks
+	// (2001:4:112::/48, 2620:4f:8000::/48).
 	for _, value := range []string{
 		"http://8.8.8.8/i.png",
 		"http://1.1.1.1/i.png",
 		"http://[2606:4700:4700::1111]/i.png",
+		"http://[2001:30::1]/i.png",
+		"http://[2001:3::1]/i.png",
+		"http://[2620:4f:8000::1]/i.png",
+		"http://[2001:4:112::1]/i.png",
 		"https://cdn.example/path.png",
 	} {
 		t.Run("accepted/"+value, func(t *testing.T) {

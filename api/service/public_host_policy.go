@@ -20,13 +20,13 @@ import (
 // public-fetch host rule. A literal address inside any of these blocks is not a
 // public fetch target for the build runner.
 //
-// The blocks come from the IANA IPv4 Special-Purpose Address Registry and the
-// IANA IPv6 Special-Purpose Address Registry entries that are not "Globally
-// Reachable", plus multicast and the NAT64/6to4 transition forms
-// (64:ff9b::/96, 64:ff9b:1::/48, 2002::/16) that embed an IPv4 destination
-// this literal policy cannot verify. This is deliberately a *literal public
-// fetch target* policy for one URL host, not a general routing or SSRF
-// implementation: it makes no DNS lookup and does not claim that a hostname is
+// This is the non-public special-purpose policy relevant to a *literal public
+// fetch target* for this contract: it is drawn from the IANA IPv4 and IPv6
+// Special-Purpose Address Registries plus multicast and the transition and
+// deprecated forms that embed an IPv4 destination this literal policy cannot
+// verify (::/96, 64:ff9b::/96, 64:ff9b:1::/48, 2002::/16). It is deliberately
+// not an exhaustive implementation of Internet routing or a general SSRF
+// framework. It makes no DNS lookup and makes no claim that a hostname is
 // public or reachable, which is finally constrained at the workflow fetch
 // boundary.
 var nonPublicFetchPrefixes = []netip.Prefix{
@@ -48,13 +48,21 @@ var nonPublicFetchPrefixes = []netip.Prefix{
 	netip.MustParsePrefix("240.0.0.0/4"),     // reserved (covers 255.255.255.255)
 
 	// IPv6 special-purpose, transition, and non-unicast blocks.
-	netip.MustParsePrefix("::/128"),         // unspecified
-	netip.MustParsePrefix("::1/128"),        // loopback
+	netip.MustParsePrefix("::/128"),  // unspecified
+	netip.MustParsePrefix("::1/128"), // loopback
+	// ::/96 is the deprecated IPv4-compatible address form (::a.b.c.d). It is
+	// not a routable public IPv6 destination, and it embeds an IPv4 destination
+	// this literal policy cannot verify, so it is refused fail-closed rather
+	// than being unmapped into an accepted IPv4 address.
+	netip.MustParsePrefix("::/96"),
 	netip.MustParsePrefix("fe80::/10"),      // link-local
 	netip.MustParsePrefix("fc00::/7"),       // unique-local (RFC 4193)
 	netip.MustParsePrefix("ff00::/8"),       // multicast
 	netip.MustParsePrefix("100::/64"),       // discard-only
+	netip.MustParsePrefix("100:0:0:1::/64"), // dummy IPv6 prefix (RFC 9780)
 	netip.MustParsePrefix("2001:db8::/32"),  // documentation
+	netip.MustParsePrefix("3fff::/20"),      // documentation (RFC 9637)
+	netip.MustParsePrefix("5f00::/16"),      // Segment Routing (SRv6) SIDs (RFC 9602)
 	netip.MustParsePrefix("2001::/32"),      // Teredo
 	netip.MustParsePrefix("2001:2::/48"),    // benchmarking
 	netip.MustParsePrefix("2001:10::/28"),   // ORCHID
