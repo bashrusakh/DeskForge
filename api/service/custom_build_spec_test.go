@@ -862,6 +862,9 @@ func TestPersistedJSONPreservesAuthoredEmptyStringsOnly(t *testing.T) {
 }
 
 func TestCanonicalPersistedPRESETFieldsAndCustomTxtBoundary(t *testing.T) {
+	// The operational api-server is an internal address; the public origin is
+	// the one used to resolve local /upload/... assets for the build runner.
+	setBrandingConfigForTest(t, "http://localhost:21114", "https://deskforge.example")
 	raw := map[string]any{
 		"server_ip":                "id.example:21116",
 		"key":                      validRustDeskPublicKey,
@@ -928,10 +931,16 @@ func TestCanonicalPersistedPRESETFieldsAndCustomTxtBoundary(t *testing.T) {
 		"privacy_screen_url",
 	})
 	// Persisted-only image-URL branding fields now also dispatch to the
-	// workflow build steps while staying out of custom_.txt.
-	for _, key := range []string{"app_icon_url", "app_logo_url", "privacy_screen_url"} {
-		if got := got.DispatchParams[key]; got != raw[key] {
-			t.Errorf("dispatch[%q] = %v, want %v", key, got, raw[key])
+	// workflow build steps while staying out of custom_.txt. The dispatch value
+	// is the stored relative path resolved against the public origin, never the
+	// operational api-server.
+	for key, relative := range map[string]string{
+		"app_icon_url":       "/upload/icon.png",
+		"app_logo_url":       "/upload/logo.png",
+		"privacy_screen_url": "/upload/privacy.png",
+	} {
+		if got := got.DispatchParams[key]; got != "https://deskforge.example"+relative {
+			t.Errorf("dispatch[%q] = %v, want %q", key, got, "https://deskforge.example"+relative)
 		}
 	}
 	if got.DispatchParams["server"] != raw["server_ip"] || got.DispatchParams["key"] != raw["key"] {
@@ -1046,9 +1055,41 @@ func assertNoLegacyAliases(t *testing.T, value any) {
 }
 
 func TestNormalizeCustomBuildDispatchesBrandingContext(t *testing.T) {
-	// Without a configured api-server base, server-relative image values are
-	// passed through unchanged; the fork build workflow rejects them itself.
-	setBrandingBaseForTest(t, "")
+	context := BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"}
+
+	// The operational api-server is an internal address (the stock deployment
+	// hardcodes http://localhost:21114). It must never be used as the asset
+	// origin, so with no public origin configured a server-relative asset fails
+	// closed at the typed boundary with a field error instead of producing a
+	// payload with the loopback base.
+	setBrandingConfigForTest(t, "http://127.0.0.1:21114", "")
+	for _, field := range []string{"app_icon_url", "app_logo_url", "privacy_screen_url"} {
+		_, err := NormalizeCustomBuild(map[string]any{field: "/upload/asset.png"}, context)
+		if err == nil {
+			t.Fatalf("NormalizeCustomBuild(%s relative, no public origin) error = nil, want error", field)
+		}
+		f, code, ok := FieldErrorMetadata(err)
+		if !ok || f != field || code != FieldCodeInvalidFormat {
+			t.Fatalf("field/code = %s/%s ok=%v, want %s/%s (err=%v)", f, code, ok, field, FieldCodeInvalidFormat, err)
+		}
+	}
+
+	// Empty branding values are omitted so provider-side defaults stay intact.
+	empty, err := NormalizeCustomBuild(map[string]any{"enable_audio": true}, context)
+	if err != nil {
+		t.Fatalf("NormalizeCustomBuild() error = %v", err)
+	}
+	for _, key := range []string{"company_name", "download_url", "website_url", "privacy_policy_url", "app_icon_url", "app_logo_url", "privacy_screen_url"} {
+		if _, ok := empty.DispatchParams[key]; ok {
+			t.Errorf("empty branding field %q was emitted to dispatch", key)
+		}
+	}
+
+	// With the public origin configured, server-relative image values are
+	// resolved against it in the dispatch payload so the runner can fetch them;
+	// persisted custom_json keeps the stored relative value. The operational
+	// api-server stays unused.
+	setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
 	normalized, err := NormalizeCustomBuild(map[string]any{
 		"company_name":       "Acme Ltd",
 		"download_url":       "https://download.example/app",
@@ -1058,7 +1099,7 @@ func TestNormalizeCustomBuildDispatchesBrandingContext(t *testing.T) {
 		"app_logo_url":       "/upload/logo.png",
 		"privacy_screen_url": "/upload/privacy.png",
 		"enable_audio":       true,
-	}, BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"})
+	}, context)
 	if err != nil {
 		t.Fatalf("NormalizeCustomBuild() error = %v", err)
 	}
@@ -1067,25 +1108,21 @@ func TestNormalizeCustomBuildDispatchesBrandingContext(t *testing.T) {
 		"download_url":       "https://download.example/app",
 		"website_url":        "https://www.example.com",
 		"privacy_policy_url": "https://www.example.com/privacy",
-		"app_icon_url":       "/upload/icon.png",
-		"app_logo_url":       "/upload/logo.png",
-		"privacy_screen_url": "/upload/privacy.png",
+		"app_icon_url":       "https://deskforge.example/upload/icon.png",
+		"app_logo_url":       "https://deskforge.example/upload/logo.png",
+		"privacy_screen_url": "https://deskforge.example/upload/privacy.png",
 	} {
 		if got := normalized.DispatchParams[key]; got != want {
 			t.Errorf("dispatch[%q] = %v, want %q", key, got, want)
 		}
 	}
-
-	// Empty branding values are omitted so provider-side defaults stay intact.
-	empty, err := NormalizeCustomBuild(map[string]any{"enable_audio": true}, BuildRecordContext{
-		Platform: "windows", AppName: "rustqs", Version: "1.2.3",
-	})
-	if err != nil {
-		t.Fatalf("NormalizeCustomBuild() error = %v", err)
-	}
-	for _, key := range []string{"company_name", "download_url", "website_url", "privacy_policy_url", "app_icon_url", "app_logo_url", "privacy_screen_url"} {
-		if _, ok := empty.DispatchParams[key]; ok {
-			t.Errorf("empty branding field %q was emitted to dispatch", key)
+	for key, stored := range map[string]string{
+		"app_icon_url":       "/upload/icon.png",
+		"app_logo_url":       "/upload/logo.png",
+		"privacy_screen_url": "/upload/privacy.png",
+	} {
+		if got := decodeJSON(t, normalized.PersistedJSON)[key]; got != stored {
+			t.Errorf("persisted[%q] = %v, want the stored relative value %q", key, got, stored)
 		}
 	}
 
@@ -1114,100 +1151,76 @@ func TestNormalizeCustomBuildDispatchesBrandingContext(t *testing.T) {
 		"company_name":       "Acme Ltd",
 		"website_url":        "https://www.example.com",
 		"privacy_policy_url": "https://www.example.com/privacy",
-		"app_icon_url":       "/upload/icon.png",
-		"app_logo_url":       "/upload/logo.png",
-		"privacy_screen_url": "/upload/privacy.png",
+		"app_icon_url":       "https://deskforge.example/upload/icon.png",
+		"app_logo_url":       "https://deskforge.example/upload/logo.png",
+		"privacy_screen_url": "https://deskforge.example/upload/privacy.png",
 	} {
 		if got := providerParams[key]; got != want {
 			t.Errorf("provider params[%q] = %v, want %q", key, got, want)
 		}
 	}
 
-	// With a configured api-server base, server-relative image values are
-	// absolutized in the dispatch payload so the fork workflow can fetch them;
-	// persisted custom_json keeps the stored relative value.
-	setBrandingBaseForTest(t, "https://api.example.com")
-	relative, err := NormalizeCustomBuild(map[string]any{
-		"app_icon_url":       "/upload/icon.png",
-		"app_logo_url":       "/upload/logo.png",
-		"privacy_screen_url": "/upload/privacy.png",
-	}, BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"})
-	if err != nil {
-		t.Fatalf("NormalizeCustomBuild() with configured base error = %v", err)
-	}
-	for key, want := range map[string]string{
-		// Persisted custom_json keeps the stored relative value; only the
-		// dispatch payload is absolutized.
-		"app_icon_url":       "/upload/icon.png",
-		"app_logo_url":       "/upload/logo.png",
-		"privacy_screen_url": "/upload/privacy.png",
-	} {
-		if got := relative.DispatchParams[key]; got != "https://api.example.com"+want {
-			t.Errorf("dispatch[%q] = %v, want %q", key, got, "https://api.example.com"+want)
-		}
-	}
-	for key, want := range map[string]string{
-		"app_icon_url":       "/upload/icon.png",
-		"app_logo_url":       "/upload/logo.png",
-		"privacy_screen_url": "/upload/privacy.png",
-	} {
-		if got := decodeJSON(t, relative.PersistedJSON)[key]; got != want {
-			t.Errorf("persisted[%q] = %v, want the stored relative value %q", key, got, want)
-		}
-	}
-
-	// Already-absolute http(s) values stay untouched.
+	// Already-absolute public http(s) values stay untouched.
 	absolute, err := NormalizeCustomBuild(map[string]any{
-		"app_icon_url": "https://files.example/upload/icon.png",
-	}, BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"})
+		"app_icon_url": "https://cdn.example/i.png",
+	}, context)
 	if err != nil {
 		t.Fatalf("NormalizeCustomBuild() with absolute image URL error = %v", err)
 	}
-	if got := absolute.DispatchParams["app_icon_url"]; got != "https://files.example/upload/icon.png" {
+	if got := absolute.DispatchParams["app_icon_url"]; got != "https://cdn.example/i.png" {
 		t.Errorf("dispatch[app_icon_url] = %v, want untouched absolute URL", got)
 	}
 
-	// The dispatch gate absolutizes forged relative values too and stays
-	// idempotent for provider-derived absolute params.
+	// The dispatch gate re-resolves forged relative values against the public
+	// origin too, and stays idempotent for provider-derived absolute params.
 	forged, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{
 		"app_icon_url": "/upload/forged.png",
 	})
 	if err != nil {
 		t.Fatalf("NormalizeWorkflowDispatchParams() rejected forged relative image URL: %v", err)
 	}
-	if got := forged["app_icon_url"]; got != "https://api.example.com/upload/forged.png" {
+	if got := forged["app_icon_url"]; got != "https://deskforge.example/upload/forged.png" {
 		t.Errorf("forged dispatch[app_icon_url] = %v, want absolutized value", got)
 	}
-	gated, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), relative.DispatchParams)
+	gated, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), normalized.DispatchParams)
 	if err != nil {
-		t.Fatalf("NormalizeWorkflowDispatchParams() rejected absolutized params: %v", err)
+		t.Fatalf("NormalizeWorkflowDispatchParams() rejected resolved params: %v", err)
 	}
 	for key, want := range map[string]any{
-		"app_icon_url":       "https://api.example.com/upload/icon.png",
-		"app_logo_url":       "https://api.example.com/upload/logo.png",
-		"privacy_screen_url": "https://api.example.com/upload/privacy.png",
+		"app_icon_url":       "https://deskforge.example/upload/icon.png",
+		"app_logo_url":       "https://deskforge.example/upload/logo.png",
+		"privacy_screen_url": "https://deskforge.example/upload/privacy.png",
 	} {
 		if got := gated[key]; got != want {
 			t.Errorf("gated params[%q] = %v, want %q", key, got, want)
 		}
 	}
 
-	// Existing string safety gates still run before absolutization, even with
-	// a configured base.
+	// A config change between create and dispatch cannot emit a bad URL: with no
+	// public origin the dispatch gate refuses a relative asset too.
+	setBrandingConfigForTest(t, "http://127.0.0.1:21114", "")
+	if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{
+		"app_icon_url": "/upload/relative.png",
+	}); err == nil {
+		t.Fatal("NormalizeWorkflowDispatchParams() accepted a relative image with no public origin")
+	}
+
+	// Existing string safety gates still run before resolution, even with a
+	// configured public origin.
 	if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{
 		"app_icon_url": "line\nbreak",
 	}); err == nil {
-		t.Fatal("NormalizeWorkflowDispatchParams() accepted unsafe app_icon_url with configured base")
+		t.Fatal("NormalizeWorkflowDispatchParams() accepted unsafe app_icon_url with configured public origin")
 	}
 }
 
-// setBrandingBaseForTest pins the service package config so branding image
-// absolutization sees (or does not see) a configured api-server base; the
-// package global is restored on cleanup.
-func setBrandingBaseForTest(t *testing.T, apiServer string) {
+// setBrandingConfigForTest pins the service package config so branding image
+// resolution sees the operational api-server and/or the public origin under
+// test; the package global is restored on cleanup.
+func setBrandingConfigForTest(t *testing.T, apiServer, publicAPIServer string) {
 	t.Helper()
 	original := Config
-	Config = &config.Config{Rustdesk: config.Rustdesk{ApiServer: apiServer}}
+	Config = &config.Config{Rustdesk: config.Rustdesk{ApiServer: apiServer, PublicApiServer: publicAPIServer}}
 	t.Cleanup(func() { Config = original })
 }
 
@@ -1277,6 +1290,9 @@ func TestNormalizeCustomBuildBrandFieldsPresetRestoreRoundTrip(t *testing.T) {
 func TestValidateStoredCustomBrandingField(t *testing.T) {
 	// The migration preflight delegates to this single seam so the branding
 	// field set and its rules cannot drift from the typed/dispatch boundaries.
+	// A valid public origin is configured so a stored relative image resolves,
+	// exactly as the typed producer would resolve it.
+	setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
 	wantFields := []string{
 		"company_name", "download_url", "website_url", "privacy_policy_url",
 		"app_icon_url", "app_logo_url", "privacy_screen_url",
@@ -1302,6 +1318,7 @@ func TestValidateStoredCustomBrandingField(t *testing.T) {
 		{"valid-privacy", "privacy_policy_url", "https://www.example.com/privacy", false},
 		{"valid-company", "company_name", "Acme Ltd", false},
 		{"valid-image-relative", "app_icon_url", "/upload/icon.png", false},
+		{"valid-image-absolute", "app_icon_url", "https://cdn.example/i.png", false},
 		{"empty-accepted", "company_name", "", false},
 		{"relative-download", "download_url", "example.com/app", true},
 		{"mixed-case-scheme", "download_url", "HTTP://x", true},
@@ -1318,6 +1335,14 @@ func TestValidateStoredCustomBrandingField(t *testing.T) {
 		{"company-control-char", "company_name", "Acme\nLtd", true},
 		{"company-over-length", "company_name", strings.Repeat("x", 257), true},
 		{"image-control-char", "app_logo_url", "bad\nvalue", true},
+		// The image keys carry the same public-URL/resolution rule as the
+		// producer: a non-http(s) scheme, a host-less URL, a literal loopback
+		// host, and a relative value with no usable public origin are all
+		// refused here so the migration fails closed on a row the producer
+		// would refuse.
+		{"image-file-scheme", "app_icon_url", "file:///etc/passwd", true},
+		{"image-missing-host", "app_logo_url", "https:///x.png", true},
+		{"image-loopback-host", "privacy_screen_url", "http://127.0.0.1:21114/x.png", true},
 		{"non-string", "download_url", 123, true},
 		{"explicit-null", "company_name", nil, true},
 	} {
@@ -1331,6 +1356,19 @@ func TestValidateStoredCustomBrandingField(t *testing.T) {
 			}
 		})
 	}
+
+	// A stored relative image with no usable public origin is exactly the value
+	// the new rule refuses, so the seam must reject it (the migration preflight
+	// fails closed) instead of passing a row the producer could no longer
+	// resolve.
+	setBrandingConfigForTest(t, "http://127.0.0.1:21114", "")
+	if err := ValidateStoredCustomBrandingField("app_icon_url", "/upload/icon.png"); err == nil {
+		t.Fatal("ValidateStoredCustomBrandingField accepted a relative image with no public origin")
+	}
+	if err := ValidateStoredCustomBrandingField("app_icon_url", "https://cdn.example/i.png"); err != nil {
+		t.Fatalf("ValidateStoredCustomBrandingField rejected an absolute image without a public origin: %v", err)
+	}
+
 	// A non-branding field is outside this seam's domain; callers must not use
 	// it to inspect unrelated legacy fields.
 	if err := ValidateStoredCustomBrandingField("server_ip", "not a valid host"); err == nil {
@@ -1610,3 +1648,112 @@ func TestNormalizeCustomBuildBrandingFieldForkSubset(t *testing.T) {
 		}
 	})
 }
+
+func TestBrandingImageURLOriginAndValidation(t *testing.T) {
+	context := BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"}
+
+	// (1) A relative asset resolves against the public origin — the address the
+	// build runner can reach — and never against the operational api-server,
+	// which the stock deployment hardcodes to a loopback address.
+	setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+	resolved, err := NormalizeCustomBuild(map[string]any{"app_icon_url": "/upload/x.png"}, context)
+	if err != nil {
+		t.Fatalf("NormalizeCustomBuild() error = %v", err)
+	}
+	resolvedValue, _ := resolved.DispatchParams["app_icon_url"].(string)
+	if resolvedValue != "https://deskforge.example/upload/x.png" {
+		t.Errorf("dispatch[app_icon_url] = %v, want https://deskforge.example/upload/x.png", resolved.DispatchParams["app_icon_url"])
+	} else if strings.Contains(resolvedValue, "127.0.0.1") || strings.Contains(resolvedValue, "localhost") {
+		t.Errorf("dispatch[app_icon_url] = %v, must not use the operational api-server", resolvedValue)
+	}
+
+	// (3) An already-absolute external URL is preserved unchanged.
+	absolute, err := NormalizeCustomBuild(map[string]any{"app_icon_url": "https://cdn.example/i.png"}, context)
+	if err != nil {
+		t.Fatalf("NormalizeCustomBuild(absolute) error = %v", err)
+	}
+	if value := absolute.DispatchParams["app_icon_url"]; value != "https://cdn.example/i.png" {
+		t.Errorf("dispatch[app_icon_url] = %v, want the absolute URL unchanged", value)
+	}
+
+	// (2) A relative asset with no usable public origin fails closed at the typed
+	// boundary with a field error; no payload/dispatch is produced.
+	setBrandingConfigForTest(t, "http://127.0.0.1:21114", "")
+	if _, err := NormalizeCustomBuild(map[string]any{"app_logo_url": "/upload/logo.png"}, context); err == nil {
+		t.Fatal("NormalizeCustomBuild() accepted a relative asset with no public origin")
+	} else if f, code, ok := FieldErrorMetadata(err); !ok || f != "app_logo_url" || code != FieldCodeInvalidFormat {
+		t.Fatalf("field/code = %s/%s ok=%v, want app_logo_url/%s (err=%v)", f, code, ok, FieldCodeInvalidFormat, err)
+	}
+	// A malformed (loopback) public origin is unusable and also fails closed.
+	setBrandingConfigForTest(t, "http://127.0.0.1:21114", "http://127.0.0.1:21114")
+	if _, err := NormalizeCustomBuild(map[string]any{"privacy_screen_url": "/upload/privacy.png"}, context); err == nil {
+		t.Fatal("NormalizeCustomBuild() accepted a relative asset with a loopback public origin")
+	}
+
+	// (4) Non-http(s) schemes, malformed/host-less URLs, loopback/private hosts,
+	// and a relative value without a leading slash are rejected at the typed
+	// boundary with a field error and at the dispatch gate.
+	setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+	for _, tc := range []struct {
+		field string
+		value string
+	}{
+		{"app_icon_url", "file:///etc/passwd"},
+		{"app_icon_url", "ftp://example.com/i.png"},
+		{"app_icon_url", "upload/i.png"},
+		{"app_icon_url", "https:///i.png"},
+		{"app_icon_url", "https://"},
+		{"app_logo_url", "https://exa mple/i.png"},
+		{"app_logo_url", "http://127.0.0.1:21114/i.png"},
+		{"app_logo_url", "http://localhost/i.png"},
+		{"privacy_screen_url", "http://10.0.0.5/i.png"},
+		{"privacy_screen_url", "http://169.254.0.1/i.png"},
+		{"privacy_screen_url", "http://[::1]/i.png"},
+		{"privacy_screen_url", "http://192.168.1.10/i.png"},
+	} {
+		t.Run("reject-"+tc.value, func(t *testing.T) {
+			typedErr := func() error {
+				_, err := NormalizeCustomBuild(map[string]any{tc.field: tc.value}, context)
+				return err
+			}()
+			if typedErr == nil {
+				t.Fatalf("typed boundary accepted %s=%q", tc.field, tc.value)
+			}
+			if f, code, ok := FieldErrorMetadata(typedErr); !ok || f != tc.field || code != FieldCodeInvalidFormat {
+				t.Fatalf("typed field/code = %s/%s ok=%v, want %s/%s (err=%v)", f, code, ok, tc.field, FieldCodeInvalidFormat, typedErr)
+			}
+			gateErr := func() error {
+				_, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{tc.field: tc.value})
+				return err
+			}()
+			if gateErr == nil {
+				t.Fatalf("dispatch gate accepted %s=%q", tc.field, tc.value)
+			}
+			if f, code, ok := FieldErrorMetadata(gateErr); !ok || f != tc.field || code != FieldCodeInvalidFormat {
+				t.Fatalf("dispatch field/code = %s/%s ok=%v, want %s/%s (err=%v)", f, code, ok, tc.field, FieldCodeInvalidFormat, gateErr)
+			}
+		})
+	}
+
+	// The three image fields are part of the structured field-error set the
+	// admin UI localizes, so the production create boundary reports them inline.
+	custom := mustJSON(t, map[string]any{
+		"server_ip":    "id.example:21116",
+		"key":          validRustDeskPublicKey,
+		"api_server":   "https://api.example",
+		"relay_server": "relay.example:21117",
+		"app_icon_url": "file:///etc/passwd",
+	})
+	if err := ValidateCustomBuildInput("windows", custom, "rustqs", "1.2.3"); err == nil {
+		t.Fatal("ValidateCustomBuildInput() accepted a file: image URL")
+	} else if f, code, ok := FieldErrorMetadata(err); !ok || f != "app_icon_url" || code != FieldCodeInvalidFormat {
+		t.Fatalf("create field/code = %s/%s ok=%v, want app_icon_url/%s (err=%v)", f, code, ok, FieldCodeInvalidFormat, err)
+	}
+
+	// The cap on the resolved URL is maxBrandingURLBytes (2048 bytes).
+	overLong := "https://cdn.example/" + strings.Repeat("a", maxBrandingURLBytes)
+	if _, err := NormalizeCustomBuild(map[string]any{"app_icon_url": overLong}, context); err == nil {
+		t.Fatal("NormalizeCustomBuild() accepted an over-length image URL")
+	}
+}
+

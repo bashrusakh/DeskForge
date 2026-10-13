@@ -101,6 +101,15 @@
   "CustomClientCompanyNameInvalidFormat": {
     "One": "Название компании должно содержать не более 256 байт."
   },
+  "CustomClientAppIconUrlInvalidFormat": {
+    "One": "Значок приложения должен быть абсолютным публичным URL http:// или https:// либо локальным путём /upload/..., для которого настроен публичный API-сервер."
+  },
+  "CustomClientAppLogoUrlInvalidFormat": {
+    "One": "Логотип приложения должен быть абсолютным публичным URL http:// или https:// либо локальным путём /upload/..., для которого настроен публичный API-сервер."
+  },
+  "CustomClientPrivacyScreenUrlInvalidFormat": {
+    "One": "Экран конфиденциальности должен быть абсолютным публичным URL http:// или https:// либо локальным путём /upload/..., для которого настроен публичный API-сервер."
+  },
   "CustomClientFieldInvalidFormat": {
     "One": "Значение имеет недопустимый формат для выбранной платформы."
   },

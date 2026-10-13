@@ -5,7 +5,7 @@
 
 > **Evidence labels (2026-08-20):** The published RustDesk client source/ref is
 > 1.4.8 and the published DeskForge API schema is `DatabaseVersion` 272. The current
-> local corrective candidate targets API schema 283; it is not a public current-schema
+> local corrective candidate targets API schema 285; it is not a public current-schema
 > or release claim. Schema 283 adds `idx_custom_presets_user_id_name` on
 > `(user_id, name)` and fails preflight on existing duplicate groups before
 > `AutoMigrate`, without auto-selecting a row or deleting data. Schema 282 is the earlier
@@ -74,7 +74,7 @@ bashrusakh/
 ```
 
 **Published client source/ref:** 1.4.8, aligned with `offline-kit/versions.env`. The
-current local corrective candidate targets API schema 283; the published DeskForge
+current local corrective candidate targets API schema 285; the published DeskForge
 schema remains `DatabaseVersion` 272. Schema 283 adds
 `idx_custom_presets_user_id_name` on `(user_id, name)` and fails preflight on existing
 duplicate groups before `AutoMigrate`, without auto-selecting a row or deleting data. Schema 282
@@ -140,7 +140,7 @@ tags fail closed. Raw refs, SHAs, credentials, and workflow internals are not no
 UI inputs.
 
 The published DeskForge schema is `DatabaseVersion` **272**. The current local
-corrective candidate targets schema **283**, which is not published or live-provider
+corrective candidate targets schema **285**, which is not published or live-provider
 evidence. The historical workflow-approval additive fields are **280**
 (`workflow_ref_approved`, approval status), **281**
 (`workflow_ref_provider_verified`, provider-policy status), and **282**
@@ -213,7 +213,7 @@ It is not the executable workflow source and must not be copied into the fork.
 ## 5. ✅ Completed milestones
 
 - [x] Published RustDesk client source/ref is 1.4.8; current local corrective API schema target is
-      `DatabaseVersion 283`, while the published DeskForge schema remains 272
+      `DatabaseVersion 285`, while the published DeskForge schema remains 272
 - [x] Offline-kit freeze/verify tooling and local artifact set retained; real-kit
       verification remains blocked under PR10
 - [x] GitHub min-test Windows: historical green run, ~33 min, single-binary rustqs.exe
@@ -222,9 +222,9 @@ It is not the executable workflow source and must not be copied into the fork.
 - [x] Admin UI redesign: design tokens, DataTable, AppDialog, FilterBar, 16 pages
 - [x] Security: encrypted-at-rest (AES-GCM), OAuth delete guard, audit, TTL
 - [x] Rust server: atomic blocklist, aur-fix, JWT
-- [x] Current local schema target: `DatabaseVersion 283`; its composite-index migration
-      is exercised only on SQLite, while MySQL/PostgreSQL migration/read/write support
-      remains unverified
+- [x] Current local schema target: `DatabaseVersion 285`; the schema-283 composite-index
+      migration is exercised only on SQLite, while MySQL/PostgreSQL migration/read/write
+      support remains unverified
 
 ---
 

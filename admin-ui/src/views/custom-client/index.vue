@@ -863,6 +863,9 @@ export default defineComponent({
       privacy_policy_url: 'CustomClientPrivacyPolicyInvalidFormat',
       download_url: 'CustomClientDownloadUrlInvalidFormat',
       company_name: 'CustomClientCompanyNameInvalidFormat',
+      app_icon_url: 'CustomClientAppIconUrlInvalidFormat',
+      app_logo_url: 'CustomClientAppLogoUrlInvalidFormat',
+      privacy_screen_url: 'CustomClientPrivacyScreenUrlInvalidFormat',
     }
     // `incompatible` marks a value that is valid on its own but cannot combine
     // with the current requirements (hide_cm — see ValidateHiddenConnectionManagement).
@@ -880,12 +883,14 @@ export default defineComponent({
     // Optional fields the form can display server errors for. They are never
     // locally required (requiredFieldNames), so their errors arrive only from
     // the create response: URL format codes (website_url/privacy_policy_url/
-    // download_url), the company_name length cap, and the hide_cm/
+    // download_url), the company_name length cap, the branding image URL format
+    // codes (app_icon_url/app_logo_url/privacy_screen_url), and the hide_cm/
     // pass_approve_mode compatibility code.
     const serverErrorFieldNames = [
       ...requiredFieldNames, 'website_url', 'privacy_policy_url', 'download_url', 'company_name', 'pass_approve_mode',
       // Image branding fields: no local format rules, but upload rejections and
-      // server create-response reasons for them are displayed inline.
+      // server create-response reasons (including an unresolvable asset URL) for
+      // them are displayed inline.
       'app_icon_url', 'app_logo_url', 'privacy_screen_url',
     ]
 

@@ -101,6 +101,15 @@
   "CustomClientCompanyNameInvalidFormat": {
     "One": "Company name must be at most 256 bytes."
   },
+  "CustomClientAppIconUrlInvalidFormat": {
+    "One": "App icon must be an absolute public http:// or https:// URL, or a local /upload/... path whose public API server is configured."
+  },
+  "CustomClientAppLogoUrlInvalidFormat": {
+    "One": "App logo must be an absolute public http:// or https:// URL, or a local /upload/... path whose public API server is configured."
+  },
+  "CustomClientPrivacyScreenUrlInvalidFormat": {
+    "One": "Privacy screen image must be an absolute public http:// or https:// URL, or a local /upload/... path whose public API server is configured."
+  },
   "CustomClientFieldInvalidFormat": {
     "One": "The value has an invalid format for the selected platform."
   },

@@ -280,6 +280,9 @@ var structuredFieldNames = map[string]struct{}{
 	"website_url":        {},
 	"privacy_policy_url": {},
 	"company_name":       {},
+	"app_icon_url":       {},
+	"app_logo_url":       {},
+	"privacy_screen_url": {},
 }
 
 // FieldError attaches a machine-readable field/reason pair to an input
@@ -559,13 +562,25 @@ func NormalizeCustomBuild(raw map[string]any, context BuildRecordContext) (Norma
 		params["privacy_policy_url"] = spec.PrivacyPolicyURL
 	}
 	if spec.AppIconURL != "" {
-		params["app_icon_url"] = absolutizeBrandingImageURL(spec.AppIconURL)
+		resolved, err := absolutizeBrandingImageURL("app_icon_url", spec.AppIconURL)
+		if err != nil {
+			return NormalizedBuild{}, NewFieldError("app_icon_url", FieldCodeInvalidFormat, err)
+		}
+		params["app_icon_url"] = resolved
 	}
 	if spec.AppLogoURL != "" {
-		params["app_logo_url"] = absolutizeBrandingImageURL(spec.AppLogoURL)
+		resolved, err := absolutizeBrandingImageURL("app_logo_url", spec.AppLogoURL)
+		if err != nil {
+			return NormalizedBuild{}, NewFieldError("app_logo_url", FieldCodeInvalidFormat, err)
+		}
+		params["app_logo_url"] = resolved
 	}
 	if spec.PrivacyScreenURL != "" {
-		params["privacy_screen_url"] = absolutizeBrandingImageURL(spec.PrivacyScreenURL)
+		resolved, err := absolutizeBrandingImageURL("privacy_screen_url", spec.PrivacyScreenURL)
+		if err != nil {
+			return NormalizedBuild{}, NewFieldError("privacy_screen_url", FieldCodeInvalidFormat, err)
+		}
+		params["privacy_screen_url"] = resolved
 	}
 	params["custom_txt"] = newNormalizedCustomTxt(customTxt)
 
@@ -702,6 +717,9 @@ func parseBuildSpec(raw map[string]any) (BuildSpec, error) {
 	}
 	if err := validateCompanyName(spec.CompanyName); err != nil {
 		return BuildSpec{}, NewFieldError("company_name", FieldCodeInvalidFormat, err)
+	}
+	if err := validateBuildSpecImageFields(spec); err != nil {
+		return BuildSpec{}, err
 	}
 	if err := validateHideCMCombination(spec); err != nil {
 		return BuildSpec{}, err
@@ -1089,6 +1107,9 @@ func validateBuildSpec(spec BuildSpec) error {
 	if err := validateCompanyName(spec.CompanyName); err != nil {
 		return NewFieldError("company_name", FieldCodeInvalidFormat, err)
 	}
+	if err := validateBuildSpecImageFields(spec); err != nil {
+		return err
+	}
 	if err := validateBuildSpecTransportFields(spec); err != nil {
 		return err
 	}
@@ -1137,25 +1158,89 @@ func validateBuildSpecTransportFields(spec BuildSpec) error {
 	return nil
 }
 
-// absolutizeBrandingImageURL rewrites a server-relative branding image value
-// ("/upload/...") into a fetchable absolute URL against the API's own public
-// base address (api-server, RUSTDESK_API_RUSTDESK_API_SERVER) — the same
-// configured accessor this service already uses to build absolute links to
-// itself. The fork build workflow rejects relative image URLs at build time,
-// so a configured base must prefix them here. Without a configured base the
-// value is left unchanged; the fork gate then rejects it with its own error
-// instead of this layer inventing a fallback. Absolute values (not starting
-// with "/") are unchanged, so the rewrite is idempotent. persisted custom_json
-// keeps the stored relative value; only the dispatch payload is absolutized.
-func absolutizeBrandingImageURL(value string) string {
-	if value == "" || !strings.HasPrefix(value, "/") || Config == nil {
-		return value
+// absolutizeBrandingImageURL validates a branding image value (app_icon_url,
+// app_logo_url, privacy_screen_url) and returns the absolute URL the build
+// workflow must fetch. A server-relative upload path ("/upload/...") is resolved
+// against the configured public API origin (public-api-server) — the externally
+// reachable address the GitHub runner can fetch from, never the operational
+// api-server, which may hold an internal/Docker address such as
+// http://localhost:21114. An already-absolute value is kept after it passes the
+// same public-URL rule, so the rewrite is idempotent for the values a caller
+// derived from a prior resolution.
+//
+// It fails closed with an error instead of a value when the value cannot become
+// a fetchable public URL: a relative value with no configured/usable public
+// origin, a non-http(s) scheme (file:, ftp:, ...), a malformed URL, a missing
+// host, userinfo/credentials, embedded control characters or whitespace, a
+// value over the 2048-byte branding URL cap, or a literal loopback/private/
+// link-local host. There is deliberately no fallback to the operational
+// api-server, because the runner cannot reach that address.
+//
+// persisted custom_json keeps the stored relative value; only the producer's
+// dispatch payload is absolutized.
+func absolutizeBrandingImageURL(name, value string) (string, error) {
+	if value == "" {
+		return "", nil
 	}
-	base := strings.TrimRight(Config.Rustdesk.ApiServer, "/")
-	if base == "" {
-		return value
+	if err := validateWorkflowValue(name, value); err != nil {
+		return "", err
 	}
-	return base + value
+	if strings.HasPrefix(value, "/") {
+		if strings.HasPrefix(value, "//") {
+			return "", fmt.Errorf("%s has invalid URL %q", name, value)
+		}
+		origin, err := publicAPIOrigin()
+		if err != nil {
+			return "", fmt.Errorf("%s cannot be resolved to a fetchable URL: %w", name, err)
+		}
+		resolved := origin + value
+		if err := validatePublicHTTPURL(name, resolved); err != nil {
+			return "", err
+		}
+		return resolved, nil
+	}
+	if err := validatePublicHTTPURL(name, value); err != nil {
+		return "", err
+	}
+	return value, nil
+}
+
+// publicAPIOrigin returns the configured public API origin used to resolve
+// server-relative branding assets, normalized without a trailing slash. It fails
+// closed when public-api-server is absent or is not a usable public absolute
+// http(s) URL, so a build never emits an address the runner cannot reach.
+func publicAPIOrigin() (string, error) {
+	if Config == nil {
+		return "", fmt.Errorf("no public API server (public-api-server) is configured")
+	}
+	origin := strings.TrimRight(Config.Rustdesk.PublicApiServer, "/")
+	if origin == "" {
+		return "", fmt.Errorf("no public API server (public-api-server) is configured")
+	}
+	if err := validatePublicHTTPURL("public-api-server", origin); err != nil {
+		return "", err
+	}
+	return origin, nil
+}
+
+// validateBuildSpecImageFields resolves the branding image URLs against the
+// configured public origin at the typed boundary. A relative asset with no
+// usable public origin is a field-level invalid_format error at create time, so
+// the build cannot be persisted and later fail at dispatch or build time.
+func validateBuildSpecImageFields(spec BuildSpec) error {
+	for _, field := range []struct {
+		name  string
+		value string
+	}{
+		{"app_icon_url", spec.AppIconURL},
+		{"app_logo_url", spec.AppLogoURL},
+		{"privacy_screen_url", spec.PrivacyScreenURL},
+	} {
+		if _, err := absolutizeBrandingImageURL(field.name, field.value); err != nil {
+			return NewFieldError(field.name, FieldCodeInvalidFormat, err)
+		}
+	}
+	return nil
 }
 
 func validateWorkflowValue(name, value string) error {
@@ -1295,13 +1380,22 @@ func NormalizeWorkflowDispatchParams(platform string, raw map[string]any) (map[s
 			// privacy_policy_url reach the fork workflow as absolute http(s)
 			// URLs, so they share the fork-subset validateBrandingURL rule here
 			// as well as at the typed boundary. company_name shares the fork
-			// length cap. The image-URL values may be relative upload paths and
-			// carry no API-URL format rule; they are only absolutized against
-			// the configured api-server base at this dispatch boundary
-			// (idempotent for already-absolute values).
+			// length cap. The image-URL values are re-resolved against the
+			// configured public origin here too (idempotent for already-absolute
+			// values) so a config change between create and dispatch cannot emit
+			// an unfetchable URL.
 			stringValue, err := dispatchStringValue(name, value)
 			if err != nil {
 				return nil, err
+			}
+			switch name {
+			case "app_icon_url", "app_logo_url", "privacy_screen_url":
+				resolved, err := absolutizeBrandingImageURL(name, stringValue)
+				if err != nil {
+					return nil, NewFieldError(name, FieldCodeInvalidFormat, err)
+				}
+				normalized[name] = resolved
+				continue
 			}
 			if err := validateWorkflowValue(name, stringValue); err != nil {
 				return nil, err
@@ -1315,10 +1409,6 @@ func NormalizeWorkflowDispatchParams(platform string, raw map[string]any) (map[s
 				if err := validateCompanyName(stringValue); err != nil {
 					return nil, NewFieldError(name, FieldCodeInvalidFormat, err)
 				}
-			}
-			switch name {
-			case "app_icon_url", "app_logo_url", "privacy_screen_url":
-				stringValue = absolutizeBrandingImageURL(stringValue)
 			}
 			normalized[name] = stringValue
 		case "release_assets":
@@ -1522,44 +1612,89 @@ func validateAPIURL(name, value string) error {
 	return nil
 }
 
-// validateBrandingURL enforces the fork build workflow's branding-URL
-// acceptance domain at the typed and dispatch boundaries for download_url,
-// website_url, and privacy_policy_url, so a value accepted here is never
-// rejected late at build time. It requires an absolute URL with a lowercase
-// http:// or https:// prefix, no whitespace anywhere, at most
-// maxBrandingURLBytes bytes, no userinfo, and a usable host. The lowercase
-// prefix test is deliberately case-sensitive: the fork uses a case-sensitive
-// prefix match, so the mixed-case scheme net/url would otherwise normalize
-// (HTTP://example.com) must be rejected here instead of passing this boundary.
-// The host check is the minimal non-narrowing one: net/url accepts degenerate
-// hosts that are pure punctuation ("https://.", "https://..", "https://-"),
-// which would render as website/download/privacy links with no usable domain,
-// so a hostname containing no letter or digit is rejected. Every host with at
-// least one alphanumeric character stays accepted, including DNS names,
-// single-label hosts, IPv4/IPv6 literals, and IDN/punycode. An empty value
-// stays allowed so callers can omit the field. api_server keeps validateAPIURL,
-// whose permissive scheme handling is part of its existing contract.
-func validateBrandingURL(name, value string) error {
+// brandingURLHost applies the shared branding-URL acceptance rule and returns the
+// parsed hostname. It requires an absolute URL with a lowercase http:// or
+// https:// prefix, no whitespace anywhere, at most maxBrandingURLBytes bytes, no
+// userinfo, and a usable host. The lowercase prefix test is deliberately
+// case-sensitive: the fork uses a case-sensitive prefix match, so the mixed-case
+// scheme net/url would otherwise normalize (HTTP://example.com) must be rejected
+// here instead of passing this boundary. The host check is the minimal
+// non-narrowing one: net/url accepts degenerate hosts that are pure punctuation
+// ("https://.", "https://..", "https://-"), which would render as links with no
+// usable domain, so a hostname containing no letter or digit is rejected. Every
+// host with at least one alphanumeric character stays accepted, including DNS
+// names, single-label hosts, IPv4/IPv6 literals, and IDN/punycode. An empty value
+// stays allowed so callers can omit the field and returns an empty host.
+func brandingURLHost(name, value string) (string, error) {
 	if value == "" {
-		return nil
+		return "", nil
 	}
 	if len(value) > maxBrandingURLBytes {
-		return fmt.Errorf("%s exceeds %d bytes", name, maxBrandingURLBytes)
+		return "", fmt.Errorf("%s exceeds %d bytes", name, maxBrandingURLBytes)
 	}
 	if !strings.HasPrefix(value, "http://") && !strings.HasPrefix(value, "https://") {
-		return fmt.Errorf("%s must be an absolute http(s) URL", name)
+		return "", fmt.Errorf("%s must be an absolute http(s) URL", name)
 	}
 	if strings.ContainsFunc(value, unicode.IsSpace) {
-		return fmt.Errorf("%s must not contain whitespace", name)
+		return "", fmt.Errorf("%s must not contain whitespace", name)
 	}
 	parsed, err := url.ParseRequestURI(value)
 	if err != nil || parsed.Host == "" || parsed.User != nil {
-		return fmt.Errorf("%s has invalid URL %q", name, value)
+		return "", fmt.Errorf("%s has invalid URL %q", name, value)
 	}
 	if !hasAlphanumeric(parsed.Hostname()) {
-		return fmt.Errorf("%s has invalid URL %q: host has no usable domain", name, value)
+		return "", fmt.Errorf("%s has invalid URL %q: host has no usable domain", name, value)
+	}
+	return parsed.Hostname(), nil
+}
+
+// validateBrandingURL enforces the fork build workflow's branding-URL
+// acceptance domain at the typed and dispatch boundaries for download_url,
+// website_url, and privacy_policy_url, so a value accepted here is never
+// rejected late at build time. An empty value stays allowed so callers can omit
+// the field. api_server keeps validateAPIURL, whose permissive scheme handling
+// is part of its existing contract.
+func validateBrandingURL(name, value string) error {
+	_, err := brandingURLHost(name, value)
+	return err
+}
+
+// validatePublicHTTPURL applies the branding-URL rule plus a public-host rule
+// and rejects an empty value. It is used for the public origin
+// (public-api-server) and for a resolved branding image URL: the GitHub build
+// runner fetches those assets over the public internet, so a literal
+// loopback/private/link-local host or the name "localhost" is a build-time
+// failure and must be rejected here. Non-literal hostnames are not resolved, so
+// this is a syntactic check, not a DNS check.
+func validatePublicHTTPURL(name, value string) error {
+	host, err := brandingURLHost(name, value)
+	if err != nil {
+		return err
+	}
+	if host == "" {
+		return fmt.Errorf("%s must be an absolute http(s) URL", name)
+	}
+	if isPrivateOrLoopbackHost(host) {
+		return fmt.Errorf("%s must use a public host %q", name, host)
 	}
 	return nil
+}
+
+// isPrivateOrLoopbackHost reports whether host is the loopback name
+// "localhost" (or a ".localhost" name) or a literal loopback, RFC 1918 /
+// unique-local (RFC 4193), or link-local unicast address. These hosts are not
+// reachable from the public build runner. Only literal addresses are inspected;
+// the name is never resolved.
+func isPrivateOrLoopbackHost(host string) bool {
+	name := strings.TrimSuffix(strings.ToLower(host), ".")
+	if name == "localhost" || strings.HasSuffix(name, ".localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast()
 }
 
 // hasAlphanumeric reports whether value contains at least one letter or digit.
@@ -1621,10 +1756,13 @@ func CustomBrandingFieldNames() []string {
 // dispatch-gate rules for each branding field: the URL text fields and the image
 // branding keys carry the dispatch control-character safety rule
 // (validateWorkflowValue), the URL text fields additionally carry the absolute
-// http(s) validateBrandingURL rule, and company_name carries validateCompanyName
-// (its own control-character and length rule). A value that passes this seam
-// therefore cannot be rejected later by the typed boundary or the dispatch gate
-// for a branding-field reason.
+// http(s) validateBrandingURL rule, company_name carries validateCompanyName
+// (its own control-character and length rule), and the image keys additionally
+// carry the same public-URL/relative-resolution rule the producer applies
+// (absolutizeBrandingImageURL), so a stored relative image without a usable
+// public origin is refused here too. A value that passes this seam therefore
+// cannot be rejected later by the typed boundary or the dispatch gate for a
+// branding-field reason.
 func ValidateStoredCustomBrandingField(field string, value any) error {
 	stringValue, ok := value.(string)
 	if !ok {
@@ -1639,7 +1777,8 @@ func ValidateStoredCustomBrandingField(field string, value any) error {
 	case "company_name":
 		return validateCompanyName(stringValue)
 	case "app_icon_url", "app_logo_url", "privacy_screen_url":
-		return validateWorkflowValue(field, stringValue)
+		_, err := absolutizeBrandingImageURL(field, stringValue)
+		return err
 	default:
 		return fmt.Errorf("unsupported custom branding field %q", field)
 	}

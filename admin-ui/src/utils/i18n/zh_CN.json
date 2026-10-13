@@ -101,6 +101,15 @@
   "CustomClientCompanyNameInvalidFormat": {
     "One": "公司名称不得超过 256 字节。"
   },
+  "CustomClientAppIconUrlInvalidFormat": {
+    "One": "应用图标必须是绝对公共 http:// 或 https:// URL，或是已配置公共 API 服务器的本地 /upload/... 路径。"
+  },
+  "CustomClientAppLogoUrlInvalidFormat": {
+    "One": "应用徽标必须是绝对公共 http:// 或 https:// URL，或是已配置公共 API 服务器的本地 /upload/... 路径。"
+  },
+  "CustomClientPrivacyScreenUrlInvalidFormat": {
+    "One": "隐私屏幕图片必须是绝对公共 http:// 或 https:// URL，或是已配置公共 API 服务器的本地 /upload/... 路径。"
+  },
   "CustomClientFieldInvalidFormat": {
     "One": "该值对所选的平台而言格式无效。"
   },

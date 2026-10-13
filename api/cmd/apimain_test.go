@@ -9,6 +9,7 @@ import (
 	"rustdesk-server/api/config"
 	"rustdesk-server/api/global"
 	"rustdesk-server/api/model"
+	"rustdesk-server/api/service"
 
 	"github.com/sirupsen/logrus"
 	"gorm.io/driver/sqlite"
@@ -121,6 +122,15 @@ func TestMigrateSchemaAndRecordVersionCustomBrandingPreflight(t *testing.T) {
 	// asserts whether it fails closed with errInvalidCustomBrandingFields.
 	overLongURL := "https://download.example/" + strings.Repeat("a", 2049)
 	overLongCompany := strings.Repeat("x", 257)
+	// The branding image fields resolve a server-relative asset against the
+	// configured public origin, so the preflight test pins a valid public origin
+	// by default; publicAPIByCase overrides it (including to "") for a case that
+	// must exercise the fail-closed path.
+	const testPublicAPIServer = "https://deskforge.example"
+	publicAPIByCase := map[string]string{
+		"image-relative-no-public-origin":       "",
+		"image-relative-loopback-public-origin": "http://127.0.0.1:21114",
+	}
 	cases := []struct {
 		name       string
 		customJSON string
@@ -144,6 +154,15 @@ func TestMigrateSchemaAndRecordVersionCustomBrandingPreflight(t *testing.T) {
 		// The existing website_url tightening is preserved: a format-invalid
 		// stored string now fails too, not just a non-string value.
 		{"website-mixed-case-scheme", `{"website_url":"HTTP://x"}`, true},
+		// The image keys resolve a stored relative asset against the configured
+		// public origin. A row that resolves fails closed when the origin is
+		// missing or is not public, and a non-http(s)/host-less stored value is
+		// refused; a valid absolute image URL stays accepted.
+		{"image-relative-no-public-origin", `{"app_icon_url":"/upload/icon.png"}`, true},
+		{"image-relative-loopback-public-origin", `{"app_logo_url":"/upload/logo.png"}`, true},
+		{"image-file-scheme", `{"privacy_screen_url":"file:///etc/passwd"}`, true},
+		{"image-missing-host", `{"app_icon_url":"https:///x.png"}`, true},
+		{"image-absolute-valid", `{"privacy_screen_url":"https://cdn.example/i.png"}`, false},
 		// Valid branding values, absent keys, and unrelated invalid fields must
 		// all pass: the preflight must not over-block a row for a non-branding
 		// field, nor run the whole typed boundary over legacy rows.
@@ -187,6 +206,16 @@ func TestMigrateSchemaAndRecordVersionCustomBrandingPreflight(t *testing.T) {
 			if err := db.Create(&legacyCustomPresetWithJSON{UserId: 7, Name: "seed", CustomJson: tc.customJSON}).Error; err != nil {
 				t.Fatalf("seed legacy preset: %v", err)
 			}
+
+			// The preflight resolves stored relative image assets against the
+			// service config's public origin; pin it for this case and restore.
+			origin := testPublicAPIServer
+			if override, ok := publicAPIByCase[tc.name]; ok {
+				origin = override
+			}
+			previousConfig := service.Config
+			service.Config = &config.Config{Rustdesk: config.Rustdesk{ApiServer: "http://localhost:21114", PublicApiServer: origin}}
+			t.Cleanup(func() { service.Config = previousConfig })
 
 			migrateCalled := false
 			err = migrateSchemaAndRecordVersion(db, DatabaseVersion, func(db *gorm.DB) error {

@@ -11,8 +11,10 @@ For a fresh checkout, create the repository-root `.env` from `.env.example` befo
 starting Compose (preserve any existing `.env`). To prefill the Custom Client Builder
 with client-reachable addresses, set the optional `RUSTDESK_API_RUSTDESK_PUBLIC_*`
 values there. When Compose is run from `docker/`, the combined service loads root
-`.env` through `env_file: ../.env`; these values only prefill builder fields and do
-not replace the operational server addresses.
+`.env` through `env_file: ../.env`; these values prefill builder fields and do not
+replace the operational server addresses. `RUSTDESK_API_RUSTDESK_PUBLIC_API_SERVER` is
+also the origin used to resolve a local branding asset (`/upload/...`) into a
+fetchable URL for the build workflow, so it must be reachable from the build runner.
 
 ```bash
 git clone https://github.com/bashrusakh/DeskForge.git
@@ -72,7 +74,7 @@ remains the earlier workflow-approval migration.
 | `RUSTDESK_API_RUSTDESK_API_SERVER`   | API server URL                    |
 | `RUSTDESK_API_RUSTDESK_PUBLIC_ID_SERVER`    | External/public ID server used to prefill the Custom Client Builder (optional) |
 | `RUSTDESK_API_RUSTDESK_PUBLIC_RELAY_SERVER` | External/public relay server used to prefill the Custom Client Builder (optional) |
-| `RUSTDESK_API_RUSTDESK_PUBLIC_API_SERVER`   | External/public API server URL used to prefill the Custom Client Builder (optional) |
+| `RUSTDESK_API_RUSTDESK_PUBLIC_API_SERVER`   | External/public API server URL: prefills the Custom Client Builder and is the origin for local `/upload/...` assets (optional; must be reachable by the build runner) |
 | `RUSTDESK_API_KEY_FILE`              | Path to public key file           |
 | `RUSTDESK_API_JWT_KEY`              | JWT secret                        |
 | `RUSTDESK_API_GORM_TYPE`            | sqlite / mysql / postgresql       |
@@ -85,15 +87,21 @@ key and are rejected rather than stored as plaintext when it is missing. Legacy 
 rows remain readable; saving them again encrypts them when the key exists.
 
 The `RUSTDESK_API_RUSTDESK_PUBLIC_*` variables are optional external/public addresses
-used only to prefill the Custom Client Builder's Host / Relay / API server fields
+used to prefill the Custom Client Builder's Host / Relay / API server fields
 (needed behind Docker/NAT where the server cannot discover its own external address).
 They are intentionally distinct from `RUSTDESK_API_RUSTDESK_ID_SERVER` /
 `RUSTDESK_API_RUSTDESK_RELAY_SERVER` / `RUSTDESK_API_RUSTDESK_API_SERVER`, which may
 legitimately hold internal or Docker addresses consumed by the dashboard and server
-commands. When a `PUBLIC_*` value is unset, the builder falls back to the operational
-value. The builder's "Local IP" button additionally resolves the server's own network
-interface addresses server-side; in Docker bridge setups those are container addresses,
-and the picker labels each candidate with its source interface.
+commands. `RUSTDESK_API_RUSTDESK_PUBLIC_API_SERVER` additionally serves as the public
+origin that resolves a server-relative branding asset (`/upload/...`) into an absolute
+URL for the build workflow; the build runner fetches that URL, so the origin must be a
+reachable public http(s) address (a loopback/private origin is refused and the
+operational `RUSTDESK_API_RUSTDESK_API_SERVER` is never used as a fallback). When a
+`PUBLIC_*` value is unset, the builder falls back to the operational value for its
+prefill fields; the asset origin has no such fallback. The builder's "Local IP" button
+additionally resolves the server's own network interface addresses server-side; in
+Docker bridge setups those are container addresses, and the picker labels each
+candidate with its source interface.
 
 Rust build metadata uses `SOURCE_DATE_EPOCH` when supplied. Without it, active
 builds use the deterministic value `unknown`; wall-clock metadata is available

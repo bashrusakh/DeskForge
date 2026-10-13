@@ -16,8 +16,12 @@ services:
         # empty keeps the build deterministic with BUILD_DATE=unknown.
         SOURCE_DATE_EPOCH: ${SOURCE_DATE_EPOCH:-}
     # The repo-root .env supplies SECRET_ENCRYPTION_KEY and optional PUBLIC_*
-    # prefill values to the container. Keep them in env_file: explicit
-    # environment entries below override env_file values, even when empty.
+    # values to the container. Keep them in env_file: explicit environment entries
+    # below override env_file values, even when empty. In particular, do not add
+    # RUSTDESK_API_RUSTDESK_PUBLIC_API_SERVER below — an explicit entry would
+    # blank the root-.env value. It is both the Custom Client Builder prefill and
+    # the public origin used to resolve local /upload/... branding assets into a
+    # URL the build runner can fetch, so set it to a reachable public address.
     env_file:
       - ../.env
     ports:
