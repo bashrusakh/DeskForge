@@ -1617,9 +1617,14 @@ func CustomBrandingFieldNames() []string {
 // explicit JSON null) or a string the branding validation rejects returns a
 // non-nil error naming the field, so a caller (the migration preflight) can fail
 // closed with the same rules the typed and dispatch boundaries enforce instead
-// of re-implementing them. The image branding keys carry server-relative upload
-// paths, so they share the dispatch control-character safety rule rather than
-// the absolute http(s) URL rule.
+// of re-implementing them. The seam is the union of the typed-boundary and
+// dispatch-gate rules for each branding field: the URL text fields and the image
+// branding keys carry the dispatch control-character safety rule
+// (validateWorkflowValue), the URL text fields additionally carry the absolute
+// http(s) validateBrandingURL rule, and company_name carries validateCompanyName
+// (its own control-character and length rule). A value that passes this seam
+// therefore cannot be rejected later by the typed boundary or the dispatch gate
+// for a branding-field reason.
 func ValidateStoredCustomBrandingField(field string, value any) error {
 	stringValue, ok := value.(string)
 	if !ok {
@@ -1627,6 +1632,9 @@ func ValidateStoredCustomBrandingField(field string, value any) error {
 	}
 	switch field {
 	case "website_url", "privacy_policy_url", "download_url":
+		if err := validateWorkflowValue(field, stringValue); err != nil {
+			return err
+		}
 		return validateBrandingURL(field, stringValue)
 	case "company_name":
 		return validateCompanyName(stringValue)

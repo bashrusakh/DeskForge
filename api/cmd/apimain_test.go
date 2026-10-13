@@ -151,9 +151,25 @@ func TestMigrateSchemaAndRecordVersionCustomBrandingPreflight(t *testing.T) {
 		// selected, but only "company_name_note" is present) plus an unrelated
 		// invalid field must still pass: only exact branding keys are inspected.
 		{"unrelated-invalid-selected-via-substring", `{"direction":"sideways","company_name_note":"x"}`, false},
-		// An encrypted row whose ciphertext happens to contain branding names is
-		// selected by the LIKE filter but stays opaque and is skipped.
+		// A branding key written with JSON \uXXXX escapes decodes to the name
+		// the typed boundary reads, so a raw-text prefilter would miss the row
+		// and record migration success over a value the typed boundary later
+		// rejects. Inspection of the decoded JSON must still fail closed.
+		{"escaped-company-key-non-string", `{"company\u005fname":123}`, true},
+		{"escaped-company-key-over-length", `{"company\u005fname":"` + overLongCompany + `"}`, true},
+		{"escaped-website-key-invalid-url", `{"website\u005furl":"HTTP://x"}`, true},
+		{"escaped-privacy-key-control-char", `{"privacy\u005fpolicy\u005furl":"https://example.com/\u0086"}`, true},
+		// A C1 control character (U+0086) is not whitespace and url.ParseRequestURI
+		// accepts it, so the branding URL seam must also apply the dispatch
+		// control-character rule to the URL text fields.
+		{"website-url-c1-control", `{"website_url":"https://example.com/\u0086"}`, true},
+		// An escaped key that only resembles a branding key after decoding is an
+		// unrelated field and must not over-block the row.
+		{"escaped-unrelated-key-only", `{"company\u005fname\u005fnote":"x","direction":"sideways"}`, false},
+		// An encrypted row carries branding names only inside opaque ciphertext
+		// and must stay skipped rather than be decoded as plaintext.
 		{"encrypted-skipped", "Salted__opaque-website_url-download_url-company_name", false},
+		{"encrypted-prefix-skipped", "enc:v1:not-valid-json-website_url", false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

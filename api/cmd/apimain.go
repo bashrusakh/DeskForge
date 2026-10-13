@@ -1,12 +1,12 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -368,22 +368,18 @@ func migrateSchemaAndRecordVersion(db *gorm.DB, version uint, migrate func(*gorm
 // storage. The branding field set and its rules stay single-source in service so
 // this preflight cannot drift from the typed/dispatch boundaries, and only
 // branding fields are inspected so unrelated legacy fields keep their own
-// boundaries. Encrypted rows remain opaque and are skipped.
+// boundaries. Encrypted rows remain opaque and are skipped. Rows are streamed
+// and inspected from their decoded JSON rather than through a raw-text prefilter:
+// a branding key written with JSON \uXXXX escapes decodes to the branding name
+// the typed boundary reads but would not match a literal text search, so a
+// text prefilter could pass a row the typed boundary later rejects. Streaming
+// also keeps a large custom_builds table (one row per historical build) memory
+// bounded.
 func preflightCustomBuildBrandingFields(db *gorm.DB, version uint) error {
 	if version < customBrandingFieldsMigrationVersion {
 		return nil
 	}
-	type storedCustomJSON struct {
-		Id         uint
-		CustomJson string
-	}
 	brandingFields := service.CustomBrandingFieldNames()
-	likeConditions := make([]string, 0, len(brandingFields))
-	likeArgs := make([]any, 0, len(brandingFields))
-	for _, field := range brandingFields {
-		likeConditions = append(likeConditions, "custom_json LIKE ?")
-		likeArgs = append(likeArgs, "%"+field+"%")
-	}
 	for _, table := range []struct {
 		name  string
 		model any
@@ -399,31 +395,49 @@ func preflightCustomBuildBrandingFields(db *gorm.DB, version uint) error {
 			// row data to check; AutoMigrate adds the column afterwards.
 			continue
 		}
-		var rows []storedCustomJSON
-		if err := db.Model(table.model).
-			Select("id", "custom_json").
-			Where(strings.Join(likeConditions, " OR "), likeArgs...).
-			Find(&rows).Error; err != nil {
-			return fmt.Errorf("query stored custom branding values in %s: %w", table.name, err)
+		if err := preflightCustomBuildBrandingFieldRows(db, table.name, table.model, brandingFields); err != nil {
+			return err
 		}
-		for _, row := range rows {
-			if utils.IsEncryptedSecret(row.CustomJson) {
+	}
+	return nil
+}
+
+// preflightCustomBuildBrandingFieldRows streams one table's rows and fails
+// closed on the first decoded branding field value the shared branding seam
+// rejects. It selects only the row identity and custom_json text so a large
+// table is iterated without loading every row into memory.
+func preflightCustomBuildBrandingFieldRows(db *gorm.DB, tableName string, tableModel any, brandingFields []string) error {
+	rows, err := db.Model(tableModel).Select("id", "custom_json").Rows()
+	if err != nil {
+		return fmt.Errorf("query stored custom branding values in %s: %w", tableName, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id uint
+		var storedJSON sql.NullString
+		if err := rows.Scan(&id, &storedJSON); err != nil {
+			return fmt.Errorf("scan stored custom branding value in %s: %w", tableName, err)
+		}
+		stored := storedJSON.String
+		if utils.IsEncryptedSecret(stored) {
+			continue
+		}
+		var decoded map[string]any
+		if err := json.Unmarshal([]byte(stored), &decoded); err != nil {
+			continue
+		}
+		for _, field := range brandingFields {
+			value, ok := decoded[field]
+			if !ok {
 				continue
 			}
-			var decoded map[string]any
-			if err := json.Unmarshal([]byte(row.CustomJson), &decoded); err != nil {
-				continue
-			}
-			for _, field := range brandingFields {
-				value, ok := decoded[field]
-				if !ok {
-					continue
-				}
-				if err := service.ValidateStoredCustomBrandingField(field, value); err != nil {
-					return fmt.Errorf("%w: %s row %d field %q: %v", errInvalidCustomBrandingFields, table.name, row.Id, field, err)
-				}
+			if err := service.ValidateStoredCustomBrandingField(field, value); err != nil {
+				return fmt.Errorf("%w: %s row %d field %q: %v", errInvalidCustomBrandingFields, tableName, id, field, err)
 			}
 		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate stored custom branding values in %s: %w", tableName, err)
 	}
 	return nil
 }

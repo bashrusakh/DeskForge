@@ -1307,6 +1307,14 @@ func TestValidateStoredCustomBrandingField(t *testing.T) {
 		{"mixed-case-scheme", "download_url", "HTTP://x", true},
 		{"punctuation-host", "privacy_policy_url", "https://.", true},
 		{"over-length-url", "website_url", "https://x.example/" + strings.Repeat("a", 2049), true},
+		// The seam is the union of the typed-boundary and dispatch-gate rules:
+		// a C1 control character (U+0086) is neither whitespace nor rejected by
+		// url.ParseRequestURI, so the URL text fields must also carry the
+		// dispatch control-character rule or the migration would pass a row the
+		// dispatch gate later rejects with a non-field error.
+		{"website-url-c1-control", "website_url", "https://example.com/\u0086", true},
+		{"download-url-c1-control", "download_url", "https://download.example/\u0086", true},
+		{"privacy-url-c1-control", "privacy_policy_url", "https://www.example.com/\u0086", true},
 		{"company-control-char", "company_name", "Acme\nLtd", true},
 		{"company-over-length", "company_name", strings.Repeat("x", 257), true},
 		{"image-control-char", "app_logo_url", "bad\nvalue", true},
