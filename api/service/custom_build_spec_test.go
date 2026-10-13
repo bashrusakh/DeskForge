@@ -1273,3 +1273,70 @@ func TestNormalizeCustomBuildBrandFieldsPresetRestoreRoundTrip(t *testing.T) {
 		t.Fatal("NormalizeCustomBuildJSON() accepted non-string website_url")
 	}
 }
+
+func TestNormalizeCustomBuildDownloadURLValidation(t *testing.T) {
+	// download_url reaches the Windows fork build workflow, which requires an
+	// absolute http(s) URL. The typed boundary must reject the same values the
+	// fork rejects, with the same field-level invalid_format contract as the
+	// sibling website_url/privacy_policy_url branding URLs.
+	context := BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"}
+	for _, value := range []string{"https://download.example/app", "http://download.example/app"} {
+		t.Run("valid-"+value, func(t *testing.T) {
+			got, err := NormalizeCustomBuild(map[string]any{"download_url": value}, context)
+			if err != nil {
+				t.Fatalf("NormalizeCustomBuild() error = %v, want accepted", err)
+			}
+			if got.DispatchParams["download_url"] != value {
+				t.Errorf("dispatch[download_url] = %v, want %q", got.DispatchParams["download_url"], value)
+			}
+			if persisted := decodeJSON(t, got.PersistedJSON)["download_url"]; persisted != value {
+				t.Errorf("persisted[download_url] = %v, want %q", persisted, value)
+			}
+		})
+	}
+
+	for _, value := range []string{"/upload/client.exe", "download.example/app", "ftp://download.example/app"} {
+		t.Run("invalid-"+value, func(t *testing.T) {
+			custom := mustJSON(t, map[string]any{
+				"server_ip":    "id.example:21116",
+				"key":          validRustDeskPublicKey,
+				"api_server":   "https://api.example",
+				"relay_server": "relay.example:21117",
+				"download_url": value,
+			})
+			err := ValidateCustomBuildInput("windows", custom, "rustqs", "1.2.3")
+			if err == nil {
+				t.Fatalf("ValidateCustomBuildInput() accepted download_url %q", value)
+			}
+			field, code, ok := FieldErrorMetadata(err)
+			if !ok || field != "download_url" || code != FieldCodeInvalidFormat {
+				t.Fatalf("field/code = %s/%s ok=%v, want download_url/%s (err=%v)", field, code, ok, FieldCodeInvalidFormat, err)
+			}
+		})
+	}
+
+	// The existing control-character rejection is preserved; the value is now
+	// rejected at the typed boundary too, before it reaches the dispatch gate.
+	if _, err := NormalizeCustomBuild(map[string]any{"download_url": "https://download.example/a\nb"}, context); err == nil {
+		t.Error("NormalizeCustomBuild() accepted a control character in download_url")
+	}
+	if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{"download_url": "https://download.example/a\nb"}); err == nil {
+		t.Error("NormalizeWorkflowDispatchParams() accepted a control character in download_url")
+	}
+
+	// Empty download_url stays allowed and is omitted from the dispatch payload,
+	// exactly like the sibling branding URLs.
+	empty, err := NormalizeCustomBuild(map[string]any{"download_url": ""}, context)
+	if err != nil {
+		t.Fatalf("NormalizeCustomBuild() with empty download_url error = %v", err)
+	}
+	if _, ok := empty.DispatchParams["download_url"]; ok {
+		t.Error("empty download_url was emitted to dispatch")
+	}
+
+	// The dispatch primitive keeps the same absolute-URL gate for forged caller
+	// values, mirroring website_url.
+	if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{"download_url": "/upload/client.exe"}); err == nil {
+		t.Fatal("NormalizeWorkflowDispatchParams() accepted relative download_url")
+	}
+}
