@@ -265,13 +265,15 @@ tests.
 This policy is a provider-boundary contract, not live-provider evidence: the
 worktree has focused fake-transport coverage but no live GitHub/provider
 approval, dispatch, run, or artifact pass. Dispatch sends only the `ref` and
-required `inputs`. GitHub retired the `return_run_details` dispatch parameter
-(2026-03-10 API breaking change); requests that still send the retired
-parameter are 422-rejected. The dispatch request pins the
+required `inputs`. The dispatch request pins the
 `X-GitHub-Api-Version: 2026-03-10` version (the client-wide pin stays
-`2022-11-28`), under which GitHub returns an exact HTTP 200 run-details
-response; under the pinned legacy version the dispatch still behaves legacy
-204. A standard 204 response and latest-run inference remain
+`2022-11-28`). GitHub's 2026-03-10 breaking change removed the
+`return_run_details` parameter and made the endpoint always return HTTP 200
+with the run details, so the dispatch reads the run details directly from an
+always-200 response and no longer sends the retired parameter. This is a
+deliberate contract modernization, not a #80 requirement: the pinned
+`2022-11-28` version with `return_run_details=true` also returns the run
+details. A standard 204 response and latest-run inference remain
 unsupported. The local pending →
 building identity write is atomic, but there is no durable outbox or distributed
 lease coordinating provider dispatch with that database write. A provider
