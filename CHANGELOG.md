@@ -46,8 +46,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - The current custom-client path is owned-fork dispatch, provider polling, exact artifact
   retrieval, and local validation/publication. Runner callbacks, local file-queue fallback,
   and sole-artifact selection are not current production behavior.
-- Dispatch `return_run_details=true` plus an exact HTTP 200 run-details response is the
-  project/provider contract under test. Standard 204 is intentionally unsupported because
+- Dispatch pins the `2026-03-10` API version and reads the run details directly from an
+  always-200 response without sending the retired `return_run_details` parameter (removed by
+  GitHub's 2026-03-10 breaking change). Standard 204 is intentionally unsupported because
   it does not provide an accepted exact run correlation; normal GitHub operation is not verified.
 - Windows is the only production capability admitted by the API gate. Linux/Android
   workflow mappings exist but remain gated pending PR11 evidence; no live provider run or
