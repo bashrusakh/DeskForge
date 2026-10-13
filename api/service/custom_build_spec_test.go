@@ -1912,10 +1912,13 @@ func TestBrandingPublicLiteralAddressPolicyBoundaries(t *testing.T) {
 	// documentation, the dummy IPv6 prefix, SRv6 SIDs, the deprecated
 	// IPv4-compatible form, ...) as a configured public origin, as an absolute
 	// branding image value at the typed boundary, at the dispatch gate, and at
-	// the stored-data seam — and still accept public literals. The IPv6 half is
-	// additionally bounded to 2000::/3, the only block IANA allocates as global
-	// unicast, so the IANA-reserved blocks outside that block and the reserved
-	// space inside it are refused as well.
+	// the stored-data seam — and still accept public literals. An IPv6 literal is
+	// public only inside a prefix the IANA IPv6 Global Unicast Address Space
+	// registry lists as ALLOCATED (retrieved 2026-10-14) — the registry reserves
+	// every unlisted address in 2000::/3 for future allocation — so the gaps
+	// between the allocated rows are refused together with everything outside
+	// them, and the allocated rows stay subject to the non-public rules applied
+	// on top (documentation, 6to4, the partially allocated 2001::/23 block).
 	context := BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"}
 
 	blocked := []string{
@@ -1935,6 +1938,21 @@ func TestBrandingPublicLiteralAddressPolicyBoundaries(t *testing.T) {
 		// only the registry's Globally Reachable more-specific allocations
 		// pass through, so unlisted space in it is refused.
 		"[2001:1::4]", "[2001:5::1]",
+		// Addresses not listed in any ALLOCATED row of the IANA IPv6 Global
+		// Unicast Address Space registry: the registry's note reserves all
+		// unlisted space in 2000::/3 for future allocation, so these gaps
+		// between the allocated rows are not public fetch targets.
+		"[2000::1]", "[2001:1000::1]", "[2001:4e00::1]", "[2001:6000::1]",
+		"[2001:c000::1]", "[2611::1]", "[2622::1]", "[2650::1]", "[3fff:1000::1]",
+		// ALLOCATED rows that the non-public rules still refuse on top: Teredo,
+		// benchmarking, the terminated ORCHID and ORCHIDv2 inside the partially
+		// allocated 2001::/23 block, and 6to4.
+		"[2001::1]", "[2001:2::1]", "[2001:10::1]", "[2001:20::1]", "[2002::1]",
+		// Transition forms outside the global-unicast block, refused as unlisted
+		// because they embed an IPv4 destination this policy cannot verify
+		// (NAT64 here; the deprecated IPv4-compatible form is [::127.0.0.1]
+		// above).
+		"[64:ff9b::1]", "[64:ff9b:1::1]",
 	}
 	for _, host := range blocked {
 		t.Run("origin/"+host, func(t *testing.T) {
@@ -1985,16 +2003,22 @@ func TestBrandingPublicLiteralAddressPolicyBoundaries(t *testing.T) {
 	}
 
 	// Public absolute image URLs (public literals and DNS names) stay accepted
-	// at every boundary, including the registry Globally Reachable blocks
-	// adjacent to the refused special-purpose ranges and the more-specific
-	// allocations inside 2001::/23: the DRIP prefix (2001:30::/28), AMT
-	// (2001:3::/32), the AS112 blocks (2001:4:112::/48, 2620:4f:8000::/48), the
-	// DNS-SD SRP anycast address (2001:1::3), and an ordinary RIR allocation
-	// (2001:4860:4860::8888).
+	// at every boundary: literals inside ALLOCATED registry rows across
+	// different RIRs — Cloudflare 2606:4700:4700::1111 (ARIN 2600::/12),
+	// 2001:4860:4860::8888 (ARIN 2001:4800::/23), 2400:cb00::1 (APNIC
+	// 2400::/12), 2800:3f0::1 (LACNIC 2800::/12), 2a00:1450::1 (RIPE NCC
+	// 2a00::/12) — and the special-purpose registry's Globally Reachable rows
+	// inside allocated space: the more-specifics inside 2001::/23 (the DRIP
+	// prefix 2001:30::/28, AMT 2001:3::/32, AS112-v6 2001:4:112::/48, the
+	// DNS-SD SRP anycast address 2001:1::3), and AS112 2620:4f:8000::/48 in
+	// the 2620::/23 row.
 	for _, value := range []string{
 		"http://8.8.8.8/i.png",
 		"http://1.1.1.1/i.png",
 		"http://[2606:4700:4700::1111]/i.png",
+		"http://[2400:cb00::1]/i.png",
+		"http://[2800:3f0::1]/i.png",
+		"http://[2a00:1450::1]/i.png",
 		"http://[2001:30::1]/i.png",
 		"http://[2001:3::1]/i.png",
 		"http://[2620:4f:8000::1]/i.png",

@@ -2,7 +2,7 @@ package service
 
 // This file is the one authoritative host policy for the branding URLs the
 // public build workflow may fetch. It holds the non-public address table and
-// the IANA global-unicast bound (isPublicLiteralIP), the literal-host
+// the IANA global-unicast allocation list (isPublicLiteralIP), the literal-host
 // canonicalization that keeps the resolver-style IPv4 spellings and at most one
 // trailing root-label dot (parseLiteralHostAddr), the localhost-name rule, and
 // the hostname-plausibility rule, so the public origin (public-api-server), an
@@ -17,17 +17,70 @@ import (
 	"unicode"
 )
 
-// ianaGlobalUnicastPrefix is the only IPv6 block IANA allocates as global
-// unicast. The IANA IPv6 Address Space registry (last updated 2025-10-23,
-// checked 2026-10-14) marks 2000::/3 "Global Unicast" and reserves every other
-// top-level block for the IETF (400::/6, 800::/5, 1000::/4, 6000::/3, fe00::/9,
-// fec0::/10, ...), citing RFC 3513/RFC 4291. The IPv6 half of the fetch host
-// policy is therefore a bound plus the table below: a literal IPv6 address is
-// public only inside 2000::/3 and outside every table block. IPv4 needs no such
-// bound — its complement is the ordinary global unicast space, and every IPv4
-// Special-Purpose Address Registry row that is not Globally Reachable is
-// covered by the table — which is why the bound is applied to IPv6 only.
-var ianaGlobalUnicastPrefix = netip.MustParsePrefix("2000::/3")
+// ianaGlobalUnicastAllocations is the IPv6 half of the literal public-fetch
+// policy: the prefixes the IANA IPv6 Global Unicast Address Space registry
+// lists as ALLOCATED, transcribed in registry order on 2026-10-14 from the
+// registry (last updated 2025-10-10) at
+// https://www.iana.org/assignments/ipv6-unicast-address-assignments/
+// (ipv6-unicast-address-assignments.csv; the XHTML table carries the same
+// rows). The registry's own note is the rule this list implements: "All
+// address space in this block not listed in the table below is reserved by
+// IANA for future allocation", so an IPv6 literal is public only when it falls
+// inside one of these prefixes. The gaps between the rows — 2000::/16 above
+// the first row, and every unallocated range between and after them — are
+// refused along with every row the registry marks RESERVED. A future
+// allocation therefore stays refused until this list is refreshed from the
+// registry: the policy fails closed on a stale table, the safe direction for a
+// fetch target. IPv4 needs no such list — its complement is the ordinary
+// global-unicast space, and every IPv4 Special-Purpose Address Registry row
+// that is not Globally Reachable is covered by the nonPublicFetchPrefixes
+// table below.
+var ianaGlobalUnicastAllocations = []netip.Prefix{
+	// 2001::/23 is ALLOCATED but only partially allocated: the
+	// nonPublicFetchPrefixes row for the same block refuses it as a whole, and
+	// only the special-purpose registry's Globally Reachable more-specifics
+	// (globallyReachableFetchExceptions) pass through that row, so listing the
+	// block here does not re-admit Teredo, benchmarking, ORCHID, ORCHIDv2 or
+	// any other space inside it.
+	netip.MustParsePrefix("2001::/23"),      // IANA
+	netip.MustParsePrefix("2001:200::/23"),  // APNIC
+	netip.MustParsePrefix("2001:400::/23"),  // ARIN
+	netip.MustParsePrefix("2001:600::/23"),  // RIPE NCC
+	netip.MustParsePrefix("2001:800::/22"),  // RIPE NCC
+	netip.MustParsePrefix("2001:c00::/23"),  // APNIC
+	netip.MustParsePrefix("2001:e00::/23"),  // APNIC
+	netip.MustParsePrefix("2001:1200::/23"), // LACNIC
+	netip.MustParsePrefix("2001:1400::/22"), // RIPE NCC
+	netip.MustParsePrefix("2001:1800::/23"), // ARIN
+	netip.MustParsePrefix("2001:1a00::/23"), // RIPE NCC
+	netip.MustParsePrefix("2001:1c00::/22"), // RIPE NCC
+	netip.MustParsePrefix("2001:2000::/19"), // RIPE NCC
+	netip.MustParsePrefix("2001:4000::/23"), // RIPE NCC
+	netip.MustParsePrefix("2001:4200::/23"), // AFRINIC
+	netip.MustParsePrefix("2001:4400::/23"), // APNIC
+	netip.MustParsePrefix("2001:4600::/23"), // RIPE NCC
+	netip.MustParsePrefix("2001:4800::/23"), // ARIN
+	netip.MustParsePrefix("2001:4a00::/23"), // RIPE NCC
+	netip.MustParsePrefix("2001:4c00::/23"), // RIPE NCC
+	netip.MustParsePrefix("2001:5000::/20"), // RIPE NCC
+	netip.MustParsePrefix("2001:8000::/19"), // APNIC
+	netip.MustParsePrefix("2001:a000::/20"), // APNIC
+	netip.MustParsePrefix("2001:b000::/20"), // APNIC
+	// 2002::/16 is ALLOCATED but refused on top: 6to4 embeds an IPv4
+	// destination this literal policy cannot verify (nonPublicFetchPrefixes).
+	netip.MustParsePrefix("2002::/16"),
+	netip.MustParsePrefix("2003::/18"), // RIPE NCC
+	netip.MustParsePrefix("2400::/12"), // APNIC
+	netip.MustParsePrefix("2410::/12"), // APNIC
+	netip.MustParsePrefix("2600::/12"), // ARIN
+	netip.MustParsePrefix("2610::/23"), // ARIN
+	netip.MustParsePrefix("2620::/23"), // ARIN
+	netip.MustParsePrefix("2630::/12"), // ARIN
+	netip.MustParsePrefix("2800::/12"), // LACNIC
+	netip.MustParsePrefix("2a00::/12"), // RIPE NCC
+	netip.MustParsePrefix("2a10::/12"), // RIPE NCC
+	netip.MustParsePrefix("2c00::/12"), // AFRINIC
+}
 
 // nonPublicFetchPrefixes is the single authoritative address policy behind the
 // public-fetch host rule. A literal address inside any of these blocks is not a
@@ -67,8 +120,9 @@ var nonPublicFetchPrefixes = []netip.Prefix{
 	netip.MustParsePrefix("240.0.0.0/4"),     // reserved (covers 255.255.255.255)
 
 	// IPv6 special-purpose, transition, and non-unicast blocks. Blocks outside
-	// the 2000::/3 global-unicast bound are listed as well: the bound already
-	// refuses them, and the rows keep the policy readable as one table.
+	// the 2000::/3 global-unicast block are listed as well: the allocation list
+	// above already refuses them as unlisted, and the rows keep the policy
+	// readable as one table.
 	netip.MustParsePrefix("::/128"),  // unspecified
 	netip.MustParsePrefix("::1/128"), // loopback
 	// ::/96 is the deprecated IPv4-compatible address form (::a.b.c.d). It is
@@ -100,8 +154,9 @@ var nonPublicFetchPrefixes = []netip.Prefix{
 	// Prefixes the IANA IPv6 Global Unicast Address Space registry marks
 	// RESERVED inside the 2000::/3 block itself (checked 2026-10-14): the
 	// explicit reserved staircase above the last RIR allocation (2c00::/12) and
-	// 3ffe::/16, the 6bone range returned to IANA (RFC 5156). Without these rows
-	// a literal in this reserved space would pass the 2000::/3 bound.
+	// 3ffe::/16, the 6bone range returned to IANA (RFC 5156). The allocation
+	// list above already refuses this space as unlisted; the rows keep it
+	// refused as explicit non-public blocks too.
 	netip.MustParsePrefix("2d00::/8"),
 	netip.MustParsePrefix("2e00::/7"),
 	netip.MustParsePrefix("3000::/5"),
@@ -141,16 +196,21 @@ var globallyReachableFetchExceptions = []netip.Prefix{
 // isPublicLiteralIP reports whether addr is a literal public fetch target. An
 // IPv4 address is public when it is outside every nonPublicFetchPrefixes block,
 // because the complement of those blocks is the ordinary global unicast space.
-// An IPv6 address must additionally lie inside 2000::/3, the only block IANA
-// allocates as global unicast: the complement of the IPv6 table is largely
-// space IANA reserves (400::/6, 800::/5, 1000::/4, 6000::/3, fe00::/9,
-// fec0::/10, ...) or the reserved blocks inside 2000::/3 itself (2d00::/8 ...
-// 3ffe::/16). A table block still refuses its addresses unless the address is
-// one of the registry's more-specific globally reachable allocations
-// (globallyReachableFetchExceptions). An IPv4-mapped IPv6 literal such as
-// ::ffff:127.0.0.1 is unmapped first and classified as its IPv4 address. An
-// invalid address is not public, and a zoned address is refused (fail closed)
-// because prefix containment cannot classify one.
+// An IPv6 address is public only when it lies inside ianaGlobalUnicastAllocations,
+// the prefixes the IANA IPv6 Global Unicast Address Space registry lists as
+// ALLOCATED — the registry reserves every address in 2000::/3 not listed there
+// for future allocation — and is not refused on top by nonPublicFetchPrefixes.
+// That second check refuses the allocated-but-unsuitable rows: documentation
+// (2001:db8::/32 inside the 2001:c00::/23 row), 6to4 (2002::/16), and Teredo,
+// benchmarking, the terminated ORCHID and ORCHIDv2 inside the partially
+// allocated 2001::/23 block. The other non-public rows (NAT64, the deprecated
+// IPv4-compatible form, multicast) are already refused by the allocation list,
+// which does not contain them. A table block still refuses its addresses unless
+// the address is one of the registry's more-specific globally reachable
+// allocations (globallyReachableFetchExceptions). An IPv4-mapped IPv6 literal
+// such as ::ffff:127.0.0.1 is unmapped first and classified as its IPv4
+// address. An invalid address is not public, and a zoned address is refused
+// (fail closed) because prefix containment cannot classify one.
 func isPublicLiteralIP(addr netip.Addr) bool {
 	if !addr.IsValid() || addr.Zone() != "" {
 		return false
@@ -158,7 +218,10 @@ func isPublicLiteralIP(addr netip.Addr) bool {
 	if addr.Is4In6() {
 		addr = addr.Unmap()
 	}
-	if !addr.Is4() && !ianaGlobalUnicastPrefix.Contains(addr) {
+	if addr.Is4() {
+		return !containsAnyPrefix(nonPublicFetchPrefixes, addr)
+	}
+	if !containsAnyPrefix(ianaGlobalUnicastAllocations, addr) {
 		return false
 	}
 	if !containsAnyPrefix(nonPublicFetchPrefixes, addr) {
