@@ -1747,22 +1747,64 @@ func CustomBrandingFieldNames() []string {
 	return append([]string(nil), customBrandingFieldNames...)
 }
 
-// ValidateStoredCustomBrandingField applies the authoritative branding rules to
-// one present custom_json branding field value. A non-string value (including an
-// explicit JSON null) or a string the branding validation rejects returns a
-// non-nil error naming the field, so a caller (the migration preflight) can fail
-// closed with the same rules the typed and dispatch boundaries enforce instead
-// of re-implementing them. The seam is the union of the typed-boundary and
-// dispatch-gate rules for each branding field: the URL text fields and the image
-// branding keys carry the dispatch control-character safety rule
-// (validateWorkflowValue), the URL text fields additionally carry the absolute
-// http(s) validateBrandingURL rule, company_name carries validateCompanyName
-// (its own control-character and length rule), and the image keys additionally
-// carry the same public-URL/relative-resolution rule the producer applies
-// (absolutizeBrandingImageURL), so a stored relative image without a usable
-// public origin is refused here too. A value that passes this seam therefore
-// cannot be rejected later by the typed boundary or the dispatch gate for a
-// branding-field reason.
+// validateStoredBrandingImageValue applies the stored-data validity rules for a
+// branding image field (app_icon_url, app_logo_url, privacy_screen_url): the
+// value must be valid UTF-8 with no control characters (validateWorkflowValue),
+// within the branding URL cap, free of whitespace, and not a protocol-relative
+// path ("//..."). When the value is not a server-relative upload path (it does
+// not begin with "/"), it must additionally satisfy the absolute public http(s)
+// rule the typed boundary applies to an absolute value.
+//
+// A server-relative "/upload/..." value is valid stored data on its own and
+// passes here with no public origin configured. How an origin resolves it is a
+// property of the build-spec producer's configuration, not of the stored data;
+// requiring a configured origin here would let a deployment configuration
+// condition abort the schema-285 data migration. The typed build-spec boundary
+// and the dispatch gate still resolve the value against the origin and fail
+// closed when a relative asset has no usable origin (see
+// absolutizeBrandingImageURL). The whitespace, length, and "//" checks keep this
+// seam a superset of the resolved-URL rules the producer applies, so a value
+// this seam accepts is never rejected later for a stored-data reason.
+func validateStoredBrandingImageValue(name, value string) error {
+	if err := validateWorkflowValue(name, value); err != nil {
+		return err
+	}
+	if value == "" {
+		return nil
+	}
+	if len(value) > maxBrandingURLBytes {
+		return fmt.Errorf("%s exceeds %d bytes", name, maxBrandingURLBytes)
+	}
+	if strings.ContainsFunc(value, unicode.IsSpace) {
+		return fmt.Errorf("%s must not contain whitespace", name)
+	}
+	if strings.HasPrefix(value, "/") {
+		if strings.HasPrefix(value, "//") {
+			return fmt.Errorf("%s has invalid URL %q", name, value)
+		}
+		return nil
+	}
+	return validatePublicHTTPURL(name, value)
+}
+
+// ValidateStoredCustomBrandingField applies the authoritative stored-data
+// branding rules to one present custom_json branding field value. A non-string
+// value (including an explicit JSON null) or a string the branding validation
+// rejects returns a non-nil error naming the field, so a caller (the migration
+// preflight) can fail closed with the same rules the typed and dispatch
+// boundaries enforce instead of re-implementing them. The seam is the union of
+// the typed-boundary and dispatch-gate rules for each branding field: the URL
+// text fields and the image branding keys carry the dispatch control-character
+// safety rule (validateWorkflowValue), the URL text fields additionally carry the
+// absolute http(s) validateBrandingURL rule, company_name carries
+// validateCompanyName (its own control-character and length rule), and the image
+// keys carry validateStoredBrandingImageValue.
+//
+// The seam deliberately inspects only properties of the stored value. It does
+// NOT require a configured public origin: resolving a server-relative image
+// ("/upload/...") against an origin happens at the build-spec producer boundary
+// (absolutizeBrandingImageURL), so the schema-285 preflight aborts only on
+// genuinely invalid stored data, not on a deployment lacking a public origin.
 func ValidateStoredCustomBrandingField(field string, value any) error {
 	stringValue, ok := value.(string)
 	if !ok {
@@ -1777,8 +1819,7 @@ func ValidateStoredCustomBrandingField(field string, value any) error {
 	case "company_name":
 		return validateCompanyName(stringValue)
 	case "app_icon_url", "app_logo_url", "privacy_screen_url":
-		_, err := absolutizeBrandingImageURL(field, stringValue)
-		return err
+		return validateStoredBrandingImageValue(field, stringValue)
 	default:
 		return fmt.Errorf("unsupported custom branding field %q", field)
 	}

@@ -1290,9 +1290,8 @@ func TestNormalizeCustomBuildBrandFieldsPresetRestoreRoundTrip(t *testing.T) {
 func TestValidateStoredCustomBrandingField(t *testing.T) {
 	// The migration preflight delegates to this single seam so the branding
 	// field set and its rules cannot drift from the typed/dispatch boundaries.
-	// A valid public origin is configured so a stored relative image resolves,
-	// exactly as the typed producer would resolve it.
-	setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+	// The seam validates stored data only and never consults a public origin, so
+	// no origin is configured here: a server-relative image must still pass.
 	wantFields := []string{
 		"company_name", "download_url", "website_url", "privacy_policy_url",
 		"app_icon_url", "app_logo_url", "privacy_screen_url",
@@ -1335,11 +1334,11 @@ func TestValidateStoredCustomBrandingField(t *testing.T) {
 		{"company-control-char", "company_name", "Acme\nLtd", true},
 		{"company-over-length", "company_name", strings.Repeat("x", 257), true},
 		{"image-control-char", "app_logo_url", "bad\nvalue", true},
-		// The image keys carry the same public-URL/resolution rule as the
-		// producer: a non-http(s) scheme, a host-less URL, a literal loopback
-		// host, and a relative value with no usable public origin are all
-		// refused here so the migration fails closed on a row the producer
-		// would refuse.
+		// The image keys carry the same public-URL rule as the producer for a
+		// non-relative value: a non-http(s) scheme, a host-less URL, and a
+		// literal loopback/private host are refused here so the migration fails
+		// closed on a row the producer would refuse. A server-relative value is
+		// valid stored data and passes without a configured public origin.
 		{"image-file-scheme", "app_icon_url", "file:///etc/passwd", true},
 		{"image-missing-host", "app_logo_url", "https:///x.png", true},
 		{"image-loopback-host", "privacy_screen_url", "http://127.0.0.1:21114/x.png", true},
@@ -1357,16 +1356,26 @@ func TestValidateStoredCustomBrandingField(t *testing.T) {
 		})
 	}
 
-	// A stored relative image with no usable public origin is exactly the value
-	// the new rule refuses, so the seam must reject it (the migration preflight
-	// fails closed) instead of passing a row the producer could no longer
-	// resolve.
-	setBrandingConfigForTest(t, "http://127.0.0.1:21114", "")
-	if err := ValidateStoredCustomBrandingField("app_icon_url", "/upload/icon.png"); err == nil {
-		t.Fatal("ValidateStoredCustomBrandingField accepted a relative image with no public origin")
+	// A stored relative image is valid data on its own: the seam must accept it
+	// with no public origin configured, because resolving it is the producer's
+	// concern. An absolute public image is accepted without an origin too.
+	if err := ValidateStoredCustomBrandingField("app_icon_url", "/upload/icon.png"); err != nil {
+		t.Fatalf("ValidateStoredCustomBrandingField rejected a stored relative image with no public origin: %v", err)
 	}
 	if err := ValidateStoredCustomBrandingField("app_icon_url", "https://cdn.example/i.png"); err != nil {
 		t.Fatalf("ValidateStoredCustomBrandingField rejected an absolute image without a public origin: %v", err)
+	}
+	// A stored image that is data-invalid independent of any origin still fails
+	// closed with no origin configured: a protocol-relative path, embedded
+	// whitespace, and an over-length value are refused.
+	if err := ValidateStoredCustomBrandingField("app_icon_url", "//cdn.example/i.png"); err == nil {
+		t.Fatal("ValidateStoredCustomBrandingField accepted a protocol-relative image path")
+	}
+	if err := ValidateStoredCustomBrandingField("app_icon_url", "/upload/a b.png"); err == nil {
+		t.Fatal("ValidateStoredCustomBrandingField accepted a relative image with whitespace")
+	}
+	if err := ValidateStoredCustomBrandingField("app_icon_url", "/upload/"+strings.Repeat("a", 2049)); err == nil {
+		t.Fatal("ValidateStoredCustomBrandingField accepted an over-length relative image")
 	}
 
 	// A non-branding field is outside this seam's domain; callers must not use
@@ -1756,4 +1765,3 @@ func TestBrandingImageURLOriginAndValidation(t *testing.T) {
 		t.Fatal("NormalizeCustomBuild() accepted an over-length image URL")
 	}
 }
-

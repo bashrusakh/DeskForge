@@ -375,7 +375,10 @@ func migrateSchemaAndRecordVersion(db *gorm.DB, version uint, migrate func(*gorm
 // (which the typed field reader treats like any other non-string, while decoding
 // still distinguishes it from an absent key), or a string the shared branding
 // rules refuse — stops the migration instead of recording success over unusable
-// storage. The branding field set and its rules stay single-source in service so
+// storage. The preflight checks stored-data validity only: resolving a
+// server-relative image against a public origin is the build-spec producer's
+// concern, so a deployment without a configured public origin does not abort the
+// migration. The branding field set and its rules stay single-source in service so
 // this preflight cannot drift from the typed/dispatch boundaries, and only
 // branding fields are inspected so unrelated legacy fields keep their own
 // boundaries. Encrypted rows remain opaque and are skipped. Rows are streamed

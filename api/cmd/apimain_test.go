@@ -122,15 +122,10 @@ func TestMigrateSchemaAndRecordVersionCustomBrandingPreflight(t *testing.T) {
 	// asserts whether it fails closed with errInvalidCustomBrandingFields.
 	overLongURL := "https://download.example/" + strings.Repeat("a", 2049)
 	overLongCompany := strings.Repeat("x", 257)
-	// The branding image fields resolve a server-relative asset against the
-	// configured public origin, so the preflight test pins a valid public origin
-	// by default; publicAPIByCase overrides it (including to "") for a case that
-	// must exercise the fail-closed path.
-	const testPublicAPIServer = "https://deskforge.example"
-	publicAPIByCase := map[string]string{
-		"image-relative-no-public-origin":       "",
-		"image-relative-loopback-public-origin": "http://127.0.0.1:21114",
-	}
+	// The branding image preflight checks stored data only and never consults a
+	// public origin, so no origin is configured for this test: a server-relative
+	// image is valid stored data and must pass, while a data-invalid stored value
+	// still fails closed.
 	cases := []struct {
 		name       string
 		customJSON string
@@ -154,14 +149,16 @@ func TestMigrateSchemaAndRecordVersionCustomBrandingPreflight(t *testing.T) {
 		// The existing website_url tightening is preserved: a format-invalid
 		// stored string now fails too, not just a non-string value.
 		{"website-mixed-case-scheme", `{"website_url":"HTTP://x"}`, true},
-		// The image keys resolve a stored relative asset against the configured
-		// public origin. A row that resolves fails closed when the origin is
-		// missing or is not public, and a non-http(s)/host-less stored value is
-		// refused; a valid absolute image URL stays accepted.
-		{"image-relative-no-public-origin", `{"app_icon_url":"/upload/icon.png"}`, true},
-		{"image-relative-loopback-public-origin", `{"app_logo_url":"/upload/logo.png"}`, true},
+		// The image keys are checked as stored data with no public origin
+		// configured: a server-relative path is valid and passes (resolving it is
+		// the build-spec producer's concern), while a data-invalid stored value —
+		// a non-http(s) scheme, a host-less URL, or a literal loopback host — is
+		// still refused. A valid absolute image URL stays accepted.
+		{"image-relative-accepted-no-origin", `{"app_icon_url":"/upload/icon.png"}`, false},
+		{"image-relative-logo-accepted-no-origin", `{"app_logo_url":"/upload/logo.png"}`, false},
 		{"image-file-scheme", `{"privacy_screen_url":"file:///etc/passwd"}`, true},
 		{"image-missing-host", `{"app_icon_url":"https:///x.png"}`, true},
+		{"image-loopback-host", `{"app_logo_url":"http://127.0.0.1:21114/logo.png"}`, true},
 		{"image-absolute-valid", `{"privacy_screen_url":"https://cdn.example/i.png"}`, false},
 		// Valid branding values, absent keys, and unrelated invalid fields must
 		// all pass: the preflight must not over-block a row for a non-branding
@@ -206,16 +203,6 @@ func TestMigrateSchemaAndRecordVersionCustomBrandingPreflight(t *testing.T) {
 			if err := db.Create(&legacyCustomPresetWithJSON{UserId: 7, Name: "seed", CustomJson: tc.customJSON}).Error; err != nil {
 				t.Fatalf("seed legacy preset: %v", err)
 			}
-
-			// The preflight resolves stored relative image assets against the
-			// service config's public origin; pin it for this case and restore.
-			origin := testPublicAPIServer
-			if override, ok := publicAPIByCase[tc.name]; ok {
-				origin = override
-			}
-			previousConfig := service.Config
-			service.Config = &config.Config{Rustdesk: config.Rustdesk{ApiServer: "http://localhost:21114", PublicApiServer: origin}}
-			t.Cleanup(func() { service.Config = previousConfig })
 
 			migrateCalled := false
 			err = migrateSchemaAndRecordVersion(db, DatabaseVersion, func(db *gorm.DB) error {
@@ -482,6 +469,45 @@ func TestDatabaseAutoUpdateUpgradesExistingVersion284WithValidBranding(t *testin
 	}
 	if DatabaseVersion <= preUpgradeTipVersion {
 		t.Fatalf("DatabaseVersion = %d must exceed the pre-upgrade tip %d for this test to be meaningful", DatabaseVersion, preUpgradeTipVersion)
+	}
+}
+
+// TestDatabaseAutoUpdateUpgradesExistingVersion284WithStoredRelativeImages is
+// the regression for the migration/startup abort: a 284 install that stored
+// server-relative branding image values ("/upload/...") and has no public origin
+// configured must upgrade and record the new DatabaseVersion. Resolving those
+// values against a public origin belongs to the build-spec producer boundary, so
+// the stored-data preflight must not fail closed on a deployment configuration
+// condition. Against the pre-fix seam the image case consulted the public origin
+// and aborted, so this test fails there.
+func TestDatabaseAutoUpdateUpgradesExistingVersion284WithStoredRelativeImages(t *testing.T) {
+	// No public origin is configured: the stored-data seam must not consult one.
+	previousServiceConfig := service.Config
+	service.Config = nil
+	t.Cleanup(func() { service.Config = previousServiceConfig })
+
+	var db *gorm.DB
+	err := runStartupGate(t, func(seeded *gorm.DB) {
+		db = seeded
+		if err := seeded.AutoMigrate(&model.Version{}, &model.CustomBuild{}, &model.CustomPreset{}); err != nil {
+			t.Fatalf("create install tables: %v", err)
+		}
+		if err := seeded.Create(&model.Version{Version: preUpgradeTipVersion}).Error; err != nil {
+			t.Fatalf("seed version %d: %v", preUpgradeTipVersion, err)
+		}
+		relative := `{"app_icon_url":"/upload/icon.png","app_logo_url":"/upload/logo.png","privacy_screen_url":"/upload/privacy.png"}`
+		seedLegacyCustomJSON(t, seeded, "custom_builds", relative)
+		seedLegacyCustomJSON(t, seeded, "custom_presets", relative)
+	})
+	if err != nil {
+		t.Fatalf("DatabaseAutoUpdate() error = %v, want an accepted upgrade for stored relative images with no public origin", err)
+	}
+	var latest model.Version
+	if err := db.Last(&latest).Error; err != nil {
+		t.Fatalf("read latest database version: %v", err)
+	}
+	if latest.Version != DatabaseVersion {
+		t.Fatalf("latest database version = %d, want %d after a 284 install upgraded", latest.Version, DatabaseVersion)
 	}
 }
 
