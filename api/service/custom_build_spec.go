@@ -15,6 +15,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"golang.org/x/net/idna"
+
 	"rustdesk-server/api/config"
 	"rustdesk-server/api/utils"
 )
@@ -547,8 +549,10 @@ func NormalizeCustomBuild(raw map[string]any, context BuildRecordContext) (Norma
 			params["android_app_id"] = spec.AndroidAppID
 		}
 	}
-	// Branding context delivered to the workflow like app_name/custom_txt.
-	// Empty values are omitted so the client keeps the corresponding defaults.
+	// Branding context delivered to the workflow like app_name/custom_txt. The
+	// image URLs are absolutized and normalized to the ASCII wire form the
+	// workflow fetcher sends; empty values are omitted so the client keeps the
+	// corresponding defaults.
 	if spec.CompanyName != "" {
 		params["company_name"] = spec.CompanyName
 	}
@@ -1160,27 +1164,31 @@ func validateBuildSpecTransportFields(spec BuildSpec) error {
 
 // absolutizeBrandingImageURL validates a branding image value (app_icon_url,
 // app_logo_url, privacy_screen_url) and returns the absolute URL the build
-// workflow must fetch. A server-relative upload path ("/upload/...") is resolved
+// workflow must send. A server-relative upload path ("/upload/...") is resolved
 // against the configured public API origin (public-api-server) — the externally
 // reachable address the GitHub runner can fetch from, never the operational
 // api-server, which may hold an internal/Docker address such as
-// http://localhost:21114. An already-absolute value is kept after it passes the
-// same public-URL rule, so the rewrite is idempotent for the values a caller
-// derived from a prior resolution.
+// http://localhost:21114. The returned value is the ASCII wire form the
+// workflow's HTTP client can send (publicURLWireForm): an ASCII value is
+// returned unchanged, while a raw non-ASCII host/path/query is converted (IDNA
+// host, percent-encoded path/query). The rewrite is idempotent for the values a
+// caller derived from a prior resolution.
 //
 // It fails closed with an error instead of a value when the value cannot become
 // a fetchable public URL: a relative value with no configured/usable public
 // origin, a non-http(s) scheme (file:, ftp:, ...), a malformed URL, a missing
 // host, userinfo/credentials, embedded control characters or whitespace, a
-// value over the 2048-byte branding URL cap, or a literal host outside the
+// value over the 2048-byte branding URL cap, a literal host outside the
 // public-address policy (loopback, private, link-local, unspecified, multicast,
-// reserved, and the other special-purpose ranges). A DNS hostname is not
-// resolved here: it passes the syntactic rule and is finally constrained at the
-// workflow fetch boundary. There is deliberately no fallback to the operational
-// api-server, because the runner cannot reach that address.
+// reserved, and the other special-purpose and IANA-reserved ranges), or a host,
+// path, or query that cannot be represented in the ASCII wire form the fetcher
+// sends. A DNS hostname is not resolved here: it passes the syntactic rule and
+// is finally constrained at the workflow fetch boundary. There is deliberately
+// no fallback to the operational api-server, because the runner cannot reach
+// that address.
 //
 // persisted custom_json keeps the stored relative value; only the producer's
-// dispatch payload is absolutized.
+// dispatch payload is absolutized and normalized to wire form.
 func absolutizeBrandingImageURL(name, value string) (string, error) {
 	if value == "" {
 		return "", nil
@@ -1197,15 +1205,9 @@ func absolutizeBrandingImageURL(name, value string) (string, error) {
 			return "", fmt.Errorf("%s cannot be resolved to a fetchable URL: %w", name, err)
 		}
 		resolved := origin + value
-		if err := validatePublicHTTPURL(name, resolved); err != nil {
-			return "", err
-		}
-		return resolved, nil
+		return publicURLWireForm(name, resolved)
 	}
-	if err := validatePublicHTTPURL(name, value); err != nil {
-		return "", err
-	}
-	return value, nil
+	return publicURLWireForm(name, value)
 }
 
 // publicAPIOrigin returns the configured public API origin used to resolve
@@ -1385,7 +1387,8 @@ func NormalizeWorkflowDispatchParams(platform string, raw map[string]any) (map[s
 			// as well as at the typed boundary. company_name shares the fork
 			// length cap. The image-URL values are re-resolved against the
 			// configured public origin here too (idempotent for already-absolute
-			// values) so a config change between create and dispatch cannot emit
+			// values) and returned in the ASCII wire form the workflow fetcher
+			// sends, so a config change between create and dispatch cannot emit
 			// an unfetchable URL.
 			stringValue, err := dispatchStringValue(name, value)
 			if err != nil {
@@ -1671,31 +1674,120 @@ func validateBrandingURL(name, value string) error {
 	return err
 }
 
-// validatePublicHTTPURL applies the branding-URL shape rule plus the literal
-// public-fetch address policy and rejects an empty value. It is used for the
-// public origin (public-api-server) and for a resolved branding image URL: the
-// GitHub build runner fetches those assets over the public internet, so a
-// literal address outside the public-address policy (loopback, unspecified,
-// RFC 1918 / unique-local, link-local, shared/CGNAT, documentation,
-// benchmarking, multicast, reserved, NAT64/6to4, ...) or the name "localhost"
-// is refused here as a build-time failure.
-//
-// No DNS lookup happens at create or dispatch: a literal target is classified
-// by isPublicLiteralIP (public_host_policy.go), while a DNS hostname passes
-// only the syntactic host-plausibility rule and is not thereby proven public or
-// reachable — it is finally constrained at the workflow fetch boundary.
+// validatePublicHTTPURL applies the public-fetch URL rule and rejects an empty
+// value. It is used for the public origin (public-api-server) and for a stored
+// absolute branding image URL; the typed boundary and the dispatch gate use
+// publicURLWireForm, which additionally returns the value they must dispatch.
 func validatePublicHTTPURL(name, value string) error {
+	_, err := publicURLWireForm(name, value)
+	return err
+}
+
+// publicURLWireForm validates a URL against the public-fetch URL rule and
+// returns it exactly as it must be sent to the build workflow's HTTP client.
+//
+// Validation is the branding-URL shape rule plus the literal public-fetch
+// address policy: the GitHub build runner fetches these assets over the public
+// internet, so a literal address outside the public-address policy (loopback,
+// unspecified, RFC 1918 / unique-local, link-local, shared/CGNAT,
+// documentation, benchmarking, multicast, reserved, NAT64/6to4, the IANA
+// reserved IPv6 space, ...) or the name "localhost" is refused here as a
+// build-time failure. No DNS lookup happens at create or dispatch: a literal
+// target is classified by isPublicLiteralIP (public_host_policy.go), while a DNS
+// hostname passes only the syntactic host-plausibility rule and is not thereby
+// proven public or reachable — it is finally constrained at the workflow fetch
+// boundary.
+//
+// Wire form: the workflow fetcher (fetch_branding_image.py) builds a Python
+// http.client request, which encodes the request-target as ASCII and the Host
+// header as latin-1 and hands the host to getaddrinfo. A raw non-ASCII host,
+// path, or query would therefore fail or be mangled at fetch time, after the
+// producer accepted the value. The producer instead normalizes the dispatched
+// value to the ASCII wire form: the host is converted with the IDNA (UTS #46)
+// lookup profile to its punycode form and the path and query are
+// percent-encoded. An already-ASCII URL is returned byte-for-byte unchanged, so
+// every value accepted for dispatch before this rule still reaches the runner
+// with the same bytes. The converted host is re-classified with the shared
+// public-host rule before use, because a Unicode spelling can map to a
+// non-public literal (for example the full-width digit spelling
+// "１２７.０.０.１" maps to 127.0.0.1); a conversion that fails or lands outside
+// the public-address policy is refused fail-closed.
+//
+// The stored custom_json value keeps its original spelling (PersistedJSON vs
+// DispatchParams): only the dispatch payload the runner consumes must be in
+// wire form, just as a server-relative /upload/... asset is resolved only in
+// the dispatch payload.
+func publicURLWireForm(name, value string) (string, error) {
 	host, err := brandingURLHost(name, value)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if host == "" {
-		return fmt.Errorf("%s must be an absolute http(s) URL", name)
+		return "", fmt.Errorf("%s must be an absolute http(s) URL", name)
 	}
 	if isNonPublicFetchHost(host) {
-		return fmt.Errorf("%s must use a public host %q", name, host)
+		return "", fmt.Errorf("%s must use a public host %q", name, host)
 	}
-	return nil
+	if isASCIIText(value) {
+		return value, nil
+	}
+	parsed, err := url.ParseRequestURI(value)
+	if err != nil {
+		return "", fmt.Errorf("%s has invalid URL %q", name, value)
+	}
+	if !isASCIIText(parsed.Hostname()) {
+		asciiHost, err := idna.Lookup.ToASCII(parsed.Hostname())
+		if err != nil {
+			return "", fmt.Errorf("%s has a host that cannot be sent as an ASCII (IDNA) name: %w", name, err)
+		}
+		if isNonPublicFetchHost(asciiHost) {
+			return "", fmt.Errorf("%s must use a public host %q", name, host)
+		}
+		if port := parsed.Port(); port != "" {
+			parsed.Host = net.JoinHostPort(asciiHost, port)
+		} else {
+			parsed.Host = asciiHost
+		}
+	}
+	if !isASCIIText(parsed.RawQuery) {
+		parsed.RawQuery = percentEncodeNonASCII(parsed.RawQuery)
+	}
+	wire := parsed.String()
+	if !isASCIIText(wire) {
+		return "", fmt.Errorf("%s cannot be represented as the ASCII form the build workflow sends", name)
+	}
+	return wire, nil
+}
+
+// isASCIIText reports whether value contains only ASCII bytes.
+func isASCIIText(value string) bool {
+	for i := 0; i < len(value); i++ {
+		if value[i] >= utf8.RuneSelf {
+			return false
+		}
+	}
+	return true
+}
+
+// percentEncodeNonASCII percent-encodes every byte of value outside the ASCII
+// range and leaves every ASCII byte — existing %XX escapes and query delimiters
+// included — exactly as authored. The bytes of a UTF-8 sequence are encoded one
+// by one, which is that sequence's correct percent-encoding.
+func percentEncodeNonASCII(value string) string {
+	const hexadecimal = "0123456789ABCDEF"
+	var builder strings.Builder
+	builder.Grow(len(value))
+	for i := 0; i < len(value); i++ {
+		char := value[i]
+		if char < utf8.RuneSelf {
+			builder.WriteByte(char)
+			continue
+		}
+		builder.WriteByte('%')
+		builder.WriteByte(hexadecimal[char>>4])
+		builder.WriteByte(hexadecimal[char&0x0f])
+	}
+	return builder.String()
 }
 
 // hasAlphanumeric reports whether value contains at least one letter or digit.
@@ -1754,7 +1846,10 @@ func CustomBrandingFieldNames() []string {
 // within the branding URL cap, free of whitespace, and not a protocol-relative
 // path ("//..."). When the value is not a server-relative upload path (it does
 // not begin with "/"), it must additionally satisfy the absolute public http(s)
-// rule the typed boundary applies to an absolute value.
+// rule the typed boundary applies to an absolute value, including its
+// representability in the ASCII wire form the workflow fetcher sends
+// (publicURLWireForm), so a stored value this seam accepts is never rejected
+// late with no field-level feedback.
 //
 // A server-relative "/upload/..." value is valid stored data on its own and
 // passes here with no public origin configured. How an origin resolves it is a

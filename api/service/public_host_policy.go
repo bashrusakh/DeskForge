@@ -1,12 +1,13 @@
 package service
 
 // This file is the one authoritative host policy for the branding URLs the
-// public build workflow may fetch. It holds the non-public address table
-// (isPublicLiteralIP), the literal-host canonicalization that keeps the
-// resolver-style IPv4 spellings and trailing dots (parseLiteralHostAddr), the
-// localhost-name rule, and the hostname-plausibility rule, so the public origin
-// (public-api-server), an absolute branding image URL, the dispatch gate, and
-// the stored-data migration seam all make the same decision in one place.
+// public build workflow may fetch. It holds the non-public address table and
+// the IANA global-unicast bound (isPublicLiteralIP), the literal-host
+// canonicalization that keeps the resolver-style IPv4 spellings and at most one
+// trailing root-label dot (parseLiteralHostAddr), the localhost-name rule, and
+// the hostname-plausibility rule, so the public origin (public-api-server), an
+// absolute branding image URL, the dispatch gate, and the stored-data migration
+// seam all make the same decision in one place.
 // Nothing in this file resolves DNS.
 
 import (
@@ -16,19 +17,37 @@ import (
 	"unicode"
 )
 
+// ianaGlobalUnicastPrefix is the only IPv6 block IANA allocates as global
+// unicast. The IANA IPv6 Address Space registry (last updated 2025-10-23,
+// checked 2026-10-14) marks 2000::/3 "Global Unicast" and reserves every other
+// top-level block for the IETF (400::/6, 800::/5, 1000::/4, 6000::/3, fe00::/9,
+// fec0::/10, ...), citing RFC 3513/RFC 4291. The IPv6 half of the fetch host
+// policy is therefore a bound plus the table below: a literal IPv6 address is
+// public only inside 2000::/3 and outside every table block. IPv4 needs no such
+// bound — its complement is the ordinary global unicast space, and every IPv4
+// Special-Purpose Address Registry row that is not Globally Reachable is
+// covered by the table — which is why the bound is applied to IPv6 only.
+var ianaGlobalUnicastPrefix = netip.MustParsePrefix("2000::/3")
+
 // nonPublicFetchPrefixes is the single authoritative address policy behind the
 // public-fetch host rule. A literal address inside any of these blocks is not a
 // public fetch target for the build runner.
 //
-// This is the non-public special-purpose policy relevant to a *literal public
-// fetch target* for this contract: it is drawn from the IANA IPv4 and IPv6
-// Special-Purpose Address Registries plus multicast and the transition and
-// deprecated forms that embed an IPv4 destination this literal policy cannot
-// verify (::/96, 64:ff9b::/96, 64:ff9b:1::/48, 2002::/16). It is deliberately
-// not an exhaustive implementation of Internet routing or a general SSRF
-// framework. It makes no DNS lookup and makes no claim that a hostname is
-// public or reachable, which is finally constrained at the workflow fetch
-// boundary.
+// Provenance: every block below was checked on 2026-10-14 against the live IANA
+// registries — the IPv4 and IPv6 Special-Purpose Address Space registries (IPv6
+// last updated 2025-10-09), the IPv6 Address Space registry (2025-10-23), and
+// the IPv6 Global Unicast Address Space registry (2025-10-10). It contains every
+// special-purpose registry row that is not Globally Reachable plus multicast,
+// the transition/deprecated forms that embed an IPv4 destination this literal
+// policy cannot verify (::/96, 64:ff9b::/96, 64:ff9b:1::/48, 2002::/16,
+// 2001::/32 Teredo), and every prefix the Global Unicast Address Space registry
+// marks RESERVED inside the 2000::/3 global-unicast block. The IPv4
+// Special-Purpose registry is fully covered by the IPv4 rows, including the
+// 192.0.0.0/24 parent row (which contains two Globally Reachable anycast /32s
+// that are refused with their parent, fail-closed). It is deliberately not an
+// exhaustive implementation of Internet routing or a general SSRF framework. It
+// makes no DNS lookup and makes no claim that a hostname is public or reachable,
+// which is finally constrained at the workflow fetch boundary.
 var nonPublicFetchPrefixes = []netip.Prefix{
 	// IPv4 special-purpose and non-unicast blocks.
 	netip.MustParsePrefix("0.0.0.0/8"),       // "this network" / unspecified
@@ -47,7 +66,9 @@ var nonPublicFetchPrefixes = []netip.Prefix{
 	netip.MustParsePrefix("224.0.0.0/4"),     // multicast
 	netip.MustParsePrefix("240.0.0.0/4"),     // reserved (covers 255.255.255.255)
 
-	// IPv6 special-purpose, transition, and non-unicast blocks.
+	// IPv6 special-purpose, transition, and non-unicast blocks. Blocks outside
+	// the 2000::/3 global-unicast bound are listed as well: the bound already
+	// refuses them, and the rows keep the policy readable as one table.
 	netip.MustParsePrefix("::/128"),  // unspecified
 	netip.MustParsePrefix("::1/128"), // loopback
 	// ::/96 is the deprecated IPv4-compatible address form (::a.b.c.d). It is
@@ -63,21 +84,73 @@ var nonPublicFetchPrefixes = []netip.Prefix{
 	netip.MustParsePrefix("2001:db8::/32"),  // documentation
 	netip.MustParsePrefix("3fff::/20"),      // documentation (RFC 9637)
 	netip.MustParsePrefix("5f00::/16"),      // Segment Routing (SRv6) SIDs (RFC 9602)
-	netip.MustParsePrefix("2001::/32"),      // Teredo
+	// 2001::/23 is the IETF protocol-assignments block: its registry row is
+	// Globally Reachable only "[u]nless allowed by a more specific allocation",
+	// so the whole block is refused and only the registry's Globally Reachable
+	// more-specific allocations (globallyReachableFetchExceptions) pass through.
+	netip.MustParsePrefix("2001::/23"),
+	netip.MustParsePrefix("2001::/32"),      // Teredo (transition, embeds IPv4)
 	netip.MustParsePrefix("2001:2::/48"),    // benchmarking
-	netip.MustParsePrefix("2001:10::/28"),   // ORCHID
-	netip.MustParsePrefix("2001:20::/28"),   // ORCHIDv2
+	netip.MustParsePrefix("2001:10::/28"),   // deprecated (previously ORCHID), terminated 2014-03
+	netip.MustParsePrefix("2001:20::/28"),   // ORCHIDv2 (see globallyReachableFetchExceptions)
 	netip.MustParsePrefix("64:ff9b::/96"),   // NAT64 well-known prefix (embeds IPv4)
 	netip.MustParsePrefix("64:ff9b:1::/48"), // local-use NAT64 (embeds IPv4)
 	netip.MustParsePrefix("2002::/16"),      // 6to4 (embeds IPv4)
+
+	// Prefixes the IANA IPv6 Global Unicast Address Space registry marks
+	// RESERVED inside the 2000::/3 block itself (checked 2026-10-14): the
+	// explicit reserved staircase above the last RIR allocation (2c00::/12) and
+	// 3ffe::/16, the 6bone range returned to IANA (RFC 5156). Without these rows
+	// a literal in this reserved space would pass the 2000::/3 bound.
+	netip.MustParsePrefix("2d00::/8"),
+	netip.MustParsePrefix("2e00::/7"),
+	netip.MustParsePrefix("3000::/5"),
+	netip.MustParsePrefix("3800::/6"),
+	netip.MustParsePrefix("3c00::/7"),
+	netip.MustParsePrefix("3e00::/8"),
+	netip.MustParsePrefix("3f00::/9"),
+	netip.MustParsePrefix("3f80::/10"),
+	netip.MustParsePrefix("3fc0::/11"),
+	netip.MustParsePrefix("3fe0::/12"),
+	netip.MustParsePrefix("3ff0::/13"),
+	netip.MustParsePrefix("3ff8::/14"),
+	netip.MustParsePrefix("3ffc::/15"),
+	netip.MustParsePrefix("3ffe::/16"),
 }
 
-// isPublicLiteralIP reports whether addr is a literal public fetch target: a
-// valid, zoned-free address outside every block in nonPublicFetchPrefixes. An
-// IPv4-mapped IPv6 literal such as ::ffff:127.0.0.1 is unmapped first and
-// classified as its IPv4 address. An invalid address is not public, and a zoned
-// address is refused (fail closed) because prefix containment cannot classify
-// one.
+// globallyReachableFetchExceptions lists the more-specific allocations inside
+// the 2001::/23 IETF protocol-assignments block that the IANA IPv6
+// Special-Purpose Address Space registry (checked 2026-10-14) marks Globally
+// Reachable: the parent block is refused as a whole per its "unless allowed by a
+// more specific allocation" footnote, and these registry-listed blocks are the
+// only addresses inside it that are let through. 2001:20::/28 ORCHIDv2 is
+// deliberately not listed even though the registry copies RFC 7343's allocation
+// fields: RFC 7343 designs ORCHIDv2 as an identifier space that is "non-routable
+// at the IP layer, by design" and "should not appear in actual IPv6 headers", so
+// it is not a fetch destination, and refusing it fail-closed keeps the behavior
+// this policy had before the parent block was added.
+var globallyReachableFetchExceptions = []netip.Prefix{
+	netip.MustParsePrefix("2001:1::1/128"),   // Port Control Protocol anycast (RFC 7723)
+	netip.MustParsePrefix("2001:1::2/128"),   // TURN anycast (RFC 8155)
+	netip.MustParsePrefix("2001:1::3/128"),   // DNS-SD SRP anycast (RFC 9665)
+	netip.MustParsePrefix("2001:3::/32"),     // AMT (RFC 7450)
+	netip.MustParsePrefix("2001:4:112::/48"), // AS112-v6 (RFC 7535)
+	netip.MustParsePrefix("2001:30::/28"),    // DRIP DETs (RFC 9374)
+}
+
+// isPublicLiteralIP reports whether addr is a literal public fetch target. An
+// IPv4 address is public when it is outside every nonPublicFetchPrefixes block,
+// because the complement of those blocks is the ordinary global unicast space.
+// An IPv6 address must additionally lie inside 2000::/3, the only block IANA
+// allocates as global unicast: the complement of the IPv6 table is largely
+// space IANA reserves (400::/6, 800::/5, 1000::/4, 6000::/3, fe00::/9,
+// fec0::/10, ...) or the reserved blocks inside 2000::/3 itself (2d00::/8 ...
+// 3ffe::/16). A table block still refuses its addresses unless the address is
+// one of the registry's more-specific globally reachable allocations
+// (globallyReachableFetchExceptions). An IPv4-mapped IPv6 literal such as
+// ::ffff:127.0.0.1 is unmapped first and classified as its IPv4 address. An
+// invalid address is not public, and a zoned address is refused (fail closed)
+// because prefix containment cannot classify one.
 func isPublicLiteralIP(addr netip.Addr) bool {
 	if !addr.IsValid() || addr.Zone() != "" {
 		return false
@@ -85,19 +158,38 @@ func isPublicLiteralIP(addr netip.Addr) bool {
 	if addr.Is4In6() {
 		addr = addr.Unmap()
 	}
-	for _, prefix := range nonPublicFetchPrefixes {
-		if prefix.Contains(addr) {
-			return false
-		}
+	if !addr.Is4() && !ianaGlobalUnicastPrefix.Contains(addr) {
+		return false
 	}
-	return true
+	if !containsAnyPrefix(nonPublicFetchPrefixes, addr) {
+		return true
+	}
+	return containsAnyPrefix(globallyReachableFetchExceptions, addr)
 }
 
-// canonicalizeHost lowercases host and strips trailing dots, the spellings a
-// resolver treats as naming the same host ("127.0.0.1." and "LOCALHOST." are the
-// hosts "127.0.0.1" and "localhost").
+// containsAnyPrefix reports whether addr lies inside any prefix in prefixes.
+func containsAnyPrefix(prefixes []netip.Prefix, addr netip.Addr) bool {
+	for _, prefix := range prefixes {
+		if prefix.Contains(addr) {
+			return true
+		}
+	}
+	return false
+}
+
+// canonicalizeHost lowercases host and strips at most one trailing dot — the
+// DNS root label a resolver treats as naming the same host ("127.0.0.1." and
+// "LOCALHOST." are the hosts "127.0.0.1" and "localhost"). A second trailing dot
+// is not a root label: it leaves an empty label, which the literal and
+// plausibility rules below refuse instead of silently reading the host as its
+// single-dot spelling and dispatching a host the workflow fetcher cannot
+// resolve (getaddrinfo("example.com..") fails).
 func canonicalizeHost(host string) string {
-	return strings.TrimRight(strings.ToLower(host), ".")
+	host = strings.ToLower(host)
+	if strings.HasSuffix(host, ".") {
+		host = host[:len(host)-1]
+	}
+	return host
 }
 
 // parseLiteralHostAddr parses a canonical host as a literal IP address. It
@@ -216,8 +308,9 @@ func isNonPublicFetchHost(host string) bool {
 // recognizable IP literal nor a hostname a resolver would treat as a name.
 // Unicode letters are accepted for IDN hosts and underscores for the hosts that
 // use them; empty and over-long labels and labels that begin or end with a
-// hyphen are refused. Any trailing dot has already been stripped by
-// canonicalizeHost.
+// hyphen are refused. canonicalizeHost has already stripped at most one
+// trailing root-label dot, so a second trailing dot leaves an empty final label
+// here and is refused.
 func isPlausibleHostname(host string) bool {
 	if host == "" || len(host) > 253 {
 		return false
