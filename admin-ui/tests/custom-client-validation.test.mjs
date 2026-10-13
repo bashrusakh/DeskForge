@@ -531,6 +531,55 @@ test('an active image-upload error is preserved by validateBuildForm and blocks 
   assert.deepEqual(Object.keys(ctx.api.serverFieldErrors.value), [])
 })
 
+test('a hide_cm/approve-mode conflict blocks submit locally with the inline incompatibility', async () => {
+  // The server owns the rule that hide_cm requires pass_approve_mode ===
+  // 'password' (ValidateHiddenConnectionManagement). No local rule covers that
+  // pair, so without a submit guard formRef.validate passes (the form's default
+  // is 'password-click'), the create is sent, and the server rejects it after a
+  // wasted round trip while the inline error blips away. Reproduce the exact
+  // conflict: the guard must block locally and (re)surface the same inline
+  // message the change handlers use, without switching the approve mode.
+  const ctx = fixture('linux')
+  ctx.formRef.value = { validate: async () => true, fields: [], scrollToField: () => {} }
+  ctx.form.hide_cm = true
+  ctx.form.pass_approve_mode = 'password-click' // FORM_DEFAULTS value, not 'password'
+  const ok = await ctx.api.validateBuildForm()
+  assert.equal(ok, false, 'submit must be blocked while hide_cm conflicts with the approve mode')
+  assert.equal(ctx.api.serverFieldError('pass_approve_mode'), 'CustomClientPassApproveModeIncompatible',
+    'the existing inline incompatibility must be (re)surfaced')
+  assert.equal(ctx.api.isFieldInvalid('pass_approve_mode'), true, 'ARIA must mark the field invalid')
+  // The guard only blocks; it must never pick a mode for the user.
+  assert.equal(ctx.form.pass_approve_mode, 'password-click', 'approve mode must not be switched automatically')
+  // No request can be dispatched while validateBuildForm returns false: submitBuild
+  // returns before create on a failed validation.
+  const submit = between('    const submitBuild = async () => {', '\n    const deleteBuild')
+  assert.match(submit, /if \(!await validateBuildForm\(\)\) return/, 'submit must never reach create after a blocked validation')
+})
+
+test('submit proceeds when hide_cm is combined with the password approve mode', async () => {
+  const ctx = fixture('linux')
+  ctx.formRef.value = { validate: async () => true, fields: [], scrollToField: () => {} }
+  ctx.form.hide_cm = true
+  ctx.form.pass_approve_mode = 'password'
+  assert.equal(await ctx.api.validateBuildForm(), true, 'a compatible combination must still submit')
+  assert.equal(ctx.api.serverFieldError('pass_approve_mode'), '')
+})
+
+test('a non-password approve mode without hide_cm still submits and the wipe clears a stale error', async () => {
+  // Negative control: the conflict exists only while hide_cm is set, so the very
+  // common 'password-click'/'password' mode with hide_cm off must keep submitting,
+  // and the existing plain wipe must still clear a stale incompatibility.
+  const ctx = fixture('linux')
+  ctx.formRef.value = { validate: async () => true, fields: [], scrollToField: () => {} }
+  ctx.form.hide_cm = false
+  ctx.form.pass_approve_mode = 'password-click'
+  ctx.api.serverFieldErrors.value = { pass_approve_mode: 'CustomClientPassApproveModeIncompatible' }
+  ctx.api.invalidFields.value = { pass_approve_mode: ['CustomClientPassApproveModeIncompatible'] }
+  assert.equal(await ctx.api.validateBuildForm(), true, 'hide_cm off is not a conflict')
+  assert.equal(ctx.api.serverFieldError('pass_approve_mode'), '', 'the plain wipe still clears stale server errors')
+  assert.deepEqual(Object.keys(ctx.api.invalidFields.value), [])
+})
+
 test('unknown or non-displayable server fields are ignored', async () => {
   const ctx = fixture('windows')
   const applied = await ctx.api.applyServerFieldErrors([

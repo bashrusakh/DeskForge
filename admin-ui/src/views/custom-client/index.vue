@@ -1278,6 +1278,17 @@ export default defineComponent({
     }
     const validateBuildForm = async () => {
       if (!formRef.value) return false
+      // hide_cm requires pass_approve_mode === 'password' (server-owned
+      // compatibility rule, ValidateHiddenConnectionManagement). No local rule
+      // covers that pair, so formRef.validate would pass and the create would be
+      // rejected by the server after a needless request, with the inline
+      // incompatibility hidden for the duration of the round trip. Re-check the
+      // same helper the change handlers use, keep the existing inline error
+      // visible through the shared field-error pipeline, and block submit.
+      if (hideCmApproveModeConflict()) {
+        await surfacePassApproveModeIncompatibility()
+        return false
+      }
       // An active image-upload error (client-side guard or a rejected upload
       // response, applied by applyUploadFieldError) is invisible to
       // formRef.validate: image fields are optional with no rules and the
