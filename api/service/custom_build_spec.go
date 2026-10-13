@@ -1171,7 +1171,7 @@ func validateBuildSpecTransportFields(spec BuildSpec) error {
 // http://localhost:21114. The returned value is the ASCII wire form the
 // workflow's HTTP client can send (publicURLWireForm): an ASCII value is
 // returned unchanged, while a raw non-ASCII host/path/query is converted (host
-// by the consumer-compatible IDNA rule, only the non-ASCII path/query bytes
+// to its non-transitional IDNA wire form, only the non-ASCII path/query bytes
 // percent-encoded). The rewrite is idempotent for the values a caller derived
 // from a prior resolution.
 //
@@ -1700,19 +1700,20 @@ func validatePublicHTTPURL(name, value string) error {
 // proven public or reachable — it is finally constrained at the workflow fetch
 // boundary.
 //
-// Wire form: the workflow fetcher (fetch_branding_image.py) builds a Python
-// http.client request; the runner's Python resolves the host through its IDNA
-// codec and encodes the request-target as ASCII, so a raw non-ASCII host, path,
-// or query would fail or be mangled at fetch time, after the producer accepted
-// the value. The producer instead derives the ASCII wire form:
+// Wire form: the workflow fetcher (fetch_branding_image.py) refuses a raw
+// non-ASCII host and builds a Python http.client request whose request-target
+// must be ASCII, so a raw non-ASCII host, path, or query would fail at fetch
+// time after the producer accepted the value. The producer instead derives the
+// ASCII wire form:
 //
 //   - A present port must be an integer in 1..65535 (validateFetchURLPort):
 //     Python's urllib.parse raises ValueError outside that range and the
 //     fetcher reads the port before connecting, while Go's net/url accepts any
 //     all-digit port. Port 0 is refused as an undialable destination.
-//   - The host is converted label by label with asciiFetchHost, which matches
-//     the host Python's "<host>".encode("idna") yields for the values the
-//     consumer can send. The converted host is re-classified with the shared
+//   - The host is converted label by label with asciiFetchHost, which emits the
+//     non-transitional IDNA (IDNA2008 / UTS #46) wire form of the host the
+//     operator typed (idnaFetchHostProfile explains why transitional mappings
+//     are not used). The converted host is re-classified with the shared
 //     public-host rule before use, because a Unicode spelling can map to a
 //     non-public literal (for example the full-width digit spelling
 //     "１２７.０.０.１" maps to 127.0.0.1); a conversion that fails or lands
@@ -1800,38 +1801,53 @@ func publicURLWireForm(name, value string) (string, error) {
 	return wire, nil
 }
 
-// idnaFetchHostProfile converts a non-ASCII host label to the ASCII form the
-// runner's Python IDNA encoder produces. fetch_branding_image.py refuses a raw
-// non-ASCII host and the fetcher only ever sees the producer's ASCII form, so
-// the two must agree. The profile is pinned to what Python's "idna" codec
-// accepts and produces, as far as UTS #46 allows: transitional mapping is
-// enabled because the consumer's IDNA2003/nameprep always maps the deviation
-// characters (ß -> ss, final sigma, joiners), and the transitional mappings are
-// the known divergence point between the two profiles; the STD3 rules are off
-// because the consumer accepts underscores; and the hyphen and joiner checks
-// are off because the consumer does not apply them. A host the consumer can
-// send must convert here, not be refused. asciiFetchHost applies the profile
-// label by label. A residual divergence remains where the consumer's nameprep
-// (Unicode 3.2 data) and UTS #46 disagree — mostly code points assigned after
-// Unicode 3.2 and a few compatibility mappings: for example U+1E9E converts to
-// "ss" here while Python punycodes it as "xn--kkg", and the Georgian Asomtavruli
-// capitals (U+10A0..U+10C5) are refused here while Python punycodes them. That
-// class cannot be reproduced with this IDNA implementation; it is documented in
-// the review report rather than silently rewritten.
+// idnaFetchHostProfile converts a non-ASCII host label to the ASCII wire form
+// the fetch target requires. fetch_branding_image.py refuses a raw non-ASCII
+// host, so the producer's conversion alone decides which host the runner
+// fetches, and a wrong conversion would fetch a different registered domain.
+//
+// The profile is deliberately non-transitional (IDNA2008 / UTS #46, the form
+// registries and browsers resolve today). Transitional processing applies the
+// IDNA2003 deviation mappings, so "straße.de" would become "strasse.de" — a
+// different registered domain from the "xn--strae-oqa.de" that spelling names.
+// The deviation code points (ß, final sigma, ZWJ/ZWNJ) therefore keep their
+// non-transitional IDNA2008 form.
+//
+// This deliberately does not reproduce Python's legacy "<host>".encode("idna")
+// codec (IDNA2003/nameprep), which maps those code points instead: the consumer
+// never re-converts an ASCII host into a different name — the fetcher sends the
+// producer's already ASCII wire form byte-for-byte, and Python's idna codec
+// returns an all-ASCII name unchanged (its ASCII fast path) — so the legacy
+// mapping must not decide the wire form. A
+// code-point sweep over the 974273 hosts Python's legacy codec encodes found
+// 1253 single-code-point hosts differing from Python among the 137886 the
+// host-plausibility rule admits: 1182 conversions (for example ß -> xn--zca
+// against Python's "ss") and 71 refusals.
+//
+// The permissive label rules stay: STD3 is off because the consumer accepts
+// underscores, and the hyphen and joiner checks are off because the consumer
+// does not apply them. The residual class refused here though the consumer
+// could encode it is 71 single-code-point hosts — the Georgian Asomtavruli
+// capitals (U+10A0..U+10C5), U+04C0, Hangul fillers, circled digits and a few
+// CJK compatibility code points — where the consumer's nameprep (Unicode 3.2
+// data) punycodes them and UTS #46 disallows them. That class cannot be
+// reproduced with this IDNA implementation; it fails closed and is documented
+// rather than silently rewritten.
 var idnaFetchHostProfile = idna.New(
 	idna.MapForLookup(),
 	idna.StrictDomainName(false),
-	idna.Transitional(true),
+	idna.Transitional(false),
 	idna.CheckHyphens(false),
 	idna.CheckJoiners(false),
 )
 
 // asciiFetchHost returns the ASCII form of a host name. An already-ASCII host is
 // returned unchanged, and inside a mixed host every all-ASCII label keeps its
-// spelling, matching the consumer codec's per-label ASCII fast path (Python's
-// encode("idna") neither lowercases nor remaps an ASCII label). A label with
-// non-ASCII characters is converted with idnaFetchHostProfile, so the result
-// differs from the input only in the converted labels.
+// spelling: the operator's ASCII labels are already in wire form and are never
+// lowercased, remapped, or otherwise rewritten (this also matches the
+// consumer's per-label ASCII fast path). A label with non-ASCII characters is
+// converted with idnaFetchHostProfile, so the result differs from the input
+// only in the converted labels.
 func asciiFetchHost(host string) (string, error) {
 	if isASCIIText(host) {
 		return host, nil

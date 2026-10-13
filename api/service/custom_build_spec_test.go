@@ -2367,31 +2367,35 @@ func TestBrandingFetchURLWireFormPreservesOperatorURL(t *testing.T) {
 	}
 }
 
-// TestBrandingFetchHostIDNAAgreementWithConsumer pins non-ASCII host conversion
-// against the runner fetcher's encoder. fetch_branding_image.py refuses a raw
-// non-ASCII host and only ever sends the producer's ASCII form, and Python
-// resolves a str host through the IDNA codec (socket.getaddrinfo encodes it
-// with "idna"), so the producer must emit the host Python's
-// "<host>".encode("idna") yields. The expectations below were verified with
-// Python 3.12.15; transitional mappings are the known divergence point between
-// the consumer's IDNA2003/nameprep codec and UTS #46, so the producer enables
-// transitional processing (straße.de becomes strasse.de, not xn--strae-oqa.de)
-// and leaves all-ASCII labels untouched, matching the codec's per-label ASCII
-// fast path (Bücher.Example becomes xn--bcher-kva.Example, not lowercased).
-// Hosts the consumer can send are converted, not refused: underscores are
-// accepted because the codec does not apply the STD3 rules.
+// TestBrandingFetchHostIDNAAgreementWithConsumer pins the non-ASCII host
+// conversion in the wire form the runner fetcher sends. fetch_branding_image.py
+// refuses a raw non-ASCII host, so the producer's conversion alone decides
+// which host is fetched, and DNS and browsers resolve these names in the
+// non-transitional (IDNA2008 / UTS #46) form. The producer therefore keeps the
+// deviation code points (straße.de becomes xn--strae-oqa.de — the registered
+// domain the operator's spelling names, not the transitional strasse.de the
+// legacy codec would produce), leaves all-ASCII labels untouched
+// (Bücher.Example becomes xn--bcher-kva.Example, not lowercased), and converts
+// the hosts the consumer could send instead of refusing them: underscores are
+// accepted because the STD3 rules are off (exämple_test.com becomes
+// xn--exmple_test-m8a.com).
 //
-// Residual divergence, reported rather than asserted: the consumer's nameprep
-// uses Unicode 3.2 data and UTS #46 does not, so code points assigned after
-// Unicode 3.2 (and a few compatibility mappings) can disagree in either
-// direction. ẞ (U+1E9E) is punycoded as xn--kkg.example by Python but maps to
-// ss.example here, and the Georgian Asomtavruli capitals (U+10A0..U+10C5) are
-// refused here while Python punycodes them; a code-point sweep over everything
-// Python's codec encodes found 1251 disagreeing single-code-point hosts among
-// those the host-plausibility rule admits. The available IDNA implementation
-// cannot reproduce the consumer's 3.2 tables, so that class is escalated for a
-// decision instead of being silently asserted here. The hosts below are the
-// agreed, discriminating cases.
+// This deliberately does not reproduce Python's legacy "<host>".encode("idna")
+// codec: the consumer never re-converts an ASCII host, so its IDNA2003 mappings
+// (ß -> ss, final sigma -> sigma) must not decide the wire form. Residual
+// divergence, reported rather than asserted: the consumer's nameprep uses
+// Unicode 3.2 data and UTS #46 does not, so code points assigned after Unicode
+// 3.2 (and a few compatibility mappings) can disagree in either direction. ẞ
+// (U+1E9E) is punycoded as xn--kkg.example by Python but maps to ss.example
+// here; conversely the non-transitional deviation form differs from Python for
+// ß and final sigma. A code-point sweep over the 974273 hosts Python's legacy
+// codec encodes found 1253 disagreeing single-code-point hosts among the
+// 137886 the host-plausibility rule admits: 1182 conversions and 71 refusals.
+// The refused class (Georgian Asomtavruli capitals U+10A0..U+10C5, U+04C0,
+// Hangul fillers, circled digits and a few CJK compatibility code points)
+// cannot be reproduced with the available IDNA implementation, so it fails
+// closed and is escalated for a decision instead of being silently asserted
+// here. The hosts below are the agreed, discriminating cases.
 func TestBrandingFetchHostIDNAAgreementWithConsumer(t *testing.T) {
 	context := BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"}
 	setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
@@ -2402,7 +2406,7 @@ func TestBrandingFetchHostIDNAAgreementWithConsumer(t *testing.T) {
 		{"exämple_test.com", "xn--exmple_test-m8a.com"},
 		{"foo_bar.example.com", "foo_bar.example.com"},
 		{"xn--bcher-kva.example", "xn--bcher-kva.example"},
-		{"straße.de", "strasse.de"},
+		{"straße.de", "xn--strae-oqa.de"},
 		{"Bücher.Example", "xn--bcher-kva.Example"},
 	}
 	for _, tc := range cases {
