@@ -1903,3 +1903,135 @@ func TestBrandingLiteralHostAliasRejection(t *testing.T) {
 		t.Fatalf("NormalizeCustomBuild() rejected a public absolute image: %v", err)
 	}
 }
+
+func TestBrandingPublicLiteralAddressPolicyBoundaries(t *testing.T) {
+	// The public-host rule is one literal public-address policy shared by every
+	// boundary. It must refuse the IANA special-purpose ranges the old
+	// loopback/private/link-local check accepted (unspecified, resolver aliases,
+	// shared/CGNAT, documentation, benchmarking, multicast, reserved, IPv6
+	// documentation, ...) as a configured public origin, as an absolute branding
+	// image value at the typed boundary, at the dispatch gate, and at the
+	// stored-data seam — and still accept public literals.
+	context := BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"}
+
+	blocked := []string{
+		"0.0.0.0", "0.1.2.3", "127.0.0.1", "127.1", "2130706433", "0x7f000001",
+		"169.254.1.1", "10.0.0.1", "100.64.0.1", "192.0.2.1", "198.18.0.1",
+		"198.51.100.1", "203.0.113.1", "224.0.0.1", "240.0.0.1", "255.255.255.255",
+		"[::]", "[::1]", "[fc00::1]", "[fe80::1]", "[2001:db8::1]",
+	}
+	for _, host := range blocked {
+		t.Run("origin/"+host, func(t *testing.T) {
+			setBrandingConfigForTest(t, "http://127.0.0.1:21114", "http://"+host)
+			if _, err := NormalizeCustomBuild(map[string]any{"app_icon_url": "/upload/x.png"}, context); err == nil {
+				t.Fatalf("NormalizeCustomBuild() resolved a relative asset against non-public origin host %q", host)
+			}
+		})
+		t.Run("typed/"+host, func(t *testing.T) {
+			setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+			value := "http://" + host + "/i.png"
+			_, err := NormalizeCustomBuild(map[string]any{"app_icon_url": value}, context)
+			if err == nil {
+				t.Fatalf("typed boundary accepted absolute image with non-public host %q", host)
+			}
+			if f, code, ok := FieldErrorMetadata(err); !ok || f != "app_icon_url" || code != FieldCodeInvalidFormat {
+				t.Fatalf("typed field/code = %s/%s ok=%v, want app_icon_url/%s (err=%v)", f, code, ok, FieldCodeInvalidFormat, err)
+			}
+		})
+		t.Run("gate/"+host, func(t *testing.T) {
+			setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+			value := "http://" + host + "/i.png"
+			if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{"app_icon_url": value}); err == nil {
+				t.Fatalf("dispatch gate accepted absolute image with non-public host %q", host)
+			}
+		})
+		t.Run("stored/"+host, func(t *testing.T) {
+			value := "http://" + host + "/i.png"
+			if err := ValidateStoredCustomBrandingField("app_icon_url", value); err == nil {
+				t.Fatalf("stored-data seam accepted absolute image with non-public host %q", host)
+			}
+		})
+	}
+
+	// A configured public origin still resolves a server-relative asset, both
+	// as a DNS name and as a public literal address.
+	for _, origin := range []string{"https://deskforge.example", "http://8.8.8.8:21114"} {
+		t.Run("origin-accepted/"+origin, func(t *testing.T) {
+			setBrandingConfigForTest(t, "http://127.0.0.1:21114", origin)
+			normalized, err := NormalizeCustomBuild(map[string]any{"app_icon_url": "/upload/x.png"}, context)
+			if err != nil {
+				t.Fatalf("NormalizeCustomBuild() rejected a relative asset with public origin %q: %v", origin, err)
+			}
+			if got, want := normalized.DispatchParams["app_icon_url"], origin+"/upload/x.png"; got != want {
+				t.Fatalf("dispatch[app_icon_url] = %v, want %q", got, want)
+			}
+		})
+	}
+
+	// Public absolute image URLs (public literals and DNS names) stay accepted
+	// at every boundary.
+	for _, value := range []string{
+		"http://8.8.8.8/i.png",
+		"http://1.1.1.1/i.png",
+		"http://[2606:4700:4700::1111]/i.png",
+		"https://cdn.example/path.png",
+	} {
+		t.Run("accepted/"+value, func(t *testing.T) {
+			setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+			normalized, err := NormalizeCustomBuild(map[string]any{"app_icon_url": value}, context)
+			if err != nil {
+				t.Fatalf("typed boundary rejected public image %q: %v", value, err)
+			}
+			if got := normalized.DispatchParams["app_icon_url"]; got != value {
+				t.Fatalf("dispatch[app_icon_url] = %v, want %q", got, value)
+			}
+			if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{"app_icon_url": value}); err != nil {
+				t.Fatalf("dispatch gate rejected public image %q: %v", value, err)
+			}
+			if err := ValidateStoredCustomBrandingField("app_icon_url", value); err != nil {
+				t.Fatalf("stored-data seam rejected public image %q: %v", value, err)
+			}
+		})
+	}
+
+	// Policy edges: an IPv4-mapped IPv6 literal is classified as its IPv4
+	// address (the mapped loopback form is refused), a zoned literal is refused
+	// without being resolved, the shared-address block boundary is exact, and a
+	// mapped public address stays public.
+	for _, tc := range []struct {
+		name   string
+		value  string
+		accept bool
+	}{
+		{"mapped-loopback-refused", "http://[::ffff:127.0.0.1]/i.png", false},
+		{"zoned-link-local-refused", "http://[fe80::1%25eth0]/i.png", false},
+		{"shared-range-last-refused", "http://100.127.255.255/i.png", false},
+		{"shared-range-next-accepted", "http://100.128.0.0/i.png", true},
+		{"mapped-public-accepted", "http://[::ffff:8.8.8.8]/i.png", true},
+	} {
+		t.Run("edge/"+tc.name, func(t *testing.T) {
+			setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+			_, err := NormalizeCustomBuild(map[string]any{"app_icon_url": tc.value}, context)
+			if tc.accept && err != nil {
+				t.Fatalf("typed boundary rejected %q: %v", tc.value, err)
+			}
+			if !tc.accept && err == nil {
+				t.Fatalf("typed boundary accepted %q", tc.value)
+			}
+		})
+	}
+
+	// A stored server-relative image stays valid stored data with no public
+	// origin configured — resolving it is the producer's concern, so the
+	// migration preflight must not abort on it — while the typed boundary still
+	// fails closed on the same value.
+	previousConfig := Config
+	Config = nil
+	t.Cleanup(func() { Config = previousConfig })
+	if err := ValidateStoredCustomBrandingField("app_icon_url", "/upload/x.png"); err != nil {
+		t.Fatalf("stored-data seam rejected a stored relative image with no configured origin: %v", err)
+	}
+	if _, err := NormalizeCustomBuild(map[string]any{"app_icon_url": "/upload/x.png"}, context); err == nil {
+		t.Fatal("typed boundary accepted a relative asset with no configured public origin")
+	}
+}

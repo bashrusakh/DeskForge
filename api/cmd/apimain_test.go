@@ -152,13 +152,26 @@ func TestMigrateSchemaAndRecordVersionCustomBrandingPreflight(t *testing.T) {
 		// The image keys are checked as stored data with no public origin
 		// configured: a server-relative path is valid and passes (resolving it is
 		// the build-spec producer's concern), while a data-invalid stored value —
-		// a non-http(s) scheme, a host-less URL, or a literal loopback host — is
-		// still refused. A valid absolute image URL stays accepted.
+		// a non-http(s) scheme, a host-less URL, or a literal host outside the
+		// public-address policy — is still refused. A valid absolute image URL
+		// stays accepted.
 		{"image-relative-accepted-no-origin", `{"app_icon_url":"/upload/icon.png"}`, false},
 		{"image-relative-logo-accepted-no-origin", `{"app_logo_url":"/upload/logo.png"}`, false},
 		{"image-file-scheme", `{"privacy_screen_url":"file:///etc/passwd"}`, true},
 		{"image-missing-host", `{"app_icon_url":"https:///x.png"}`, true},
 		{"image-loopback-host", `{"app_logo_url":"http://127.0.0.1:21114/logo.png"}`, true},
+		// The public-address policy also refuses the special-purpose ranges the
+		// old loopback/private/link-local check accepted: unspecified, shared/
+		// CGNAT, documentation, benchmarking, multicast, reserved, and the IPv6
+		// documentation range, while a public literal stays accepted.
+		{"image-unspecified-host", `{"app_icon_url":"http://0.0.0.0/i.png"}`, true},
+		{"image-shared-address-host", `{"app_logo_url":"http://100.64.0.1/i.png"}`, true},
+		{"image-documentation-host", `{"privacy_screen_url":"http://192.0.2.1/i.png"}`, true},
+		{"image-benchmarking-host", `{"app_icon_url":"http://198.18.0.1/i.png"}`, true},
+		{"image-multicast-host", `{"app_logo_url":"http://224.0.0.1/i.png"}`, true},
+		{"image-broadcast-host", `{"app_icon_url":"http://255.255.255.255/i.png"}`, true},
+		{"image-documentation-v6-host", `{"app_logo_url":"http://[2001:db8::1]/i.png"}`, true},
+		{"image-public-literal-accepted", `{"privacy_screen_url":"http://8.8.8.8/i.png"}`, false},
 		{"image-absolute-valid", `{"privacy_screen_url":"https://cdn.example/i.png"}`, false},
 		// Valid branding values, absent keys, and unrelated invalid fields must
 		// all pass: the preflight must not over-block a row for a non-branding
