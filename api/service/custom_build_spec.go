@@ -1554,10 +1554,18 @@ func validateBrandingURL(name, value string) error {
 }
 
 // validateCompanyName enforces the fork build workflow's company_name length
-// cap at the typed and dispatch boundaries. An empty value stays allowed.
+// cap and control-character rejection at the typed and dispatch boundaries. An
+// empty value stays allowed. The control-character rule mirrors
+// validateWorkflowValue so a value accepted at the typed boundary cannot fail
+// late at the dispatch gate or build time without field-level feedback.
 func validateCompanyName(value string) error {
 	if len(value) > maxCompanyNameBytes {
 		return fmt.Errorf("company_name exceeds %d bytes", maxCompanyNameBytes)
+	}
+	for _, char := range value {
+		if unicode.IsControl(char) {
+			return fmt.Errorf("company_name contains unsafe control characters")
+		}
 	}
 	return nil
 }

@@ -1453,6 +1453,13 @@ func TestNormalizeCustomBuildBrandingFieldForkSubset(t *testing.T) {
 		acceptCompany(t, "Acme Ltd")
 		acceptCompany(t, strings.Repeat("x", companyNameMax))
 		reject(t, "company_name", strings.Repeat("x", companyNameMax+1))
+		// A control character the fork build rejects is now caught at the typed
+		// boundary with a field-level invalid_format (mirroring the URL fields);
+		// the pre-existing dispatch control-character gate still rejects it first
+		// with a plain error, which is preserved.
+		rejectTyped(t, "company_name", "Acme\nLtd")
+		rejectTyped(t, "company_name", "Acme\tLtd")
+		rejectTyped(t, "company_name", "Acme\x00Ltd")
 	})
 
 	// Empty branding values stay allowed and are omitted from dispatch.
@@ -1497,4 +1504,24 @@ func TestNormalizeCustomBuildBrandingFieldForkSubset(t *testing.T) {
 			}
 		})
 	}
+
+	// The create boundary rejects a company_name control character with the same
+	// field-level invalid_format as the length and URL cases above.
+	t.Run("create-company_name-control-character", func(t *testing.T) {
+		custom := mustJSON(t, map[string]any{
+			"server_ip":    "id.example:21116",
+			"key":          validRustDeskPublicKey,
+			"api_server":   "https://api.example",
+			"relay_server": "relay.example:21117",
+			"company_name": "Acme\nLtd",
+		})
+		err := ValidateCustomBuildInput("windows", custom, "rustqs", "1.2.3")
+		if !IsClientValidationError(err) {
+			t.Fatalf("ValidateCustomBuildInput() error = %v, want ClientValidationError", err)
+		}
+		f, code, ok := FieldErrorMetadata(err)
+		if !ok || f != "company_name" || code != FieldCodeInvalidFormat {
+			t.Fatalf("field/code = %s/%s ok=%v, want company_name/%s (err=%v)", f, code, ok, FieldCodeInvalidFormat, err)
+		}
+	})
 }
