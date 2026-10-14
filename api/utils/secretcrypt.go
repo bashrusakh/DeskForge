@@ -286,6 +286,8 @@ var canonicalCustomBuilderFieldTypes = map[string]canonicalCustomBuilderFieldTyp
 	"permissions_type":         canonicalCustomBuilderString,
 	"company_name":             canonicalCustomBuilderString,
 	"download_url":             canonicalCustomBuilderString,
+	"website_url":              canonicalCustomBuilderString,
+	"privacy_policy_url":       canonicalCustomBuilderString,
 	"android_app_id":           canonicalCustomBuilderString,
 	"app_icon_url":             canonicalCustomBuilderString,
 	"app_logo_url":             canonicalCustomBuilderString,
@@ -394,7 +396,8 @@ func isCanonicalPublicCustomBuilderValue(key string, value any) bool {
 func isCanonicalPublicCustomBuilderStringKey(key string) bool {
 	switch key {
 	case "server", "serverip", "serverurl", "endpoint", "endpointurl", "idserver", "relayserver", "apiserver", "apiserverurl",
-		"key", "publickey", "publickeyfile", "appname", "companyname", "downloadurl", "androidappid", "appiconurl", "applogourl", "privacyscreenurl",
+		"key", "publickey", "publickeyfile", "appname", "companyname", "downloadurl", "websiteurl", "privacypolicyurl",
+		"androidappid", "appiconurl", "applogourl", "privacyscreenurl",
 		"direction", "passapprovemode", "theme", "permissionstype", "conntype", "accessmode", "approvemode":
 		return true
 	default:
@@ -471,7 +474,7 @@ func isSafePublicCustomBuilderKey(compact string) bool {
 	switch compact {
 	case "server", "serverip", "serverurl", "endpoint", "endpointurl", "idserver", "relayserver", "apiserver", "apiserverurl",
 		"key", "publickey", "publickeyfile", "appname",
-		"companyname", "downloadurl", "androidappid", "appiconurl", "applogourl", "privacyscreenurl",
+		"companyname", "downloadurl", "websiteurl", "privacypolicyurl", "androidappid", "appiconurl", "applogourl", "privacyscreenurl",
 		"direction", "passapprovemode", "theme", "permissionstype",
 		"denylan", "enabledirectip", "autoclose", "hidecm", "removewallpaper", "removenewversionnotif", "cyclemonitor", "xoffline",
 		"enableremotemodi", "enablekeyboard", "enableclipboard", "enablefiletransfer", "enableaudio", "enabletcp", "enableremoterestart",

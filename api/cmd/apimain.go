@@ -1,6 +1,8 @@
 package main
 
 import (
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -25,10 +27,26 @@ import (
 	"rustdesk-server/api/utils"
 )
 
-// DatabaseVersion bumped to 284 to snapshot source-preset provenance
-// (`preset_id`, `preset_name`) on `custom_builds` at create time. Earlier bump:
-// 283 to enforce one CustomPreset per (user_id,
-// name) after an explicit duplicate-data preflight. Earlier bump: 282 in
+// DatabaseVersion bumped to 285 so the branding preflight below actually runs
+// on an install that is already at 284 — the pre-PR tip of `main`. The 283->284
+// bump added the preflight but gated it at migration version 284; because
+// DatabaseAutoUpdate only calls Migrate when the recorded version is strictly
+// lower than DatabaseVersion, a normal install already at 284 never re-entered
+// Migrate, so the fail-closed branding check was permanently skipped for
+// exactly the population it was written to protect. Moving the branding
+// migration version to 285 re-runs Migrate once on every install below 285 and
+// then never again.
+//
+// The 284 bump snapshotted source-preset provenance
+// (`preset_id`, `preset_name`) on `custom_builds` at create time and persisted
+// the `website_url` and `privacy_policy_url` custom-client branding fields in
+// canonical custom_json (issue 80). The branding columns live
+// inside custom_json text, so AutoMigrate stays idempotent and no data
+// conversion is required; the branding preflight still fails closed when a
+// stored row already carries a non-string branding value that the stricter
+// typed boundary would later reject. Earlier bump: 283 to enforce one
+// CustomPreset per (user_id, name) after an
+// explicit duplicate-data preflight. Earlier bump: 282 in
 // 2026-08-11 to persist the exact provider
 // resolved SHA captured by immutable workflow-tag approval. Earlier bump: 281
 // persisted workflow-ref provider
@@ -50,11 +68,14 @@ import (
 // (B-006), 269 `github_run_id` for restart-safe GitHub Actions polling (B-003).
 // AutoMigrate is idempotent so all tables/columns are still created.
 const (
-	DatabaseVersion                         = 284
+	DatabaseVersion                         = 285
 	customPresetUniqueIndexMigrationVersion = 283
+	customBrandingFieldsMigrationVersion    = 285
 )
 
 var errDuplicateCustomPresetNames = errors.New("duplicate custom preset owner/name rows")
+
+var errInvalidCustomBrandingFields = errors.New("non-string custom branding field values")
 
 // @title API
 // @version 1.0
@@ -334,11 +355,102 @@ func migrateSchemaAndRecordVersion(db *gorm.DB, version uint, migrate func(*gorm
 	if err := preflightCustomPresetUniqueIndex(db, version); err != nil {
 		return fmt.Errorf("custom preset unique index preflight: %w", err)
 	}
+	if err := preflightCustomBuildBrandingFields(db, version); err != nil {
+		return fmt.Errorf("custom branding fields preflight: %w", err)
+	}
 	if err := migrate(db); err != nil {
 		return fmt.Errorf("auto migrate: %w", err)
 	}
 	if err := db.Create(&model.Version{Version: version}).Error; err != nil {
 		return fmt.Errorf("record database version %d: %w", version, err)
+	}
+	return nil
+}
+
+// preflightCustomBuildBrandingFields fails closed before the version bump that
+// makes the custom-client branding fields canonical custom_json fields: an
+// existing row carrying any branding field the typed BuildSpec boundary reads
+// with a value that boundary would later reject — a non-string value (only
+// reachable outside the storage allowlist), including an explicit JSON null
+// (which the typed field reader treats like any other non-string, while decoding
+// still distinguishes it from an absent key), or a string the shared branding
+// rules refuse — stops the migration instead of recording success over unusable
+// storage. The preflight checks stored-data validity only: resolving a
+// server-relative image against a public origin is the build-spec producer's
+// concern, so a deployment without a configured public origin does not abort the
+// migration. The branding field set and its rules stay single-source in service so
+// this preflight cannot drift from the typed/dispatch boundaries, and only
+// branding fields are inspected so unrelated legacy fields keep their own
+// boundaries. Encrypted rows remain opaque and are skipped. Rows are streamed
+// and inspected from their decoded JSON rather than through a raw-text prefilter:
+// a branding key written with JSON \uXXXX escapes decodes to the branding name
+// the typed boundary reads but would not match a literal text search, so a
+// text prefilter could pass a row the typed boundary later rejects. Streaming
+// also keeps a large custom_builds table (one row per historical build) memory
+// bounded.
+func preflightCustomBuildBrandingFields(db *gorm.DB, version uint) error {
+	if version < customBrandingFieldsMigrationVersion {
+		return nil
+	}
+	brandingFields := service.CustomBrandingFieldNames()
+	for _, table := range []struct {
+		name  string
+		model any
+	}{
+		{name: "custom_builds", model: &model.CustomBuild{}},
+		{name: "custom_presets", model: &model.CustomPreset{}},
+	} {
+		if !db.Migrator().HasTable(table.model) {
+			continue
+		}
+		if !db.Migrator().HasColumn(table.model, "custom_json") {
+			// A table created before custom_json existed carries no such
+			// row data to check; AutoMigrate adds the column afterwards.
+			continue
+		}
+		if err := preflightCustomBuildBrandingFieldRows(db, table.name, table.model, brandingFields); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// preflightCustomBuildBrandingFieldRows streams one table's rows and fails
+// closed on the first decoded branding field value the shared branding seam
+// rejects. It selects only the row identity and custom_json text so a large
+// table is iterated without loading every row into memory.
+func preflightCustomBuildBrandingFieldRows(db *gorm.DB, tableName string, tableModel any, brandingFields []string) error {
+	rows, err := db.Model(tableModel).Select("id", "custom_json").Rows()
+	if err != nil {
+		return fmt.Errorf("query stored custom branding values in %s: %w", tableName, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id uint
+		var storedJSON sql.NullString
+		if err := rows.Scan(&id, &storedJSON); err != nil {
+			return fmt.Errorf("scan stored custom branding value in %s: %w", tableName, err)
+		}
+		stored := storedJSON.String
+		if utils.IsEncryptedSecret(stored) {
+			continue
+		}
+		var decoded map[string]any
+		if err := json.Unmarshal([]byte(stored), &decoded); err != nil {
+			continue
+		}
+		for _, field := range brandingFields {
+			value, ok := decoded[field]
+			if !ok {
+				continue
+			}
+			if err := service.ValidateStoredCustomBrandingField(field, value); err != nil {
+				return fmt.Errorf("%w: %s row %d field %q: %v", errInvalidCustomBrandingFields, tableName, id, field, err)
+			}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate stored custom branding values in %s: %w", tableName, err)
 	}
 	return nil
 }

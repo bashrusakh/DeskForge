@@ -255,7 +255,7 @@ func TestGetAvailableVersionsCtxCancel(t *testing.T) {
 	// не заводится — кеш не мутируется, тест герметичен.
 }
 
-func TestDispatchBuildUsesExactRunDetailsWithoutPolling(t *testing.T) {
+func TestDispatchBuildOmitsRetiredReturnRunDetailsAndUsesExact200RunDetails(t *testing.T) {
 	identity := githubVersionIdentity()
 	config := githubConfig()
 	config.Branch = identity.WorkflowRef
@@ -297,8 +297,18 @@ func TestDispatchBuildUsesExactRunDetailsWithoutPolling(t *testing.T) {
 		if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 			return nil, fmt.Errorf("decode request: %w", err)
 		}
-		if payload["return_run_details"] != true {
-			return githubResponse(http.StatusBadRequest, `{"message":"return_run_details missing"}`, nil), nil
+		// Harness check, not a model of GitHub: the client must pin this dispatch
+		// to the newer API contract. A mismatch is the test's own failure signal;
+		// GitHub's response for an unsupported version is not asserted here.
+		if req.Header.Get("X-GitHub-Api-Version") != ghWorkflowDispatchAPIVersion {
+			return nil, fmt.Errorf("dispatch did not pin the workflow API version: %q", req.Header.Get("X-GitHub-Api-Version"))
+		}
+		// Harness check, not a model of GitHub: the client must not send the
+		// retired return_run_details parameter (removed under the 2026-03-10
+		// contract). What GitHub returns to a client that still sends it is
+		// undocumented, so this double does not assert a status for it.
+		if _, retired := payload["return_run_details"]; retired {
+			return nil, fmt.Errorf("dispatch sent the retired return_run_details parameter")
 		}
 		if payload["ref"] != "workflow-v1" {
 			return githubResponse(http.StatusBadRequest, `{"message":"workflow selector was not used"}`, nil), nil
@@ -794,6 +804,37 @@ func TestGithubErrorDetailIsBoundedAndDoesNotFormatNestedProviderData(t *testing
 	}
 	if !strings.Contains(detail, "status=403") || !strings.Contains(detail, "GitHub access was denied; verify the PAT permissions and repository access") {
 		t.Fatalf("GithubErrorDetail() = %q, want safe status/classification", detail)
+	}
+}
+
+func TestGithubSafeErrorMessageMaps422WithoutPATRedirect(t *testing.T) {
+	err := &GithubAPIError{
+		StatusCode: http.StatusUnprocessableEntity,
+		Terminal:   true,
+		Body:       `{"message":"validation failed token=github_pat_secret enc_payload=private-payload"}`,
+	}
+	got := GithubSafeErrorMessage(err)
+	if got != "GitHub rejected the dispatch request as invalid" {
+		t.Fatalf("GithubSafeErrorMessage(422) = %q, want bounded dispatch-validation message", got)
+	}
+	// A 422 must not redirect users to verify PAT permissions, and provider
+	// body content must stay outside the mapped message.
+	if strings.Contains(got, "PAT") || strings.Contains(got, "github_pat_secret") || strings.Contains(got, "enc_payload") {
+		t.Fatalf("GithubSafeErrorMessage(422) = %q, want no PAT/permission hint and no provider body", got)
+	}
+	// Neighboring status mappings are unchanged.
+	for _, tc := range []struct {
+		status int
+		want   string
+	}{
+		{http.StatusUnauthorized, "GitHub authentication failed; verify the configured PAT"},
+		{http.StatusForbidden, "GitHub access was denied; verify the PAT permissions and repository access"},
+		{http.StatusNotFound, "GitHub repository or workflow resource was not found; verify the repository name and PAT access"},
+	} {
+		other := &GithubAPIError{StatusCode: tc.status, Terminal: true}
+		if got := GithubSafeErrorMessage(other); got != tc.want {
+			t.Fatalf("GithubSafeErrorMessage(%d) = %q, want %q", tc.status, got, tc.want)
+		}
 	}
 }
 

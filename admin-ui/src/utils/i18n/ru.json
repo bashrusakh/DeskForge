@@ -89,8 +89,35 @@
   "CustomClientRelayServerInvalidFormat": {
     "One": "Адрес relay-сервера должен быть допустимым IP или именем хоста с необязательным портом (например, relay.example.com или 1.2.3.4:21117)."
   },
+  "CustomClientWebsiteUrlInvalidFormat": {
+    "One": "URL веб-сайта должен быть абсолютным и начинаться с http:// или https://."
+  },
+  "CustomClientPrivacyPolicyInvalidFormat": {
+    "One": "URL политики конфиденциальности должен быть абсолютным и начинаться с http:// или https://."
+  },
+  "CustomClientDownloadUrlInvalidFormat": {
+    "One": "URL загрузки должен быть абсолютным и начинаться с http:// или https://."
+  },
+  "CustomClientCompanyNameInvalidFormat": {
+    "One": "Название компании должно содержать не более 256 байт."
+  },
+  "CustomClientAppIconUrlInvalidFormat": {
+    "One": "Значок приложения должен быть абсолютным публичным URL http:// или https:// либо локальным путём /upload/..., для которого настроен публичный API-сервер."
+  },
+  "CustomClientAppLogoUrlInvalidFormat": {
+    "One": "Логотип приложения должен быть абсолютным публичным URL http:// или https:// либо локальным путём /upload/..., для которого настроен публичный API-сервер."
+  },
+  "CustomClientPrivacyScreenUrlInvalidFormat": {
+    "One": "Экран конфиденциальности должен быть абсолютным публичным URL http:// или https:// либо локальным путём /upload/..., для которого настроен публичный API-сервер."
+  },
   "CustomClientFieldInvalidFormat": {
     "One": "Значение имеет недопустимый формат для выбранной платформы."
+  },
+  "CustomClientFieldIncompatible": {
+    "One": "Это значение нельзя сочетать с текущими требованиями."
+  },
+  "CustomClientPassApproveModeIncompatible": {
+    "One": "При скрытом управлении подключением режим подтверждения должен быть «Пароль» (без присмотра, только по паролю)."
   },
   "CustomClientUseServerKey": {
     "One": "Использовать публичный ключ сервера"
@@ -802,11 +829,80 @@
   "AppIcon": {
     "One": "Иконка приложения (PNG)"
   },
+  "ImageAttachFileButton": {
+    "One": "Загрузить файл (≤5 МБ)"
+  },
+  "ImageAttachLinkPlaceholder": {
+    "One": "или вставьте http(s)…"
+  },
+  "ImageAttachClear": {
+    "One": "Очистить"
+  },
+  "ImageAttachPreviewEmpty": {
+    "One": "Нет предпросмотра"
+  },
+  "BrandingImagesMechanicsNote": {
+    "One": "Файл сохраняется на сервере; при сборке ссылка автоматически подставляется из адреса API-сервера. Вставленная ссылка должна быть публично доступной http(s)."
+  },
   "AppLogo": {
     "One": "Логотип приложения (PNG)"
   },
   "PrivacyScreen": {
     "One": "Экран приватности (PNG)"
+  },
+  "ImageFieldNoteIcon": {
+    "One": "Требуется: PNG, квадрат; оптимально 256×256 (минимум 16×16)"
+  },
+  "ImageFieldNoteLogo": {
+    "One": "Требуется: PNG; оптимально ≤300×60 — рендер не шире"
+  },
+  "ImageFieldNoteScreen": {
+    "One": "Требуется: PNG (показ на весь экран)"
+  },
+  "ImageRangeIcon": {
+    "One": "Допустимо: квадрат 16×16–4096×4096; больше 256×256 ужимается до 256 для иконок Windows; файл ≤5 МБ, ссылка ≤10 МБ"
+  },
+  "ImageRangeLogo": {
+    "One": "Допустимо: PNG до 4096×4096; файл ≤5 МБ, ссылка ≤10 МБ"
+  },
+  "ImageRangeScreen": {
+    "One": "Допустимо: PNG до 4096×4096; файл ≤5 МБ, ссылка ≤20 МБ"
+  },
+  "ImageFieldPngOnlyError": {
+    "One": "Допускаются только изображения PNG"
+  },
+  "ImageFieldSizeError": {
+    "One": "Файл превышает лимит загрузки 5 МБ"
+  },
+  "ImageFieldSquareError": {
+    "One": "Иконка должна быть квадратным PNG не менее 16×16 пикселей"
+  },
+  "ImageFieldNotImageError": {
+    "One": "Файл не читается как изображение"
+  },
+  "ImageFieldUploadFailedError": {
+    "One": "Не удалось загрузить файл"
+  },
+  "WebsiteUrl": {
+    "One": "Веб-сайт («О программе»)"
+  },
+  "WebsiteUrlHint": {
+    "One": "Ссылка на сайт, отображаемая в диалоге «О программе» клиента, например https://example.com."
+  },
+  "PrivacyPolicy": {
+    "One": "Политика конфиденциальности"
+  },
+  "PrivacyPolicyHint": {
+    "One": "URL веб-страницы политики конфиденциальности, например https://example.com/privacy. Это ссылка, а не изображение экрана приватности."
+  },
+  "DirectionHint": {
+    "One": "Только входящие (QuickSupport) — клиент в стиле QuickSupport: разрешает входящие сеансы удалённой поддержки, при этом обычные исходящие подключения к другим устройствам скрыты или отключены."
+  },
+  "HideConnectionManagementHint": {
+    "One": "Скрывает отдельный локальный интерфейс управления подключениями для входящих сеансов. Требуется конфигурация без присмотра, только по паролю."
+  },
+  "IncomingOnly": {
+    "One": "Только входящие (QuickSupport)"
   },
   "Upload": {
     "One": "Загрузить"

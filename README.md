@@ -11,8 +11,13 @@ For a fresh checkout, create the repository-root `.env` from `.env.example` befo
 starting Compose (preserve any existing `.env`). To prefill the Custom Client Builder
 with client-reachable addresses, set the optional `RUSTDESK_API_RUSTDESK_PUBLIC_*`
 values there. When Compose is run from `docker/`, the combined service loads root
-`.env` through `env_file: ../.env`; these values only prefill builder fields and do
-not replace the operational server addresses.
+`.env` through `env_file: ../.env`; these values prefill builder fields and do not
+replace the operational server addresses. `RUSTDESK_API_RUSTDESK_PUBLIC_API_SERVER` is
+also the origin used to resolve a local branding asset (`/upload/...`) into a
+fetchable URL for the build workflow. Set it to a public http(s) address the build
+runner can reach: a literal loopback/private/special-purpose origin is refused, and
+a DNS hostname is not resolved at create or dispatch — it is constrained only when
+the workflow fetches the asset.
 
 ```bash
 git clone https://github.com/bashrusakh/DeskForge.git
@@ -46,12 +51,15 @@ WebSocket path is required.
 
 The published RustDesk client source/ref is 1.4.8 and the published DeskForge API
 schema is `DatabaseVersion` 272. The current local corrective candidate targets API
-schema `DatabaseVersion` 284; it is not published and does not establish live-provider
+schema `DatabaseVersion` 285; it is not published and does not establish live-provider
 execution. The earlier schema-283 migration adds
 `idx_custom_presets_user_id_name` on `(user_id, name)`. Before `AutoMigrate`, its
 preflight rejects existing duplicate owner/name groups without auto-selecting a row or
 deleting data. Schema 284 adds create-time `preset_id` and `preset_name` provenance
-snapshots to `custom_builds`. Schema 282 remains the earlier workflow-approval migration.
+snapshots to `custom_builds`. Schema 285 runs the custom-client branding-field preflight
+before `AutoMigrate`, failing closed when an existing `custom_builds` or `custom_presets`
+row already carries a branding field value the shared branding seam rejects. Schema 282
+remains the earlier workflow-approval migration.
 
 ---
 
@@ -69,7 +77,7 @@ snapshots to `custom_builds`. Schema 282 remains the earlier workflow-approval m
 | `RUSTDESK_API_RUSTDESK_API_SERVER`   | API server URL                    |
 | `RUSTDESK_API_RUSTDESK_PUBLIC_ID_SERVER`    | External/public ID server used to prefill the Custom Client Builder (optional) |
 | `RUSTDESK_API_RUSTDESK_PUBLIC_RELAY_SERVER` | External/public relay server used to prefill the Custom Client Builder (optional) |
-| `RUSTDESK_API_RUSTDESK_PUBLIC_API_SERVER`   | External/public API server URL used to prefill the Custom Client Builder (optional) |
+| `RUSTDESK_API_RUSTDESK_PUBLIC_API_SERVER`   | External/public API server URL: prefills the Custom Client Builder and is the origin for local `/upload/...` assets (optional; must be reachable by the build runner) |
 | `RUSTDESK_API_KEY_FILE`              | Path to public key file           |
 | `RUSTDESK_API_JWT_KEY`              | JWT secret                        |
 | `RUSTDESK_API_GORM_TYPE`            | sqlite / mysql / postgresql       |
@@ -82,15 +90,25 @@ key and are rejected rather than stored as plaintext when it is missing. Legacy 
 rows remain readable; saving them again encrypts them when the key exists.
 
 The `RUSTDESK_API_RUSTDESK_PUBLIC_*` variables are optional external/public addresses
-used only to prefill the Custom Client Builder's Host / Relay / API server fields
+used to prefill the Custom Client Builder's Host / Relay / API server fields
 (needed behind Docker/NAT where the server cannot discover its own external address).
 They are intentionally distinct from `RUSTDESK_API_RUSTDESK_ID_SERVER` /
 `RUSTDESK_API_RUSTDESK_RELAY_SERVER` / `RUSTDESK_API_RUSTDESK_API_SERVER`, which may
 legitimately hold internal or Docker addresses consumed by the dashboard and server
-commands. When a `PUBLIC_*` value is unset, the builder falls back to the operational
-value. The builder's "Local IP" button additionally resolves the server's own network
-interface addresses server-side; in Docker bridge setups those are container addresses,
-and the picker labels each candidate with its source interface.
+commands. `RUSTDESK_API_RUSTDESK_PUBLIC_API_SERVER` additionally serves as the public
+origin that resolves a server-relative branding asset (`/upload/...`) into an absolute
+URL for the build workflow; the build runner fetches that URL, so the origin must be a
+public http(s) address the runner can reach. A literal address on a non-public
+special-purpose range (loopback, unspecified, private, link-local, shared, documentation,
+benchmarking, multicast, reserved, NAT64/6to4, ...) is refused at create and dispatch
+without a DNS lookup; a DNS hostname passes that syntactic check and is finally
+constrained when the workflow fetches the asset. The operational
+`RUSTDESK_API_RUSTDESK_API_SERVER` is never used as a fallback. When a
+`PUBLIC_*` value is unset, the builder falls back to the operational value for its
+prefill fields; the asset origin has no such fallback. The builder's "Local IP" button
+additionally resolves the server's own network interface addresses server-side; in
+Docker bridge setups those are container addresses, and the picker labels each
+candidate with its source interface.
 
 Rust build metadata uses `SOURCE_DATE_EPOCH` when supplied. Without it, active
 builds use the deterministic value `unknown`; wall-clock metadata is available
@@ -115,12 +133,15 @@ Shared UI: DataTable, AppDialog, AppDrawer, FilterBar, ActionsToolbar.
 **Custom client:** the API dispatches an owned workflow in the configured RustDesk
 fork and retrieves the exact provider artifact for local validation/publication.
 The published client source/ref is **1.4.8**. The current local corrective candidate
-targets API schema `DatabaseVersion` 284; the published DeskForge schema remains 272.
+targets API schema `DatabaseVersion` 285; the published DeskForge schema remains 272.
 The earlier schema-283 migration adds `idx_custom_presets_user_id_name` on `(user_id,
 name)` and its preflight rejects existing duplicate owner/name groups before
 `AutoMigrate`, without auto-selecting a row or deleting data. Schema 284 adds create-time
-`preset_id` and `preset_name` provenance snapshots to `custom_builds`. The earlier
-schema-282 workflow-approval migration remains historical context.
+`preset_id` and `preset_name` provenance snapshots to `custom_builds`. Schema 285 runs
+the custom-client branding-field preflight before `AutoMigrate`, failing closed when an
+existing `custom_builds` or `custom_presets` row already carries a branding field value
+the shared branding seam rejects. The earlier schema-282 workflow-approval migration
+remains historical context.
 Windows is the only capability admitted today;
 Linux and Android mappings remain gated pending PR11 evidence. No live provider
 run or clean-environment build is claimed. Local workflow manifests, bridge/helper
@@ -130,9 +151,13 @@ Before approval, preparation, or secret-bearing dispatch, the API requires the e
 provider-owned marker `# deskforge-workflow-identity-guard: v1` in workflow content
 resolved at the immutable workflow SHA. Legacy unguarded tags fail closed. This does
 not make GitHub's selector/SHA binding atomic or establish live provider readiness.
-SQLite-only tests cover the schema-283 duplicate-data preflight/unique index and schema-284
-provenance columns, including migration and readback of a populated pre-provenance
-`custom_builds` row. MySQL/PostgreSQL migration and read/write coverage remain unverified.
+SQLite-only tests cover the schema-283 duplicate-data preflight/unique index, schema-284
+provenance columns (including migration and readback of a populated pre-provenance
+`custom_builds` row), and the schema-285 branding preflight/version gate: an install
+already at 284 fails closed on a rejected stored branding value without recording 285,
+an accepted one upgrades and records 285, and a fresh, 283, or 284 install runs the
+preflight while a 285 install skips it. MySQL/PostgreSQL migration and read/write
+coverage remain unverified.
 
 ### GitHub Actions PAT permissions
 
@@ -212,7 +237,7 @@ unverified.
 
 ## Forks (for custom client builds)
 
-- [`bashrusakh/rustdesk`](https://github.com/bashrusakh/rustdesk) — owned RustDesk fork at published client source/ref 1.4.8; current local corrective API schema target is 284
+- [`bashrusakh/rustdesk`](https://github.com/bashrusakh/rustdesk) — owned RustDesk fork at published client source/ref 1.4.8; current local corrective API schema target is 285
 - [`bashrusakh/hbb_common`](https://github.com/bashrusakh/hbb_common) — intended fork of
   `rustdesk/hbb_common`; the configured RustDesk fork currently records the upstream
   `rustdesk/hbb_common` submodule, and its local checkout is dirty/unpublished, so clean

@@ -273,6 +273,22 @@ func decryptPayloadCBC(key, iv, ciphertext []byte) ([]byte, error) {
 
 const githubAPI = "https://api.github.com"
 
+// ghDefaultAPIVersion pins the client-wide REST API version contract.
+const ghDefaultAPIVersion = "2022-11-28"
+
+// ghWorkflowDispatchAPIVersion overrides the pinned version for the single
+// workflow_dispatch POST only. GitHub's 2026-03-10 breaking change removed the
+// return_run_details parameter and made the endpoint always return HTTP 200
+// with the run details (workflow_run_id, run_url, html_url). This request
+// deliberately adopts that newer contract so the dispatch reads the run
+// details directly from an always-200 response. Every other GitHub request
+// keeps ghDefaultAPIVersion.
+//
+// This is a deliberate contract modernization, not a #80 requirement: the
+// pinned 2022-11-28 version with return_run_details=true also returns the run
+// details.
+const ghWorkflowDispatchAPIVersion = "2026-03-10"
+
 const (
 	githubErrorBodyLimit = 4 << 10
 	githubJSONBodyLimit  = 4 << 20
@@ -562,6 +578,12 @@ func safeGithubURL(raw string) bool {
 // конфига. Если body == nil — GET; иначе — JSON-кодируется и Content-Type
 // выставляется автоматически. Таймаут контролируется через ctx вызывающего.
 func (s *GithubBuildConfigService) ghReq(ctx context.Context, c *model.GithubBuildConfig, method, path string, body any, expected ...int) (*http.Response, error) {
+	return s.ghReqVersioned(ctx, c, method, path, body, ghDefaultAPIVersion, expected...)
+}
+
+// ghReqVersioned is ghReq with an explicit X-GitHub-Api-Version override for
+// the one request; all other callers keep the pinned default version.
+func (s *GithubBuildConfigService) ghReqVersioned(ctx context.Context, c *model.GithubBuildConfig, method, path string, body any, apiVersion string, expected ...int) (*http.Response, error) {
 	if c == nil {
 		return nil, errors.New("GitHub build config is missing")
 	}
@@ -584,7 +606,7 @@ func (s *GithubBuildConfigService) ghReq(ctx context.Context, c *model.GithubBui
 		req.Header.Set("Authorization", "Bearer "+c.Token)
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	req.Header.Set("X-GitHub-Api-Version", apiVersion)
 	if br != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -866,6 +888,8 @@ func GithubSafeErrorMessage(err error) string {
 			return "GitHub access was denied; verify the PAT permissions and repository access"
 		case http.StatusNotFound:
 			return "GitHub repository or workflow resource was not found; verify the repository name and PAT access"
+		case http.StatusUnprocessableEntity:
+			return "GitHub rejected the dispatch request as invalid"
 		default:
 			if apiErr.Retryable {
 				return "GitHub provider is temporarily unavailable or rate-limited; retry shortly"
@@ -1110,8 +1134,14 @@ func (s *GithubBuildConfigService) DispatchBuild(ctx context.Context, c *model.G
 	}
 	body := map[string]any{
 		// The resolved SHA is used by readiness and polling, not as this selector.
-		"ref":                dispatchRef,
-		"return_run_details": true,
+		// No return_run_details field: the 2026-03-10 API version removed it, and
+		// this request is intentionally pinned to that newer contract (see
+		// ghWorkflowDispatchAPIVersion), so the dispatch reads run details
+		// directly from the always-200 response instead of opting in per request.
+		// This is a deliberate contract modernization, not a #80 requirement: the
+		// client-wide 2022-11-28 pin with return_run_details=true also returns the
+		// run details.
+		"ref": dispatchRef,
 		"inputs": map[string]string{
 			"enc_payload":  enc,
 			"workflow_sha": identity.WorkflowSHA,
@@ -1121,7 +1151,7 @@ func (s *GithubBuildConfigService) DispatchBuild(ctx context.Context, c *model.G
 	if err != nil {
 		return nil, err
 	}
-	resp, err := s.ghReq(ctx, c, "POST", path, body, http.StatusOK)
+	resp, err := s.ghReqVersioned(ctx, c, "POST", path, body, ghWorkflowDispatchAPIVersion, http.StatusOK)
 	if err != nil {
 		var apiErr *GithubAPIError
 		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNoContent {

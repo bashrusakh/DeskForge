@@ -21,11 +21,16 @@ type Rustdesk struct {
 	RelayServer     string `mapstructure:"relay-server"`
 	RelayServerPort int    `mapstructure:"-"`
 	ApiServer       string `mapstructure:"api-server"`
-	// Public* — externally reachable addresses used ONLY to prefill the
-	// Custom Client Builder's server fields (issue #82). They are deliberately
+	// Public* — externally reachable addresses used to prefill the Custom
+	// Client Builder's server fields (issue #82) and, for PublicApiServer, to
+	// resolve a server-relative branding asset path ("/upload/...") into a
+	// fetchable absolute URL at the build-spec boundary. They are deliberately
 	// distinct from the operational IdServer/RelayServer/ApiServer values above,
 	// which may legitimately hold internal/Docker addresses consumed by the
-	// dashboard and server commands.
+	// dashboard and server commands. PublicApiServer must be reachable from the
+	// GitHub build runner: the runner fetches the resolved local assets over the
+	// public internet, so a loopback/private origin is rejected and never
+	// substituted by the operational ApiServer.
 	PublicIdServer    string `mapstructure:"public-id-server"`
 	PublicRelayServer string `mapstructure:"public-relay-server"`
 	PublicApiServer   string `mapstructure:"public-api-server"`

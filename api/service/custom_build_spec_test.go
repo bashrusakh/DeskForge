@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"rustdesk-server/api/config"
 )
 
 func TestParsePlatform(t *testing.T) {
@@ -41,7 +43,7 @@ func TestParsePlatform(t *testing.T) {
 }
 
 func TestPublicCustomTxtRedactsPrivateNativeSettings(t *testing.T) {
-	raw := `{"conn-type":"incoming","password":"password-secret","default-settings":{"allow-hide-cm":"Y","verification-method":"use-permanent-password","enable-audio":"Y","theme":"dark"}}`
+	raw := `{"app-name":"Acme Support","conn-type":"incoming","password":"password-secret","default-settings":{"allow-hide-cm":"Y","verification-method":"use-permanent-password","enable-audio":"Y","theme":"dark"}}`
 	encoded := base64.StdEncoding.EncodeToString([]byte(raw))
 	got, err := PublicCustomTxt(encoded)
 	if err != nil {
@@ -54,6 +56,9 @@ func TestPublicCustomTxtRedactsPrivateNativeSettings(t *testing.T) {
 	var public map[string]any
 	if err := json.Unmarshal(decoded, &public); err != nil {
 		t.Fatalf("public custom_.txt is not client-compatible JSON: %v", err)
+	}
+	if public["app-name"] != "Acme Support" {
+		t.Fatalf("public app-name = %#v, want preserved runtime application identity", public["app-name"])
 	}
 	if public["conn-type"] != "incoming" {
 		t.Fatalf("public conn-type = %#v, want incoming", public["conn-type"])
@@ -90,6 +95,7 @@ func TestPublicCustomTxtFailsClosedForMalformedOrUnsafePayloads(t *testing.T) {
 		{name: "unknown secret field", encoded: base64.StdEncoding.EncodeToString([]byte(`{"token":"token-secret"}`))},
 		{name: "unsafe nested field", encoded: base64.StdEncoding.EncodeToString([]byte(`{"default-settings":{"payload-key":"payload-secret"}}`))},
 		{name: "null nested setting", encoded: base64.StdEncoding.EncodeToString([]byte(`{"default-settings":{"enable-audio":null}}`))},
+		{name: "unknown persisted-only branding field", encoded: base64.StdEncoding.EncodeToString([]byte(`{"company_name":"Acme Ltd"}`))},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			got, err := PublicCustomTxt(test.encoded)
@@ -253,7 +259,7 @@ func TestNormalizeCustomBuildFullNativeMapping(t *testing.T) {
 		"deny_lan":              true,
 		"enable_direct_ip":      false,
 		"auto_close":            true,
-		"hide_cm":               true,
+		"hide_cm":               false,
 		"remove_wallpaper":      true,
 		"enable_remote_modi":    false,
 		"enable_keyboard":       false,
@@ -282,13 +288,14 @@ func TestNormalizeCustomBuildFullNativeMapping(t *testing.T) {
 	}
 	decoded := decodeCustomTxt(t, got.CustomTxt)
 	want := map[string]any{
+		"app-name":  "record-app",
 		"conn-type": "incoming",
 		"password":  "secret",
 		"default-settings": map[string]any{
 			"access-mode":                      "custom",
 			"approve-mode":                     "password-click",
-			"verification-method":              "use-permanent-password",
-			"allow-hide-cm":                    "Y",
+			"verification-method":              "use-both-passwords",
+			"allow-hide-cm":                    "N",
 			"enable-keyboard":                  "N",
 			"enable-clipboard":                 "N",
 			"enable-file-transfer":             "N",
@@ -368,6 +375,9 @@ func TestEncodeCustomTxtSettingsScope(t *testing.T) {
 	if _, ok := decodeCustomTxt(t, encoded)["default-settings"]; !ok {
 		t.Error("ordinary form must default to default-settings")
 	}
+	if _, ok := decodeCustomTxt(t, encoded)["app-name"]; ok {
+		t.Error("no record context means no top-level app-name")
+	}
 }
 
 func TestBuildCustomTxtBooleanSemantics(t *testing.T) {
@@ -433,7 +443,7 @@ func TestBuildCustomTxtOverrideBooleanMatrix(t *testing.T) {
 		{"enable_terminal", "enable-terminal"},
 	}
 	for _, value := range []bool{true, false} {
-		raw := map[string]any{"permanent_password": "secret"}
+		raw := map[string]any{"permanent_password": "secret", "pass_approve_mode": "password"}
 		for _, field := range fields {
 			raw[field.input] = value
 		}
@@ -486,8 +496,28 @@ func TestBuildCustomTxtHideConnectionManagement(t *testing.T) {
 		},
 		{
 			name: "true uses permanent password",
-			raw:  map[string]any{"hide_cm": true, "permanent_password": "secret"},
-			want: map[string]any{"allow-hide-cm": "Y", "verification-method": "use-permanent-password"},
+			raw:  map[string]any{"hide_cm": true, "permanent_password": "secret", "pass_approve_mode": "password"},
+			want: map[string]any{"allow-hide-cm": "Y", "verification-method": "use-permanent-password", "approve-mode": "password"},
+		},
+		{
+			name:    "true with password-click approve mode rejected",
+			raw:     map[string]any{"hide_cm": true, "permanent_password": "secret", "pass_approve_mode": "password-click"},
+			wantErr: true,
+		},
+		{
+			name:    "true with click approve mode rejected",
+			raw:     map[string]any{"hide_cm": true, "permanent_password": "secret", "pass_approve_mode": "click"},
+			wantErr: true,
+		},
+		{
+			name:    "true with both approve mode rejected",
+			raw:     map[string]any{"hide_cm": true, "permanent_password": "secret", "pass_approve_mode": "both"},
+			wantErr: true,
+		},
+		{
+			name:    "true with absent approve mode rejected",
+			raw:     map[string]any{"hide_cm": true, "permanent_password": "secret"},
+			wantErr: true,
 		},
 		{
 			name: "absent emits neither key",
@@ -544,6 +574,7 @@ func TestNormalizeCustomBuildPreservesNonEmptyPermanentPassword(t *testing.T) {
 	normalized, err := NormalizeCustomBuild(map[string]any{
 		"hide_cm":            true,
 		"permanent_password": password,
+		"pass_approve_mode":  "password",
 	}, BuildRecordContext{Platform: "linux", AppName: "rustqs", Version: "1.2.3"})
 	if err != nil {
 		t.Fatalf("NormalizeCustomBuild() error = %v", err)
@@ -831,6 +862,9 @@ func TestPersistedJSONPreservesAuthoredEmptyStringsOnly(t *testing.T) {
 }
 
 func TestCanonicalPersistedPRESETFieldsAndCustomTxtBoundary(t *testing.T) {
+	// The operational api-server is an internal address; the public origin is
+	// the one used to resolve local /upload/... assets for the build runner.
+	setBrandingConfigForTest(t, "http://localhost:21114", "https://deskforge.example")
 	raw := map[string]any{
 		"server_ip":                "id.example:21116",
 		"key":                      validRustDeskPublicKey,
@@ -838,6 +872,8 @@ func TestCanonicalPersistedPRESETFieldsAndCustomTxtBoundary(t *testing.T) {
 		"relay_server":             "relay.example:21117",
 		"company_name":             "DeskForge",
 		"download_url":             "https://download.example/client",
+		"website_url":              "https://www.example.com",
+		"privacy_policy_url":       "https://www.example.com/privacy",
 		"direction":                "incoming",
 		"pass_approve_mode":        "password-click",
 		"permanent_password":       "secret",
@@ -880,7 +916,8 @@ func TestCanonicalPersistedPRESETFieldsAndCustomTxtBoundary(t *testing.T) {
 		}
 	}
 	for _, key := range []string{
-		"server_ip", "key", "company_name", "download_url", "remove_new_version_notif",
+		"server_ip", "key", "company_name", "download_url", "website_url", "privacy_policy_url",
+		"remove_new_version_notif",
 		"cycle_monitor", "x_offline", "android_app_id", "app_icon_url", "app_logo_url",
 		"privacy_screen_url",
 	} {
@@ -889,10 +926,23 @@ func TestCanonicalPersistedPRESETFieldsAndCustomTxtBoundary(t *testing.T) {
 		}
 	}
 	assertNoKeys(t, decodeCustomTxt(t, got.CustomTxt), []string{
-		"server_ip", "key", "company_name", "download_url", "remove_new_version_notif",
+		"server_ip", "key", "company_name", "download_url", "website_url", "privacy_policy_url", "remove_new_version_notif",
 		"cycle_monitor", "x_offline", "android_app_id", "app_icon_url", "app_logo_url",
 		"privacy_screen_url",
 	})
+	// Persisted-only image-URL branding fields now also dispatch to the
+	// workflow build steps while staying out of custom_.txt. The dispatch value
+	// is the stored relative path resolved against the public origin, never the
+	// operational api-server.
+	for key, relative := range map[string]string{
+		"app_icon_url":       "/upload/icon.png",
+		"app_logo_url":       "/upload/logo.png",
+		"privacy_screen_url": "/upload/privacy.png",
+	} {
+		if got := got.DispatchParams[key]; got != "https://deskforge.example"+relative {
+			t.Errorf("dispatch[%q] = %v, want %q", key, got, "https://deskforge.example"+relative)
+		}
+	}
 	if got.DispatchParams["server"] != raw["server_ip"] || got.DispatchParams["key"] != raw["key"] {
 		t.Fatalf("dispatch params did not use normalized L1 values: %#v", got.DispatchParams)
 	}
@@ -1001,5 +1051,1520 @@ func assertNoLegacyAliases(t *testing.T, value any) {
 		if strings.Contains(typed, "permissions-mode") {
 			t.Errorf("legacy alias leaked into value %q", typed)
 		}
+	}
+}
+
+func TestNormalizeCustomBuildDispatchesBrandingContext(t *testing.T) {
+	context := BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"}
+
+	// The operational api-server is an internal address (the stock deployment
+	// hardcodes http://localhost:21114). It must never be used as the asset
+	// origin, so with no public origin configured a server-relative asset fails
+	// closed at the typed boundary with a field error instead of producing a
+	// payload with the loopback base.
+	setBrandingConfigForTest(t, "http://127.0.0.1:21114", "")
+	for _, field := range []string{"app_icon_url", "app_logo_url", "privacy_screen_url"} {
+		_, err := NormalizeCustomBuild(map[string]any{field: "/upload/asset.png"}, context)
+		if err == nil {
+			t.Fatalf("NormalizeCustomBuild(%s relative, no public origin) error = nil, want error", field)
+		}
+		f, code, ok := FieldErrorMetadata(err)
+		if !ok || f != field || code != FieldCodeInvalidFormat {
+			t.Fatalf("field/code = %s/%s ok=%v, want %s/%s (err=%v)", f, code, ok, field, FieldCodeInvalidFormat, err)
+		}
+	}
+
+	// Empty branding values are omitted so provider-side defaults stay intact.
+	empty, err := NormalizeCustomBuild(map[string]any{"enable_audio": true}, context)
+	if err != nil {
+		t.Fatalf("NormalizeCustomBuild() error = %v", err)
+	}
+	for _, key := range []string{"company_name", "download_url", "website_url", "privacy_policy_url", "app_icon_url", "app_logo_url", "privacy_screen_url"} {
+		if _, ok := empty.DispatchParams[key]; ok {
+			t.Errorf("empty branding field %q was emitted to dispatch", key)
+		}
+	}
+
+	// With the public origin configured, server-relative image values are
+	// resolved against it in the dispatch payload so the runner can fetch them;
+	// persisted custom_json keeps the stored relative value. The operational
+	// api-server stays unused.
+	setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+	normalized, err := NormalizeCustomBuild(map[string]any{
+		"company_name":       "Acme Ltd",
+		"download_url":       "https://download.example/app",
+		"website_url":        "https://www.example.com",
+		"privacy_policy_url": "https://www.example.com/privacy",
+		"app_icon_url":       "/upload/icon.png",
+		"app_logo_url":       "/upload/logo.png",
+		"privacy_screen_url": "/upload/privacy.png",
+		"enable_audio":       true,
+	}, context)
+	if err != nil {
+		t.Fatalf("NormalizeCustomBuild() error = %v", err)
+	}
+	for key, want := range map[string]any{
+		"company_name":       "Acme Ltd",
+		"download_url":       "https://download.example/app",
+		"website_url":        "https://www.example.com",
+		"privacy_policy_url": "https://www.example.com/privacy",
+		"app_icon_url":       "https://deskforge.example/upload/icon.png",
+		"app_logo_url":       "https://deskforge.example/upload/logo.png",
+		"privacy_screen_url": "https://deskforge.example/upload/privacy.png",
+	} {
+		if got := normalized.DispatchParams[key]; got != want {
+			t.Errorf("dispatch[%q] = %v, want %q", key, got, want)
+		}
+	}
+	for key, stored := range map[string]string{
+		"app_icon_url":       "/upload/icon.png",
+		"app_logo_url":       "/upload/logo.png",
+		"privacy_screen_url": "/upload/privacy.png",
+	} {
+		if got := decodeJSON(t, normalized.PersistedJSON)[key]; got != stored {
+			t.Errorf("persisted[%q] = %v, want the stored relative value %q", key, got, stored)
+		}
+	}
+
+	// Forged caller values cannot bypass the typed boundary.
+	if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{
+		"company_name": 123,
+	}); err == nil {
+		t.Fatal("NormalizeWorkflowDispatchParams() accepted non-string company_name")
+	}
+	if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{
+		"website_url": "not a url",
+	}); err == nil {
+		t.Fatal("NormalizeWorkflowDispatchParams() accepted invalid website_url")
+	}
+	if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{
+		"app_icon_url": "line\nbreak",
+	}); err == nil {
+		t.Fatal("NormalizeWorkflowDispatchParams() accepted unsafe app_icon_url")
+	}
+
+	providerParams, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), normalized.DispatchParams)
+	if err != nil {
+		t.Fatalf("NormalizeWorkflowDispatchParams() rejected typed branding params: %v", err)
+	}
+	for key, want := range map[string]any{
+		"company_name":       "Acme Ltd",
+		"website_url":        "https://www.example.com",
+		"privacy_policy_url": "https://www.example.com/privacy",
+		"app_icon_url":       "https://deskforge.example/upload/icon.png",
+		"app_logo_url":       "https://deskforge.example/upload/logo.png",
+		"privacy_screen_url": "https://deskforge.example/upload/privacy.png",
+	} {
+		if got := providerParams[key]; got != want {
+			t.Errorf("provider params[%q] = %v, want %q", key, got, want)
+		}
+	}
+
+	// Already-absolute public http(s) values stay untouched.
+	absolute, err := NormalizeCustomBuild(map[string]any{
+		"app_icon_url": "https://cdn.example/i.png",
+	}, context)
+	if err != nil {
+		t.Fatalf("NormalizeCustomBuild() with absolute image URL error = %v", err)
+	}
+	if got := absolute.DispatchParams["app_icon_url"]; got != "https://cdn.example/i.png" {
+		t.Errorf("dispatch[app_icon_url] = %v, want untouched absolute URL", got)
+	}
+
+	// The dispatch gate re-resolves forged relative values against the public
+	// origin too, and stays idempotent for provider-derived absolute params.
+	forged, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{
+		"app_icon_url": "/upload/forged.png",
+	})
+	if err != nil {
+		t.Fatalf("NormalizeWorkflowDispatchParams() rejected forged relative image URL: %v", err)
+	}
+	if got := forged["app_icon_url"]; got != "https://deskforge.example/upload/forged.png" {
+		t.Errorf("forged dispatch[app_icon_url] = %v, want absolutized value", got)
+	}
+	gated, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), normalized.DispatchParams)
+	if err != nil {
+		t.Fatalf("NormalizeWorkflowDispatchParams() rejected resolved params: %v", err)
+	}
+	for key, want := range map[string]any{
+		"app_icon_url":       "https://deskforge.example/upload/icon.png",
+		"app_logo_url":       "https://deskforge.example/upload/logo.png",
+		"privacy_screen_url": "https://deskforge.example/upload/privacy.png",
+	} {
+		if got := gated[key]; got != want {
+			t.Errorf("gated params[%q] = %v, want %q", key, got, want)
+		}
+	}
+
+	// A config change between create and dispatch cannot emit a bad URL: with no
+	// public origin the dispatch gate refuses a relative asset too.
+	setBrandingConfigForTest(t, "http://127.0.0.1:21114", "")
+	if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{
+		"app_icon_url": "/upload/relative.png",
+	}); err == nil {
+		t.Fatal("NormalizeWorkflowDispatchParams() accepted a relative image with no public origin")
+	}
+
+	// Existing string safety gates still run before resolution, even with a
+	// configured public origin.
+	if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{
+		"app_icon_url": "line\nbreak",
+	}); err == nil {
+		t.Fatal("NormalizeWorkflowDispatchParams() accepted unsafe app_icon_url with configured public origin")
+	}
+}
+
+// setBrandingConfigForTest pins the service package config so branding image
+// resolution sees the operational api-server and/or the public origin under
+// test; the package global is restored on cleanup.
+func setBrandingConfigForTest(t *testing.T, apiServer, publicAPIServer string) {
+	t.Helper()
+	original := Config
+	Config = &config.Config{Rustdesk: config.Rustdesk{ApiServer: apiServer, PublicApiServer: publicAPIServer}}
+	t.Cleanup(func() { Config = original })
+}
+
+func TestHideCmIncompatibleApproveModeIsExplicitClientError(t *testing.T) {
+	for _, approve := range []string{"", "password-click", "click", "both"} {
+		t.Run("approve="+approve, func(t *testing.T) {
+			raw := `{"hide_cm":true,"permanent_password":"secret"`
+			if approve != "" {
+				raw += `,"pass_approve_mode":"` + approve + `"`
+			}
+			raw += `}`
+			err := ValidateCustomBuildInput("windows", raw, "rustqs", "1.2.3")
+			if !IsClientValidationError(err) {
+				t.Fatalf("ValidateCustomBuildInput() error = %v, want ClientValidationError", err)
+			}
+			field, code, ok := FieldErrorMetadata(err)
+			if !ok || field != "pass_approve_mode" || code != FieldCodeIncompatible {
+				t.Fatalf("FieldErrorMetadata() = (%q, %q, %v), want pass_approve_mode/%s", field, code, ok, FieldCodeIncompatible)
+			}
+		})
+	}
+}
+
+func TestNormalizeCustomBuildBrandFieldsPresetRestoreRoundTrip(t *testing.T) {
+	first, err := NormalizeCustomBuild(map[string]any{
+		"server_ip":                "id.example:21116",
+		"key":                      validRustDeskPublicKey,
+		"company_name":             "Acme Ltd",
+		"download_url":             "https://download.example/app",
+		"website_url":              "https://www.example.com",
+		"privacy_policy_url":       "https://www.example.com/privacy",
+		"hide_cm":                  true,
+		"permanent_password":       "secret",
+		"pass_approve_mode":        "password",
+		"remove_new_version_notif": true,
+	}, BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"})
+	if err != nil {
+		t.Fatalf("NormalizeCustomBuild() error = %v", err)
+	}
+
+	// Preset restore/rebuild path: the persisted form restores the same spec.
+	restored, err := NormalizeCustomBuildJSON(first.PersistedJSON, BuildRecordContext{
+		Platform: "windows", AppName: "rustqs", Version: "1.2.3",
+	})
+	if err != nil {
+		t.Fatalf("NormalizeCustomBuildJSON(persisted) error = %v", err)
+	}
+	if restored.CustomTxt != first.CustomTxt {
+		t.Error("restored custom_txt differs from the original build")
+	}
+	if got, want := restored.DispatchParams, first.DispatchParams; len(got) != len(want) {
+		t.Fatalf("restored dispatch params = %#v, want %#v", got, want)
+	} else {
+		for key, wantValue := range want {
+			if gotValue, ok := got[key]; !ok || !reflect.DeepEqual(gotValue, wantValue) {
+				t.Errorf("restored dispatch[%q] = %#v, want %#v", key, gotValue, wantValue)
+			}
+		}
+	}
+
+	// New branding fields that were unknown before 284 keep failing closed.
+	if _, err := NormalizeCustomBuildJSON(`{"website_url":123}`, BuildRecordContext{Platform: "windows", AppName: "rustqs"}); err == nil {
+		t.Fatal("NormalizeCustomBuildJSON() accepted non-string website_url")
+	}
+}
+
+func TestValidateStoredCustomBrandingField(t *testing.T) {
+	// The migration preflight delegates to this single seam so the branding
+	// field set and its rules cannot drift from the typed/dispatch boundaries.
+	// The seam validates stored data only and never consults a public origin, so
+	// no origin is configured here: a server-relative image must still pass.
+	wantFields := []string{
+		"company_name", "download_url", "website_url", "privacy_policy_url",
+		"app_icon_url", "app_logo_url", "privacy_screen_url",
+	}
+	if got := CustomBrandingFieldNames(); !reflect.DeepEqual(got, wantFields) {
+		t.Fatalf("CustomBrandingFieldNames() = %v, want %v", got, wantFields)
+	}
+	// The returned list must be a copy so a caller cannot mutate the domain.
+	fields := CustomBrandingFieldNames()
+	fields[0] = "mutated"
+	if got := CustomBrandingFieldNames()[0]; got != "company_name" {
+		t.Fatalf("CustomBrandingFieldNames() leaked mutable state: got %q", got)
+	}
+
+	for _, tc := range []struct {
+		name    string
+		field   string
+		value   any
+		wantErr bool
+	}{
+		{"valid-download", "download_url", "https://download.example/app", false},
+		{"valid-website", "website_url", "https://www.example.com", false},
+		{"valid-privacy", "privacy_policy_url", "https://www.example.com/privacy", false},
+		{"valid-company", "company_name", "Acme Ltd", false},
+		{"valid-image-relative", "app_icon_url", "/upload/icon.png", false},
+		{"valid-image-absolute", "app_icon_url", "https://cdn.example/i.png", false},
+		{"empty-accepted", "company_name", "", false},
+		{"relative-download", "download_url", "example.com/app", true},
+		{"mixed-case-scheme", "download_url", "HTTP://x", true},
+		{"punctuation-host", "privacy_policy_url", "https://.", true},
+		{"over-length-url", "website_url", "https://x.example/" + strings.Repeat("a", 2049), true},
+		// The seam is the union of the typed-boundary and dispatch-gate rules:
+		// a C1 control character (U+0086) is neither whitespace nor rejected by
+		// url.ParseRequestURI, so the URL text fields must also carry the
+		// dispatch control-character rule or the migration would pass a row the
+		// dispatch gate later rejects with a non-field error.
+		{"website-url-c1-control", "website_url", "https://example.com/\u0086", true},
+		{"download-url-c1-control", "download_url", "https://download.example/\u0086", true},
+		{"privacy-url-c1-control", "privacy_policy_url", "https://www.example.com/\u0086", true},
+		{"company-control-char", "company_name", "Acme\nLtd", true},
+		{"company-over-length", "company_name", strings.Repeat("x", 257), true},
+		{"image-control-char", "app_logo_url", "bad\nvalue", true},
+		// The image keys carry the same public-URL rule as the producer for a
+		// non-relative value: a non-http(s) scheme, a host-less URL, and a
+		// literal loopback/private host are refused here so the migration fails
+		// closed on a row the producer would refuse. A server-relative value is
+		// valid stored data and passes without a configured public origin.
+		{"image-file-scheme", "app_icon_url", "file:///etc/passwd", true},
+		{"image-missing-host", "app_logo_url", "https:///x.png", true},
+		{"image-loopback-host", "privacy_screen_url", "http://127.0.0.1:21114/x.png", true},
+		{"non-string", "download_url", 123, true},
+		{"explicit-null", "company_name", nil, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := ValidateStoredCustomBrandingField(tc.field, tc.value)
+			if tc.wantErr && err == nil {
+				t.Fatalf("ValidateStoredCustomBrandingField(%q, %v) = nil, want error", tc.field, tc.value)
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("ValidateStoredCustomBrandingField(%q, %v) = %v, want accepted", tc.field, tc.value, err)
+			}
+		})
+	}
+
+	// A stored relative image is valid data on its own: the seam must accept it
+	// with no public origin configured, because resolving it is the producer's
+	// concern. An absolute public image is accepted without an origin too.
+	if err := ValidateStoredCustomBrandingField("app_icon_url", "/upload/icon.png"); err != nil {
+		t.Fatalf("ValidateStoredCustomBrandingField rejected a stored relative image with no public origin: %v", err)
+	}
+	if err := ValidateStoredCustomBrandingField("app_icon_url", "https://cdn.example/i.png"); err != nil {
+		t.Fatalf("ValidateStoredCustomBrandingField rejected an absolute image without a public origin: %v", err)
+	}
+	// A stored image that is data-invalid independent of any origin still fails
+	// closed with no origin configured: a protocol-relative path, embedded
+	// whitespace, and an over-length value are refused.
+	if err := ValidateStoredCustomBrandingField("app_icon_url", "//cdn.example/i.png"); err == nil {
+		t.Fatal("ValidateStoredCustomBrandingField accepted a protocol-relative image path")
+	}
+	if err := ValidateStoredCustomBrandingField("app_icon_url", "/upload/a b.png"); err == nil {
+		t.Fatal("ValidateStoredCustomBrandingField accepted a relative image with whitespace")
+	}
+	if err := ValidateStoredCustomBrandingField("app_icon_url", "/upload/"+strings.Repeat("a", 2049)); err == nil {
+		t.Fatal("ValidateStoredCustomBrandingField accepted an over-length relative image")
+	}
+
+	// A non-branding field is outside this seam's domain; callers must not use
+	// it to inspect unrelated legacy fields.
+	if err := ValidateStoredCustomBrandingField("server_ip", "not a valid host"); err == nil {
+		t.Fatal("ValidateStoredCustomBrandingField accepted a non-branding field")
+	}
+}
+
+func TestNormalizeCustomBuildDownloadURLValidation(t *testing.T) {
+	// download_url reaches the Windows fork build workflow, which requires an
+	// absolute http(s) URL. The typed boundary must reject the same values the
+	// fork rejects, with the same field-level invalid_format contract as the
+	// sibling website_url/privacy_policy_url branding URLs.
+	context := BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"}
+	for _, value := range []string{"https://download.example/app", "http://download.example/app"} {
+		t.Run("valid-"+value, func(t *testing.T) {
+			got, err := NormalizeCustomBuild(map[string]any{"download_url": value}, context)
+			if err != nil {
+				t.Fatalf("NormalizeCustomBuild() error = %v, want accepted", err)
+			}
+			if got.DispatchParams["download_url"] != value {
+				t.Errorf("dispatch[download_url] = %v, want %q", got.DispatchParams["download_url"], value)
+			}
+			if persisted := decodeJSON(t, got.PersistedJSON)["download_url"]; persisted != value {
+				t.Errorf("persisted[download_url] = %v, want %q", persisted, value)
+			}
+		})
+	}
+
+	for _, value := range []string{"/upload/client.exe", "download.example/app", "ftp://download.example/app"} {
+		t.Run("invalid-"+value, func(t *testing.T) {
+			custom := mustJSON(t, map[string]any{
+				"server_ip":    "id.example:21116",
+				"key":          validRustDeskPublicKey,
+				"api_server":   "https://api.example",
+				"relay_server": "relay.example:21117",
+				"download_url": value,
+			})
+			err := ValidateCustomBuildInput("windows", custom, "rustqs", "1.2.3")
+			if err == nil {
+				t.Fatalf("ValidateCustomBuildInput() accepted download_url %q", value)
+			}
+			field, code, ok := FieldErrorMetadata(err)
+			if !ok || field != "download_url" || code != FieldCodeInvalidFormat {
+				t.Fatalf("field/code = %s/%s ok=%v, want download_url/%s (err=%v)", field, code, ok, FieldCodeInvalidFormat, err)
+			}
+		})
+	}
+
+	// The existing control-character rejection is preserved; the value is now
+	// rejected at the typed boundary too, before it reaches the dispatch gate.
+	if _, err := NormalizeCustomBuild(map[string]any{"download_url": "https://download.example/a\nb"}, context); err == nil {
+		t.Error("NormalizeCustomBuild() accepted a control character in download_url")
+	}
+	if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{"download_url": "https://download.example/a\nb"}); err == nil {
+		t.Error("NormalizeWorkflowDispatchParams() accepted a control character in download_url")
+	}
+
+	// Empty download_url stays allowed and is omitted from the dispatch payload,
+	// exactly like the sibling branding URLs.
+	empty, err := NormalizeCustomBuild(map[string]any{"download_url": ""}, context)
+	if err != nil {
+		t.Fatalf("NormalizeCustomBuild() with empty download_url error = %v", err)
+	}
+	if _, ok := empty.DispatchParams["download_url"]; ok {
+		t.Error("empty download_url was emitted to dispatch")
+	}
+
+	// The dispatch primitive keeps the same absolute-URL gate for forged caller
+	// values, mirroring website_url.
+	if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{"download_url": "/upload/client.exe"}); err == nil {
+		t.Fatal("NormalizeWorkflowDispatchParams() accepted relative download_url")
+	}
+}
+
+func TestNormalizeCustomBuildBrandingFieldForkSubset(t *testing.T) {
+	// The fork Windows build workflow's validate_branding_url requires a
+	// case-sensitive lowercase http:// or https:// prefix, rejects any
+	// [[:space:]], and caps URL text at 2048 bytes; company_name is capped at
+	// 256 bytes. DeskForge's acceptance domain must be a subset of that at the
+	// typed boundary AND the dispatch gate, so an accepted value never fails
+	// late at build time with no field-level feedback. api_server keeps its own
+	// (looser) validateAPIURL contract and is intentionally not covered here.
+	context := BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"}
+	urlFields := []string{"download_url", "website_url", "privacy_policy_url"}
+	// Literal fork limits (kept independent of the implementation constants so
+	// this test still compiles against the pre-fix source for the falsification
+	// probe and fails on the behavior, not on a missing symbol).
+	const brandingURLMax = 2048
+	const companyNameMax = 256
+
+	accept := func(t *testing.T, field, value string) {
+		t.Helper()
+		got, err := NormalizeCustomBuild(map[string]any{field: value}, context)
+		if err != nil {
+			t.Fatalf("NormalizeCustomBuild(%s=%q) error = %v, want accepted", field, value, err)
+		}
+		if got.DispatchParams[field] != value {
+			t.Errorf("dispatch[%s] = %v, want %q", field, got.DispatchParams[field], value)
+		}
+		if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{field: value}); err != nil {
+			t.Fatalf("NormalizeWorkflowDispatchParams(%s=%q) error = %v, want accepted", field, value, err)
+		}
+	}
+	reject := func(t *testing.T, field, value string) {
+		t.Helper()
+		typedErr := func() error {
+			_, err := NormalizeCustomBuild(map[string]any{field: value}, context)
+			return err
+		}()
+		if typedErr == nil {
+			t.Fatalf("typed boundary accepted %s=%q", field, value)
+		}
+		if f, code, ok := FieldErrorMetadata(typedErr); !ok || f != field || code != FieldCodeInvalidFormat {
+			t.Fatalf("typed field/code = %s/%s ok=%v, want %s/%s (err=%v)", f, code, ok, field, FieldCodeInvalidFormat, typedErr)
+		}
+		gateErr := func() error {
+			_, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{field: value})
+			return err
+		}()
+		if gateErr == nil {
+			t.Fatalf("dispatch gate accepted %s=%q", field, value)
+		}
+		if f, code, ok := FieldErrorMetadata(gateErr); !ok || f != field || code != FieldCodeInvalidFormat {
+			t.Fatalf("dispatch field/code = %s/%s ok=%v, want %s/%s (err=%v)", f, code, ok, field, FieldCodeInvalidFormat, gateErr)
+		}
+	}
+	// A control-character value (e.g. a tab) is whitespace the fork rejects. At
+	// the typed boundary it is a field-level invalid_format; at the dispatch
+	// gate the pre-existing control-character gate runs first and returns a
+	// plain error, which is preserved.
+	rejectTyped := func(t *testing.T, field, value string) {
+		t.Helper()
+		typedErr := func() error {
+			_, err := NormalizeCustomBuild(map[string]any{field: value}, context)
+			return err
+		}()
+		if typedErr == nil {
+			t.Fatalf("typed boundary accepted %s=%q", field, value)
+		}
+		if f, code, ok := FieldErrorMetadata(typedErr); !ok || f != field || code != FieldCodeInvalidFormat {
+			t.Fatalf("typed field/code = %s/%s ok=%v, want %s/%s (err=%v)", f, code, ok, field, FieldCodeInvalidFormat, typedErr)
+		}
+		if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{field: value}); err == nil {
+			t.Fatalf("dispatch gate accepted %s=%q", field, value)
+		}
+	}
+
+	for _, field := range urlFields {
+		t.Run(field, func(t *testing.T) {
+			// Lowercase absolute http(s) stays accepted and reaches the payload
+			// unchanged.
+			accept(t, field, "https://branding.example/path")
+			accept(t, field, "http://branding.example/path")
+			// Every host with at least one letter or digit stays accepted: DNS
+			// names, single-label hosts, IPv4/IPv6 literals, IDN/punycode, and a
+			// host carrying an explicit port.
+			accept(t, field, "https://localhost")
+			accept(t, field, "https://example.com")
+			accept(t, field, "https://192.168.1.1")
+			accept(t, field, "https://[::1]")
+			accept(t, field, "http://localhost:8080/path")
+			accept(t, field, "https://xn--bcher-kva.example")
+			accept(t, field, "https://bücher.example")
+			// Exactly the 2048-byte cap is accepted.
+			base := "https://branding.example/"
+			accept(t, field, base+strings.Repeat("a", brandingURLMax-len(base)))
+			// Mixed/upper-case scheme: net/url would lowercase it, the fork does not.
+			reject(t, field, "HTTP://branding.example/path")
+			reject(t, field, "Https://branding.example/path")
+			// Interior whitespace the fork's [[:space:]] rejects; net/url accepts a
+			// plain interior space, which is the original late-build defect.
+			reject(t, field, "https://branding.example/a b")
+			rejectTyped(t, field, "https://branding.example/a\tb")
+			// One byte over the cap.
+			reject(t, field, base+strings.Repeat("a", brandingURLMax-len(base)+1))
+			// A host made only of punctuation parses in net/url but has no usable
+			// domain, so it must be rejected instead of persisting a link with an
+			// empty/nonsense host.
+			reject(t, field, "https://.")
+			reject(t, field, "https://..")
+			reject(t, field, "https://-")
+		})
+	}
+
+	// Exactly the 256-byte company_name cap is accepted; one over is rejected.
+	acceptCompany := func(t *testing.T, value string) {
+		t.Helper()
+		got, err := NormalizeCustomBuild(map[string]any{"company_name": value}, context)
+		if err != nil {
+			t.Fatalf("NormalizeCustomBuild(company_name len %d) error = %v, want accepted", len(value), err)
+		}
+		if got.DispatchParams["company_name"] != value {
+			t.Errorf("dispatch[company_name] length = %v, want length %d", got.DispatchParams["company_name"], len(value))
+		}
+		if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{"company_name": value}); err != nil {
+			t.Fatalf("NormalizeWorkflowDispatchParams(company_name len %d) error = %v, want accepted", len(value), err)
+		}
+	}
+	t.Run("company_name", func(t *testing.T) {
+		acceptCompany(t, "Acme Ltd")
+		acceptCompany(t, strings.Repeat("x", companyNameMax))
+		reject(t, "company_name", strings.Repeat("x", companyNameMax+1))
+		// A control character the fork build rejects is now caught at the typed
+		// boundary with a field-level invalid_format (mirroring the URL fields);
+		// the pre-existing dispatch control-character gate still rejects it first
+		// with a plain error, which is preserved.
+		rejectTyped(t, "company_name", "Acme\nLtd")
+		rejectTyped(t, "company_name", "Acme\tLtd")
+		rejectTyped(t, "company_name", "Acme\x00Ltd")
+	})
+
+	// Empty branding values stay allowed and are omitted from dispatch.
+	t.Run("empty-omitted", func(t *testing.T) {
+		for _, field := range append(append([]string{}, urlFields...), "company_name") {
+			got, err := NormalizeCustomBuild(map[string]any{field: ""}, context)
+			if err != nil {
+				t.Fatalf("NormalizeCustomBuild(%s=\"\") error = %v, want accepted", field, err)
+			}
+			if _, ok := got.DispatchParams[field]; ok {
+				t.Errorf("empty %s was emitted to dispatch", field)
+			}
+		}
+	})
+
+	// The production create boundary returns the same {field, code} the admin UI
+	// localizes, wrapped as a client validation error.
+	for _, test := range []struct {
+		field string
+		value string
+	}{
+		{"website_url", "HTTP://example.com"},
+		{"privacy_policy_url", "https://example.com/a b"},
+		{"download_url", "https://example.com/" + strings.Repeat("a", brandingURLMax)},
+		{"company_name", strings.Repeat("x", companyNameMax+1)},
+		// A degenerate punctuation-only host is a field-level invalid_format at
+		// the production create boundary too, so the admin UI localizes it inline.
+		{"website_url", "https://."},
+		{"privacy_policy_url", "https://.."},
+		{"download_url", "https://-"},
+	} {
+		t.Run("create-"+test.field, func(t *testing.T) {
+			custom := mustJSON(t, map[string]any{
+				"server_ip":    "id.example:21116",
+				"key":          validRustDeskPublicKey,
+				"api_server":   "https://api.example",
+				"relay_server": "relay.example:21117",
+				test.field:     test.value,
+			})
+			err := ValidateCustomBuildInput("windows", custom, "rustqs", "1.2.3")
+			if !IsClientValidationError(err) {
+				t.Fatalf("ValidateCustomBuildInput() error = %v, want ClientValidationError", err)
+			}
+			f, code, ok := FieldErrorMetadata(err)
+			if !ok || f != test.field || code != FieldCodeInvalidFormat {
+				t.Fatalf("field/code = %s/%s ok=%v, want %s/%s (err=%v)", f, code, ok, test.field, FieldCodeInvalidFormat, err)
+			}
+		})
+	}
+
+	// The create boundary rejects a company_name control character with the same
+	// field-level invalid_format as the length and URL cases above.
+	t.Run("create-company_name-control-character", func(t *testing.T) {
+		custom := mustJSON(t, map[string]any{
+			"server_ip":    "id.example:21116",
+			"key":          validRustDeskPublicKey,
+			"api_server":   "https://api.example",
+			"relay_server": "relay.example:21117",
+			"company_name": "Acme\nLtd",
+		})
+		err := ValidateCustomBuildInput("windows", custom, "rustqs", "1.2.3")
+		if !IsClientValidationError(err) {
+			t.Fatalf("ValidateCustomBuildInput() error = %v, want ClientValidationError", err)
+		}
+		f, code, ok := FieldErrorMetadata(err)
+		if !ok || f != "company_name" || code != FieldCodeInvalidFormat {
+			t.Fatalf("field/code = %s/%s ok=%v, want company_name/%s (err=%v)", f, code, ok, FieldCodeInvalidFormat, err)
+		}
+	})
+}
+
+func TestBrandingURLTextFieldBoundaryAgreement(t *testing.T) {
+	// D-a: the typed boundary (NormalizeCustomBuild), the dispatch gate
+	// (NormalizeWorkflowDispatchParams), and the stored-data seam
+	// (ValidateStoredCustomBrandingField) must make exactly the same
+	// accept/refuse decision for download_url/website_url/privacy_policy_url.
+	// They now share one rule because validateBrandingURL applies the
+	// control-character safety rule (validateWorkflowValue) before the URL shape
+	// rule, so a C1 control character such as U+0086 — which is neither
+	// whitespace nor rejected by url.ParseRequestURI — can no longer be written
+	// by the producer and then abort the migration preflight.
+	context := BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"}
+	urlFields := []string{"download_url", "website_url", "privacy_policy_url"}
+	values := []struct {
+		name  string
+		value string
+	}{
+		{"accepted-https", "https://branding.example/path"},
+		{"accepted-http", "http://branding.example"},
+		{"c1-control", "https://branding.example/\u0086"},
+		{"nul-control", "https://branding.example/a\x00b"},
+		{"tab-control", "https://branding.example/a\tb"},
+		{"interior-space", "https://branding.example/a b"},
+		{"relative", "branding.example/path"},
+		{"punctuation-host", "https://."},
+		{"mixed-case-scheme", "HTTP://branding.example/path"},
+	}
+	for _, field := range urlFields {
+		for _, tc := range values {
+			t.Run(field+"/"+tc.name, func(t *testing.T) {
+				typedAccepted := func() bool {
+					_, err := NormalizeCustomBuild(map[string]any{field: tc.value}, context)
+					return err == nil
+				}()
+				gateAccepted := func() bool {
+					_, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{field: tc.value})
+					return err == nil
+				}()
+				storedAccepted := ValidateStoredCustomBrandingField(field, tc.value) == nil
+				if typedAccepted != gateAccepted || gateAccepted != storedAccepted {
+					t.Fatalf("boundary disagreement for %s=%q: typed=%v gate=%v stored=%v",
+						field, tc.value, typedAccepted, gateAccepted, storedAccepted)
+				}
+			})
+		}
+	}
+
+	// A control character in each URL text field is rejected at build creation
+	// with the existing structured invalid_format field error, so the admin UI
+	// can localize it inline instead of the value aborting the build later.
+	for _, field := range urlFields {
+		t.Run("create-"+field+"-c1-control", func(t *testing.T) {
+			custom := mustJSON(t, map[string]any{
+				"server_ip":    "id.example:21116",
+				"key":          validRustDeskPublicKey,
+				"api_server":   "https://api.example",
+				"relay_server": "relay.example:21117",
+				field:          "https://branding.example/\u0086",
+			})
+			err := ValidateCustomBuildInput("windows", custom, "rustqs", "1.2.3")
+			if !IsClientValidationError(err) {
+				t.Fatalf("ValidateCustomBuildInput() error = %v, want ClientValidationError", err)
+			}
+			f, code, ok := FieldErrorMetadata(err)
+			if !ok || f != field || code != FieldCodeInvalidFormat {
+				t.Fatalf("field/code = %s/%s ok=%v, want %s/%s (err=%v)", f, code, ok, field, FieldCodeInvalidFormat, err)
+			}
+		})
+	}
+}
+
+func TestBrandingImageURLOriginAndValidation(t *testing.T) {
+	context := BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"}
+
+	// (1) A relative asset resolves against the public origin — the address the
+	// build runner can reach — and never against the operational api-server,
+	// which the stock deployment hardcodes to a loopback address.
+	setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+	resolved, err := NormalizeCustomBuild(map[string]any{"app_icon_url": "/upload/x.png"}, context)
+	if err != nil {
+		t.Fatalf("NormalizeCustomBuild() error = %v", err)
+	}
+	resolvedValue, _ := resolved.DispatchParams["app_icon_url"].(string)
+	if resolvedValue != "https://deskforge.example/upload/x.png" {
+		t.Errorf("dispatch[app_icon_url] = %v, want https://deskforge.example/upload/x.png", resolved.DispatchParams["app_icon_url"])
+	} else if strings.Contains(resolvedValue, "127.0.0.1") || strings.Contains(resolvedValue, "localhost") {
+		t.Errorf("dispatch[app_icon_url] = %v, must not use the operational api-server", resolvedValue)
+	}
+
+	// (3) An already-absolute external URL is preserved unchanged.
+	absolute, err := NormalizeCustomBuild(map[string]any{"app_icon_url": "https://cdn.example/i.png"}, context)
+	if err != nil {
+		t.Fatalf("NormalizeCustomBuild(absolute) error = %v", err)
+	}
+	if value := absolute.DispatchParams["app_icon_url"]; value != "https://cdn.example/i.png" {
+		t.Errorf("dispatch[app_icon_url] = %v, want the absolute URL unchanged", value)
+	}
+
+	// (2) A relative asset with no usable public origin fails closed at the typed
+	// boundary with a field error; no payload/dispatch is produced.
+	setBrandingConfigForTest(t, "http://127.0.0.1:21114", "")
+	if _, err := NormalizeCustomBuild(map[string]any{"app_logo_url": "/upload/logo.png"}, context); err == nil {
+		t.Fatal("NormalizeCustomBuild() accepted a relative asset with no public origin")
+	} else if f, code, ok := FieldErrorMetadata(err); !ok || f != "app_logo_url" || code != FieldCodeInvalidFormat {
+		t.Fatalf("field/code = %s/%s ok=%v, want app_logo_url/%s (err=%v)", f, code, ok, FieldCodeInvalidFormat, err)
+	}
+	// A malformed (loopback) public origin is unusable and also fails closed.
+	setBrandingConfigForTest(t, "http://127.0.0.1:21114", "http://127.0.0.1:21114")
+	if _, err := NormalizeCustomBuild(map[string]any{"privacy_screen_url": "/upload/privacy.png"}, context); err == nil {
+		t.Fatal("NormalizeCustomBuild() accepted a relative asset with a loopback public origin")
+	}
+
+	// (4) Non-http(s) schemes, malformed/host-less URLs, loopback/private hosts,
+	// and a relative value without a leading slash are rejected at the typed
+	// boundary with a field error and at the dispatch gate.
+	setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+	for _, tc := range []struct {
+		field string
+		value string
+	}{
+		{"app_icon_url", "file:///etc/passwd"},
+		{"app_icon_url", "ftp://example.com/i.png"},
+		{"app_icon_url", "upload/i.png"},
+		{"app_icon_url", "https:///i.png"},
+		{"app_icon_url", "https://"},
+		{"app_logo_url", "https://exa mple/i.png"},
+		{"app_logo_url", "http://127.0.0.1:21114/i.png"},
+		{"app_logo_url", "http://localhost/i.png"},
+		{"privacy_screen_url", "http://10.0.0.5/i.png"},
+		{"privacy_screen_url", "http://169.254.0.1/i.png"},
+		{"privacy_screen_url", "http://[::1]/i.png"},
+		{"privacy_screen_url", "http://192.168.1.10/i.png"},
+	} {
+		t.Run("reject-"+tc.value, func(t *testing.T) {
+			typedErr := func() error {
+				_, err := NormalizeCustomBuild(map[string]any{tc.field: tc.value}, context)
+				return err
+			}()
+			if typedErr == nil {
+				t.Fatalf("typed boundary accepted %s=%q", tc.field, tc.value)
+			}
+			if f, code, ok := FieldErrorMetadata(typedErr); !ok || f != tc.field || code != FieldCodeInvalidFormat {
+				t.Fatalf("typed field/code = %s/%s ok=%v, want %s/%s (err=%v)", f, code, ok, tc.field, FieldCodeInvalidFormat, typedErr)
+			}
+			gateErr := func() error {
+				_, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{tc.field: tc.value})
+				return err
+			}()
+			if gateErr == nil {
+				t.Fatalf("dispatch gate accepted %s=%q", tc.field, tc.value)
+			}
+			if f, code, ok := FieldErrorMetadata(gateErr); !ok || f != tc.field || code != FieldCodeInvalidFormat {
+				t.Fatalf("dispatch field/code = %s/%s ok=%v, want %s/%s (err=%v)", f, code, ok, tc.field, FieldCodeInvalidFormat, gateErr)
+			}
+		})
+	}
+
+	// The three image fields are part of the structured field-error set the
+	// admin UI localizes, so the production create boundary reports them inline.
+	custom := mustJSON(t, map[string]any{
+		"server_ip":    "id.example:21116",
+		"key":          validRustDeskPublicKey,
+		"api_server":   "https://api.example",
+		"relay_server": "relay.example:21117",
+		"app_icon_url": "file:///etc/passwd",
+	})
+	if err := ValidateCustomBuildInput("windows", custom, "rustqs", "1.2.3"); err == nil {
+		t.Fatal("ValidateCustomBuildInput() accepted a file: image URL")
+	} else if f, code, ok := FieldErrorMetadata(err); !ok || f != "app_icon_url" || code != FieldCodeInvalidFormat {
+		t.Fatalf("create field/code = %s/%s ok=%v, want app_icon_url/%s (err=%v)", f, code, ok, FieldCodeInvalidFormat, err)
+	}
+
+	// The cap on the resolved URL is maxBrandingURLBytes (2048 bytes).
+	overLong := "https://cdn.example/" + strings.Repeat("a", maxBrandingURLBytes)
+	if _, err := NormalizeCustomBuild(map[string]any{"app_icon_url": overLong}, context); err == nil {
+		t.Fatal("NormalizeCustomBuild() accepted an over-length image URL")
+	}
+}
+
+func TestBrandingLiteralHostAliasRejection(t *testing.T) {
+	// D-b: net.ParseIP accepts only canonical IPv4/IPv6, so a resolver-only
+	// spelling of a loopback/RFC1918 address slips past a naive literal test.
+	// The public-host rule must normalize the host and reject the trailing-dot
+	// and inet_aton decimal/hex/octal integer forms, and must fail closed on a
+	// host that is neither a literal nor a plausible hostname — as a configured
+	// public origin and as an absolute branding image value.
+	context := BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"}
+
+	blockedHosts := []struct {
+		name string
+		host string
+	}{
+		{"trailing-dot", "127.0.0.1."},
+		{"trailing-dots", "127.0.0.1.."},
+		{"decimal-integer", "2130706433"},
+		{"hex-integer", "0x7f000001"},
+		{"octal-octets", "0177.0.0.1"},
+		{"two-part-shorthand", "127.1"},
+		{"decimal-rfc1918", "167772161"},
+		{"ipv6-loopback", "[::1]"},
+		{"ipv6-expanded-loopback", "[0:0:0:0:0:0:0:1]"},
+		{"implausible-hostname", "foo..bar"},
+	}
+	for _, tc := range blockedHosts {
+		t.Run("origin/"+tc.name, func(t *testing.T) {
+			setBrandingConfigForTest(t, "http://127.0.0.1:21114", "http://"+tc.host)
+			if _, err := NormalizeCustomBuild(map[string]any{"app_icon_url": "/upload/x.png"}, context); err == nil {
+				t.Fatalf("NormalizeCustomBuild() accepted a relative asset with blocked origin host %q", tc.host)
+			}
+		})
+		t.Run("image/"+tc.name, func(t *testing.T) {
+			setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+			value := "http://" + tc.host + "/i.png"
+			typedErr := func() error {
+				_, err := NormalizeCustomBuild(map[string]any{"app_icon_url": value}, context)
+				return err
+			}()
+			if typedErr == nil {
+				t.Fatalf("typed boundary accepted an absolute image with blocked host %q", tc.host)
+			}
+			if f, code, ok := FieldErrorMetadata(typedErr); !ok || f != "app_icon_url" || code != FieldCodeInvalidFormat {
+				t.Fatalf("typed field/code = %s/%s ok=%v, want app_icon_url/%s (err=%v)", f, code, ok, FieldCodeInvalidFormat, typedErr)
+			}
+			if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{"app_icon_url": value}); err == nil {
+				t.Fatalf("dispatch gate accepted an absolute image with blocked host %q", tc.host)
+			}
+		})
+	}
+
+	// The stored-data seam must refuse a stored absolute image whose host is a
+	// normalized loopback form, so the schema-285 preflight fails closed instead
+	// of passing a row the producer would reject.
+	if err := ValidateStoredCustomBrandingField("app_icon_url", "http://2130706433/i.png"); err == nil {
+		t.Fatal("ValidateStoredCustomBrandingField accepted a decimal-integer loopback image host")
+	}
+
+	// A genuine public host is still accepted as an origin and as an absolute
+	// image value.
+	setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+	if _, err := NormalizeCustomBuild(map[string]any{"app_logo_url": "/upload/logo.png"}, context); err != nil {
+		t.Fatalf("NormalizeCustomBuild() rejected a public origin: %v", err)
+	}
+	if _, err := NormalizeCustomBuild(map[string]any{"app_logo_url": "https://cdn.example/logo.png"}, context); err != nil {
+		t.Fatalf("NormalizeCustomBuild() rejected a public absolute image: %v", err)
+	}
+}
+
+func TestBrandingPublicLiteralAddressPolicyBoundaries(t *testing.T) {
+	// The public-host rule is one literal public-address policy shared by every
+	// boundary. It must refuse the IANA special-purpose ranges the old
+	// loopback/private/link-local check accepted (unspecified, resolver aliases,
+	// shared/CGNAT, documentation, benchmarking, multicast, reserved, IPv6
+	// documentation, the dummy IPv6 prefix, SRv6 SIDs, the deprecated
+	// IPv4-compatible form, ...) as a configured public origin, as an absolute
+	// branding image value at the typed boundary, at the dispatch gate, and at
+	// the stored-data seam — and still accept public literals. An IPv6 literal is
+	// public only inside a prefix the IANA IPv6 Global Unicast Address Space
+	// registry lists as ALLOCATED (retrieved 2026-10-14) — the registry reserves
+	// every unlisted address in 2000::/3 for future allocation — so the gaps
+	// between the allocated rows are refused together with everything outside
+	// them, and the allocated rows stay subject to the non-public rules applied
+	// on top (documentation, 6to4, the partially allocated 2001::/23 block).
+	context := BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"}
+
+	blocked := []string{
+		"0.0.0.0", "0.1.2.3", "127.0.0.1", "127.1", "2130706433", "0x7f000001",
+		"169.254.1.1", "10.0.0.1", "100.64.0.1", "192.0.2.1", "198.18.0.1",
+		"198.51.100.1", "203.0.113.1", "224.0.0.1", "240.0.0.1", "255.255.255.255",
+		"[::]", "[::1]", "[fc00::1]", "[fe80::1]", "[2001:db8::1]",
+		"[3fff::1]", "[5f00::1]", "[100:0:0:1::1]", "[::127.0.0.1]",
+		// IPv6 blocks outside the 2000::/3 global-unicast bound (IPv6 Address
+		// Space registry Reserved-by-IETF rows) and the returned 6bone range.
+		"[400::1]", "[800::1]", "[1000::1]", "[6000::1]", "[fe00::1]",
+		"[fec0::1]", "[3ffe::1]",
+		// The reserved staircase inside 2000::/3 itself (IPv6 Global Unicast
+		// Address Space registry RESERVED rows 2d00::/8 ... 3ffc::/15).
+		"[2d00::1]", "[3f00::1]",
+		// The 2001::/23 IETF protocol-assignments block is refused as a whole;
+		// only the registry's Globally Reachable more-specific allocations
+		// pass through, so unlisted space in it is refused.
+		"[2001:1::4]", "[2001:5::1]",
+		// Addresses not listed in any ALLOCATED row of the IANA IPv6 Global
+		// Unicast Address Space registry: the registry's note reserves all
+		// unlisted space in 2000::/3 for future allocation, so these gaps
+		// between the allocated rows are not public fetch targets.
+		"[2000::1]", "[2001:1000::1]", "[2001:4e00::1]", "[2001:6000::1]",
+		"[2001:c000::1]", "[2611::1]", "[2622::1]", "[2650::1]", "[3fff:1000::1]",
+		// ALLOCATED rows that the non-public rules still refuse on top: Teredo,
+		// benchmarking, the terminated ORCHID and ORCHIDv2 inside the partially
+		// allocated 2001::/23 block, and 6to4.
+		"[2001::1]", "[2001:2::1]", "[2001:10::1]", "[2001:20::1]", "[2002::1]",
+		// Transition forms outside the global-unicast block, refused as unlisted
+		// because they embed an IPv4 destination this policy cannot verify
+		// (NAT64 here; the deprecated IPv4-compatible form is [::127.0.0.1]
+		// above).
+		"[64:ff9b::1]", "[64:ff9b:1::1]",
+	}
+	for _, host := range blocked {
+		t.Run("origin/"+host, func(t *testing.T) {
+			setBrandingConfigForTest(t, "http://127.0.0.1:21114", "http://"+host)
+			if _, err := NormalizeCustomBuild(map[string]any{"app_icon_url": "/upload/x.png"}, context); err == nil {
+				t.Fatalf("NormalizeCustomBuild() resolved a relative asset against non-public origin host %q", host)
+			}
+		})
+		t.Run("typed/"+host, func(t *testing.T) {
+			setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+			value := "http://" + host + "/i.png"
+			_, err := NormalizeCustomBuild(map[string]any{"app_icon_url": value}, context)
+			if err == nil {
+				t.Fatalf("typed boundary accepted absolute image with non-public host %q", host)
+			}
+			if f, code, ok := FieldErrorMetadata(err); !ok || f != "app_icon_url" || code != FieldCodeInvalidFormat {
+				t.Fatalf("typed field/code = %s/%s ok=%v, want app_icon_url/%s (err=%v)", f, code, ok, FieldCodeInvalidFormat, err)
+			}
+		})
+		t.Run("gate/"+host, func(t *testing.T) {
+			setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+			value := "http://" + host + "/i.png"
+			if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{"app_icon_url": value}); err == nil {
+				t.Fatalf("dispatch gate accepted absolute image with non-public host %q", host)
+			}
+		})
+		t.Run("stored/"+host, func(t *testing.T) {
+			value := "http://" + host + "/i.png"
+			if err := ValidateStoredCustomBrandingField("app_icon_url", value); err == nil {
+				t.Fatalf("stored-data seam accepted absolute image with non-public host %q", host)
+			}
+		})
+	}
+
+	// A configured public origin still resolves a server-relative asset, both
+	// as a DNS name and as a public literal address.
+	for _, origin := range []string{"https://deskforge.example", "http://8.8.8.8:21114"} {
+		t.Run("origin-accepted/"+origin, func(t *testing.T) {
+			setBrandingConfigForTest(t, "http://127.0.0.1:21114", origin)
+			normalized, err := NormalizeCustomBuild(map[string]any{"app_icon_url": "/upload/x.png"}, context)
+			if err != nil {
+				t.Fatalf("NormalizeCustomBuild() rejected a relative asset with public origin %q: %v", origin, err)
+			}
+			if got, want := normalized.DispatchParams["app_icon_url"], origin+"/upload/x.png"; got != want {
+				t.Fatalf("dispatch[app_icon_url] = %v, want %q", got, want)
+			}
+		})
+	}
+
+	// Public absolute image URLs (public literals and DNS names) stay accepted
+	// at every boundary: literals inside ALLOCATED registry rows across
+	// different RIRs — Cloudflare 2606:4700:4700::1111 (ARIN 2600::/12),
+	// 2001:4860:4860::8888 (ARIN 2001:4800::/23), 2400:cb00::1 (APNIC
+	// 2400::/12), 2800:3f0::1 (LACNIC 2800::/12), 2a00:1450::1 (RIPE NCC
+	// 2a00::/12) — and the special-purpose registry's Globally Reachable rows
+	// inside allocated space: the more-specifics inside 2001::/23 (the DRIP
+	// prefix 2001:30::/28, AMT 2001:3::/32, AS112-v6 2001:4:112::/48, the
+	// DNS-SD SRP anycast address 2001:1::3), and AS112 2620:4f:8000::/48 in
+	// the 2620::/23 row.
+	for _, value := range []string{
+		"http://8.8.8.8/i.png",
+		"http://1.1.1.1/i.png",
+		"http://[2606:4700:4700::1111]/i.png",
+		"http://[2400:cb00::1]/i.png",
+		"http://[2800:3f0::1]/i.png",
+		"http://[2a00:1450::1]/i.png",
+		"http://[2001:30::1]/i.png",
+		"http://[2001:3::1]/i.png",
+		"http://[2620:4f:8000::1]/i.png",
+		"http://[2001:4:112::1]/i.png",
+		"http://[2001:1::3]/i.png",
+		"http://[2001:4860:4860::8888]/i.png",
+		"https://cdn.example/path.png",
+	} {
+		t.Run("accepted/"+value, func(t *testing.T) {
+			setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+			normalized, err := NormalizeCustomBuild(map[string]any{"app_icon_url": value}, context)
+			if err != nil {
+				t.Fatalf("typed boundary rejected public image %q: %v", value, err)
+			}
+			if got := normalized.DispatchParams["app_icon_url"]; got != value {
+				t.Fatalf("dispatch[app_icon_url] = %v, want %q", got, value)
+			}
+			if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{"app_icon_url": value}); err != nil {
+				t.Fatalf("dispatch gate rejected public image %q: %v", value, err)
+			}
+			if err := ValidateStoredCustomBrandingField("app_icon_url", value); err != nil {
+				t.Fatalf("stored-data seam rejected public image %q: %v", value, err)
+			}
+		})
+	}
+
+	// Policy edges: an IPv4-mapped IPv6 literal is classified as its IPv4
+	// address (the mapped loopback form is refused), a zoned literal is refused
+	// without being resolved, the shared-address block boundary is exact, and a
+	// mapped public address stays public.
+	for _, tc := range []struct {
+		name   string
+		value  string
+		accept bool
+	}{
+		{"mapped-loopback-refused", "http://[::ffff:127.0.0.1]/i.png", false},
+		{"zoned-link-local-refused", "http://[fe80::1%25eth0]/i.png", false},
+		{"shared-range-last-refused", "http://100.127.255.255/i.png", false},
+		{"shared-range-next-accepted", "http://100.128.0.0/i.png", true},
+		{"mapped-public-accepted", "http://[::ffff:8.8.8.8]/i.png", true},
+	} {
+		t.Run("edge/"+tc.name, func(t *testing.T) {
+			setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+			_, err := NormalizeCustomBuild(map[string]any{"app_icon_url": tc.value}, context)
+			if tc.accept && err != nil {
+				t.Fatalf("typed boundary rejected %q: %v", tc.value, err)
+			}
+			if !tc.accept && err == nil {
+				t.Fatalf("typed boundary accepted %q", tc.value)
+			}
+		})
+	}
+
+	// A stored server-relative image stays valid stored data with no public
+	// origin configured — resolving it is the producer's concern, so the
+	// migration preflight must not abort on it — while the typed boundary still
+	// fails closed on the same value.
+	previousConfig := Config
+	Config = nil
+	t.Cleanup(func() { Config = previousConfig })
+	if err := ValidateStoredCustomBrandingField("app_icon_url", "/upload/x.png"); err != nil {
+		t.Fatalf("stored-data seam rejected a stored relative image with no configured origin: %v", err)
+	}
+	if _, err := NormalizeCustomBuild(map[string]any{"app_icon_url": "/upload/x.png"}, context); err == nil {
+		t.Fatal("typed boundary accepted a relative asset with no configured public origin")
+	}
+}
+
+func TestBrandingFetchURLWireFormBoundaries(t *testing.T) {
+	// The producer must accept only fetch URLs the workflow's HTTP fetcher
+	// (fetch_branding_image.py: Python http.client plus getaddrinfo) can send.
+	// canonicalizeHost strips at most one trailing dot — the DNS root label —
+	// so a host with a second trailing dot has an empty label and is refused
+	// instead of being dispatched as its single-dot spelling, which the
+	// fetcher would then fail to resolve late in getaddrinfo. A single root dot
+	// stays accepted as stored data, but the dispatched wire form drops it: the
+	// fetcher passes the host bytes to getaddrinfo, the Host header, and
+	// ssl.wrap_socket(server_hostname=...), and Python/OpenSSL does not strip
+	// the root dot for TLS certificate matching, so a dotted server_hostname
+	// fails against an ordinary certificate naming the undotted host after DNS
+	// and TCP already succeeded. A raw non-ASCII host, path, or query is
+	// accepted only when it can be normalized to the ASCII wire form; the
+	// dispatched value is asserted to be ASCII (IDNA host, percent-encoded path
+	// and query) while the stored value keeps the spelling the operator
+	// authored.
+	context := BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"}
+
+	// A second trailing dot is an empty label, not a root label: refused as a
+	// configured public origin, as an absolute branding image at the typed
+	// boundary and the dispatch gate, and at the stored-data seam.
+	for _, host := range []string{"example.com..", "cdn.example.."} {
+		t.Run("double-dot-origin/"+host, func(t *testing.T) {
+			setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://"+host)
+			if _, err := NormalizeCustomBuild(map[string]any{"app_icon_url": "/upload/x.png"}, context); err == nil {
+				t.Fatalf("NormalizeCustomBuild() resolved a relative asset against double-dot origin host %q", host)
+			}
+		})
+		t.Run("double-dot-typed/"+host, func(t *testing.T) {
+			setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+			value := "https://" + host + "/i.png"
+			_, err := NormalizeCustomBuild(map[string]any{"app_icon_url": value}, context)
+			if err == nil {
+				t.Fatalf("typed boundary accepted an absolute image with double-dot host %q", host)
+			}
+			if f, code, ok := FieldErrorMetadata(err); !ok || f != "app_icon_url" || code != FieldCodeInvalidFormat {
+				t.Fatalf("typed field/code = %s/%s ok=%v, want app_icon_url/%s (err=%v)", f, code, ok, FieldCodeInvalidFormat, err)
+			}
+			if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{"app_icon_url": value}); err == nil {
+				t.Fatalf("dispatch gate accepted an absolute image with double-dot host %q", host)
+			}
+			if err := ValidateStoredCustomBrandingField("app_icon_url", value); err == nil {
+				t.Fatalf("stored-data seam accepted an absolute image with double-dot host %q", host)
+			}
+		})
+	}
+
+	// A single trailing dot is the DNS root label: it stays accepted as a
+	// configured origin and as an absolute image host, and the persisted value
+	// keeps the operator's dotted spelling, while the dispatched wire form
+	// names the undotted host.
+	setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example.")
+	normalized, err := NormalizeCustomBuild(map[string]any{"app_icon_url": "/upload/x.png"}, context)
+	if err != nil {
+		t.Fatalf("NormalizeCustomBuild() rejected a single-trailing-dot public origin: %v", err)
+	}
+	if got, want := normalized.DispatchParams["app_icon_url"], "https://deskforge.example/upload/x.png"; got != want {
+		t.Fatalf("dispatch[app_icon_url] = %v, want %q", got, want)
+	}
+	if !strings.Contains(normalized.PersistedJSON, `"app_icon_url":"/upload/x.png"`) {
+		t.Fatalf("persisted custom_json = %s, want the operator's stored relative asset", normalized.PersistedJSON)
+	}
+	normalizedLogo, err := NormalizeCustomBuild(map[string]any{"app_logo_url": "https://deskforge.example./logo.png"}, context)
+	if err != nil {
+		t.Fatalf("typed boundary rejected an absolute image with a single-trailing-dot host: %v", err)
+	}
+	if got, want := normalizedLogo.DispatchParams["app_logo_url"], "https://deskforge.example/logo.png"; got != want {
+		t.Fatalf("dispatch[app_logo_url] = %v, want %q", got, want)
+	}
+	if !strings.Contains(normalizedLogo.PersistedJSON, `"app_logo_url":"https://deskforge.example./logo.png"`) {
+		t.Fatalf("persisted custom_json = %s, want the operator's dotted spelling kept", normalizedLogo.PersistedJSON)
+	}
+
+	// An already-ASCII URL — including a punycode host and already
+	// percent-encoded escapes — is dispatched byte-for-byte unchanged.
+	for _, value := range []string{
+		"https://xn--bcher-kva.example/i.png",
+		"https://cdn.example/%D0%B8.png?q=%D0%B8",
+	} {
+		normalized, err := NormalizeCustomBuild(map[string]any{"app_icon_url": value}, context)
+		if err != nil {
+			t.Fatalf("typed boundary rejected ASCII fetch URL %q: %v", value, err)
+		}
+		if got := normalized.DispatchParams["app_icon_url"]; got != value {
+			t.Fatalf("dispatch[app_icon_url] = %v, want the accepted value %q", got, value)
+		}
+	}
+
+	// A raw-Unicode host, path, and query is accepted and dispatched in the
+	// ASCII wire form: IDNA (punycode) host plus percent-encoded path/query.
+	t.Run("unicode-wire-form", func(t *testing.T) {
+		const unicodeURL = "https://bücher.example/иконка.png?q=и"
+		const unicodeURLWire = "https://xn--bcher-kva.example/%D0%B8%D0%BA%D0%BE%D0%BD%D0%BA%D0%B0.png?q=%D0%B8"
+		normalized, err := NormalizeCustomBuild(map[string]any{"app_icon_url": unicodeURL}, context)
+		if err != nil {
+			t.Fatalf("typed boundary rejected a representable Unicode fetch URL %q: %v", unicodeURL, err)
+		}
+		if got := normalized.DispatchParams["app_icon_url"]; got != unicodeURLWire {
+			t.Fatalf("dispatch[app_icon_url] = %v, want wire form %q", got, unicodeURLWire)
+		}
+		if !strings.Contains(normalized.PersistedJSON, "bücher.example") {
+			t.Fatalf("persisted custom_json = %s, want the stored Unicode spelling preserved", normalized.PersistedJSON)
+		}
+		gateParams, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{"app_icon_url": unicodeURL})
+		if err != nil {
+			t.Fatalf("dispatch gate rejected a representable Unicode fetch URL %q: %v", unicodeURL, err)
+		}
+		if got := gateParams["app_icon_url"]; got != unicodeURLWire {
+			t.Fatalf("gate[app_icon_url] = %v, want wire form %q", got, unicodeURLWire)
+		}
+		if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{"app_icon_url": unicodeURLWire}); err != nil {
+			t.Fatalf("dispatch gate rejected its own ASCII wire form %q: %v", unicodeURLWire, err)
+		}
+		if err := ValidateStoredCustomBrandingField("app_icon_url", unicodeURL); err != nil {
+			t.Fatalf("stored-data seam rejected a representable Unicode fetch URL %q: %v", unicodeURL, err)
+		}
+	})
+
+	// A raw-Unicode path with an ASCII host normalizes the request target only,
+	// preserving a literal IPv6 host's brackets.
+	for _, tc := range []struct {
+		value string
+		want  string
+	}{
+		{"https://cdn.example/иконка.png", "https://cdn.example/%D0%B8%D0%BA%D0%BE%D0%BD%D0%BA%D0%B0.png"},
+		{"https://[2001:30::1]/и.png", "https://[2001:30::1]/%D0%B8.png"},
+	} {
+		t.Run("ascii-host/"+tc.value, func(t *testing.T) {
+			setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+			normalized, err := NormalizeCustomBuild(map[string]any{"app_icon_url": tc.value}, context)
+			if err != nil {
+				t.Fatalf("typed boundary rejected %q: %v", tc.value, err)
+			}
+			if got := normalized.DispatchParams["app_icon_url"]; got != tc.want {
+				t.Fatalf("dispatch[app_icon_url] = %v, want %q", got, tc.want)
+			}
+		})
+	}
+
+	// A non-ASCII public origin resolves a server-relative asset to the ASCII
+	// wire form as well.
+	t.Run("idn-origin", func(t *testing.T) {
+		setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://пример.рф")
+		normalized, err := NormalizeCustomBuild(map[string]any{"app_icon_url": "/upload/x.png"}, context)
+		if err != nil {
+			t.Fatalf("NormalizeCustomBuild() rejected a relative asset with an IDN public origin: %v", err)
+		}
+		if got, want := normalized.DispatchParams["app_icon_url"], "https://xn--e1afmkfd.xn--p1ai/upload/x.png"; got != want {
+			t.Fatalf("dispatch[app_icon_url] = %v, want %q", got, want)
+		}
+	})
+
+	// A Unicode spelling that IDNA maps to a non-public literal is refused
+	// fail-closed: the full-width digit host "１２７.０.０.１" maps to 127.0.0.1,
+	// which the fetcher would resolve to loopback and refuse only late.
+	t.Run("mapped-non-public-literal", func(t *testing.T) {
+		setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+		const mappedLoopback = "https://１２７.０.０.１/i.png"
+		_, err := NormalizeCustomBuild(map[string]any{"app_icon_url": mappedLoopback}, context)
+		if err == nil {
+			t.Fatalf("typed boundary accepted Unicode host %q that maps to a non-public literal", mappedLoopback)
+		}
+		if f, code, ok := FieldErrorMetadata(err); !ok || f != "app_icon_url" || code != FieldCodeInvalidFormat {
+			t.Fatalf("typed field/code = %s/%s ok=%v, want app_icon_url/%s (err=%v)", f, code, ok, FieldCodeInvalidFormat, err)
+		}
+		if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{"app_icon_url": mappedLoopback}); err == nil {
+			t.Fatalf("dispatch gate accepted Unicode host %q that maps to a non-public literal", mappedLoopback)
+		}
+		if err := ValidateStoredCustomBrandingField("app_icon_url", mappedLoopback); err == nil {
+			t.Fatalf("stored-data seam accepted Unicode host %q that maps to a non-public literal", mappedLoopback)
+		}
+	})
+}
+
+// TestBrandingFetchURLPortRangeMatchesConsumer pins the port rule of the fetch
+// URL the build workflow sends. The runner's fetcher
+// (fetch_branding_image.py) parses the URL with Python's urllib.parse and reads
+// SplitResult.port, which raises ValueError("Port out of range 0-65535") for a
+// port above 65535; port 0 parses but is not a dialable destination. Go's
+// net/url accepts any all-digit port, so the producer is the only place that
+// can refuse such a value before the build is dispatched. Every seam that can
+// emit a fetch URL — the typed build-spec boundary, the dispatch gate, the
+// configured public origin, and the stored-data seam — refuses it, and the API
+// boundaries report the structured app_icon_url/invalid_format field error.
+// Ports inside 1..65535, including both boundaries, stay accepted.
+func TestBrandingFetchURLPortRangeMatchesConsumer(t *testing.T) {
+	context := BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"}
+
+	for _, port := range []string{"0", "00000", "65536", "99999"} {
+		t.Run("refused-port-"+port, func(t *testing.T) {
+			setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+			value := "https://cdn.example:" + port + "/i.png"
+
+			_, err := NormalizeCustomBuild(map[string]any{"app_icon_url": value}, context)
+			if err == nil {
+				t.Fatalf("typed boundary accepted unfetchable image port %q", port)
+			}
+			if f, code, ok := FieldErrorMetadata(err); !ok || f != "app_icon_url" || code != FieldCodeInvalidFormat {
+				t.Fatalf("typed field/code = %s/%s ok=%v, want app_icon_url/%s (err=%v)", f, code, ok, FieldCodeInvalidFormat, err)
+			}
+			if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{"app_icon_url": value}); err == nil {
+				t.Fatalf("dispatch gate accepted unfetchable image port %q", port)
+			}
+			if err := ValidateStoredCustomBrandingField("app_icon_url", value); err == nil {
+				t.Fatalf("stored-data seam accepted unfetchable image port %q", port)
+			}
+
+			setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://cdn.example:"+port)
+			if _, err := NormalizeCustomBuild(map[string]any{"app_icon_url": "/upload/x.png"}, context); err == nil {
+				t.Fatalf("configured public origin accepted unfetchable port %q", port)
+			}
+		})
+	}
+
+	for _, port := range []string{"1", "65535"} {
+		t.Run("accepted-port-"+port, func(t *testing.T) {
+			setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+			value := "https://cdn.example:" + port + "/i.png"
+
+			normalized, err := NormalizeCustomBuild(map[string]any{"app_icon_url": value}, context)
+			if err != nil {
+				t.Fatalf("typed boundary rejected fetchable image port %q: %v", port, err)
+			}
+			if got := normalized.DispatchParams["app_icon_url"]; got != value {
+				t.Fatalf("dispatch[app_icon_url] = %q, want %q", got, value)
+			}
+			if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{"app_icon_url": value}); err != nil {
+				t.Fatalf("dispatch gate rejected fetchable image port %q: %v", port, err)
+			}
+			if err := ValidateStoredCustomBrandingField("app_icon_url", value); err != nil {
+				t.Fatalf("stored-data seam rejected fetchable image port %q: %v", port, err)
+			}
+		})
+	}
+}
+
+// TestBrandingFetchURLWireFormPreservesOperatorURL pins the ASCII wire form the
+// workflow fetcher receives for a non-ASCII URL: exactly the operator's URL
+// with only the bytes above 0x7F percent-encoded in the path and query. Every
+// existing %XX escape, every reserved character, and the case of an ASCII host
+// are preserved byte-for-byte, so an escape such as %2F, %2E%2E or %41 keeps the
+// meaning the operator authored. A "#fragment" is dropped instead of being
+// folded into the path: a fragment is not part of a request target and the
+// fetcher's urlsplit separates it without sending it. An already-ASCII URL is
+// returned byte-for-byte unchanged, fragment and all.
+func TestBrandingFetchURLWireFormPreservesOperatorURL(t *testing.T) {
+	context := BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"}
+	setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+
+	cases := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{"encoded-dotdot", "https://cdn.example/%2E%2E/x/и.png", "https://cdn.example/%2E%2E/x/%D0%B8.png"},
+		{"encoded-slash", "https://cdn.example/a%2Fb/и.png", "https://cdn.example/a%2Fb/%D0%B8.png"},
+		{"encoded-ascii", "https://cdn.example/%41%2Eи.png", "https://cdn.example/%41%2E%D0%B8.png"},
+		{"fragment-dropped", "https://cdn.example/и.png#frag", "https://cdn.example/%D0%B8.png"},
+		{"escapes-and-non-ascii-mixed", "https://cdn.example/a%2Eb/и.png?x=%2Fи&y=и", "https://cdn.example/a%2Eb/%D0%B8.png?x=%2F%D0%B8&y=%D0%B8"},
+		{"valid-port-preserved", "https://cdn.example:8443/и.png", "https://cdn.example:8443/%D0%B8.png"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			normalized, err := NormalizeCustomBuild(map[string]any{"app_icon_url": tc.value}, context)
+			if err != nil {
+				t.Fatalf("typed boundary rejected %q: %v", tc.value, err)
+			}
+			if got := normalized.DispatchParams["app_icon_url"]; got != tc.want {
+				t.Fatalf("dispatch[app_icon_url] = %q, want %q", got, tc.want)
+			}
+			gateParams, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{"app_icon_url": tc.value})
+			if err != nil {
+				t.Fatalf("dispatch gate rejected %q: %v", tc.value, err)
+			}
+			if got := gateParams["app_icon_url"]; got != tc.want {
+				t.Fatalf("gate[app_icon_url] = %q, want %q", got, tc.want)
+			}
+			if err := ValidateStoredCustomBrandingField("app_icon_url", tc.value); err != nil {
+				t.Fatalf("stored-data seam rejected %q: %v", tc.value, err)
+			}
+		})
+	}
+
+	for _, value := range []string{
+		"https://cdn.example/%D0%B8.png?q=%D0%B8#frag",
+		"https://CDN.Example/a%2Fb?q=%2E#x",
+	} {
+		normalized, err := NormalizeCustomBuild(map[string]any{"app_icon_url": value}, context)
+		if err != nil {
+			t.Fatalf("typed boundary rejected ASCII fetch URL %q: %v", value, err)
+		}
+		if got := normalized.DispatchParams["app_icon_url"]; got != value {
+			t.Fatalf("dispatch[app_icon_url] = %q, want the accepted value %q", got, value)
+		}
+	}
+}
+
+// TestBrandingFetchURLWireFormDropsRootDot pins the fetch identity of a host
+// with one terminal root dot. A resolver reads "example.com." and "example.com"
+// as the same host, but the workflow fetcher passes the host bytes to
+// getaddrinfo, the Host header, and ssl.wrap_socket(server_hostname=...), and
+// Python/OpenSSL does not strip the root dot for TLS certificate matching: a
+// dotted server_hostname fails against an ordinary certificate naming the
+// undotted host after DNS and TCP have already succeeded. The dispatched wire
+// form therefore drops exactly the one root dot, while the persisted custom_json
+// and the stored-data seam keep the operator's FQDN spelling. A second trailing
+// dot leaves an empty label and stays refused.
+func TestBrandingFetchURLWireFormDropsRootDot(t *testing.T) {
+	context := BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"}
+	setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+
+	for _, tc := range []struct{ host, wireHost string }{
+		{"example.com.", "example.com"},
+		{"cdn.example.", "cdn.example"},
+	} {
+		t.Run(tc.host, func(t *testing.T) {
+			dotted := "https://" + tc.host + "/i.png"
+			plain := "https://" + tc.wireHost + "/i.png"
+
+			normalized, err := NormalizeCustomBuild(map[string]any{"app_icon_url": dotted}, context)
+			if err != nil {
+				t.Fatalf("typed boundary rejected the single-root-dot host %q: %v", tc.host, err)
+			}
+			if got := normalized.DispatchParams["app_icon_url"]; got != plain {
+				t.Fatalf("dispatch[app_icon_url] = %q, want the undotted wire form %q", got, plain)
+			}
+			if !strings.Contains(normalized.PersistedJSON, `"app_icon_url":"`+dotted+`"`) {
+				t.Fatalf("persisted custom_json = %s, want the operator's dotted spelling %q", normalized.PersistedJSON, dotted)
+			}
+
+			// The dotted and undotted spellings name the same host, so they
+			// must dispatch the same wire form.
+			plainNormalized, err := NormalizeCustomBuild(map[string]any{"app_icon_url": plain}, context)
+			if err != nil {
+				t.Fatalf("typed boundary rejected the undotted host %q: %v", tc.wireHost, err)
+			}
+			if got, plainGot := normalized.DispatchParams["app_icon_url"], plainNormalized.DispatchParams["app_icon_url"]; got != plainGot {
+				t.Fatalf("wire forms differ: %q (dotted) vs %q (undotted)", got, plainGot)
+			}
+
+			gateParams, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{"app_icon_url": dotted})
+			if err != nil {
+				t.Fatalf("dispatch gate rejected the single-root-dot host %q: %v", tc.host, err)
+			}
+			if got := gateParams["app_icon_url"]; got != plain {
+				t.Fatalf("gate[app_icon_url] = %q, want %q", got, plain)
+			}
+
+			if err := ValidateStoredCustomBrandingField("app_icon_url", dotted); err != nil {
+				t.Fatalf("stored-data seam rejected the operator's FQDN spelling %q: %v", tc.host, err)
+			}
+		})
+	}
+
+	// Only the root dot may change: the ASCII host keeps its case, and the port
+	// and every path/query/fragment byte are preserved.
+	t.Run("ascii-authority-tail", func(t *testing.T) {
+		wire := "https://CDN.Example:8443/a%2Fb?q=%2E#frag"
+		normalized, err := NormalizeCustomBuild(map[string]any{"app_icon_url": "https://CDN.Example.:8443/a%2Fb?q=%2E#frag"}, context)
+		if err != nil {
+			t.Fatalf("typed boundary rejected the dotted ASCII host: %v", err)
+		}
+		if got := normalized.DispatchParams["app_icon_url"]; got != wire {
+			t.Fatalf("dispatch[app_icon_url] = %q, want %q", got, wire)
+		}
+		plainNormalized, err := NormalizeCustomBuild(map[string]any{"app_icon_url": wire}, context)
+		if err != nil {
+			t.Fatalf("typed boundary rejected the undotted ASCII host: %v", err)
+		}
+		if got := plainNormalized.DispatchParams["app_icon_url"]; got != wire {
+			t.Fatalf("dispatch[undotted app_icon_url] = %q, want %q", got, wire)
+		}
+	})
+
+	// The non-ASCII conversion path drops the same root dot: a trailing dot the
+	// operator typed after a Unicode label, and a dotted ASCII host whose only
+	// non-ASCII bytes are in the path/query.
+	for _, tc := range []struct{ value, want string }{
+		{"https://bücher.example./и.png", "https://xn--bcher-kva.example/%D0%B8.png"},
+		{"https://example.com./и.png", "https://example.com/%D0%B8.png"},
+	} {
+		t.Run("non-ascii/"+tc.value, func(t *testing.T) {
+			normalized, err := NormalizeCustomBuild(map[string]any{"app_icon_url": tc.value}, context)
+			if err != nil {
+				t.Fatalf("typed boundary rejected %q: %v", tc.value, err)
+			}
+			if got := normalized.DispatchParams["app_icon_url"]; got != tc.want {
+				t.Fatalf("dispatch[app_icon_url] = %q, want %q", got, tc.want)
+			}
+			if !strings.Contains(normalized.PersistedJSON, `"app_icon_url":"`+tc.value+`"`) {
+				t.Fatalf("persisted custom_json = %s, want the operator's spelling %q", normalized.PersistedJSON, tc.value)
+			}
+		})
+	}
+
+	// A second trailing dot is an empty label, not a root dot: still refused at
+	// the typed boundary, the dispatch gate, and the stored seam.
+	for _, host := range []string{"example.com..", "cdn.example.."} {
+		t.Run("empty-label/"+host, func(t *testing.T) {
+			value := "https://" + host + "/i.png"
+			if _, err := NormalizeCustomBuild(map[string]any{"app_icon_url": value}, context); err == nil {
+				t.Fatalf("typed boundary accepted the empty-label host %q", host)
+			}
+			if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{"app_icon_url": value}); err == nil {
+				t.Fatalf("dispatch gate accepted the empty-label host %q", host)
+			}
+			if err := ValidateStoredCustomBrandingField("app_icon_url", value); err == nil {
+				t.Fatalf("stored-data seam accepted the empty-label host %q", host)
+			}
+		})
+	}
+}
+
+// TestBrandingFetchHostIDNAAgreementWithConsumer pins the non-ASCII host
+// conversion in the wire form the runner fetcher sends. fetch_branding_image.py
+// refuses a raw non-ASCII host, so the producer's conversion alone decides
+// which host is fetched, and DNS and browsers resolve these names in the
+// non-transitional (IDNA2008 / UTS #46) form. The producer therefore keeps the
+// deviation code points (straße.de becomes xn--strae-oqa.de — the registered
+// domain the operator's spelling names, not the transitional strasse.de the
+// legacy codec would produce), leaves all-ASCII labels untouched
+// (Bücher.Example becomes xn--bcher-kva.Example, not lowercased), and converts
+// the hosts the consumer could send instead of refusing them: underscores are
+// accepted because the STD3 rules are off (exämple_test.com becomes
+// xn--exmple_test-m8a.com).
+//
+// This deliberately does not reproduce Python's legacy "<host>".encode("idna")
+// codec: the consumer never re-converts an ASCII host, so its IDNA2003 mappings
+// (ß -> ss, final sigma -> sigma) must not decide the wire form. Residual
+// divergence, reported rather than asserted: the consumer's nameprep uses
+// Unicode 3.2 data and UTS #46 does not, so code points assigned after Unicode
+// 3.2 (and a few compatibility mappings) can disagree in either direction. ẞ
+// (U+1E9E) is punycoded as xn--kkg.example by Python but maps to ss.example
+// here; conversely the non-transitional deviation form differs from Python for
+// ß and final sigma. A code-point sweep over the 974273 hosts Python's legacy
+// codec encodes found 1253 disagreeing single-code-point hosts among the
+// 137886 the host-plausibility rule admits: 1182 conversions and 71 refusals.
+// The refused class (Georgian Asomtavruli capitals U+10A0..U+10C5, U+04C0,
+// Hangul fillers, circled digits and a few CJK compatibility code points)
+// cannot be reproduced with the available IDNA implementation, so it fails
+// closed and is escalated for a decision instead of being silently asserted
+// here. The hosts below are the agreed, discriminating cases.
+func TestBrandingFetchHostIDNAAgreementWithConsumer(t *testing.T) {
+	context := BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"}
+	setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+
+	cases := []struct{ host, ascii string }{
+		{"example.com", "example.com"},
+		{"bücher.example", "xn--bcher-kva.example"},
+		{"exämple_test.com", "xn--exmple_test-m8a.com"},
+		{"foo_bar.example.com", "foo_bar.example.com"},
+		{"xn--bcher-kva.example", "xn--bcher-kva.example"},
+		{"straße.de", "xn--strae-oqa.de"},
+		{"Bücher.Example", "xn--bcher-kva.Example"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.host, func(t *testing.T) {
+			value := "https://" + tc.host + "/i.png"
+			want := "https://" + tc.ascii + "/i.png"
+
+			normalized, err := NormalizeCustomBuild(map[string]any{"app_icon_url": value}, context)
+			if err != nil {
+				t.Fatalf("typed boundary rejected host %q: %v", tc.host, err)
+			}
+			if got := normalized.DispatchParams["app_icon_url"]; got != want {
+				t.Fatalf("dispatch[app_icon_url] = %q, want %q", got, want)
+			}
+			gateParams, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{"app_icon_url": value})
+			if err != nil {
+				t.Fatalf("dispatch gate rejected host %q: %v", tc.host, err)
+			}
+			if got := gateParams["app_icon_url"]; got != want {
+				t.Fatalf("gate[app_icon_url] = %q, want %q", got, want)
+			}
+			if err := ValidateStoredCustomBrandingField("app_icon_url", value); err != nil {
+				t.Fatalf("stored-data seam rejected host %q: %v", tc.host, err)
+			}
+		})
 	}
 }

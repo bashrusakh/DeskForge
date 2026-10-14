@@ -424,7 +424,7 @@ func TestCustomPresetRedactedPasswordUpdateSemantics(t *testing.T) {
 		},
 		{
 			name:          "preserve redacted hide cm password",
-			incomingJSON:  `{"enable_audio":false,"hide_cm":true,"permanent_password":""}`,
+			incomingJSON:  `{"enable_audio":false,"hide_cm":true,"permanent_password":"","pass_approve_mode":"password"}`,
 			preserve:      true,
 			seedExisting:  true,
 			useCreate:     true,
@@ -540,13 +540,13 @@ func TestCustomPresetPreservePasswordRequiresExistingStoredPassword(t *testing.T
 		Platform:   "windows",
 		Version:    "1.2.3",
 		AppName:    "rustqs",
-		CustomJson: `{"hide_cm":true,"permanent_password":"old-password"}`,
+		CustomJson: `{"hide_cm":true,"permanent_password":"old-password","pass_approve_mode":"password"}`,
 	}
 	if err := presetService.Create(preset); err != nil {
 		t.Fatalf("seed Create() error = %v", err)
 	}
 
-	preset.CustomJson = `{"hide_cm":true,"permanent_password":""}`
+	preset.CustomJson = `{"hide_cm":true,"permanent_password":"","pass_approve_mode":"password"}`
 	preset.PreservePermanentPassword = true
 	if err := presetService.Update(preset); err != nil {
 		t.Fatalf("preserving existing password on hide_cm update: %v", err)

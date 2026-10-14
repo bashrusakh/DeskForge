@@ -15,6 +15,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"golang.org/x/net/idna"
+
 	"rustdesk-server/api/config"
 	"rustdesk-server/api/utils"
 )
@@ -29,6 +31,16 @@ const (
 )
 
 const maxBuildAppNameBytes = 128
+
+// maxBrandingURLBytes bounds a branding URL value (download_url, website_url,
+// privacy_policy_url). The fork Windows build workflow caps the URL text at
+// 2048 bytes, so DeskForge rejects a longer value here instead of accepting it
+// and failing late at build time.
+const maxBrandingURLBytes = 2048
+
+// maxCompanyNameBytes bounds the company_name branding value. The fork build
+// workflow caps it at 256 bytes, so DeskForge rejects a longer value here.
+const maxCompanyNameBytes = 256
 
 var androidAppIDPattern = regexp.MustCompile(`^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$`)
 
@@ -48,8 +60,9 @@ const (
 )
 
 // BuildRecordContext contains values owned by the build record rather than by
-// custom_json. These values may be sent to the workflow, but never enter the
-// generated custom_.txt mapping.
+// custom_json. These values may be sent to the workflow; AppName is also
+// emitted into the generated custom_.txt as the native top-level "app-name"
+// key, while the other context values never enter that mapping.
 type BuildRecordContext struct {
 	BuildID       uint
 	Platform      string
@@ -64,10 +77,11 @@ type BuildRecordContext struct {
 
 // BuildSpec is the typed form of user-authored Custom Client settings.
 // ServerIP and Key are persisted L1 dispatch fields and are intentionally not
-// serialized into custom_.txt; record context is also excluded from that
-// payload. Persisted-only fields retain form values for preset/build restore,
-// but have no proven native runtime consumer and are never emitted to
-// custom_.txt.
+// serialized into custom_.txt. Persisted-only fields retain form values for
+// preset/build restore; CompanyName/DownloadURL/WebsiteURL/PrivacyPolicyURL
+// and the AppIconURL/AppLogoURL/PrivacyScreenURL image URLs are also delivered
+// into the workflow branding context, but have no proven native runtime
+// consumer inside custom_.txt and are never emitted there.
 type BuildSpec struct {
 	BuildID       uint
 	Platform      Platform
@@ -80,6 +94,8 @@ type BuildSpec struct {
 
 	CompanyName           string
 	DownloadURL           string
+	WebsiteURL            string
+	PrivacyPolicyURL      string
 	RemoveNewVersionNotif *bool
 	CycleMonitor          *bool
 	XOffline              *bool
@@ -140,6 +156,8 @@ var buildSpecStringFields = []buildSpecStringField{
 	{name: "permissions_type", persisted: true, get: func(spec BuildSpec) string { return spec.PermissionsType }, set: func(spec *BuildSpec, value string) { spec.PermissionsType = value }},
 	{name: "company_name", persistedOnly: true, get: func(spec BuildSpec) string { return spec.CompanyName }, set: func(spec *BuildSpec, value string) { spec.CompanyName = value }},
 	{name: "download_url", persistedOnly: true, get: func(spec BuildSpec) string { return spec.DownloadURL }, set: func(spec *BuildSpec, value string) { spec.DownloadURL = value }},
+	{name: "website_url", persistedOnly: true, get: func(spec BuildSpec) string { return spec.WebsiteURL }, set: func(spec *BuildSpec, value string) { spec.WebsiteURL = value }},
+	{name: "privacy_policy_url", persistedOnly: true, get: func(spec BuildSpec) string { return spec.PrivacyPolicyURL }, set: func(spec *BuildSpec, value string) { spec.PrivacyPolicyURL = value }},
 	{name: "android_app_id", persistedOnly: true, get: func(spec BuildSpec) string { return spec.AndroidAppID }, set: func(spec *BuildSpec, value string) { spec.AndroidAppID = value }},
 	{name: "app_icon_url", persistedOnly: true, get: func(spec BuildSpec) string { return spec.AppIconURL }, set: func(spec *BuildSpec, value string) { spec.AppIconURL = value }},
 	{name: "app_logo_url", persistedOnly: true, get: func(spec BuildSpec) string { return spec.AppLogoURL }, set: func(spec *BuildSpec, value string) { spec.AppLogoURL = value }},
@@ -240,6 +258,10 @@ const (
 	FieldCodeInvalidFormat   = "invalid_format"
 	FieldCodeInvalidEndpoint = "invalid_endpoint"
 	FieldCodeNotFound        = "not_found"
+	// FieldCodeIncompatible marks a valid field value that cannot be combined
+	// with the current values of other fields, keeping the rejecting
+	// combination explicit instead of silently switching behavior.
+	FieldCodeIncompatible = "incompatible"
 )
 
 // structuredFieldNames is the closed set of fields the admin UI can localize.
@@ -255,6 +277,14 @@ var structuredFieldNames = map[string]struct{}{
 	"relay_server":       {},
 	"permanent_password": {},
 	"preset_id":          {},
+	"pass_approve_mode":  {},
+	"download_url":       {},
+	"website_url":        {},
+	"privacy_policy_url": {},
+	"company_name":       {},
+	"app_icon_url":       {},
+	"app_logo_url":       {},
+	"privacy_screen_url": {},
 }
 
 // FieldError attaches a machine-readable field/reason pair to an input
@@ -519,6 +549,43 @@ func NormalizeCustomBuild(raw map[string]any, context BuildRecordContext) (Norma
 			params["android_app_id"] = spec.AndroidAppID
 		}
 	}
+	// Branding context delivered to the workflow like app_name/custom_txt. The
+	// image URLs are absolutized and normalized to the ASCII wire form the
+	// workflow fetcher sends; empty values are omitted so the client keeps the
+	// corresponding defaults.
+	if spec.CompanyName != "" {
+		params["company_name"] = spec.CompanyName
+	}
+	if spec.DownloadURL != "" {
+		params["download_url"] = spec.DownloadURL
+	}
+	if spec.WebsiteURL != "" {
+		params["website_url"] = spec.WebsiteURL
+	}
+	if spec.PrivacyPolicyURL != "" {
+		params["privacy_policy_url"] = spec.PrivacyPolicyURL
+	}
+	if spec.AppIconURL != "" {
+		resolved, err := absolutizeBrandingImageURL("app_icon_url", spec.AppIconURL)
+		if err != nil {
+			return NormalizedBuild{}, NewFieldError("app_icon_url", FieldCodeInvalidFormat, err)
+		}
+		params["app_icon_url"] = resolved
+	}
+	if spec.AppLogoURL != "" {
+		resolved, err := absolutizeBrandingImageURL("app_logo_url", spec.AppLogoURL)
+		if err != nil {
+			return NormalizedBuild{}, NewFieldError("app_logo_url", FieldCodeInvalidFormat, err)
+		}
+		params["app_logo_url"] = resolved
+	}
+	if spec.PrivacyScreenURL != "" {
+		resolved, err := absolutizeBrandingImageURL("privacy_screen_url", spec.PrivacyScreenURL)
+		if err != nil {
+			return NormalizedBuild{}, NewFieldError("privacy_screen_url", FieldCodeInvalidFormat, err)
+		}
+		params["privacy_screen_url"] = resolved
+	}
 	params["custom_txt"] = newNormalizedCustomTxt(customTxt)
 
 	persistedJSON, err := spec.PersistedJSON()
@@ -530,9 +597,11 @@ func NormalizeCustomBuild(raw map[string]any, context BuildRecordContext) (Norma
 
 // PersistedJSON serializes the typed fields used by custom_json, including L1
 // dispatch values needed for preset restore/retry and persisted-only form
-// values without a proven native runtime consumer. Record context, unsupported
-// fields, and raw custom_txt are not included. The custom_.txt encoder has its
-// own explicit native allowlist, so none of the persisted-only fields enter it.
+// values whose native runtime consumers are outside custom_.txt, including the
+// workflow branding image URLs. Record
+// context, unsupported fields, and raw custom_txt are not included. The
+// custom_.txt encoder has its own explicit native allowlist, so none of the
+// persisted-only fields enter it.
 // Non-nil bool pointers are intentionally emitted even when false so authored
 // false remains distinct from omission.
 func (spec BuildSpec) PersistedJSON() (string, error) {
@@ -641,8 +710,23 @@ func parseBuildSpec(raw map[string]any) (BuildSpec, error) {
 	if err := validateAPIURL("api_server", spec.APIServer); err != nil {
 		return BuildSpec{}, NewFieldError("api_server", FieldCodeInvalidFormat, err)
 	}
-	if spec.HideCM != nil && *spec.HideCM && strings.TrimSpace(spec.PermanentPassword) == "" {
-		return BuildSpec{}, NewFieldError("permanent_password", FieldCodeRequired, fmt.Errorf("permanent_password is required when hide_cm is true"))
+	if err := validateBrandingURL("website_url", spec.WebsiteURL); err != nil {
+		return BuildSpec{}, NewFieldError("website_url", FieldCodeInvalidFormat, err)
+	}
+	if err := validateBrandingURL("privacy_policy_url", spec.PrivacyPolicyURL); err != nil {
+		return BuildSpec{}, NewFieldError("privacy_policy_url", FieldCodeInvalidFormat, err)
+	}
+	if err := validateBrandingURL("download_url", spec.DownloadURL); err != nil {
+		return BuildSpec{}, NewFieldError("download_url", FieldCodeInvalidFormat, err)
+	}
+	if err := validateCompanyName(spec.CompanyName); err != nil {
+		return BuildSpec{}, NewFieldError("company_name", FieldCodeInvalidFormat, err)
+	}
+	if err := validateBuildSpecImageFields(spec); err != nil {
+		return BuildSpec{}, err
+	}
+	if err := validateHideCMCombination(spec); err != nil {
+		return BuildSpec{}, err
 	}
 
 	return spec, nil
@@ -697,8 +781,8 @@ func (spec BuildSpec) hasString(name string) bool {
 	return ok
 }
 
-// EncodeCustomTxt serializes the exact native contract. Password and
-// conn-type are flat; all other options are consumed from one selected
+// EncodeCustomTxt serializes the exact native contract. App-name, password,
+// and conn-type are flat; all other options are consumed from one selected
 // default-settings or override-settings object.
 func EncodeCustomTxt(spec BuildSpec) (string, error) {
 	if err := validateBuildSpec(spec); err != nil {
@@ -706,6 +790,11 @@ func EncodeCustomTxt(spec BuildSpec) (string, error) {
 	}
 
 	config := make(map[string]any)
+	// The native top-level runtime application name read by read_custom_client().
+	// It is owned by the build record, not by custom_json.
+	if spec.AppName != "" {
+		config["app-name"] = spec.AppName
+	}
 	if spec.Direction != "" && spec.Direction != "both" {
 		config["conn-type"] = spec.Direction
 	}
@@ -796,10 +885,12 @@ func EncodeCustomTxt(spec BuildSpec) (string, error) {
 
 // nativeCustomTxt is the typed/native schema boundary for generated
 // custom_.txt. Password is accepted only so it can be removed; it is never
-// included in the public representation. The settings type has its own
-// allowlist so unknown or secret-like fields cannot pass through as raw JSON.
+// included in the public representation. App-name is the non-secret record
+// identity and is preserved. The settings type has its own allowlist so
+// unknown or secret-like fields cannot pass through as raw JSON.
 type nativeCustomTxt struct {
 	ConnType         string                  `json:"conn-type,omitempty"`
+	AppName          string                  `json:"app-name,omitempty"`
 	Password         string                  `json:"password,omitempty"`
 	DefaultSettings  nativeCustomTxtSettings `json:"default-settings,omitempty"`
 	OverrideSettings nativeCustomTxtSettings `json:"override-settings,omitempty"`
@@ -869,10 +960,10 @@ func (s *nativeCustomTxtSettings) UnmarshalJSON(data []byte) error {
 }
 
 // PublicCustomTxt parses generated base64(JSON) custom_.txt content and
-// returns a canonical public variant. It preserves conn-type and allowlisted
-// non-secret L2 settings, while removing password, allow-hide-cm, and
-// verification-method together. Unknown fields fail closed so callers can
-// omit the file instead of exposing opaque private bytes.
+// returns a canonical public variant. It preserves conn-type, app-name, and
+// allowlisted non-secret L2 settings, while removing password,
+// allow-hide-cm, and verification-method together. Unknown fields fail closed
+// so callers can omit the file instead of exposing opaque private bytes.
 func PublicCustomTxt(encoded string) (string, error) {
 	if encoded == "" {
 		return "", errors.New("custom_.txt payload is empty")
@@ -924,10 +1015,18 @@ func PublicCustomTxt(encoded string) (string, error) {
 			return "", err
 		}
 	}
+	if native.AppName != "" {
+		if err := ValidateOutputAppName(native.AppName); err != nil {
+			return "", err
+		}
+	}
 
-	public := make(map[string]any, 3)
+	public := make(map[string]any, 4)
 	if native.ConnType != "" {
 		public["conn-type"] = native.ConnType
+	}
+	if native.AppName != "" {
+		public["app-name"] = native.AppName
 	}
 	if len(native.DefaultSettings) > 0 {
 		public["default-settings"] = native.DefaultSettings
@@ -940,6 +1039,30 @@ func PublicCustomTxt(encoded string) (string, error) {
 		return "", fmt.Errorf("marshal public custom_.txt JSON: %w", err)
 	}
 	return base64.StdEncoding.EncodeToString(canonical), nil
+}
+
+// validateHideCMCombination enforces the native Hide Connection Management
+// contract at the typed spec boundary: hide_cm=true only has an effect when a
+// permanent password is configured, verification-method becomes
+// use-permanent-password, and the native approve-mode is explicitly
+// "password". An incompatible combination is rejected with an actionable
+// error instead of silently switching the approve mode.
+func validateHideCMCombination(spec BuildSpec) error {
+	if spec.HideCM == nil || !*spec.HideCM {
+		return nil
+	}
+	if strings.TrimSpace(spec.PermanentPassword) == "" {
+		return NewFieldError("permanent_password", FieldCodeRequired, fmt.Errorf("permanent_password is required when hide_cm is true"))
+	}
+	if spec.PassApproveMode == "" {
+		return NewFieldError("pass_approve_mode", FieldCodeIncompatible,
+			fmt.Errorf("pass_approve_mode must be \"password\" when hide_cm is true; hide connection management only takes effect with approve mode \"password\""))
+	}
+	if spec.PassApproveMode != "password" {
+		return NewFieldError("pass_approve_mode", FieldCodeIncompatible,
+			fmt.Errorf("pass_approve_mode %q is incompatible with hide_cm; hide connection management only takes effect with approve mode \"password\"", spec.PassApproveMode))
+	}
+	return nil
 }
 
 func validateBuildSpec(spec BuildSpec) error {
@@ -973,8 +1096,23 @@ func validateBuildSpec(spec BuildSpec) error {
 			return err
 		}
 	}
-	if spec.HideCM != nil && *spec.HideCM && strings.TrimSpace(spec.PermanentPassword) == "" {
-		return NewFieldError("permanent_password", FieldCodeRequired, fmt.Errorf("permanent_password is required when hide_cm is true"))
+	if err := validateHideCMCombination(spec); err != nil {
+		return err
+	}
+	if err := validateBrandingURL("website_url", spec.WebsiteURL); err != nil {
+		return NewFieldError("website_url", FieldCodeInvalidFormat, err)
+	}
+	if err := validateBrandingURL("privacy_policy_url", spec.PrivacyPolicyURL); err != nil {
+		return NewFieldError("privacy_policy_url", FieldCodeInvalidFormat, err)
+	}
+	if err := validateBrandingURL("download_url", spec.DownloadURL); err != nil {
+		return NewFieldError("download_url", FieldCodeInvalidFormat, err)
+	}
+	if err := validateCompanyName(spec.CompanyName); err != nil {
+		return NewFieldError("company_name", FieldCodeInvalidFormat, err)
+	}
+	if err := validateBuildSpecImageFields(spec); err != nil {
+		return err
 	}
 	if err := validateBuildSpecTransportFields(spec); err != nil {
 		return err
@@ -1019,6 +1157,95 @@ func validateBuildSpecTransportFields(spec BuildSpec) error {
 	if spec.Key != "" {
 		if err := config.ValidatePublicKeyMaterial(spec.Key); err != nil {
 			return NewFieldError("key", FieldCodeInvalidFormat, err)
+		}
+	}
+	return nil
+}
+
+// absolutizeBrandingImageURL validates a branding image value (app_icon_url,
+// app_logo_url, privacy_screen_url) and returns the absolute URL the build
+// workflow must send. A server-relative upload path ("/upload/...") is resolved
+// against the configured public API origin (public-api-server) — the externally
+// reachable address the GitHub runner can fetch from, never the operational
+// api-server, which may hold an internal/Docker address such as
+// http://localhost:21114. The returned value is the ASCII wire form the
+// workflow's HTTP client can send (publicURLWireForm): an ASCII value is
+// returned unchanged except that one terminal root-label dot on the host is
+// dropped (the fetcher's TLS server_hostname would not match a certificate for
+// the undotted host), while a raw non-ASCII host/path/query is converted (host
+// to its non-transitional IDNA wire form, only the non-ASCII path/query bytes
+// percent-encoded). The rewrite is idempotent for the values a caller derived
+// from a prior resolution.
+//
+// It fails closed with an error instead of a value when the value cannot become
+// a fetchable public URL: a relative value with no configured/usable public
+// origin, a non-http(s) scheme (file:, ftp:, ...), a malformed URL, a missing
+// host, userinfo/credentials, embedded control characters or whitespace, a
+// value over the 2048-byte branding URL cap, a literal host outside the
+// public-address policy (loopback, private, link-local, unspecified, multicast,
+// reserved, and the other special-purpose and IANA-reserved ranges), or a host,
+// path, or query that cannot be represented in the ASCII wire form the fetcher
+// sends. A DNS hostname is not resolved here: it passes the syntactic rule and
+// is finally constrained at the workflow fetch boundary. There is deliberately
+// no fallback to the operational api-server, because the runner cannot reach
+// that address.
+//
+// persisted custom_json keeps the stored relative value; only the producer's
+// dispatch payload is absolutized and normalized to wire form.
+func absolutizeBrandingImageURL(name, value string) (string, error) {
+	if value == "" {
+		return "", nil
+	}
+	if err := validateWorkflowValue(name, value); err != nil {
+		return "", err
+	}
+	if strings.HasPrefix(value, "/") {
+		if strings.HasPrefix(value, "//") {
+			return "", fmt.Errorf("%s has invalid URL %q", name, value)
+		}
+		origin, err := publicAPIOrigin()
+		if err != nil {
+			return "", fmt.Errorf("%s cannot be resolved to a fetchable URL: %w", name, err)
+		}
+		resolved := origin + value
+		return publicURLWireForm(name, resolved)
+	}
+	return publicURLWireForm(name, value)
+}
+
+// publicAPIOrigin returns the configured public API origin used to resolve
+// server-relative branding assets, normalized without a trailing slash. It fails
+// closed when public-api-server is absent or is not a usable public absolute
+// http(s) URL, so a build never emits an address the runner cannot reach.
+func publicAPIOrigin() (string, error) {
+	if Config == nil {
+		return "", fmt.Errorf("no public API server (public-api-server) is configured")
+	}
+	origin := strings.TrimRight(Config.Rustdesk.PublicApiServer, "/")
+	if origin == "" {
+		return "", fmt.Errorf("no public API server (public-api-server) is configured")
+	}
+	if err := validatePublicHTTPURL("public-api-server", origin); err != nil {
+		return "", err
+	}
+	return origin, nil
+}
+
+// validateBuildSpecImageFields resolves the branding image URLs against the
+// configured public origin at the typed boundary. A relative asset with no
+// usable public origin is a field-level invalid_format error at create time, so
+// the build cannot be persisted and later fail at dispatch or build time.
+func validateBuildSpecImageFields(spec BuildSpec) error {
+	for _, field := range []struct {
+		name  string
+		value string
+	}{
+		{"app_icon_url", spec.AppIconURL},
+		{"app_logo_url", spec.AppLogoURL},
+		{"privacy_screen_url", spec.PrivacyScreenURL},
+	} {
+		if _, err := absolutizeBrandingImageURL(field.name, field.value); err != nil {
+			return NewFieldError(field.name, FieldCodeInvalidFormat, err)
 		}
 	}
 	return nil
@@ -1153,6 +1380,46 @@ func NormalizeWorkflowDispatchParams(platform string, raw map[string]any) (map[s
 				return nil, err
 			}
 			normalized[name] = integer
+		case "company_name", "download_url", "website_url", "privacy_policy_url",
+			"app_icon_url", "app_logo_url", "privacy_screen_url":
+			// Branding context keys are generated by NormalizeCustomBuild from
+			// the typed spec; forged caller values are validated but never
+			// replaced with provider-derived data. download_url/website_url/
+			// privacy_policy_url reach the fork workflow as absolute http(s)
+			// URLs, so they share the fork-subset validateBrandingURL rule here
+			// as well as at the typed boundary. company_name shares the fork
+			// length cap. The image-URL values are re-resolved against the
+			// configured public origin here too (idempotent for already-absolute
+			// values) and returned in the ASCII wire form the workflow fetcher
+			// sends, so a config change between create and dispatch cannot emit
+			// an unfetchable URL.
+			stringValue, err := dispatchStringValue(name, value)
+			if err != nil {
+				return nil, err
+			}
+			switch name {
+			case "app_icon_url", "app_logo_url", "privacy_screen_url":
+				resolved, err := absolutizeBrandingImageURL(name, stringValue)
+				if err != nil {
+					return nil, NewFieldError(name, FieldCodeInvalidFormat, err)
+				}
+				normalized[name] = resolved
+				continue
+			}
+			if err := validateWorkflowValue(name, stringValue); err != nil {
+				return nil, err
+			}
+			switch name {
+			case "download_url", "website_url", "privacy_policy_url":
+				if err := validateBrandingURL(name, stringValue); err != nil {
+					return nil, NewFieldError(name, FieldCodeInvalidFormat, err)
+				}
+			case "company_name":
+				if err := validateCompanyName(stringValue); err != nil {
+					return nil, NewFieldError(name, FieldCodeInvalidFormat, err)
+				}
+			}
+			normalized[name] = stringValue
 		case "release_assets":
 			assets, ok := value.([]ReleaseAsset)
 			if !ok {
@@ -1352,6 +1619,489 @@ func validateAPIURL(name, value string) error {
 		return fmt.Errorf("%s has invalid URL %q", name, value)
 	}
 	return nil
+}
+
+// brandingURLHost applies the shared branding-URL acceptance rule and returns the
+// parsed hostname. It requires an absolute URL with a lowercase http:// or
+// https:// prefix, no whitespace anywhere, at most maxBrandingURLBytes bytes, no
+// userinfo, and a usable host. The lowercase prefix test is deliberately
+// case-sensitive: the fork uses a case-sensitive prefix match, so the mixed-case
+// scheme net/url would otherwise normalize (HTTP://example.com) must be rejected
+// here instead of passing this boundary. The host check is the minimal
+// non-narrowing one: net/url accepts degenerate hosts that are pure punctuation
+// ("https://.", "https://..", "https://-"), which would render as links with no
+// usable domain, so a hostname containing no letter or digit is rejected. Every
+// host with at least one alphanumeric character stays accepted, including DNS
+// names, single-label hosts, IPv4/IPv6 literals, and IDN/punycode. An empty value
+// stays allowed so callers can omit the field and returns an empty host.
+func brandingURLHost(name, value string) (string, error) {
+	if value == "" {
+		return "", nil
+	}
+	if len(value) > maxBrandingURLBytes {
+		return "", fmt.Errorf("%s exceeds %d bytes", name, maxBrandingURLBytes)
+	}
+	if !strings.HasPrefix(value, "http://") && !strings.HasPrefix(value, "https://") {
+		return "", fmt.Errorf("%s must be an absolute http(s) URL", name)
+	}
+	if strings.ContainsFunc(value, unicode.IsSpace) {
+		return "", fmt.Errorf("%s must not contain whitespace", name)
+	}
+	parsed, err := url.ParseRequestURI(value)
+	if err != nil || parsed.Host == "" || parsed.User != nil {
+		return "", fmt.Errorf("%s has invalid URL %q", name, value)
+	}
+	if !hasAlphanumeric(parsed.Hostname()) {
+		return "", fmt.Errorf("%s has invalid URL %q: host has no usable domain", name, value)
+	}
+	return parsed.Hostname(), nil
+}
+
+// validateBrandingURL enforces the fork build workflow's branding-URL
+// acceptance domain at the typed boundary, the dispatch gate, and the stored
+// seam for download_url, website_url, and privacy_policy_url, so the three
+// boundaries accept exactly the same values and a value accepted here is never
+// rejected late at build time or by the migration preflight. It applies the
+// shared control-character safety rule (validateWorkflowValue) before the URL
+// shape rule: those fields reach the fork workflow as raw text, so a control
+// character that is neither whitespace nor caught by url.ParseRequestURI (for
+// example U+0086) must fail closed here with the same rule the dispatch gate
+// and the stored seam otherwise apply. An empty value stays allowed so callers
+// can omit the field. api_server keeps validateAPIURL, whose permissive scheme
+// handling is part of its existing contract.
+func validateBrandingURL(name, value string) error {
+	if err := validateWorkflowValue(name, value); err != nil {
+		return err
+	}
+	_, err := brandingURLHost(name, value)
+	return err
+}
+
+// validatePublicHTTPURL applies the public-fetch URL rule (including the
+// 1..65535 port rule) and rejects an empty value. It is used for the public
+// origin (public-api-server) and for a stored absolute branding image URL; the
+// typed boundary and the dispatch gate use publicURLWireForm, which additionally
+// returns the value they must dispatch.
+func validatePublicHTTPURL(name, value string) error {
+	_, err := publicURLWireForm(name, value)
+	return err
+}
+
+// publicURLWireForm validates a URL against the public-fetch URL rule and
+// returns it exactly as it must be sent to the build workflow's HTTP client.
+//
+// Validation is the branding-URL shape rule plus the literal public-fetch
+// address policy: the GitHub build runner fetches these assets over the public
+// internet, so a literal address outside the public-address policy (loopback,
+// unspecified, RFC 1918 / unique-local, link-local, shared/CGNAT,
+// documentation, benchmarking, multicast, reserved, NAT64/6to4, the IANA
+// reserved IPv6 space, ...) or the name "localhost" is refused here as a
+// build-time failure. No DNS lookup happens at create or dispatch: a literal
+// target is classified by isPublicLiteralIP (public_host_policy.go), while a DNS
+// hostname passes only the syntactic host-plausibility rule and is not thereby
+// proven public or reachable — it is finally constrained at the workflow fetch
+// boundary.
+//
+// Wire form: the workflow fetcher (fetch_branding_image.py) refuses a raw
+// non-ASCII host and builds a Python http.client request whose request-target
+// must be ASCII, so a raw non-ASCII host, path, or query would fail at fetch
+// time after the producer accepted the value. The producer instead derives the
+// ASCII wire form:
+//
+//   - A present port must be an integer in 1..65535 (validateFetchURLPort):
+//     Python's urllib.parse raises ValueError outside that range and the
+//     fetcher reads the port before connecting, while Go's net/url accepts any
+//     all-digit port. Port 0 is refused as an undialable destination.
+//   - The host is converted label by label with asciiFetchHost, which emits the
+//     non-transitional IDNA (IDNA2008 / UTS #46) wire form of the host the
+//     operator typed (idnaFetchHostProfile explains why transitional mappings
+//     are not used). The converted host is re-classified with the shared
+//     public-host rule before use, because a Unicode spelling can map to a
+//     non-public literal (for example the full-width digit spelling
+//     "１２７.０.０.１" maps to 127.0.0.1); a conversion that fails or lands
+//     outside the public-address policy is refused fail-closed.
+//   - The fetch identity drops exactly one terminal root-label dot: a resolver
+//     reads "example.com." and "example.com" as the same host, but the fetcher
+//     passes the host bytes to getaddrinfo, the Host header, and
+//     ssl.wrap_socket(server_hostname=...), and Python/OpenSSL does not strip
+//     the root dot for certificate matching, so the dotted spelling would fail
+//     TLS after DNS and TCP succeeded. A second trailing dot leaves an empty
+//     label and is refused. The undotted name is re-classified with the shared
+//     public-host rule, so the host actually dispatched is the one validated.
+//   - The path and query keep every byte the operator authored and percent-
+//     encode only the bytes above 0x7F (percentEncodeNonASCII). Existing %XX
+//     escapes — including ones whose decoded form would change the request
+//     target, such as %2F or %2E%2E — reserved characters, and the case of an
+//     ASCII host are preserved; the value is never decoded and re-encoded.
+//   - A "#fragment" is dropped: it is not part of a request target and the
+//     fetcher's urlsplit separates it without sending it. It is never folded
+//     into the path.
+//
+// An already-ASCII URL whose host carries no terminal root dot is returned
+// byte-for-byte unchanged, so every value accepted for dispatch before this
+// rule still reaches the runner with the same bytes; a single terminal root dot
+// is the only ASCII byte this rule removes.
+//
+// The stored custom_json value keeps its original spelling (PersistedJSON vs
+// DispatchParams): only the dispatch payload the runner consumes must be in
+// wire form, just as a server-relative /upload/... asset is resolved only in
+// the dispatch payload.
+func publicURLWireForm(name, value string) (string, error) {
+	host, err := brandingURLHost(name, value)
+	if err != nil {
+		return "", err
+	}
+	if host == "" {
+		return "", fmt.Errorf("%s must be an absolute http(s) URL", name)
+	}
+	if isNonPublicFetchHost(host) {
+		return "", fmt.Errorf("%s must use a public host %q", name, host)
+	}
+	parsed, err := url.ParseRequestURI(value)
+	if err != nil {
+		return "", fmt.Errorf("%s has invalid URL %q", name, value)
+	}
+	if err := validateFetchURLPort(name, parsed.Port()); err != nil {
+		return "", err
+	}
+
+	// The fetch identity drops exactly one terminal root-label dot. A resolver
+	// reads "example.com." and "example.com" as the same host, but the fetcher
+	// passes the host bytes to getaddrinfo, the Host header, and
+	// ssl.wrap_socket(server_hostname=...), and Python/OpenSSL does not strip
+	// the root dot for TLS certificate matching, so the dotted spelling fails
+	// against an ordinary certificate naming the undotted host after DNS and
+	// TCP succeeded. A second trailing dot is an empty label and was already
+	// refused above. The canonicalized name is re-classified here so the host
+	// actually dispatched is the one that must pass the public-host rule; the
+	// stored value keeps the operator's FQDN spelling.
+	wireHost := host
+	if strings.HasSuffix(wireHost, ".") {
+		wireHost = wireHost[:len(wireHost)-1]
+		if isNonPublicFetchHost(wireHost) {
+			return "", fmt.Errorf("%s must use a public host %q", name, wireHost)
+		}
+	}
+
+	if isASCIIText(value) {
+		if wireHost == host {
+			return value, nil
+		}
+		// An ASCII URL is otherwise already in wire form: replace only the
+		// authority host, keeping the port and every path/query/fragment byte
+		// exactly as the operator authored them.
+		authorityStart := strings.Index(value, "://") + len("://")
+		remainder := value[authorityStart:]
+		authorityEnd := strings.IndexAny(remainder, "/?#")
+		if authorityEnd < 0 {
+			authorityEnd = len(remainder)
+		}
+		hostPart := wireHost
+		if port := parsed.Port(); port != "" {
+			hostPart += ":" + port
+		}
+		return value[:authorityStart] + hostPart + remainder[authorityEnd:], nil
+	}
+
+	// Non-ASCII conversion. Rebuild the wire form from the raw value instead of
+	// parsed.String(): ParseRequestURI keeps a "#" inside the path, and String()
+	// decodes and re-encodes the path, which would rewrite existing escapes and
+	// fold a fragment into the path.
+	authorityStart := strings.Index(value, "://") + len("://")
+	remainder := value[authorityStart:]
+	authorityEnd := strings.IndexAny(remainder, "/?#")
+	if authorityEnd < 0 {
+		authorityEnd = len(remainder)
+	}
+	hostPart := remainder[:authorityEnd]
+	if !isASCIIText(parsed.Hostname()) {
+		asciiHost, err := asciiFetchHost(parsed.Hostname())
+		if err != nil {
+			return "", fmt.Errorf("%s has a host that cannot be sent as an ASCII (IDNA) name: %w", name, err)
+		}
+		// The conversion can turn a mapped code point into a terminal dot, so
+		// the root dot is dropped after conversion and the converted name is
+		// re-classified before use.
+		if strings.HasSuffix(asciiHost, ".") {
+			asciiHost = asciiHost[:len(asciiHost)-1]
+		}
+		if isNonPublicFetchHost(asciiHost) {
+			return "", fmt.Errorf("%s must use a public host %q", name, host)
+		}
+		hostPart = asciiHost
+		if port := parsed.Port(); port != "" {
+			hostPart += ":" + port
+		}
+	} else if wireHost != host {
+		hostPart = wireHost
+		if port := parsed.Port(); port != "" {
+			hostPart += ":" + port
+		}
+	}
+	pathAndQuery := remainder[authorityEnd:]
+	if fragmentStart := strings.IndexByte(pathAndQuery, '#'); fragmentStart >= 0 {
+		pathAndQuery = pathAndQuery[:fragmentStart]
+	}
+	path, query := pathAndQuery, ""
+	hasQuery := false
+	if queryStart := strings.IndexByte(pathAndQuery, '?'); queryStart >= 0 {
+		path, query = pathAndQuery[:queryStart], pathAndQuery[queryStart+1:]
+		hasQuery = true
+	}
+	wire := value[:authorityStart] + hostPart + percentEncodeNonASCII(path)
+	if hasQuery {
+		wire += "?" + percentEncodeNonASCII(query)
+	}
+	if !isASCIIText(wire) {
+		return "", fmt.Errorf("%s cannot be represented as the ASCII form the build workflow sends", name)
+	}
+	return wire, nil
+}
+
+// idnaFetchHostProfile converts a non-ASCII host label to the ASCII wire form
+// the fetch target requires. fetch_branding_image.py refuses a raw non-ASCII
+// host, so the producer's conversion alone decides which host the runner
+// fetches, and a wrong conversion would fetch a different registered domain.
+//
+// The profile is deliberately non-transitional (IDNA2008 / UTS #46, the form
+// registries and browsers resolve today). Transitional processing applies the
+// IDNA2003 deviation mappings, so "straße.de" would become "strasse.de" — a
+// different registered domain from the "xn--strae-oqa.de" that spelling names.
+// The deviation code points (ß, final sigma, ZWJ/ZWNJ) therefore keep their
+// non-transitional IDNA2008 form.
+//
+// This deliberately does not reproduce Python's legacy "<host>".encode("idna")
+// codec (IDNA2003/nameprep), which maps those code points instead: the consumer
+// never re-converts an ASCII host into a different name — the fetcher sends the
+// producer's already ASCII wire form byte-for-byte, and Python's idna codec
+// returns an all-ASCII name unchanged (its ASCII fast path) — so the legacy
+// mapping must not decide the wire form. A
+// code-point sweep over the 974273 hosts Python's legacy codec encodes found
+// 1253 single-code-point hosts differing from Python among the 137886 the
+// host-plausibility rule admits: 1182 conversions (for example ß -> xn--zca
+// against Python's "ss") and 71 refusals.
+//
+// The permissive label rules stay: STD3 is off because the consumer accepts
+// underscores, and the hyphen and joiner checks are off because the consumer
+// does not apply them. The residual class refused here though the consumer
+// could encode it is 71 single-code-point hosts — the Georgian Asomtavruli
+// capitals (U+10A0..U+10C5), U+04C0, Hangul fillers, circled digits and a few
+// CJK compatibility code points — where the consumer's nameprep (Unicode 3.2
+// data) punycodes them and UTS #46 disallows them. That class cannot be
+// reproduced with this IDNA implementation; it fails closed and is documented
+// rather than silently rewritten.
+var idnaFetchHostProfile = idna.New(
+	idna.MapForLookup(),
+	idna.StrictDomainName(false),
+	idna.Transitional(false),
+	idna.CheckHyphens(false),
+	idna.CheckJoiners(false),
+)
+
+// asciiFetchHost returns the ASCII form of a host name. An already-ASCII host is
+// returned unchanged, and inside a mixed host every all-ASCII label keeps its
+// spelling: the operator's ASCII labels are already in wire form and are never
+// lowercased, remapped, or otherwise rewritten (this also matches the
+// consumer's per-label ASCII fast path). A label with non-ASCII characters is
+// converted with idnaFetchHostProfile, so the result differs from the input
+// only in the converted labels.
+func asciiFetchHost(host string) (string, error) {
+	if isASCIIText(host) {
+		return host, nil
+	}
+	labels := strings.Split(host, ".")
+	for i, label := range labels {
+		if isASCIIText(label) {
+			continue
+		}
+		asciiLabel, err := idnaFetchHostProfile.ToASCII(label)
+		if err != nil {
+			return "", err
+		}
+		labels[i] = asciiLabel
+	}
+	return strings.Join(labels, "."), nil
+}
+
+// validateFetchURLPort refuses a URL port the workflow fetcher cannot dial. Go's
+// net/url accepts any all-digit port, but the runner parses the URL with
+// Python's urllib.parse, whose SplitResult.port raises ValueError outside
+// 0-65535, so a port such as 65536 or 99999 fails in prepare_branding_assets
+// after the build was already dispatched. Port 0 parses in Python but is not a
+// dialable destination, so a present port must be an integer in 1..65535. A URL
+// without a port is accepted; the caller reports the error as the structured
+// invalid_format field error at the API boundaries.
+func validateFetchURLPort(name, port string) error {
+	if port == "" {
+		return nil
+	}
+	number, err := strconv.ParseUint(port, 10, 16)
+	if err != nil || number == 0 {
+		return fmt.Errorf("%s has port %q outside the fetchable range 1-65535", name, port)
+	}
+	return nil
+}
+
+// isASCIIText reports whether value contains only ASCII bytes.
+func isASCIIText(value string) bool {
+	for i := 0; i < len(value); i++ {
+		if value[i] >= utf8.RuneSelf {
+			return false
+		}
+	}
+	return true
+}
+
+// percentEncodeNonASCII percent-encodes every byte of value outside the ASCII
+// range and leaves every ASCII byte — existing %XX escapes and query delimiters
+// included — exactly as authored. The bytes of a UTF-8 sequence are encoded one
+// by one, which is that sequence's correct percent-encoding.
+func percentEncodeNonASCII(value string) string {
+	const hexadecimal = "0123456789ABCDEF"
+	var builder strings.Builder
+	builder.Grow(len(value))
+	for i := 0; i < len(value); i++ {
+		char := value[i]
+		if char < utf8.RuneSelf {
+			builder.WriteByte(char)
+			continue
+		}
+		builder.WriteByte('%')
+		builder.WriteByte(hexadecimal[char>>4])
+		builder.WriteByte(hexadecimal[char&0x0f])
+	}
+	return builder.String()
+}
+
+// hasAlphanumeric reports whether value contains at least one letter or digit.
+// It backs the branding-URL usable-host rule: a host made only of punctuation
+// has no usable domain, while any host with a letter or digit (DNS name,
+// single-label host, IPv4/IPv6 literal, IDN/punycode) is left accepted.
+func hasAlphanumeric(value string) bool {
+	for _, char := range value {
+		if unicode.IsLetter(char) || unicode.IsNumber(char) {
+			return true
+		}
+	}
+	return false
+}
+
+// validateCompanyName enforces the fork build workflow's company_name length
+// cap and control-character rejection at the typed and dispatch boundaries. An
+// empty value stays allowed. The control-character rule mirrors
+// validateWorkflowValue so a value accepted at the typed boundary cannot fail
+// late at the dispatch gate or build time without field-level feedback.
+func validateCompanyName(value string) error {
+	if len(value) > maxCompanyNameBytes {
+		return fmt.Errorf("company_name exceeds %d bytes", maxCompanyNameBytes)
+	}
+	for _, char := range value {
+		if unicode.IsControl(char) {
+			return fmt.Errorf("company_name contains unsafe control characters")
+		}
+	}
+	return nil
+}
+
+// customBrandingFieldNames is the closed, ordered set of custom_json branding
+// fields the typed BuildSpec boundary reads. The migration preflight selects
+// and validates exactly these fields so the branding domain stays single-source
+// instead of drifting across boundaries.
+var customBrandingFieldNames = []string{
+	"company_name",
+	"download_url",
+	"website_url",
+	"privacy_policy_url",
+	"app_icon_url",
+	"app_logo_url",
+	"privacy_screen_url",
+}
+
+// CustomBrandingFieldNames returns the branding fields the migration preflight
+// must inspect. It returns a copy so a caller cannot mutate the shared domain.
+func CustomBrandingFieldNames() []string {
+	return append([]string(nil), customBrandingFieldNames...)
+}
+
+// validateStoredBrandingImageValue applies the stored-data validity rules for a
+// branding image field (app_icon_url, app_logo_url, privacy_screen_url): the
+// value must be valid UTF-8 with no control characters (validateWorkflowValue),
+// within the branding URL cap, free of whitespace, and not a protocol-relative
+// path ("//..."). When the value is not a server-relative upload path (it does
+// not begin with "/"), it must additionally satisfy the absolute public http(s)
+// rule the typed boundary applies to an absolute value, including its
+// representability in the ASCII wire form the workflow fetcher sends
+// (publicURLWireForm), so a stored value this seam accepts is never rejected
+// late with no field-level feedback.
+//
+// A server-relative "/upload/..." value is valid stored data on its own and
+// passes here with no public origin configured. How an origin resolves it is a
+// property of the build-spec producer's configuration, not of the stored data;
+// requiring a configured origin here would let a deployment configuration
+// condition abort the schema-285 data migration. The typed build-spec boundary
+// and the dispatch gate still resolve the value against the origin and fail
+// closed when a relative asset has no usable origin (see
+// absolutizeBrandingImageURL). The whitespace, length, and "//" checks keep this
+// seam a superset of the resolved-URL rules the producer applies, so a value
+// this seam accepts is never rejected later for a stored-data reason.
+func validateStoredBrandingImageValue(name, value string) error {
+	if err := validateWorkflowValue(name, value); err != nil {
+		return err
+	}
+	if value == "" {
+		return nil
+	}
+	if len(value) > maxBrandingURLBytes {
+		return fmt.Errorf("%s exceeds %d bytes", name, maxBrandingURLBytes)
+	}
+	if strings.ContainsFunc(value, unicode.IsSpace) {
+		return fmt.Errorf("%s must not contain whitespace", name)
+	}
+	if strings.HasPrefix(value, "/") {
+		if strings.HasPrefix(value, "//") {
+			return fmt.Errorf("%s has invalid URL %q", name, value)
+		}
+		return nil
+	}
+	return validatePublicHTTPURL(name, value)
+}
+
+// ValidateStoredCustomBrandingField applies the authoritative stored-data
+// branding rules to one present custom_json branding field value. A non-string
+// value (including an explicit JSON null) or a string the branding validation
+// rejects returns a non-nil error naming the field, so a caller (the migration
+// preflight) can fail closed with the same rules the typed and dispatch
+// boundaries enforce instead of re-implementing them. The seam is the union of
+// the typed-boundary and dispatch-gate rules for each branding field: the URL
+// text fields and the image branding keys carry the dispatch control-character
+// safety rule (validateWorkflowValue), the URL text fields additionally carry the
+// absolute http(s) validateBrandingURL rule, company_name carries
+// validateCompanyName (its own control-character and length rule), and the image
+// keys carry validateStoredBrandingImageValue.
+//
+// The seam deliberately inspects only properties of the stored value. It does
+// NOT require a configured public origin: resolving a server-relative image
+// ("/upload/...") against an origin happens at the build-spec producer boundary
+// (absolutizeBrandingImageURL), so the schema-285 preflight aborts only on
+// genuinely invalid stored data, not on a deployment lacking a public origin.
+func ValidateStoredCustomBrandingField(field string, value any) error {
+	stringValue, ok := value.(string)
+	if !ok {
+		return fmt.Errorf("%s must be a string", field)
+	}
+	switch field {
+	case "website_url", "privacy_policy_url", "download_url":
+		if err := validateWorkflowValue(field, stringValue); err != nil {
+			return err
+		}
+		return validateBrandingURL(field, stringValue)
+	case "company_name":
+		return validateCompanyName(stringValue)
+	case "app_icon_url", "app_logo_url", "privacy_screen_url":
+		return validateStoredBrandingImageValue(field, stringValue)
+	default:
+		return fmt.Errorf("unsupported custom branding field %q", field)
+	}
 }
 
 func validateHost(value string) error {

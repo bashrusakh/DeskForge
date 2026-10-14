@@ -89,8 +89,35 @@
   "CustomClientRelayServerInvalidFormat": {
     "One": "Relay server must be a valid IP address or a host with an optional port (e.g. relay.example.com or 1.2.3.4:21117)."
   },
+  "CustomClientWebsiteUrlInvalidFormat": {
+    "One": "Website URL must be an absolute http:// or https:// URL."
+  },
+  "CustomClientPrivacyPolicyInvalidFormat": {
+    "One": "Privacy policy URL must be an absolute http:// or https:// URL."
+  },
+  "CustomClientDownloadUrlInvalidFormat": {
+    "One": "Download URL must be an absolute http:// or https:// URL."
+  },
+  "CustomClientCompanyNameInvalidFormat": {
+    "One": "Company name must be at most 256 bytes."
+  },
+  "CustomClientAppIconUrlInvalidFormat": {
+    "One": "App icon must be an absolute public http:// or https:// URL, or a local /upload/... path whose public API server is configured."
+  },
+  "CustomClientAppLogoUrlInvalidFormat": {
+    "One": "App logo must be an absolute public http:// or https:// URL, or a local /upload/... path whose public API server is configured."
+  },
+  "CustomClientPrivacyScreenUrlInvalidFormat": {
+    "One": "Privacy screen image must be an absolute public http:// or https:// URL, or a local /upload/... path whose public API server is configured."
+  },
   "CustomClientFieldInvalidFormat": {
     "One": "The value has an invalid format for the selected platform."
+  },
+  "CustomClientFieldIncompatible": {
+    "One": "This value cannot be combined with the current requirements."
+  },
+  "CustomClientPassApproveModeIncompatible": {
+    "One": "Session approval mode must be “Password” when connection management is hidden (unattended, password-only configuration)."
   },
   "CustomClientUseServerKey": {
     "One": "Use the server's public key"
@@ -908,7 +935,7 @@
     "One": "Connection Direction"
   },
   "IncomingOnly": {
-    "One": "Incoming Only"
+    "One": "Incoming Only (QuickSupport)"
   },
   "OutgoingOnly": {
     "One": "Outgoing Only"
@@ -1111,11 +1138,77 @@
   "AppIcon": {
     "One": "App Icon (PNG)"
   },
+  "ImageAttachFileButton": {
+    "One": "Upload file (≤5 MB)"
+  },
+  "ImageAttachLinkPlaceholder": {
+    "One": "or paste http(s)…"
+  },
+  "ImageAttachClear": {
+    "One": "Clear"
+  },
+  "ImageAttachPreviewEmpty": {
+    "One": "No preview"
+  },
+  "BrandingImagesMechanicsNote": {
+    "One": "Files are stored on the server; at build time the link is automatically resolved against the API server address. A pasted link must be a publicly reachable http(s) URL."
+  },
   "AppLogo": {
     "One": "App Logo (PNG)"
   },
   "PrivacyScreen": {
     "One": "Privacy screen (PNG)"
+  },
+  "ImageFieldNoteIcon": {
+    "One": "Required: PNG, square; 256×256 ideal (minimum 16×16)"
+  },
+  "ImageFieldNoteLogo": {
+    "One": "Required: PNG; up to 300×60 ideal (render stops at 300×60)"
+  },
+  "ImageFieldNoteScreen": {
+    "One": "Required: PNG (shown fullscreen)"
+  },
+  "ImageRangeIcon": {
+    "One": "Accepted: square 16×16–4096×4096; larger than 256×256 is downscaled to 256 for Windows icons; file ≤5 MB, URL ≤10 MB"
+  },
+  "ImageRangeLogo": {
+    "One": "Accepted: PNG up to 4096×4096; file ≤5 MB, URL ≤10 MB"
+  },
+  "ImageRangeScreen": {
+    "One": "Accepted: PNG up to 4096×4096; file ≤5 MB, URL ≤20 MB"
+  },
+  "ImageFieldPngOnlyError": {
+    "One": "Only PNG images are allowed"
+  },
+  "ImageFieldSizeError": {
+    "One": "File exceeds the 5 MB upload limit"
+  },
+  "ImageFieldSquareError": {
+    "One": "Icon must be a square PNG at least 16×16 pixels"
+  },
+  "ImageFieldNotImageError": {
+    "One": "The file could not be read as an image"
+  },
+  "ImageFieldUploadFailedError": {
+    "One": "Upload failed"
+  },
+  "WebsiteUrl": {
+    "One": "Website (About)"
+  },
+  "WebsiteUrlHint": {
+    "One": "Web link shown in the client's About dialog, e.g. https://example.com."
+  },
+  "PrivacyPolicy": {
+    "One": "Privacy Policy"
+  },
+  "PrivacyPolicyHint": {
+    "One": "Privacy policy web page URL, e.g. https://example.com/privacy. This is a web link, not the Privacy screen image."
+  },
+  "DirectionHint": {
+    "One": "Incoming only (QuickSupport) — a QuickSupport-style client: allows incoming remote support connections while hiding or disabling normal outgoing connections to other devices."
+  },
+  "HideConnectionManagementHint": {
+    "One": "Hides the separate local Connection Manager UI for incoming sessions. Requires an unattended, password-only configuration."
   },
   "Upload": {
     "One": "Upload"

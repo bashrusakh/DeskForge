@@ -137,13 +137,14 @@ function fixture(platform = 'linux') {
   vm.createContext(context)
   vm.runInContext(between('    const requiredFieldNames', '    const useServerKey') +
     between('    const useServerKey', '    const isFieldInvalid') +
-    between('    const isFieldInvalid', '    const validateBuildForm') +
+    between('    const isFieldInvalid', '    const resetFormFields') +
     // Real lifecycleGuard (house per-key generation pattern) so the picker's
     // race-guard logic is exercised as implemented, not as a copy.
     between('    const requestGenerations = Object.create(null)', '    // B-017: при silent=true') + `
     lifecycleGuard.mounted = true;
     globalThis.api = { rules, requiredFieldSet, invalidFields, serverFieldErrors,
       serverFieldError, serverFieldMessage, applyServerFieldErrors,
+      applyUploadFieldError, validateBuildForm,
       snapshotSubmittedFields, isSubmittedSnapshotCurrent, reportCreateBuildFailure,
       useServerKey, isFieldInvalid, isRequiredField, clearFieldError, syncFieldAria,
       localAddressPicker, openLocalAddressPicker, useLocalAddress, closeLocalAddressPicker,
@@ -489,15 +490,94 @@ test('server field errors map to localized per-field messages and invalidFields'
     { field: 'server_ip', code: 'invalid_endpoint' },
     { field: 'key', code: 'required' },
     { field: 'api_server', code: 'invalid_format' },
+    { field: 'download_url', code: 'invalid_format' },
+    { field: 'company_name', code: 'invalid_format' },
   ])
   assert.equal(applied, true)
   // `required` reuses the existing per-field required key.
   assert.equal(ctx.api.serverFieldError('key'), 'CustomClientKeyRequired')
   assert.equal(ctx.api.serverFieldError('server_ip'), 'CustomClientHostInvalidFormat')
   assert.equal(ctx.api.serverFieldError('api_server'), 'CustomClientApiServerInvalidFormat')
+  assert.equal(ctx.api.serverFieldError('download_url'), 'CustomClientDownloadUrlInvalidFormat')
+  // company_name (optional, not locally required) maps its server length-cap code
+  // to the same inline error channel as the URL branding fields.
+  assert.equal(ctx.api.serverFieldError('company_name'), 'CustomClientCompanyNameInvalidFormat')
   // invalidFields follows the existing highlight/ARIA schema.
-  assert.deepEqual(Object.keys(ctx.api.invalidFields.value).sort(), ['api_server', 'key', 'server_ip'])
+  assert.deepEqual(Object.keys(ctx.api.invalidFields.value).sort(), ['api_server', 'company_name', 'download_url', 'key', 'server_ip'])
   assert.equal(ctx.api.isFieldInvalid('server_ip'), true)
+})
+
+test('an active image-upload error is preserved by validateBuildForm and blocks submit', async () => {
+  // F-1: validateBuildForm wipes serverFieldErrors/invalidFields before
+  // formRef.validate, but image fields are optional with no rules and the
+  // create response carries no per-field codes for them, so a client-side
+  // guard error (e.g. >5 MB / non-PNG / non-square icon) would be dropped at
+  // submit and the build would proceed with the rejected/old branding value.
+  // The real implementation must keep the inline error visible, block submit,
+  // and self-clear once the user fixes or edits the field (applyUploadFieldError
+  // consumers clear the error on a new attempt or on input).
+  const ctx = fixture('windows')
+  ctx.formRef.value = { validate: async () => true, fields: [], scrollToField: () => {} }
+  ctx.api.applyUploadFieldError('app_icon_url', 'ImageFieldSizeError')
+  const ok = await ctx.api.validateBuildForm()
+  assert.equal(ok, false, 'submit must stay blocked while an image-upload error is active')
+  assert.equal(ctx.api.serverFieldError('app_icon_url'), 'ImageFieldSizeError', 'inline error must remain displayed at submit')
+  assert.equal(ctx.api.isFieldInvalid('app_icon_url'), true, 'ARIA must keep the field marked invalid')
+  // Once the field is fixed (uploadImage/input clears the error), submit passes
+  // and the plain wipe still clears every remaining error map.
+  ctx.api.clearFieldError('app_icon_url')
+  assert.equal(await ctx.api.validateBuildForm(), true)
+  assert.equal(ctx.api.serverFieldError('app_icon_url'), '')
+  assert.deepEqual(Object.keys(ctx.api.serverFieldErrors.value), [])
+})
+
+test('a hide_cm/approve-mode conflict blocks submit locally with the inline incompatibility', async () => {
+  // The server owns the rule that hide_cm requires pass_approve_mode ===
+  // 'password' (ValidateHiddenConnectionManagement). No local rule covers that
+  // pair, so without a submit guard formRef.validate passes (the form's default
+  // is 'password-click'), the create is sent, and the server rejects it after a
+  // wasted round trip while the inline error blips away. Reproduce the exact
+  // conflict: the guard must block locally and (re)surface the same inline
+  // message the change handlers use, without switching the approve mode.
+  const ctx = fixture('linux')
+  ctx.formRef.value = { validate: async () => true, fields: [], scrollToField: () => {} }
+  ctx.form.hide_cm = true
+  ctx.form.pass_approve_mode = 'password-click' // FORM_DEFAULTS value, not 'password'
+  const ok = await ctx.api.validateBuildForm()
+  assert.equal(ok, false, 'submit must be blocked while hide_cm conflicts with the approve mode')
+  assert.equal(ctx.api.serverFieldError('pass_approve_mode'), 'CustomClientPassApproveModeIncompatible',
+    'the existing inline incompatibility must be (re)surfaced')
+  assert.equal(ctx.api.isFieldInvalid('pass_approve_mode'), true, 'ARIA must mark the field invalid')
+  // The guard only blocks; it must never pick a mode for the user.
+  assert.equal(ctx.form.pass_approve_mode, 'password-click', 'approve mode must not be switched automatically')
+  // No request can be dispatched while validateBuildForm returns false: submitBuild
+  // returns before create on a failed validation.
+  const submit = between('    const submitBuild = async () => {', '\n    const deleteBuild')
+  assert.match(submit, /if \(!await validateBuildForm\(\)\) return/, 'submit must never reach create after a blocked validation')
+})
+
+test('submit proceeds when hide_cm is combined with the password approve mode', async () => {
+  const ctx = fixture('linux')
+  ctx.formRef.value = { validate: async () => true, fields: [], scrollToField: () => {} }
+  ctx.form.hide_cm = true
+  ctx.form.pass_approve_mode = 'password'
+  assert.equal(await ctx.api.validateBuildForm(), true, 'a compatible combination must still submit')
+  assert.equal(ctx.api.serverFieldError('pass_approve_mode'), '')
+})
+
+test('a non-password approve mode without hide_cm still submits and the wipe clears a stale error', async () => {
+  // Negative control: the conflict exists only while hide_cm is set, so the very
+  // common 'password-click'/'password' mode with hide_cm off must keep submitting,
+  // and the existing plain wipe must still clear a stale incompatibility.
+  const ctx = fixture('linux')
+  ctx.formRef.value = { validate: async () => true, fields: [], scrollToField: () => {} }
+  ctx.form.hide_cm = false
+  ctx.form.pass_approve_mode = 'password-click'
+  ctx.api.serverFieldErrors.value = { pass_approve_mode: 'CustomClientPassApproveModeIncompatible' }
+  ctx.api.invalidFields.value = { pass_approve_mode: ['CustomClientPassApproveModeIncompatible'] }
+  assert.equal(await ctx.api.validateBuildForm(), true, 'hide_cm off is not a conflict')
+  assert.equal(ctx.api.serverFieldError('pass_approve_mode'), '', 'the plain wipe still clears stale server errors')
+  assert.deepEqual(Object.keys(ctx.api.invalidFields.value), [])
 })
 
 test('unknown or non-displayable server fields are ignored', async () => {
@@ -773,11 +853,38 @@ test('ARIA reflects server field errors without changing required policy', async
 })
 
 test('every displayable field binds the server error to its form item', () => {
-  for (const field of ['platform', 'version', 'app_name', 'server_ip', 'key', 'api_server', 'relay_server', 'permanent_password']) {
+  for (const field of ['platform', 'version', 'app_name', 'server_ip', 'key', 'api_server', 'relay_server',
+    'permanent_password', 'pass_approve_mode', 'website_url', 'privacy_policy_url', 'download_url', 'company_name']) {
+    // Both halves of the contract: `:error` renders the server message via the
+    // form item's documented display source, and `prop` registers the item with
+    // the form so focusFirstInvalid can reach it.
     assert.ok(
       sfc.includes(`serverFieldError('${field}')`),
       `field ${field} must bind :error to the server message`
     )
+    assert.ok(
+      sfc.includes(`prop="${field}"`),
+      `field ${field} must register prop= on its form item`
+    )
+  }
+})
+
+test('company_name server error renders inline with its own localized message', () => {
+  // The create response reports an over-length company_name as
+  // {field, code: invalid_format} (api/service/custom_build_spec.go
+  // validateCompanyName, exposed via structuredFieldNames). Like the URL
+  // branding fields, the form must render it on the field itself, not only via
+  // the generic interceptor toast.
+  const item = between("            <el-form-item :label=\"T('CompanyName')\"", '\n            </el-form-item>')
+  assert.match(item, /prop="company_name"/)
+  assert.match(item, /:error="serverFieldError\('company_name'\) \|\| undefined"/)
+  assert.match(item, /:id="fieldInputId\('company_name'\)"/)
+  assert.match(item, /:aria-invalid="isFieldInvalid\('company_name'\)"/)
+  assert.match(item, /@input="clearFieldError\('company_name'\)"/)
+  assert.match(item, /<span :id="fieldErrorId\('company_name'\)" aria-live="polite">\{\{ error \}\}<\/span>/)
+  for (const lang of ['en', 'ru', 'zh_CN']) {
+    const messages = JSON.parse(readFileSync(new URL(`../src/utils/i18n/${lang}.json`, import.meta.url), 'utf8'))
+    assert.equal(typeof messages.CustomClientCompanyNameInvalidFormat?.One, 'string', `${lang} must define CustomClientCompanyNameInvalidFormat`)
   }
 })
 

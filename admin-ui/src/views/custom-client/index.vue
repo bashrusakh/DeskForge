@@ -251,13 +251,88 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item :label="T('CompanyName')">
-              <el-input v-model="form.company_name" />
+            <el-form-item :label="T('CompanyName')" prop="company_name" :error="serverFieldError('company_name') || undefined">
+              <el-input
+                v-model="form.company_name"
+                :id="fieldInputId('company_name')"
+                :aria-invalid="isFieldInvalid('company_name')"
+                :aria-describedby="isFieldInvalid('company_name') ? fieldErrorId('company_name') : undefined"
+                :validate-event="false"
+                @input="clearFieldError('company_name')"
+              />
+              <template #error="{ error }">
+                <span :id="fieldErrorId('company_name')" aria-live="polite">{{ error }}</span>
+              </template>
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item :label="T('CustomUrl')">
-              <el-input v-model="form.download_url" placeholder="download URL" />
+            <el-form-item :label="T('CustomUrl')" prop="download_url" :error="serverFieldError('download_url') || undefined">
+              <el-input
+                v-model="form.download_url"
+                placeholder="download URL"
+                :id="fieldInputId('download_url')"
+                :aria-invalid="isFieldInvalid('download_url')"
+                :aria-describedby="isFieldInvalid('download_url') ? fieldErrorId('download_url') : undefined"
+                :validate-event="false"
+                @input="clearFieldError('download_url')"
+              />
+              <template #error="{ error }">
+                <span :id="fieldErrorId('download_url')" aria-live="polite">{{ error }}</span>
+              </template>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="8">
+            <el-form-item :label="T('WebsiteUrl')" prop="website_url" :error="serverFieldError('website_url') || undefined">
+              <el-input
+                v-model="form.website_url"
+                placeholder="https://example.com"
+                clearable
+                :id="fieldInputId('website_url')"
+                :aria-required="isRequiredField('website_url')"
+                :aria-invalid="isFieldInvalid('website_url')"
+                :aria-describedby="isFieldInvalid('website_url') ? fieldErrorId('website_url') : undefined"
+                :validate-event="false"
+                @input="clearFieldError('website_url')"
+              >
+                <template #append>
+                  <el-tooltip :content="T('WebsiteUrlHint')" placement="top">
+                    <button type="button" class="endpoint-hint-trigger" :aria-label="T('WebsiteUrlHint')">
+                      <el-icon aria-hidden="true"><InfoFilled /></el-icon>
+                    </button>
+                  </el-tooltip>
+                </template>
+              </el-input>
+              <template #error="{ error }">
+                <span :id="fieldErrorId('website_url')" aria-live="polite">{{ error }}</span>
+              </template>
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item :label="T('PrivacyPolicy')" prop="privacy_policy_url" :error="serverFieldError('privacy_policy_url') || undefined">
+              <el-input
+                v-model="form.privacy_policy_url"
+                placeholder="https://example.com/privacy"
+                clearable
+                :id="fieldInputId('privacy_policy_url')"
+                :aria-required="isRequiredField('privacy_policy_url')"
+                :aria-invalid="isFieldInvalid('privacy_policy_url')"
+                :aria-describedby="isFieldInvalid('privacy_policy_url') ? fieldErrorId('privacy_policy_url') : undefined"
+                :validate-event="false"
+                @input="clearFieldError('privacy_policy_url')"
+              >
+                <template #append>
+                  <el-tooltip :content="T('PrivacyPolicyHint')" placement="top">
+                    <button type="button" class="endpoint-hint-trigger" :aria-label="T('PrivacyPolicyHint')">
+                      <el-icon aria-hidden="true"><InfoFilled /></el-icon>
+                    </button>
+                  </el-tooltip>
+                </template>
+              </el-input>
+              <template #error="{ error }">
+                <span :id="fieldErrorId('privacy_policy_url')" aria-live="polite">{{ error }}</span>
+              </template>
             </el-form-item>
           </el-col>
         </el-row>
@@ -265,12 +340,24 @@
         <el-divider content-position="left">{{ T('Security') }}</el-divider>
         <el-row :gutter="20">
           <el-col :span="8">
-            <el-form-item :label="T('PasswordApproveMode')">
-              <el-select v-model="form.pass_approve_mode" style="width:100%">
+            <el-form-item :label="T('PasswordApproveMode')" prop="pass_approve_mode" :error="serverFieldError('pass_approve_mode') || undefined">
+              <el-select
+                v-model="form.pass_approve_mode"
+                style="width:100%"
+                :id="fieldInputId('pass_approve_mode')"
+                :aria-required="isRequiredField('pass_approve_mode')"
+                :aria-invalid="isFieldInvalid('pass_approve_mode')"
+                :aria-describedby="isFieldInvalid('pass_approve_mode') ? fieldErrorId('pass_approve_mode') : undefined"
+                :validate-event="false"
+                @change="onApproveModeChange"
+              >
                 <el-option :label="T('Password')" value="password" />
                 <el-option :label="T('Click')" value="click" />
                 <el-option :label="T('PasswordAndClick')" value="password-click" />
               </el-select>
+              <template #error="{ error }">
+                <span :id="fieldErrorId('pass_approve_mode')" aria-live="polite">{{ error }}</span>
+              </template>
             </el-form-item>
           </el-col>
           <el-col :span="8">
@@ -315,7 +402,12 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item :label="T('Direction')">
+            <el-form-item>
+              <template #label>
+                <el-tooltip :content="T('DirectionHint')" placement="top">
+                  <span>{{ T('Direction') }}</span>
+                </el-tooltip>
+              </template>
               <el-select v-model="form.direction" style="width:100%">
                 <el-option :label="T('IncomingOnly')" value="incoming" />
                 <el-option :label="T('OutgoingOnly')" value="outgoing" />
@@ -343,7 +435,7 @@
           <el-col :span="6">
             <el-form-item>
               <template #label>
-                <el-tooltip content="Remove the connection management UI from the client tray/menu" placement="top">
+                <el-tooltip :content="T('HideConnectionManagementHint')" placement="top">
                   <span>{{ T('HideConnectionManagement') }}</span>
                 </el-tooltip>
               </template>
@@ -398,38 +490,72 @@
         </el-row>
 
         <el-divider content-position="left">{{ T('Branding') }}</el-divider>
+        <p class="branding-mechanics-note">{{ T('BrandingImagesMechanicsNote') }}</p>
         <el-row :gutter="20">
           <el-col :span="8">
-            <el-form-item :label="T('AppIcon')">
-              <el-input v-model="form.app_icon_url" placeholder="/upload/20260101/icon.png" clearable>
-                <template #append>
-                  <el-upload :show-file-list="false" :auto-upload="true" :http-request="(opts) => uploadImage(opts, 'app_icon_url')" accept="image/png">
-                    <el-button>{{ T('Upload') }}</el-button>
-                  </el-upload>
-                </template>
-              </el-input>
+            <el-form-item :label="T('AppIcon')" prop="app_icon_url" :error="serverFieldError('app_icon_url') || undefined">
+              <image-attach-field
+                v-model="form.app_icon_url"
+                :input-id="fieldInputId('app_icon_url')"
+                :required="isRequiredField('app_icon_url')"
+                :invalid="isFieldInvalid('app_icon_url')"
+                :described-by="isFieldInvalid('app_icon_url') ? fieldErrorId('app_icon_url') : undefined"
+                :upload-request="(opts) => uploadImage(opts, 'app_icon_url')"
+                :file-button-label="T('ImageAttachFileButton')"
+                :link-placeholder="T('ImageAttachLinkPlaceholder')"
+                :clear-label="T('ImageAttachClear')"
+                :preview-empty-label="T('ImageAttachPreviewEmpty')"
+                :range-hint="T('ImageRangeIcon')"
+                :note-text="T('ImageFieldNoteIcon')"
+                @input="clearFieldError('app_icon_url')"
+              />
+              <template #error="{ error }">
+                <span :id="fieldErrorId('app_icon_url')" aria-live="polite">{{ error }}</span>
+              </template>
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item :label="T('AppLogo')">
-              <el-input v-model="form.app_logo_url" placeholder="/upload/20260101/logo.png" clearable>
-                <template #append>
-                  <el-upload :show-file-list="false" :auto-upload="true" :http-request="(opts) => uploadImage(opts, 'app_logo_url')" accept="image/png">
-                    <el-button>{{ T('Upload') }}</el-button>
-                  </el-upload>
-                </template>
-              </el-input>
+            <el-form-item :label="T('AppLogo')" prop="app_logo_url" :error="serverFieldError('app_logo_url') || undefined">
+              <image-attach-field
+                v-model="form.app_logo_url"
+                :input-id="fieldInputId('app_logo_url')"
+                :required="isRequiredField('app_logo_url')"
+                :invalid="isFieldInvalid('app_logo_url')"
+                :described-by="isFieldInvalid('app_logo_url') ? fieldErrorId('app_logo_url') : undefined"
+                :upload-request="(opts) => uploadImage(opts, 'app_logo_url')"
+                :file-button-label="T('ImageAttachFileButton')"
+                :link-placeholder="T('ImageAttachLinkPlaceholder')"
+                :clear-label="T('ImageAttachClear')"
+                :preview-empty-label="T('ImageAttachPreviewEmpty')"
+                :range-hint="T('ImageRangeLogo')"
+                :note-text="T('ImageFieldNoteLogo')"
+                @input="clearFieldError('app_logo_url')"
+              />
+              <template #error="{ error }">
+                <span :id="fieldErrorId('app_logo_url')" aria-live="polite">{{ error }}</span>
+              </template>
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item :label="T('PrivacyScreen')">
-              <el-input v-model="form.privacy_screen_url" placeholder="/upload/20260101/privacy.png" clearable>
-                <template #append>
-                  <el-upload :show-file-list="false" :auto-upload="true" :http-request="(opts) => uploadImage(opts, 'privacy_screen_url')" accept="image/png">
-                    <el-button>{{ T('Upload') }}</el-button>
-                  </el-upload>
-                </template>
-              </el-input>
+            <el-form-item :label="T('PrivacyScreen')" prop="privacy_screen_url" :error="serverFieldError('privacy_screen_url') || undefined">
+              <image-attach-field
+                v-model="form.privacy_screen_url"
+                :input-id="fieldInputId('privacy_screen_url')"
+                :required="isRequiredField('privacy_screen_url')"
+                :invalid="isFieldInvalid('privacy_screen_url')"
+                :described-by="isFieldInvalid('privacy_screen_url') ? fieldErrorId('privacy_screen_url') : undefined"
+                :upload-request="(opts) => uploadImage(opts, 'privacy_screen_url')"
+                :file-button-label="T('ImageAttachFileButton')"
+                :link-placeholder="T('ImageAttachLinkPlaceholder')"
+                :clear-label="T('ImageAttachClear')"
+                :preview-empty-label="T('ImageAttachPreviewEmpty')"
+                :range-hint="T('ImageRangeScreen')"
+                :note-text="T('ImageFieldNoteScreen')"
+                @input="clearFieldError('privacy_screen_url')"
+              />
+              <template #error="{ error }">
+                <span :id="fieldErrorId('privacy_screen_url')" aria-live="polite">{{ error }}</span>
+              </template>
             </el-form-item>
           </el-col>
         </el-row>
@@ -595,6 +721,7 @@ import { InfoFilled, Key, Loading, Location } from '@element-plus/icons-vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import PageSection from '@/components/ui/PageSection.vue'
 import DataTable from '@/components/ui/DataTable.vue'
+import ImageAttachField from '@/components/ui/ImageAttachField.vue'
 
 // Версии загружаются с API (GET /admin/custom_build/versions) при монтировании.
 // Список формируется из GitHub-релизов форка с тегами offline-assets-*.
@@ -614,7 +741,7 @@ const extractApiError = (error, fallbackKey) => {
 
 export default defineComponent({
   name: 'CustomClientBuilds',
-  components: { PageHeader, PageSection, DataTable, InfoFilled, Key, Loading, Location },
+  components: { PageHeader, PageSection, DataTable, ImageAttachField, InfoFilled, Key, Loading, Location },
   setup () {
     const formRef = ref(null)
     const showPermanentPassword = ref(false)
@@ -628,6 +755,8 @@ export default defineComponent({
       relay_server: '',
       company_name: '',
       download_url: '',
+      website_url: '',
+      privacy_policy_url: '',
       direction: 'both',
       pass_approve_mode: 'password-click',
       permanent_password: '',
@@ -730,12 +859,130 @@ export default defineComponent({
       relay_server: 'CustomClientRelayServerInvalidFormat',
       version: 'CustomClientFieldInvalidFormat',
       app_name: 'CustomClientFieldInvalidFormat',
+      website_url: 'CustomClientWebsiteUrlInvalidFormat',
+      privacy_policy_url: 'CustomClientPrivacyPolicyInvalidFormat',
+      download_url: 'CustomClientDownloadUrlInvalidFormat',
+      company_name: 'CustomClientCompanyNameInvalidFormat',
+      app_icon_url: 'CustomClientAppIconUrlInvalidFormat',
+      app_logo_url: 'CustomClientAppLogoUrlInvalidFormat',
+      privacy_screen_url: 'CustomClientPrivacyScreenUrlInvalidFormat',
+    }
+    // `incompatible` marks a value that is valid on its own but cannot combine
+    // with the current requirements (hide_cm — see ValidateHiddenConnectionManagement).
+    // Unlike format codes, the remedy is another field's value, so the message
+    // explains the combination rather than the value's format.
+    const serverIncompatibleMessageKeys = {
+      pass_approve_mode: 'CustomClientPassApproveModeIncompatible',
     }
     const serverFieldMessage = (field, code) => {
       if (code === 'required') return requiredMessage(field)
+      if (code === 'incompatible') return T(serverIncompatibleMessageKeys[field] || 'CustomClientFieldIncompatible')
       return T(serverFormatMessageKeys[field] || 'CustomClientFieldInvalidFormat')
     }
     const serverFieldError = (field) => serverFieldErrors.value[field] || ''
+    // Optional fields the form can display server errors for. They are never
+    // locally required (requiredFieldNames), so their errors arrive only from
+    // the create response: URL format codes (website_url/privacy_policy_url/
+    // download_url), the company_name length cap, the branding image URL format
+    // codes (app_icon_url/app_logo_url/privacy_screen_url), and the hide_cm/
+    // pass_approve_mode compatibility code.
+    const serverErrorFieldNames = [
+      ...requiredFieldNames, 'website_url', 'privacy_policy_url', 'download_url', 'company_name', 'pass_approve_mode',
+      // Image branding fields: no local format rules, but upload rejections and
+      // server create-response reasons (including an unresolvable asset URL) for
+      // them are displayed inline.
+      'app_icon_url', 'app_logo_url', 'privacy_screen_url',
+    ]
+
+    // --- Image-field upload guard ---
+    // The upload endpoint (/admin/file/upload) accepts PNG only, up to 5 MB by
+    // actual bytes (api/http/controller/admin/file.go). Guard the selection
+    // client-side so the obvious rejections never leave the browser, and map a
+    // server-side rejection (a concurrent editor can consume the whole cap) to
+    // the same per-field inline error instead of only a global toast.
+    const IMAGE_UPLOAD_FIELDS = ['app_icon_url', 'app_logo_url', 'privacy_screen_url']
+    const IMAGE_UPLOAD_MAX_BYTES = 5 * 1024 * 1024
+    const applyUploadFieldError = (field, message) => {
+      if (!IMAGE_UPLOAD_FIELDS.includes(field)) return
+      serverFieldErrors.value = { ...serverFieldErrors.value, [field]: message }
+      invalidFields.value = { ...invalidFields.value, [field]: [message] }
+      syncFieldAria()
+    }
+    // Classifies a rejected upload envelope/HTTP error into a localized inline
+    // message. The two known server rejections use fixed English strings
+    // ("file too large (max 5 MB)", "only PNG files allowed"); matching them
+    // keeps the field error consistent with the client-side guard messages.
+    const uploadRejectionMessage = (e) => {
+      const raw = Number.isInteger(e?.code) ? e?.message : e?.response?.data?.message
+      const text = typeof raw === 'string' ? raw : ''
+      if (/file too large/i.test(text)) return T('ImageFieldSizeError')
+      if (/only PNG/i.test(text)) return T('ImageFieldPngOnlyError')
+      return T('ImageFieldUploadFailedError')
+    }
+    // Decodes a selected File cheaply to check icon geometry. Resolves null
+    // when the bytes are not a decodable image. Never called for pasted URLs.
+    const readImageDimensions = (file) => new Promise((resolve) => {
+      const url = URL.createObjectURL(file)
+      const image = new Image()
+      image.onload = () => {
+        URL.revokeObjectURL(url)
+        resolve({ width: image.naturalWidth, height: image.naturalHeight })
+      }
+      image.onerror = () => {
+        URL.revokeObjectURL(url)
+        resolve(null)
+      }
+      image.src = url
+    })
+    const uploadImage = async (opts, field) => {
+      if (!IMAGE_UPLOAD_FIELDS.includes(field)) return
+      const file = opts?.file
+      if (!file) return
+      clearFieldError(field)
+      if (file.type !== 'image/png' && !file.name.toLowerCase().endsWith('.png')) {
+        applyUploadFieldError(field, T('ImageFieldPngOnlyError'))
+        return
+      }
+      if (file.size > IMAGE_UPLOAD_MAX_BYTES) {
+        applyUploadFieldError(field, T('ImageFieldSizeError'))
+        return
+      }
+      if (field === 'app_icon_url') {
+        const dimensions = await readImageDimensions(file)
+        if (!dimensions) {
+          applyUploadFieldError(field, T('ImageFieldNotImageError'))
+          return
+        }
+        if (dimensions.width !== dimensions.height || dimensions.width < 16) {
+          applyUploadFieldError(field, T('ImageFieldSquareError'))
+          return
+        }
+      }
+      try {
+        const fd = new FormData()
+        fd.append('file', file)
+        const res = await uploadFile(fd)
+        if (res?.data?.url) {
+          form[field] = res.data.url
+          ElMessage.success(T('OperationSuccess'))
+        } else {
+          applyUploadFieldError(field, T('ImageFieldUploadFailedError'))
+        }
+      } catch (e) {
+        // The request is configured with skipErrorMessage, so the interceptor
+        // does not toast here: the field inline error below is the only
+        // failure surface. Unexpected non-axios failures are still logged.
+        const isInterceptorHandledFailure = axios.isAxiosError(e)
+          || Boolean(e?.response || e?.request)
+          || (Number.isInteger(e?.code) && e.code !== 0)
+        if (isInterceptorHandledFailure) {
+          applyUploadFieldError(field, uploadRejectionMessage(e))
+        } else {
+          applyUploadFieldError(field, T('ImageFieldUploadFailedError'))
+          console.error(e)
+        }
+      }
+    }
 
     // The requirement inputs (platform, hide_cm — see requiredFieldSet) decide
     // which fields the server requires, so a change to either invalidates any
@@ -746,7 +993,7 @@ export default defineComponent({
       snapshot.platform === form.platform && snapshot.hide_cm === form.hide_cm
 
     // Apply the per-field reasons from a create response. Fields the form can
-    // display (requiredFieldNames) are highlighted; unknown fields are ignored.
+    // display (serverErrorFieldNames) are highlighted; unknown fields are ignored.
     // The server message is the display source (`:error`), while invalidFields
     // keeps ARIA and focus behavior aligned with the existing schema.
     //
@@ -759,7 +1006,7 @@ export default defineComponent({
     // value changed are dropped. Without a snapshot the caller is assumed to be
     // applying a response for the current state (legacy/tests).
     const applyServerFieldErrors = async (fields, snapshot) => {
-      const applicable = (fields || []).filter((entry) => requiredFieldNames.includes(entry.field))
+      const applicable = (fields || []).filter((entry) => serverErrorFieldNames.includes(entry.field))
       if (!applicable.length) return false
       if (snapshot && !submittedRequirementInputsMatch(snapshot)) return false
       const current = snapshot
@@ -968,7 +1215,7 @@ export default defineComponent({
     const syncFieldAria = async () => {
       if (typeof document === 'undefined') return
       await nextTick()
-      for (const field of requiredFieldNames) {
+      for (const field of serverErrorFieldNames) {
         const control = document.getElementById(fieldInputId(field))
         if (!control) continue
         const invalid = isFieldInvalid(field)
@@ -996,8 +1243,27 @@ export default defineComponent({
       formRef.value?.clearValidate?.(field)
       syncFieldAria()
     }
+    // The hide_cm compatibility rule is server-owned
+    // (ValidateHiddenConnectionManagement: pass_approve_mode must be
+    // "password"). Surfacing explains the combination through the same
+    // field-error pipeline a create response uses (`incompatible` code path in
+    // serverFieldMessage); approve mode is never switched automatically.
+    const hideCmApproveModeConflict = () =>
+      form.hide_cm && form.pass_approve_mode !== 'password'
+    const surfacePassApproveModeIncompatibility = async () => {
+      const message = serverFieldMessage('pass_approve_mode', 'incompatible')
+      serverFieldErrors.value = { ...serverFieldErrors.value, pass_approve_mode: message }
+      invalidFields.value = { ...invalidFields.value, pass_approve_mode: [message] }
+      await focusFirstInvalid({ pass_approve_mode: [message] })
+    }
     const onHideConnectionManagementChange = () => {
       clearFieldError('permanent_password')
+      clearFieldError('pass_approve_mode')
+      if (hideCmApproveModeConflict()) surfacePassApproveModeIncompatibility()
+    }
+    const onApproveModeChange = () => {
+      clearFieldError('pass_approve_mode')
+      if (hideCmApproveModeConflict()) surfacePassApproveModeIncompatibility()
     }
     const onPlatformChange = () => {
       invalidFields.value = {}
@@ -1006,7 +1272,7 @@ export default defineComponent({
       syncFieldAria()
     }
     const focusFirstInvalid = async (fields) => {
-      const firstInvalidField = requiredFieldNames.find((field) => fields?.[field])
+      const firstInvalidField = serverErrorFieldNames.find((field) => fields?.[field])
       if (!firstInvalidField) return
       await nextTick()
       const field = formRef.value?.fields?.find((entry) => entry.prop === firstInvalidField)
@@ -1017,6 +1283,31 @@ export default defineComponent({
     }
     const validateBuildForm = async () => {
       if (!formRef.value) return false
+      // hide_cm requires pass_approve_mode === 'password' (server-owned
+      // compatibility rule, ValidateHiddenConnectionManagement). No local rule
+      // covers that pair, so formRef.validate would pass and the create would be
+      // rejected by the server after a needless request, with the inline
+      // incompatibility hidden for the duration of the round trip. Re-check the
+      // same helper the change handlers use, keep the existing inline error
+      // visible through the shared field-error pipeline, and block submit.
+      if (hideCmApproveModeConflict()) {
+        await surfacePassApproveModeIncompatibility()
+        return false
+      }
+      // An active image-upload error (client-side guard or a rejected upload
+      // response, applied by applyUploadFieldError) is invisible to
+      // formRef.validate: image fields are optional with no rules and the
+      // create response carries no per-field codes for them, so the plain wipe
+      // below would drop the inline error and submit with branding silently
+      // dropped. Snapshot the upload-field messages and, while one is active,
+      // block submit and keep it displayed either way; both display paths are
+      // self-clearing (input @input / uploadImage on a new attempt), so an
+      // error reaching submit is current for the value being sent.
+      const activeUploadMessages = Object.fromEntries(
+        IMAGE_UPLOAD_FIELDS
+          .filter((field) => serverFieldErrors.value[field])
+          .map((field) => [field, serverFieldErrors.value[field]]),
+      )
       invalidFields.value = {}
       serverFieldErrors.value = {}
       const valid = await formRef.value.validate().catch(async (fields) => {
@@ -1024,6 +1315,20 @@ export default defineComponent({
         await focusFirstInvalid(fields)
         return false
       })
+      // serverFieldErrors stores the display message, invalidFields the
+      // message array — same shapes the wipe just reset them to.
+      if (Object.keys(activeUploadMessages).length) {
+        serverFieldErrors.value = { ...serverFieldErrors.value, ...activeUploadMessages }
+        invalidFields.value = {
+          ...invalidFields.value,
+          ...Object.fromEntries(Object.entries(activeUploadMessages).map(([field, message]) => [field, [message]])),
+        }
+        // Schema validation already focused its own first invalid field on
+        // failure; focus the upload error only when the schema itself passed.
+        if (valid !== false) await focusFirstInvalid(activeUploadMessages)
+        syncFieldAria()
+        return false
+      }
       return valid !== false
     }
     const canPreservePresetPassword = (presetName) =>
@@ -1185,7 +1490,7 @@ export default defineComponent({
     // Used by loadPresetIntoForm + saveCurrentAsPreset + submitBuild — extending one
     // without the other reintroduces the "saved but not restored" bug (audit §8.9).
     // platform/version/app_name are stored on the preset record itself, not in custom_json.
-    const PRESET_FIELDS = ['server_ip','key','api_server','relay_server','company_name','download_url','direction','pass_approve_mode','permanent_password','deny_lan','enable_direct_ip','auto_close','hide_cm','theme','remove_wallpaper','remove_new_version_notif','permissions_type','enable_keyboard','enable_clipboard','enable_file_transfer','enable_audio','enable_tcp','enable_remote_restart','enable_recording','enable_blocking_input','enable_remote_modi','enable_printer','enable_camera','enable_terminal','cycle_monitor','x_offline','android_app_id','app_icon_url','app_logo_url','privacy_screen_url']
+    const PRESET_FIELDS = ['server_ip','key','api_server','relay_server','company_name','download_url','website_url','privacy_policy_url','direction','pass_approve_mode','permanent_password','deny_lan','enable_direct_ip','auto_close','hide_cm','theme','remove_wallpaper','remove_new_version_notif','permissions_type','enable_keyboard','enable_clipboard','enable_file_transfer','enable_audio','enable_tcp','enable_remote_restart','enable_recording','enable_blocking_input','enable_remote_modi','enable_printer','enable_camera','enable_terminal','cycle_monitor','x_offline','android_app_id','app_icon_url','app_logo_url','privacy_screen_url']
 
     const applyServerConfigDefaults = () => {
       for (const field of Object.keys(serverConfigDefaults)) {
@@ -1285,31 +1590,6 @@ export default defineComponent({
       } catch (e) {
         // Errors are toasted globally by the axios interceptor; just log here.
         if (e !== 'cancel') console.error(e)
-      }
-    }
-
-    const uploadImage = async (opts, field) => {
-      try {
-        const file = opts.file
-        if (!file) return
-        if (file.type !== 'image/png' && !file.name.toLowerCase().endsWith('.png')) {
-          ElMessage.error('PNG only')
-          return
-        }
-        const fd = new FormData()
-        fd.append('file', file)
-        const res = await uploadFile(fd)
-        if (res?.data?.url) {
-          form[field] = res.data.url
-          ElMessage.success(T('OperationSuccess'))
-        } else {
-          throw new Error('Upload response did not include a URL')
-        }
-      } catch (e) {
-        const isInterceptorHandledFailure = axios.isAxiosError(e)
-          || Boolean(e?.response || e?.request)
-          || (Number.isInteger(e?.code) && e.code !== 0)
-        if (!isInterceptorHandledFailure) ElMessage.error('Upload failed')
       }
     }
 
@@ -1517,7 +1797,7 @@ export default defineComponent({
        useServerKey,
        serverConfigDefaults,
        localAddressPicker, openLocalAddressPicker, useLocalAddress, closeLocalAddressPicker,
-      requiredMessage, isRequiredField, fieldInputId, fieldErrorId, isFieldInvalid, serverFieldError, clearFieldError, onHideConnectionManagementChange, onPlatformChange,
+      requiredMessage, isRequiredField, fieldInputId, fieldErrorId, isFieldInvalid, serverFieldError, clearFieldError, onHideConnectionManagementChange, onApproveModeChange, onPlatformChange,
     }
   },
 })
@@ -1653,6 +1933,18 @@ export default defineComponent({
   &:hover {
     color: var(--el-color-primary-light-3);
   }
+}
+
+// Permanent under-input fact line for the image fields; follows the muted
+// secondary-text convention (.local-address-option__source). Deliberately not
+// red: it is guidance, not a validation state — errors render in #error.
+// Permanently visible mechanics note under the Branding section divider —
+// shared across all three image fields; muted, never a validation state.
+.branding-mechanics-note {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--el-text-color-secondary);
 }
 
 .local-address-note {
