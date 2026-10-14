@@ -2093,11 +2093,17 @@ func TestBrandingFetchURLWireFormBoundaries(t *testing.T) {
 	// canonicalizeHost strips at most one trailing dot — the DNS root label —
 	// so a host with a second trailing dot has an empty label and is refused
 	// instead of being dispatched as its single-dot spelling, which the
-	// fetcher would then fail to resolve late in getaddrinfo. A raw non-ASCII
-	// host, path, or query is accepted only when it can be normalized to the
-	// ASCII wire form; the dispatched value is asserted to be ASCII (IDNA host,
-	// percent-encoded path and query) while the stored value keeps the spelling
-	// the operator authored.
+	// fetcher would then fail to resolve late in getaddrinfo. A single root dot
+	// stays accepted as stored data, but the dispatched wire form drops it: the
+	// fetcher passes the host bytes to getaddrinfo, the Host header, and
+	// ssl.wrap_socket(server_hostname=...), and Python/OpenSSL does not strip
+	// the root dot for TLS certificate matching, so a dotted server_hostname
+	// fails against an ordinary certificate naming the undotted host after DNS
+	// and TCP already succeeded. A raw non-ASCII host, path, or query is
+	// accepted only when it can be normalized to the ASCII wire form; the
+	// dispatched value is asserted to be ASCII (IDNA host, percent-encoded path
+	// and query) while the stored value keeps the spelling the operator
+	// authored.
 	context := BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"}
 
 	// A second trailing dot is an empty label, not a root label: refused as a
@@ -2129,18 +2135,30 @@ func TestBrandingFetchURLWireFormBoundaries(t *testing.T) {
 		})
 	}
 
-	// A single trailing dot is the root label and stays accepted, unchanged, as
-	// a configured origin and as an absolute image host.
+	// A single trailing dot is the DNS root label: it stays accepted as a
+	// configured origin and as an absolute image host, and the persisted value
+	// keeps the operator's dotted spelling, while the dispatched wire form
+	// names the undotted host.
 	setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example.")
 	normalized, err := NormalizeCustomBuild(map[string]any{"app_icon_url": "/upload/x.png"}, context)
 	if err != nil {
 		t.Fatalf("NormalizeCustomBuild() rejected a single-trailing-dot public origin: %v", err)
 	}
-	if got, want := normalized.DispatchParams["app_icon_url"], "https://deskforge.example./upload/x.png"; got != want {
+	if got, want := normalized.DispatchParams["app_icon_url"], "https://deskforge.example/upload/x.png"; got != want {
 		t.Fatalf("dispatch[app_icon_url] = %v, want %q", got, want)
 	}
-	if _, err := NormalizeCustomBuild(map[string]any{"app_logo_url": "https://deskforge.example./logo.png"}, context); err != nil {
+	if !strings.Contains(normalized.PersistedJSON, `"app_icon_url":"/upload/x.png"`) {
+		t.Fatalf("persisted custom_json = %s, want the operator's stored relative asset", normalized.PersistedJSON)
+	}
+	normalizedLogo, err := NormalizeCustomBuild(map[string]any{"app_logo_url": "https://deskforge.example./logo.png"}, context)
+	if err != nil {
 		t.Fatalf("typed boundary rejected an absolute image with a single-trailing-dot host: %v", err)
+	}
+	if got, want := normalizedLogo.DispatchParams["app_logo_url"], "https://deskforge.example/logo.png"; got != want {
+		t.Fatalf("dispatch[app_logo_url] = %v, want %q", got, want)
+	}
+	if !strings.Contains(normalizedLogo.PersistedJSON, `"app_logo_url":"https://deskforge.example./logo.png"`) {
+		t.Fatalf("persisted custom_json = %s, want the operator's dotted spelling kept", normalizedLogo.PersistedJSON)
 	}
 
 	// An already-ASCII URL — including a punycode host and already
@@ -2364,6 +2382,122 @@ func TestBrandingFetchURLWireFormPreservesOperatorURL(t *testing.T) {
 		if got := normalized.DispatchParams["app_icon_url"]; got != value {
 			t.Fatalf("dispatch[app_icon_url] = %q, want the accepted value %q", got, value)
 		}
+	}
+}
+
+// TestBrandingFetchURLWireFormDropsRootDot pins the fetch identity of a host
+// with one terminal root dot. A resolver reads "example.com." and "example.com"
+// as the same host, but the workflow fetcher passes the host bytes to
+// getaddrinfo, the Host header, and ssl.wrap_socket(server_hostname=...), and
+// Python/OpenSSL does not strip the root dot for TLS certificate matching: a
+// dotted server_hostname fails against an ordinary certificate naming the
+// undotted host after DNS and TCP have already succeeded. The dispatched wire
+// form therefore drops exactly the one root dot, while the persisted custom_json
+// and the stored-data seam keep the operator's FQDN spelling. A second trailing
+// dot leaves an empty label and stays refused.
+func TestBrandingFetchURLWireFormDropsRootDot(t *testing.T) {
+	context := BuildRecordContext{Platform: "windows", AppName: "rustqs", Version: "1.2.3"}
+	setBrandingConfigForTest(t, "http://127.0.0.1:21114", "https://deskforge.example")
+
+	for _, tc := range []struct{ host, wireHost string }{
+		{"example.com.", "example.com"},
+		{"cdn.example.", "cdn.example"},
+	} {
+		t.Run(tc.host, func(t *testing.T) {
+			dotted := "https://" + tc.host + "/i.png"
+			plain := "https://" + tc.wireHost + "/i.png"
+
+			normalized, err := NormalizeCustomBuild(map[string]any{"app_icon_url": dotted}, context)
+			if err != nil {
+				t.Fatalf("typed boundary rejected the single-root-dot host %q: %v", tc.host, err)
+			}
+			if got := normalized.DispatchParams["app_icon_url"]; got != plain {
+				t.Fatalf("dispatch[app_icon_url] = %q, want the undotted wire form %q", got, plain)
+			}
+			if !strings.Contains(normalized.PersistedJSON, `"app_icon_url":"`+dotted+`"`) {
+				t.Fatalf("persisted custom_json = %s, want the operator's dotted spelling %q", normalized.PersistedJSON, dotted)
+			}
+
+			// The dotted and undotted spellings name the same host, so they
+			// must dispatch the same wire form.
+			plainNormalized, err := NormalizeCustomBuild(map[string]any{"app_icon_url": plain}, context)
+			if err != nil {
+				t.Fatalf("typed boundary rejected the undotted host %q: %v", tc.wireHost, err)
+			}
+			if got, plainGot := normalized.DispatchParams["app_icon_url"], plainNormalized.DispatchParams["app_icon_url"]; got != plainGot {
+				t.Fatalf("wire forms differ: %q (dotted) vs %q (undotted)", got, plainGot)
+			}
+
+			gateParams, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{"app_icon_url": dotted})
+			if err != nil {
+				t.Fatalf("dispatch gate rejected the single-root-dot host %q: %v", tc.host, err)
+			}
+			if got := gateParams["app_icon_url"]; got != plain {
+				t.Fatalf("gate[app_icon_url] = %q, want %q", got, plain)
+			}
+
+			if err := ValidateStoredCustomBrandingField("app_icon_url", dotted); err != nil {
+				t.Fatalf("stored-data seam rejected the operator's FQDN spelling %q: %v", tc.host, err)
+			}
+		})
+	}
+
+	// Only the root dot may change: the ASCII host keeps its case, and the port
+	// and every path/query/fragment byte are preserved.
+	t.Run("ascii-authority-tail", func(t *testing.T) {
+		wire := "https://CDN.Example:8443/a%2Fb?q=%2E#frag"
+		normalized, err := NormalizeCustomBuild(map[string]any{"app_icon_url": "https://CDN.Example.:8443/a%2Fb?q=%2E#frag"}, context)
+		if err != nil {
+			t.Fatalf("typed boundary rejected the dotted ASCII host: %v", err)
+		}
+		if got := normalized.DispatchParams["app_icon_url"]; got != wire {
+			t.Fatalf("dispatch[app_icon_url] = %q, want %q", got, wire)
+		}
+		plainNormalized, err := NormalizeCustomBuild(map[string]any{"app_icon_url": wire}, context)
+		if err != nil {
+			t.Fatalf("typed boundary rejected the undotted ASCII host: %v", err)
+		}
+		if got := plainNormalized.DispatchParams["app_icon_url"]; got != wire {
+			t.Fatalf("dispatch[undotted app_icon_url] = %q, want %q", got, wire)
+		}
+	})
+
+	// The non-ASCII conversion path drops the same root dot: a trailing dot the
+	// operator typed after a Unicode label, and a dotted ASCII host whose only
+	// non-ASCII bytes are in the path/query.
+	for _, tc := range []struct{ value, want string }{
+		{"https://bücher.example./и.png", "https://xn--bcher-kva.example/%D0%B8.png"},
+		{"https://example.com./и.png", "https://example.com/%D0%B8.png"},
+	} {
+		t.Run("non-ascii/"+tc.value, func(t *testing.T) {
+			normalized, err := NormalizeCustomBuild(map[string]any{"app_icon_url": tc.value}, context)
+			if err != nil {
+				t.Fatalf("typed boundary rejected %q: %v", tc.value, err)
+			}
+			if got := normalized.DispatchParams["app_icon_url"]; got != tc.want {
+				t.Fatalf("dispatch[app_icon_url] = %q, want %q", got, tc.want)
+			}
+			if !strings.Contains(normalized.PersistedJSON, `"app_icon_url":"`+tc.value+`"`) {
+				t.Fatalf("persisted custom_json = %s, want the operator's spelling %q", normalized.PersistedJSON, tc.value)
+			}
+		})
+	}
+
+	// A second trailing dot is an empty label, not a root dot: still refused at
+	// the typed boundary, the dispatch gate, and the stored seam.
+	for _, host := range []string{"example.com..", "cdn.example.."} {
+		t.Run("empty-label/"+host, func(t *testing.T) {
+			value := "https://" + host + "/i.png"
+			if _, err := NormalizeCustomBuild(map[string]any{"app_icon_url": value}, context); err == nil {
+				t.Fatalf("typed boundary accepted the empty-label host %q", host)
+			}
+			if _, err := NormalizeWorkflowDispatchParams(string(PlatformWindows), map[string]any{"app_icon_url": value}); err == nil {
+				t.Fatalf("dispatch gate accepted the empty-label host %q", host)
+			}
+			if err := ValidateStoredCustomBrandingField("app_icon_url", value); err == nil {
+				t.Fatalf("stored-data seam accepted the empty-label host %q", host)
+			}
+		})
 	}
 }
 

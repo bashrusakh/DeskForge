@@ -1170,7 +1170,9 @@ func validateBuildSpecTransportFields(spec BuildSpec) error {
 // api-server, which may hold an internal/Docker address such as
 // http://localhost:21114. The returned value is the ASCII wire form the
 // workflow's HTTP client can send (publicURLWireForm): an ASCII value is
-// returned unchanged, while a raw non-ASCII host/path/query is converted (host
+// returned unchanged except that one terminal root-label dot on the host is
+// dropped (the fetcher's TLS server_hostname would not match a certificate for
+// the undotted host), while a raw non-ASCII host/path/query is converted (host
 // to its non-transitional IDNA wire form, only the non-ASCII path/query bytes
 // percent-encoded). The rewrite is idempotent for the values a caller derived
 // from a prior resolution.
@@ -1718,6 +1720,14 @@ func validatePublicHTTPURL(name, value string) error {
 //     non-public literal (for example the full-width digit spelling
 //     "１２７.０.０.１" maps to 127.0.0.1); a conversion that fails or lands
 //     outside the public-address policy is refused fail-closed.
+//   - The fetch identity drops exactly one terminal root-label dot: a resolver
+//     reads "example.com." and "example.com" as the same host, but the fetcher
+//     passes the host bytes to getaddrinfo, the Host header, and
+//     ssl.wrap_socket(server_hostname=...), and Python/OpenSSL does not strip
+//     the root dot for certificate matching, so the dotted spelling would fail
+//     TLS after DNS and TCP succeeded. A second trailing dot leaves an empty
+//     label and is refused. The undotted name is re-classified with the shared
+//     public-host rule, so the host actually dispatched is the one validated.
 //   - The path and query keep every byte the operator authored and percent-
 //     encode only the bytes above 0x7F (percentEncodeNonASCII). Existing %XX
 //     escapes — including ones whose decoded form would change the request
@@ -1727,9 +1737,10 @@ func validatePublicHTTPURL(name, value string) error {
 //     fetcher's urlsplit separates it without sending it. It is never folded
 //     into the path.
 //
-// An already-ASCII URL is returned byte-for-byte unchanged, so every value
-// accepted for dispatch before this rule still reaches the runner with the
-// same bytes.
+// An already-ASCII URL whose host carries no terminal root dot is returned
+// byte-for-byte unchanged, so every value accepted for dispatch before this
+// rule still reaches the runner with the same bytes; a single terminal root dot
+// is the only ASCII byte this rule removes.
 //
 // The stored custom_json value keeps its original spelling (PersistedJSON vs
 // DispatchParams): only the dispatch payload the runner consumes must be in
@@ -1753,8 +1764,43 @@ func publicURLWireForm(name, value string) (string, error) {
 	if err := validateFetchURLPort(name, parsed.Port()); err != nil {
 		return "", err
 	}
+
+	// The fetch identity drops exactly one terminal root-label dot. A resolver
+	// reads "example.com." and "example.com" as the same host, but the fetcher
+	// passes the host bytes to getaddrinfo, the Host header, and
+	// ssl.wrap_socket(server_hostname=...), and Python/OpenSSL does not strip
+	// the root dot for TLS certificate matching, so the dotted spelling fails
+	// against an ordinary certificate naming the undotted host after DNS and
+	// TCP succeeded. A second trailing dot is an empty label and was already
+	// refused above. The canonicalized name is re-classified here so the host
+	// actually dispatched is the one that must pass the public-host rule; the
+	// stored value keeps the operator's FQDN spelling.
+	wireHost := host
+	if strings.HasSuffix(wireHost, ".") {
+		wireHost = wireHost[:len(wireHost)-1]
+		if isNonPublicFetchHost(wireHost) {
+			return "", fmt.Errorf("%s must use a public host %q", name, wireHost)
+		}
+	}
+
 	if isASCIIText(value) {
-		return value, nil
+		if wireHost == host {
+			return value, nil
+		}
+		// An ASCII URL is otherwise already in wire form: replace only the
+		// authority host, keeping the port and every path/query/fragment byte
+		// exactly as the operator authored them.
+		authorityStart := strings.Index(value, "://") + len("://")
+		remainder := value[authorityStart:]
+		authorityEnd := strings.IndexAny(remainder, "/?#")
+		if authorityEnd < 0 {
+			authorityEnd = len(remainder)
+		}
+		hostPart := wireHost
+		if port := parsed.Port(); port != "" {
+			hostPart += ":" + port
+		}
+		return value[:authorityStart] + hostPart + remainder[authorityEnd:], nil
 	}
 
 	// Non-ASCII conversion. Rebuild the wire form from the raw value instead of
@@ -1773,10 +1819,21 @@ func publicURLWireForm(name, value string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("%s has a host that cannot be sent as an ASCII (IDNA) name: %w", name, err)
 		}
+		// The conversion can turn a mapped code point into a terminal dot, so
+		// the root dot is dropped after conversion and the converted name is
+		// re-classified before use.
+		if strings.HasSuffix(asciiHost, ".") {
+			asciiHost = asciiHost[:len(asciiHost)-1]
+		}
 		if isNonPublicFetchHost(asciiHost) {
 			return "", fmt.Errorf("%s must use a public host %q", name, host)
 		}
 		hostPart = asciiHost
+		if port := parsed.Port(); port != "" {
+			hostPart += ":" + port
+		}
+	} else if wireHost != host {
+		hostPart = wireHost
 		if port := parsed.Port(); port != "" {
 			hostPart += ":" + port
 		}
