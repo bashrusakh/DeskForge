@@ -1150,6 +1150,12 @@
   "ImageAttachPreviewEmpty": {
     "One": "No preview"
   },
+  "ImageUnavailable": {
+    "One": "File unavailable"
+  },
+  "ImageUnavailableDetails": {
+    "One": "The image could not be loaded from the link — the file may be missing on the server. Building with this link will fail with a branding error."
+  },
   "BrandingImagesMechanicsNote": {
     "One": "Files are stored on the server; at build time the link is automatically resolved against the API server address. A pasted link must be a publicly reachable http(s) URL."
   },

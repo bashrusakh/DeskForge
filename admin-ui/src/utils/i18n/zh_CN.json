@@ -854,6 +854,12 @@
   "ImageAttachPreviewEmpty": {
     "One": "无预览"
   },
+  "ImageUnavailable": {
+    "One": "文件不可用"
+  },
+  "ImageUnavailableDetails": {
+    "One": "无法通过链接加载图像——文件可能已不在服务器上。使用此链接的构建将出现 branding 错误。"
+  },
   "BrandingImagesMechanicsNote": {
     "One": "文件保存到服务器；构建时会根据 API 服务器地址自动解析链接。粘贴的链接必须是公网可访问的 http(s) 地址。"
   },
