@@ -1159,6 +1159,12 @@
   "BrandingImagesMechanicsNote": {
     "One": "Uploaded files are stored on the server and resolved at build time; paste a publicly reachable http(s) link."
   },
+  "BrandingPublicOriginMissingTitle": {
+    "One": "Images won't attach to the build"
+  },
+  "BrandingPublicOriginMissing": {
+    "One": "The public API server address is not set. Uploaded images will not be usable in builds: /upload/… values cannot be resolved to a public link. Set the RUSTDESK_API_RUSTDESK_PUBLIC_API_SERVER environment variable in the API environment."
+  },
   "AppLogo": {
     "One": "App Logo (PNG)"
   },

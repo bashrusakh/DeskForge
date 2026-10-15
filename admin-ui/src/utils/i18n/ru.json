@@ -850,6 +850,12 @@
   "BrandingImagesMechanicsNote": {
     "One": "Загруженный файл хранится на сервере и подставляется при сборке; вставьте публичную http(s)-ссылку."
   },
+  "BrandingPublicOriginMissingTitle": {
+    "One": "Картинки не подключатся к сборке"
+  },
+  "BrandingPublicOriginMissing": {
+    "One": "Публичный API-адрес (public API server) не задан. Загруженные картинки не будут использоваться в сборках: значения /upload/… невозможно преобразовать в публичную ссылку. Задайте переменную RUSTDESK_API_RUSTDESK_PUBLIC_API_SERVER в окружении API."
+  },
   "AppLogo": {
     "One": "Логотип приложения (PNG)"
   },

@@ -491,6 +491,15 @@
 
         <el-divider content-position="left">{{ T('Branding') }}</el-divider>
         <p class="branding-mechanics-note">{{ T('BrandingImagesMechanicsNote') }}</p>
+        <el-alert
+          v-if="publicApiServerMissing"
+          type="warning"
+          :closable="false"
+          :title="T('BrandingPublicOriginMissingTitle')"
+          class="branding-public-origin-alert"
+        >
+          {{ T('BrandingPublicOriginMissing') }}
+        </el-alert>
         <el-row :gutter="20">
           <el-col :span="8">
             <el-form-item :label="T('AppIcon')" prop="app_icon_url" :error="serverFieldError('app_icon_url') || undefined">
@@ -1506,6 +1515,14 @@ export default defineComponent({
       }
     }
 
+    // Whether the deployment config carries public_api_server (resolved by
+    // loadConfig). Starts false (configuration unknown — no banner) and only
+    // turns true on a successful config response without a public API address,
+    // which drives the single informational banner in the branding-images
+    // section: without a resolvable public origin, uploaded /upload/... values
+    // cannot become public build links.
+    const publicApiServerMissing = ref(false)
+
     const loadPresetIntoForm = async (preset) => {
       if (!preset) return
       try {
@@ -1764,6 +1781,7 @@ export default defineComponent({
           // internal/Docker address). key stays operational-only.
           // applyServerConfigDefaults semantics are unchanged.
           const cfg = res.data
+          publicApiServerMissing.value = !cfg.public_api_server
           Object.assign(serverConfigDefaults, {
             server_ip: cfg.public_id_server || cfg.id_server || '',
             key: cfg.key || '',
@@ -1795,6 +1813,7 @@ export default defineComponent({
       form, formRef, rules, builds, buildHistoryStatus, loading, submitting, downloadingBuildId, versionsState, versionsReady, productionPlatformReady,
       page, pageSize, total, versions,
       versionsError,
+      publicApiServerMissing,
        submitBuild, deleteBuild, resetForm, downloadBuild,
        statusType, statusLabel, T,
         presets, selectedPresetId, selectedPreset, presetSelectRef, onPresetSelect, saveCurrentAsPreset, deletePreset, uploadImage,
@@ -1951,6 +1970,12 @@ export default defineComponent({
   font-size: 12px;
   line-height: 1.5;
   color: var(--el-text-color-secondary);
+}
+
+// Single informational banner for a deployment without a public API server —
+// warning, never an error state; the branding image fields stay usable.
+.branding-public-origin-alert {
+  margin-bottom: 12px;
 }
 
 .local-address-note {
