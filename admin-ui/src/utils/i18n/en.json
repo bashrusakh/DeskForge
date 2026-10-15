@@ -1139,10 +1139,10 @@
     "One": "App Icon (PNG)"
   },
   "ImageAttachFileButton": {
-    "One": "Upload file (≤5 MB)"
+    "One": "Upload file"
   },
   "ImageAttachLinkPlaceholder": {
-    "One": "or paste http(s)…"
+    "One": "or paste an http(s) link…"
   },
   "ImageAttachClear": {
     "One": "Clear"
@@ -1154,10 +1154,10 @@
     "One": "File unavailable"
   },
   "ImageUnavailableDetails": {
-    "One": "The image could not be loaded from the link — the file may be missing on the server. Building with this link will fail with a branding error."
+    "One": "Could not load — the file may be missing on the server; building with this link will fail at the branding step."
   },
   "BrandingImagesMechanicsNote": {
-    "One": "Files are stored on the server; at build time the link is automatically resolved against the API server address. A pasted link must be a publicly reachable http(s) URL."
+    "One": "Uploaded files are stored on the server and resolved at build time; paste a publicly reachable http(s) link."
   },
   "AppLogo": {
     "One": "App Logo (PNG)"
@@ -1166,22 +1166,22 @@
     "One": "Privacy screen (PNG)"
   },
   "ImageFieldNoteIcon": {
-    "One": "Required: PNG, square; 256×256 ideal (minimum 16×16)"
+    "One": "PNG · square · 256×256 ideal · file ≤5 MB · link ≤10 MB"
   },
   "ImageFieldNoteLogo": {
-    "One": "Required: PNG; up to 300×60 ideal (render stops at 300×60)"
+    "One": "PNG · up to 300×60 · file ≤5 MB · link ≤10 MB"
   },
   "ImageFieldNoteScreen": {
-    "One": "Required: PNG (shown fullscreen)"
+    "One": "PNG · fullscreen · file ≤5 MB · link ≤20 MB"
   },
   "ImageRangeIcon": {
-    "One": "Accepted: square 16×16–4096×4096; larger than 256×256 is downscaled to 256 for Windows icons; file ≤5 MB, URL ≤10 MB"
+    "One": "Accepted: square 16×16–4096×4096; squares above 256 are downscaled to 256 for Windows icons"
   },
   "ImageRangeLogo": {
-    "One": "Accepted: PNG up to 4096×4096; file ≤5 MB, URL ≤10 MB"
+    "One": "Accepted source: PNG up to 4096×4096"
   },
   "ImageRangeScreen": {
-    "One": "Accepted: PNG up to 4096×4096; file ≤5 MB, URL ≤20 MB"
+    "One": "Accepted source: PNG up to 4096×4096"
   },
   "ImageFieldPngOnlyError": {
     "One": "Only PNG images are allowed"
