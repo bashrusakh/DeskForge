@@ -92,17 +92,19 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'input'])
 
+// Preview failed-state flag, declared before the computed below that reads it:
+// it is a local ref, not a prop (props.previewFailed was always undefined),
+// and the computed must read `previewFailed.value`. A new value (typed or
+// uploaded) resets the flag, retrying the preview automatically.
+const previewFailed = ref(false)
+watch(() => props.modelValue, () => { previewFailed.value = false })
+
 // Preview state labels: visible image needs no label; a failed load names the
 // unavailable state; an empty preview keeps the neutral no-preview label.
 const previewAriaLabel = computed(() => {
   if (!props.modelValue) return props.previewEmptyLabel
-  return props.previewFailed ? props.unavailableLabel : undefined
+  return previewFailed.value ? props.unavailableLabel : undefined
 })
-
-// A broken preview URL degrades to the neutral placeholder; a new value
-// (typed or uploaded) retries the preview automatically.
-const previewFailed = ref(false)
-watch(() => props.modelValue, () => { previewFailed.value = false })
 
 const clear = () => {
   if (!props.modelValue) return
