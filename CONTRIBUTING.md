@@ -3,15 +3,15 @@
 # Contributing to DeskForge
 
 ## Project Context
-Repository: `bashrusakh/DeskForge` — default branch: `main` — observed commit: `9017b71340563bced7ea6571f271087ceb4d692c`.
+Repository: `bashrusakh/DeskForge` — default branch: `main` — observed commit: `06f9e957bafea5e9a2b7e68ef29abc179704e31e`.
 
 Project purpose: Not recorded in the collected context.
 
 Facts not found in the repository context:
-- testing: Detailed test commands beyond those in build\_test workflow not observed
+- environments: No environment definitions observed in collected files
 
 Facts the repository does not support:
-- policy.version\_file: no version source-of-truth file documented
+- policy.version\_file: Repository does not document a version source-of-truth file
 
 ## Branch Model
 Use this stable policy:
@@ -81,11 +81,23 @@ go build -o release/apimain cmd/apimain.go
 npm install && npm run dev && npm run build
 ```
 
+**go-tests** — working directory `api`; prerequisites: `api/go.mod`; evidence: `.github/workflows/build_test.yml`
+
+```bash
+go test ./... && go vet ./...
+```
+
 ## Before Submitting
 **go-tests** — working directory `api`; prerequisites: `api/go.mod`; evidence: `.github/workflows/build_test.yml`
 
 ```bash
 go test ./... && go vet ./...
+```
+
+**rust-tests** — working directory `server`; prerequisites: `server/Cargo.toml`; evidence: `.github/workflows/build_test.yml`
+
+```bash
+cargo +1.92.0 test --locked
 ```
 - Check git status.
 - Review the full diff.
@@ -115,10 +127,10 @@ scope: short imperative summary
 - Keep each commit specific to one logical change.
 Observed commit-message scopes:
 - `admin-ui` — Vue admin panel changes (commit messages)
-- `api` — Go backend/API changes (commit messages)
-- `server` — Rust hbbs/hbbr changes (commit messages)
-- `docker` — Dockerfile / compose changes (commit messages)
-- `workflow` — GitHub Actions / CI changes (commit messages)
+- `api` — Go backend changes (commit messages)
+- `server` — Rust server changes (commit messages)
+- `docker` — Dockerfile/compose changes (commit messages)
+- `workflow` — GitHub Actions/CI changes (commit messages)
 - `docs` — Documentation updates (commit messages)
 
 ## Pull Requests
@@ -164,6 +176,10 @@ Before opening an issue, verify the problem against the current code/state and s
 The combined DeskForge distribution is identified as AGPL‑3.0 for the covered work; separate components retain upstream MIT or other notices as documented in LICENSE and NOTICE.
 evidence: `README.md`
 
+### Commits
+Commit messages use a scoped format: \<scope\>: \<imperative summary\> (lowercase scope, no trailing period).
+evidence: `CONTRIBUTING.md`
+
 ## Documentation Maintenance
 Project structure changes over time. AGENTS.md and CONTRIBUTING.md are guidance, not a replacement for checking the actual tree. If project structure, commands, architecture, test flow, contribution rules, release flow, or important entry points change, update the relevant Markdown file in the same PR. Keep docs useful and stable, and keep Markdown updates small. Do not duplicate the full file tree unless the project explicitly requires it. Describe stable conventions and important entry points, not every file.
 
@@ -174,10 +190,9 @@ Every release must include meaningful release notes. Before publishing, check pr
 Components and important paths observed in the repository:
 - **server** — Rust hbbs/hbbr server code (paths: `server/Cargo.toml`; evidence: `server/Cargo.toml`)
 - **api** — Go REST API source (paths: `api/go.mod`; evidence: `api/go.mod`)
-- **admin-ui** — Vue 3 admin panel code (paths: `admin-ui/package.json`; evidence: `admin-ui/package.json`)
+- **admin-ui** — Vue 3 admin panel (paths: `admin-ui/package.json`; evidence: `admin-ui/package.json`)
 - **docker** — Docker build definition for combined image (paths: `docker/Dockerfile`; evidence: `docker/Dockerfile`)
-- **rdgen** — Python/Django reference workflow generator (paths: `rdgen/Dockerfile`; evidence: `rdgen/Dockerfile`)
-- **libs/hbb\_common** — Shared Rust library used by server (paths: `server/Cargo.toml`; evidence: `server/Cargo.toml`)
+- **rdgen** — Python/Django reference workflow generator (frozen) (paths: `rdgen/Dockerfile`; evidence: `rdgen/Dockerfile`)
 
 ## Security and Runtime Notes
 Runtime environments: Not recorded in the collected context.
@@ -192,7 +207,12 @@ Not found in repository.
 
 ## Preserved from previous CONTRIBUTING
 
+<!-- carry-forward: bashrusakh/DeskForge@06f9e957bafea5e9a2b7e68ef29abc179704e31e; section: Preserved from previous CONTRIBUTING -->
+## Preserved from previous CONTRIBUTING
+
 <!-- carry-forward: bashrusakh/DeskForge@9017b71340563bced7ea6571f271087ceb4d692c; section: Workflow -->
+
+<!-- carry-forward: bashrusakh/DeskForge@06f9e957bafea5e9a2b7e68ef29abc179704e31e; section: Workflow -->
 ## Workflow
 
 ```bash
@@ -221,6 +241,8 @@ Branch prefixes (loose convention, not enforced):
 | `docs/` | docs only |
 
 <!-- carry-forward: bashrusakh/DeskForge@9017b71340563bced7ea6571f271087ceb4d692c; section: Pull Request titles -->
+
+<!-- carry-forward: bashrusakh/DeskForge@06f9e957bafea5e9a2b7e68ef29abc179704e31e; section: Pull Request titles -->
 ## Pull Request titles
 
 Pull Request titles should follow the same template as commit messages.
@@ -252,6 +274,8 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
 <!-- carry-forward: bashrusakh/DeskForge@9017b71340563bced7ea6571f271087ceb4d692c; section: License & attribution (AGPL-3.0) -->
+
+<!-- carry-forward: bashrusakh/DeskForge@06f9e957bafea5e9a2b7e68ef29abc179704e31e; section: License & attribution (AGPL-3.0) -->
 ## License & attribution (AGPL-3.0)
 
 The covered DeskForge distribution is identified as **AGPL-3.0** because `server/` is
@@ -269,6 +293,9 @@ When you add new files derived from upstream sources:
 See [NOTICE](NOTICE) for the full list of bundled components and their copyrights.
 
 <!-- carry-forward: bashrusakh/DeskForge@9017b71340563bced7ea6571f271087ceb4d692c; section: Local development -->
+
+<!-- carry-forward: bashrusakh/DeskForge@06f9e957bafea5e9a2b7e68ef29abc179704e31e; section: Local development -->
+<!-- carry-forward-stale: references manifest-absent path(s): Dockerfile -->
 ## Local development
 
 Working tree is **Windows-friendly** (LF/CRLF auto-conversion). If you want
@@ -300,6 +327,9 @@ Migration evidence is SQLite-only; MySQL/PostgreSQL migration/read/write coverag
 remains unverified.
 
 <!-- carry-forward: bashrusakh/DeskForge@9017b71340563bced7ea6571f271087ceb4d692c; section: What goes where -->
+<!-- carry-forward-stale: references manifest-absent path(s): Dockerfile -->
+
+<!-- carry-forward: bashrusakh/DeskForge@06f9e957bafea5e9a2b7e68ef29abc179704e31e; section: What goes where -->
 <!-- carry-forward-stale: references manifest-absent path(s): Dockerfile -->
 ## What goes where
 
