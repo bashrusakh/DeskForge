@@ -1371,3 +1371,33 @@ test('unmount invalidates the picker request through the shared lifecycleGuard',
   assert.equal(ctx.api.localAddressPicker.addresses.length, 0)
   assert.equal(ctx.api.localAddressPicker.loading, true) // nothing may write for a disposed component
 })
+
+// --- ImageAttachField preview label ---
+test('ImageAttachField preview label names the failed load via the local ref', () => {
+  // Regression: previewAriaLabel read props.previewFailed (never a declared
+  // prop, so always undefined) instead of the local ref, so the preview
+  // wrapper kept no aria-label in the failed state; the inner chip's own label
+  // only partly masked it. Exercise the component's real script slice.
+  const fieldSfc = readFileSync(new URL('../src/components/ui/ImageAttachField.vue', import.meta.url), 'utf8')
+  assert.equal(fieldSfc.includes('props.previewFailed ?'), false,
+    'the computed must read the local previewFailed ref, not a nonexistent prop')
+  const slice = (start, end) => {
+    assert.ok(fieldSfc.includes(start) && fieldSfc.includes(end), `missing ImageAttachField boundary: ${start}`)
+    return fieldSfc.slice(fieldSfc.indexOf(start), fieldSfc.indexOf(end, fieldSfc.indexOf(start)))
+  }
+  const props = reactive({ modelValue: '/upload/old.png', previewEmptyLabel: 'NoPreview', unavailableLabel: 'Unavailable' })
+  const context = { ref, computed, watch, props }
+  vm.createContext(context)
+  vm.runInContext(slice('const previewFailed = ref(false)', '\nconst clear =') + `
+    globalThis.api = { previewAriaLabel, previewFailed };
+  `, context)
+  const { api } = context
+  // A loaded preview carries no wrapper label; the img itself renders the value.
+  assert.equal(api.previewAriaLabel.value, undefined)
+  // A failed load must name the unavailable state on the wrapper itself.
+  api.previewFailed.value = true
+  assert.equal(api.previewAriaLabel.value, 'Unavailable')
+  // An empty field returns to the neutral no-preview label.
+  props.modelValue = ''
+  assert.equal(api.previewAriaLabel.value, 'NoPreview')
+})

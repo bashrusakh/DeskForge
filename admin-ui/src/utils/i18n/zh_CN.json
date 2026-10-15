@@ -843,10 +843,10 @@
     "One": "应用图标 (PNG)"
   },
   "ImageAttachFileButton": {
-    "One": "上传文件（≤5 MB）"
+    "One": "上传文件"
   },
   "ImageAttachLinkPlaceholder": {
-    "One": "或粘贴 http(s)…"
+    "One": "或粘贴 http(s) 链接…"
   },
   "ImageAttachClear": {
     "One": "清除"
@@ -854,8 +854,20 @@
   "ImageAttachPreviewEmpty": {
     "One": "无预览"
   },
+  "ImageUnavailable": {
+    "One": "文件不可用"
+  },
+  "ImageUnavailableDetails": {
+    "One": "无法加载——文件可能已不在服务器上；带此链接的构建将在 branding 阶段失败。"
+  },
   "BrandingImagesMechanicsNote": {
-    "One": "文件保存到服务器；构建时会根据 API 服务器地址自动解析链接。粘贴的链接必须是公网可访问的 http(s) 地址。"
+    "One": "上传的文件存储在服务器上，并在构建时解析；请粘贴可公网访问的 http(s) 链接。"
+  },
+  "BrandingPublicOriginMissingTitle": {
+    "One": "图片无法接入构建"
+  },
+  "BrandingPublicOriginMissing": {
+    "One": "未设置公开 API 服务器地址。上传的图片将无法在构建中使用：/upload/… 值无法转换为公开链接。请在 API 环境中设置 RUSTDESK_API_RUSTDESK_PUBLIC_API_SERVER 变量。"
   },
   "AppLogo": {
     "One": "应用 Logo (PNG)"
@@ -864,22 +876,22 @@
     "One": "隐私屏幕 (PNG)"
   },
   "ImageFieldNoteIcon": {
-    "One": "要求：PNG，正方形；建议 256×256（最小 16×16）"
+    "One": "PNG · 正方形 · 建议 256×256 · 文件 ≤5 MB · 链接 ≤10 MB"
   },
   "ImageFieldNoteLogo": {
-    "One": "要求：PNG；建议 ≤300×60（渲染不超过此宽度）"
+    "One": "PNG · ≤300×60 · 文件 ≤5 MB · 链接 ≤10 MB"
   },
   "ImageFieldNoteScreen": {
-    "One": "要求：PNG（全屏显示）"
+    "One": "PNG · 全屏 · 文件 ≤5 MB · 链接 ≤20 MB"
   },
   "ImageRangeIcon": {
-    "One": "允许：正方形 16×16–4096×4096；大于 256×256 会缩至 256 用作 Windows 图标；文件 ≤5 MB，链接 ≤10 MB"
+    "One": "允许：正方形 16×16–4096×4096；大于 256 的正方形会缩至 256 用作 Windows 图标"
   },
   "ImageRangeLogo": {
-    "One": "允许：PNG 最大 4096×4096；文件 ≤5 MB，链接 ≤10 MB"
+    "One": "允许来源：不超过 4096×4096 的 PNG"
   },
   "ImageRangeScreen": {
-    "One": "允许：PNG 最大 4096×4096；文件 ≤5 MB，链接 ≤20 MB"
+    "One": "允许来源：不超过 4096×4096 的 PNG"
   },
   "ImageFieldPngOnlyError": {
     "One": "仅支持 PNG 图片"

@@ -1,6 +1,6 @@
 <template>
   <div class="image-attach-field">
-    <div class="image-attach-field__preview" :aria-label="modelValue && !previewFailed ? undefined : previewEmptyLabel">
+    <div class="image-attach-field__preview" :aria-label="previewAriaLabel">
       <img
         v-if="modelValue && !previewFailed"
         :src="modelValue"
@@ -8,6 +8,19 @@
         class="image-attach-field__image"
         @error="previewFailed = true"
       >
+      <span
+        v-else-if="previewFailed"
+        class="image-attach-field__unavailable"
+        tabindex="0"
+        :aria-label="unavailableLabel"
+      >
+        <el-tooltip :content="unavailableDetails" placement="top" popper-class="image-attach-field-hint-popper">
+          <span class="image-attach-field__unavailable-chip">
+            <el-icon aria-hidden="true"><WarningFilled /></el-icon>
+            <span aria-hidden="true">{{ unavailableLabel }}</span>
+          </span>
+        </el-tooltip>
+      </span>
       <span v-else class="image-attach-field__placeholder">
         <el-icon aria-hidden="true"><Picture /></el-icon>
       </span>
@@ -50,8 +63,8 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
-import { Close, InfoFilled, Picture } from '@element-plus/icons-vue'
+import { computed, ref, watch } from 'vue'
+import { Close, InfoFilled, Picture, WarningFilled } from '@element-plus/icons-vue'
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
@@ -64,6 +77,11 @@ const props = defineProps({
   linkPlaceholder: { type: String, default: '' },
   clearLabel: { type: String, default: '' },
   previewEmptyLabel: { type: String, default: '' },
+  // Explicit unavailable state for a preview URL that failed to load (404 or
+  // otherwise unreachable): a warning message, never a validation error —
+  // the field is optional and the file may only be temporarily unreachable.
+  unavailableLabel: { type: String, default: '' },
+  unavailableDetails: { type: String, default: '' },
   // Allowed-range hover text (variants/limits). Required format lives in the
   // permanent note below the input; mechanics live in the section note.
   rangeHint: { type: String, default: '' },
@@ -74,10 +92,19 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'input'])
 
-// A broken preview URL degrades to the neutral placeholder; a new value
-// (typed or uploaded) retries the preview automatically.
+// Preview failed-state flag, declared before the computed below that reads it:
+// it is a local ref, not a prop (props.previewFailed was always undefined),
+// and the computed must read `previewFailed.value`. A new value (typed or
+// uploaded) resets the flag, retrying the preview automatically.
 const previewFailed = ref(false)
 watch(() => props.modelValue, () => { previewFailed.value = false })
+
+// Preview state labels: visible image needs no label; a failed load names the
+// unavailable state; an empty preview keeps the neutral no-preview label.
+const previewAriaLabel = computed(() => {
+  if (!props.modelValue) return props.previewEmptyLabel
+  return previewFailed.value ? props.unavailableLabel : undefined
+})
 
 const clear = () => {
   if (!props.modelValue) return
@@ -136,6 +163,41 @@ const onInputEvent = (value) => {
   justify-content: center;
   color: var(--el-text-color-secondary);
   font-size: 24px;
+}
+
+// Explicit warning state for a preview URL that failed to load — visually a
+// warning, semantically still a plain state message (not a validation error).
+.image-attach-field__unavailable {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  padding: 4px;
+  border: 1px solid var(--el-color-warning-light-5);
+  border-radius: 4px;
+  background: var(--el-color-warning-light-9);
+  color: var(--el-color-warning);
+  text-align: center;
+  cursor: help;
+
+  &:focus-visible {
+    outline: 2px solid var(--el-color-primary);
+    outline-offset: 2px;
+  }
+}
+
+.image-attach-field__unavailable-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+  line-height: 1.2;
+
+  .el-icon {
+    font-size: 16px;
+  }
 }
 
 .image-attach-field__clear {

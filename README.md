@@ -32,6 +32,23 @@ docker compose exec rustdesk cat /data/id_ed25519.pub
 
 **RustDesk client:** ID Server `your-server:21116`, Relay `your-server:21117`, API `http://your-server:21114`, Key — paste the public-key contents returned by `docker compose exec rustdesk cat /data/id_ed25519.pub`; the file is at `/data/id_ed25519.pub` inside the container.
 
+## Upgrading an existing deployment
+
+The Compose file bind-mounts `../data/uploads` to `/app/resources/public/upload`.
+On an existing deployment the mount shadows the uploads already stored inside the
+old container, so branding assets referenced before the mount (`GET /upload/...`)
+return 404. Copy them out of the old container before the first `docker compose
+up -d` with the new mount:
+
+```bash
+mkdir -p ../data/uploads
+docker cp <old-rustdesk-container>:/app/resources/public/upload/. ../data/uploads/
+docker compose up -d
+```
+
+This migration applies only to the upload bind mount; other data (`/data`, the
+database) stays on its existing volumes.
+
 ---
 
 ## Ports
