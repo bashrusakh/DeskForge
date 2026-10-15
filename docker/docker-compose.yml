@@ -45,6 +45,11 @@ services:
     volumes:
       - ../data/server:/data
       - ../data/api:/app/data
+      # Persist API-uploaded public assets across image rebuilds. The only
+      # resources-path/public writer is the admin upload handler
+      # (api/http/controller/admin/file.go -> public/upload/<YYYYMMDD>/),
+      # served back at GET /upload/ (api/http/router/api.go:104).
+      - ../data/uploads:/app/resources/public/upload
       - rdgen-data:/rdgen-data
     networks:
       - rustdesk-net
