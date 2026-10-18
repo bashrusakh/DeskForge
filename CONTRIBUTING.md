@@ -3,15 +3,15 @@
 # Contributing to DeskForge
 
 ## Project Context
-Repository: `bashrusakh/DeskForge` — default branch: `main` — observed commit: `9017b71340563bced7ea6571f271087ceb4d692c`.
+Repository: `bashrusakh/DeskForge` — default branch: `main` — observed commit: `eb43c9769c96a48c2f18aefcc3b0df2dde4c7ef3`.
 
 Project purpose: Not recorded in the collected context.
 
 Facts not found in the repository context:
-- testing: Detailed test commands beyond those in build\_test workflow not observed
+- environments: No environment definitions observed in collected files
 
 Facts the repository does not support:
-- policy.version\_file: no version source-of-truth file documented
+- policy.version\_file: Repository does not document a version source-of-truth file
 
 ## Branch Model
 Use this stable policy:
@@ -81,6 +81,12 @@ go build -o release/apimain cmd/apimain.go
 npm install && npm run dev && npm run build
 ```
 
+**go-tests** — working directory `api`; prerequisites: `api/go.mod`; evidence: `.github/workflows/build_test.yml`
+
+```bash
+go test ./... && go vet ./...
+```
+
 ## Before Submitting
 **go-tests** — working directory `api`; prerequisites: `api/go.mod`; evidence: `.github/workflows/build_test.yml`
 
@@ -115,10 +121,10 @@ scope: short imperative summary
 - Keep each commit specific to one logical change.
 Observed commit-message scopes:
 - `admin-ui` — Vue admin panel changes (commit messages)
-- `api` — Go backend/API changes (commit messages)
-- `server` — Rust hbbs/hbbr changes (commit messages)
-- `docker` — Dockerfile / compose changes (commit messages)
-- `workflow` — GitHub Actions / CI changes (commit messages)
+- `api` — Go backend changes (commit messages)
+- `server` — Rust server changes (commit messages)
+- `docker` — Dockerfile/compose changes (commit messages)
+- `workflow` — GitHub Actions/CI changes (commit messages)
 - `docs` — Documentation updates (commit messages)
 
 ## Pull Requests
@@ -161,8 +167,12 @@ Before opening an issue, verify the problem against the current code/state and s
 ## Project Policies
 
 ### Licensing
-The combined DeskForge distribution is identified as AGPL‑3.0 for the covered work; separate components retain upstream MIT or other notices as documented in LICENSE and NOTICE.
+The combined DeskForge distribution is identified as AGPL-3.0 for the covered work; separate components retain upstream MIT notices as documented in LICENSE and NOTICE.
 evidence: `README.md`
+
+### Commits
+Commit messages use the form "scope: short imperative summary". Observed scopes: admin-ui, api, server, docker, workflow, docs.
+evidence: `CONTRIBUTING.md`
 
 ## Documentation Maintenance
 Project structure changes over time. AGENTS.md and CONTRIBUTING.md are guidance, not a replacement for checking the actual tree. If project structure, commands, architecture, test flow, contribution rules, release flow, or important entry points change, update the relevant Markdown file in the same PR. Keep docs useful and stable, and keep Markdown updates small. Do not duplicate the full file tree unless the project explicitly requires it. Describe stable conventions and important entry points, not every file.
@@ -174,9 +184,9 @@ Every release must include meaningful release notes. Before publishing, check pr
 Components and important paths observed in the repository:
 - **server** — Rust hbbs/hbbr server code (paths: `server/Cargo.toml`; evidence: `server/Cargo.toml`)
 - **api** — Go REST API source (paths: `api/go.mod`; evidence: `api/go.mod`)
-- **admin-ui** — Vue 3 admin panel code (paths: `admin-ui/package.json`; evidence: `admin-ui/package.json`)
+- **admin-ui** — Vue 3 admin panel (paths: `admin-ui/package.json`; evidence: `admin-ui/package.json`)
 - **docker** — Docker build definition for combined image (paths: `docker/Dockerfile`; evidence: `docker/Dockerfile`)
-- **rdgen** — Python/Django reference workflow generator (paths: `rdgen/Dockerfile`; evidence: `rdgen/Dockerfile`)
+- **rdgen** — Python/Django reference workflow generator (frozen) (paths: `rdgen/Dockerfile`; evidence: `rdgen/Dockerfile`)
 - **libs/hbb\_common** — Shared Rust library used by server (paths: `server/Cargo.toml`; evidence: `server/Cargo.toml`)
 
 ## Security and Runtime Notes
