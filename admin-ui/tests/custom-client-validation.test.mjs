@@ -158,11 +158,23 @@ const key = Buffer.alloc(32, 7).toString('base64')
 // Exercise the real selection lookup and save handler; only the dialog/API and
 // unrelated form-loading effects are stubbed. The prompt spy simulates editing
 // the initial value before confirming.
+//
+// Saving a preset uses the same create-response contract as submitBuild (the
+// preset payload is exactly PRESET_FIELDS + platform/version/app_name), so run
+// the real snapshot/report/applyServerFieldErrors slices here rather than a
+// fixture copy: a rejected save must reach the same inline/ARIA pipeline.
 function presetSaveFixture() {
-  const calls = { prompts: [], payloads: [], refreshes: 0 }
+  const calls = { prompts: [], payloads: [], refreshes: 0, focused: [], scrolled: [] }
+  const logs = []
   const context = {
-    ref, computed, T: value => value, PRESET_FIELDS,
-    form: reactive(formState()), presetPasswordClearIntent: ref(false),
+    reactive, ref, computed, nextTick, watch, atob, btoa, URL, T: value => value,
+    PRESET_FIELDS,
+    form: reactive(formState()),
+    formRef: ref(null),
+    serverConfigDefaults: reactive({ key: '' }),
+    document: { getElementById: () => null },
+    axios,
+    presetPasswordClearIntent: ref(false),
     ElMessageBox: { prompt: async (message, title, options) => {
       calls.prompts.push({ message, title, options })
       return { value: context.editedName ?? options.inputValue ?? '' }
@@ -172,13 +184,25 @@ function presetSaveFixture() {
     loadPresets: async () => { calls.refreshes++ },
     loadPresetIntoForm: () => {},
     resetForm: () => { context.api.selectedPresetId.value = null },
-    console,
+    fetchServerAddresses: async () => ({ data: { addresses: [] } }),
+    console: { error: (...args) => logs.push(args) },
+    logs,
   }
   vm.createContext(context)
-  vm.runInContext(between('    const presets = ref([])', '    const clearSavedPresetPassword') +
-    between('    const canPreservePresetPassword', '    const resetFormFields') +
+  vm.runInContext(
+    between('    const requiredFieldNames', '    const useServerKey') +
+    between('    const useServerKey', '    const isFieldInvalid') +
+    between('    const isFieldInvalid', '    const resetFormFields') +
+    between('    const requestGenerations = Object.create(null)', '    // B-017: при silent=true') +
+    between('    const presets = ref([])', '    const clearSavedPresetPassword') +
     between('    const onPresetSelect', '    const deletePreset') + `
-    globalThis.api = { presets, selectedPresetId, onPresetSelect, saveCurrentAsPreset };
+    globalThis.api = { presets, selectedPresetId, onPresetSelect, saveCurrentAsPreset,
+      form, rules, requiredFieldSet, invalidFields, serverFieldErrors,
+      serverFieldError, serverFieldMessage, applyServerFieldErrors,
+      snapshotSubmittedFields, isSubmittedSnapshotCurrent, reportCreateBuildFailure,
+      isFieldInvalid, isRequiredField, clearFieldError, syncFieldAria,
+      onApproveModeChange, onHideConnectionManagementChange, onPlatformChange,
+      lifecycleGuard };
   `, context)
   context.api.presets.value = [
     { id: 1, name: 'First preset', has_permanent_password: true },
@@ -234,6 +258,106 @@ test('without a selection Save preset keeps the blank editable new-preset prompt
   assert.equal(ctx.calls.prompts[0].options.inputPlaceholder, 'My Preset')
   assert.equal(ctx.calls.payloads[0].name, 'New preset')
   assert.equal(ctx.calls.payloads[0].preserve_permanent_password, false)
+})
+
+test('the custom_preset create wrapper surfaces the bounded server message', () => {
+  const api = readFileSync(new URL('../src/api/custom_preset.js', import.meta.url), 'utf8')
+  const impl = api.match(/export function create \(data\) \{[\s\S]*?\n\}/)
+  assert.ok(impl, 'custom_preset create must exist')
+  assert.match(impl[0], /url: '\/custom_preset\/create'/)
+  assert.match(impl[0], /useServerErrorMessage: true/,
+    'a rejected preset save must toast the server envelope message, not the raw axios text')
+})
+
+test('a rejected preset save maps pass_approve_mode/incompatible to the inline/ARIA pipeline', async () => {
+  const ctx = presetSaveFixture()
+  ctx.editedName = 'Preset with hide_cm'
+  ctx.form.hide_cm = true
+  ctx.form.permanent_password = 'secret'
+  ctx.form.pass_approve_mode = 'password-click' // FORM_DEFAULTS, not the required 'password'
+  const attributes = {}
+  ctx.document = { getElementById: id => id === 'custom-client-pass_approve_mode-input' ? {
+    setAttribute: (name, value) => { attributes[name] = value },
+    removeAttribute: name => { delete attributes[name] },
+    focus: () => { ctx.calls.focused.push(id) },
+  } : null }
+  ctx.formRef.value = {
+    validate: async () => true,
+    fields: [{ prop: 'pass_approve_mode', $el: { querySelector: () => null } }],
+    scrollToField: field => { ctx.calls.scrolled.push(field) },
+  }
+  ctx.createPreset = async payload => {
+    ctx.calls.payloads.push(payload)
+    throw staleCreateError([{ field: 'pass_approve_mode', code: 'incompatible' }])
+  }
+  await ctx.api.saveCurrentAsPreset()
+  assert.equal(ctx.calls.payloads.length, 1, 'the save must still send the preset payload')
+  assert.equal(ctx.logs.length, 0, 'a rejected preset save must not log the raw axios error')
+  assert.equal(ctx.api.serverFieldError('pass_approve_mode'), 'CustomClientPassApproveModeIncompatible')
+  assert.equal(ctx.api.isFieldInvalid('pass_approve_mode'), true)
+  await ctx.api.syncFieldAria()
+  assert.equal(attributes['aria-invalid'], 'true')
+  assert.equal(attributes['aria-describedby'], 'custom-client-pass_approve_mode-error')
+  assert.deepEqual(ctx.calls.scrolled, ['pass_approve_mode'])
+  assert.deepEqual(ctx.calls.focused, ['custom-client-pass_approve_mode-input'])
+})
+
+test('a stale preset-save rejection is not applied after the approve mode is fixed in flight', async () => {
+  const ctx = presetSaveFixture()
+  ctx.editedName = 'Preset with hide_cm'
+  ctx.form.hide_cm = true
+  ctx.form.permanent_password = 'secret'
+  ctx.form.pass_approve_mode = 'password-click'
+  let rejectCreate
+  let createStarted
+  const started = new Promise(resolve => { createStarted = resolve })
+  ctx.createPreset = async payload => {
+    ctx.calls.payloads.push(payload)
+    createStarted()
+    return new Promise((resolve, reject) => { rejectCreate = reject })
+  }
+  const pending = ctx.api.saveCurrentAsPreset()
+  await started
+  ctx.form.pass_approve_mode = 'password' // fixed while the save is in flight
+  rejectCreate(staleCreateError([{ field: 'pass_approve_mode', code: 'incompatible' }]))
+  await pending
+  assert.equal(ctx.api.serverFieldError('pass_approve_mode'), '',
+    'the stale response must not land on the fixed value')
+  assert.equal(ctx.api.isFieldInvalid('pass_approve_mode'), false)
+  assert.equal(ctx.logs.length, 0, 'a dropped stale response is expected and must not be logged')
+})
+
+test('after the approve mode is fixed the preset save succeeds and refreshes', async () => {
+  const ctx = presetSaveFixture()
+  ctx.editedName = 'Preset with hide_cm'
+  ctx.form.hide_cm = true
+  ctx.form.permanent_password = 'secret'
+  ctx.form.pass_approve_mode = 'password-click'
+  let attempt = 0
+  ctx.createPreset = async payload => {
+    ctx.calls.payloads.push(payload)
+    attempt++
+    if (attempt === 1) throw staleCreateError([{ field: 'pass_approve_mode', code: 'incompatible' }])
+  }
+  await ctx.api.saveCurrentAsPreset()
+  assert.equal(ctx.api.isFieldInvalid('pass_approve_mode'), true)
+  ctx.form.pass_approve_mode = 'password'
+  ctx.api.onApproveModeChange()
+  assert.equal(ctx.api.isFieldInvalid('pass_approve_mode'), false,
+    'editing the approve mode clears the stale incompatibility')
+  await ctx.api.saveCurrentAsPreset()
+  assert.equal(ctx.calls.payloads.length, 2)
+  assert.equal(ctx.calls.refreshes, 1, 'the successful retry must refresh the preset list')
+})
+
+test('cancelling the preset name prompt stays silent', async () => {
+  const ctx = presetSaveFixture()
+  ctx.ElMessageBox.prompt = async () => { throw 'cancel' }
+  await ctx.api.saveCurrentAsPreset()
+  assert.equal(ctx.logs.length, 0, 'prompt cancellation is not a failure')
+  assert.equal(ctx.calls.payloads.length, 0)
+  assert.equal(ctx.calls.refreshes, 0)
+  assert.deepEqual(Object.keys(ctx.api.serverFieldErrors.value), [])
 })
 
 // Fixture for the create-success path (F-D). It runs the same extracted SFC
@@ -468,7 +592,7 @@ test('the success-path guard actually covers the width of the create payload', (
   // Negative control: the old implementation compared only requiredFieldNames,
   // which is narrower than what submitBuild sends. Assert the guard is driven by
   // the submitted payload, not by the required set.
-  const guard = between('    const isSubmittedSnapshotCurrent', '    // Classify a create failure')
+  const guard = between('    const isSubmittedSnapshotCurrent', '    // Classify a build-create or preset-save failure')
   assert.equal(guard.includes('requiredFieldNames.every'), false, 'the guard must not be limited to requiredFieldNames')
   assert.match(guard, /Object\.keys\(snapshot\.values\)\.every/)
   const snapshotFn = between('    const snapshotSubmittedFields', '    // True when the live form')

@@ -18,6 +18,7 @@ export function create (data) {
     url: '/custom_preset/create',
     method: 'post',
     data,
+    useServerErrorMessage: true,
   })
 }
 
