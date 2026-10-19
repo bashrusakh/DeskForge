@@ -1091,15 +1091,16 @@ export default defineComponent({
       return Object.keys(snapshot.values).every((field) => snapshot.values[field] === form[field])
     }
 
-    // Classify a create failure. A 400 carries machine-readable per-field reasons
-    // (data.fields) and the axios response interceptor has already toasted a
-    // bounded server message; `applyServerFieldErrors` applies those reasons or,
-    // per F-B, intentionally drops a stale response. Both outcomes are expected
-    // and already surfaced, so they are reported without an error object.
-    // Logging the raw AxiosError would expose config.data.custom_json (including
-    // permanent_password) and config.headers['api-token'] in the console. Only a
-    // genuinely unexpected failure is logged, in a bounded form that never
-    // includes the request config.
+    // Classify a build-create or preset-save failure. A 400 carries
+    // machine-readable per-field reasons (data.fields) and the axios response
+    // interceptor has already toasted a bounded server message;
+    // `applyServerFieldErrors` applies those reasons or, per F-B, intentionally
+    // drops a stale response. Both outcomes are expected and already surfaced,
+    // so they are reported without an error object. Logging the raw AxiosError
+    // would expose config.data.custom_json (including permanent_password) and
+    // config.headers['api-token'] in the console. Only a genuinely unexpected
+    // failure is logged, in a bounded form that never includes the request
+    // config.
     const reportCreateBuildFailure = async (e, snapshot) => {
       // A failed envelope arrives as the raw body object (request.js rejects
       // `res`), so it carries neither axios markers nor necessarily data.fields.
@@ -1575,6 +1576,11 @@ export default defineComponent({
     }
 
     const saveCurrentAsPreset = async () => {
+      // A preset payload is exactly PRESET_FIELDS + the record columns, so a
+      // rejected save carries the same data.fields contract as a build create.
+      // Snapshot the submitted values before the request so a late response is
+      // not applied to a form that was edited in flight.
+      let submittedSnapshot
       try {
         const name = await ElMessageBox.prompt(T('PresetName'), T('SaveAsPreset'), {
           inputPlaceholder: 'My Preset',
@@ -1586,6 +1592,7 @@ export default defineComponent({
         const customPayload = {}
         for (const f of PRESET_FIELDS) customPayload[f] = form[f]
         const customJson = JSON.stringify(customPayload)
+        submittedSnapshot = snapshotSubmittedFields()
         await createPreset({
           name: name.value,
           platform: form.platform,
@@ -1597,7 +1604,13 @@ export default defineComponent({
         ElMessage.success(T('OperationSuccess'))
         await loadPresets()
       } catch (e) {
-        if (e !== 'cancel') console.error(e)
+        // Prompt cancellation stays silent. Reuse the build-create failure
+        // handling so data.fields (for example the hide_cm/pass_approve_mode
+        // incompatibility) renders through the same inline/ARIA pipeline and
+        // the raw AxiosError — which can carry custom_json/permanent_password
+        // and the api-token header — is never logged.
+        if (e === 'cancel') return
+        await reportCreateBuildFailure(e, submittedSnapshot)
       }
     }
 
