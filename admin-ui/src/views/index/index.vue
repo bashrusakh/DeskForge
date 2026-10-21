@@ -149,7 +149,8 @@ export default defineComponent({
         const logRes = await fetchLoginLogs({ page: 1, page_size: 10 })
         recentLogs.value = logRes.data.list || []
       } catch (e) {
-        console.error('Failed to load dashboard', e)
+        // Bounded diagnostic: the raw AxiosError carries config.headers['api-token'].
+        console.error('Failed to load dashboard:', e?.message || String(e))
       } finally {
         loading.value = false
       }

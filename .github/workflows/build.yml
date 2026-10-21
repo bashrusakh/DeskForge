@@ -85,7 +85,7 @@ jobs:
           cache-dependency-path: |
             api/go.sum
             go.work.sum
-      - run: node --test tests/custom-client-validation.test.mjs
+      - run: node --test tests/*.test.mjs
 
   rust:
     name: Rust checks
