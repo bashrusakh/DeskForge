@@ -111,7 +111,8 @@ export const useAppStore = defineStore({
         this.replaceAdminTitle(res.data.title)
         this.setting.hello = res.data.hello
       }).catch(err => {
-        console.warn('Failed to load admin config', err)
+        // Bounded diagnostic: the raw AxiosError carries config.headers['api-token'].
+        console.warn('Failed to load admin config:', err?.message || String(err))
       })
     },
     replaceAdminTitle (newTitle) {

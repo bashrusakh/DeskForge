@@ -78,7 +78,8 @@ export default defineComponent({
         const res = await fetchAllConfig()
         cfg.value = res.data || {}
       } catch (e) {
-        console.error(e)
+        // Bounded diagnostic: the raw AxiosError carries config.headers['api-token'].
+        console.error('Failed to load server config:', e?.message || String(e))
       } finally {
         loading.value = false
       }

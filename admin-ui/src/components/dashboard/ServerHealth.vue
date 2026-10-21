@@ -167,7 +167,8 @@ export default defineComponent({
         extraCount.value = Math.max(0, activeConnections.value - usage.value.length)
         error.value = false
       } catch (e) {
-        console.error('Failed to load server health', e)
+        // Bounded diagnostic: the raw AxiosError carries config.headers['api-token'].
+        console.error('Failed to load server health:', e?.message || String(e))
         error.value = true
       } finally {
         loading.value = false

@@ -994,7 +994,9 @@ export default defineComponent({
           applyUploadFieldError(field, uploadRejectionMessage(e))
         } else {
           applyUploadFieldError(field, T('ImageFieldUploadFailedError'))
-          console.error(e)
+          // Bounded diagnostic only: an unexpected failure can still carry the
+          // upload request config, so the raw object must never be printed.
+          console.error('Custom client image upload failed:', e?.message || String(e))
         }
       }
     }
@@ -1425,7 +1427,12 @@ export default defineComponent({
         builds.value = nextBuilds
         total.value = res.data.total || 0
       } catch (e) {
-        if (lifecycleGuard.isCurrent('builds', generation)) console.error(e)
+        // The response interceptor already toasted the bounded server message, so
+        // only a bounded diagnostic is logged here. Logging the raw AxiosError
+        // would print config.headers['api-token'] and the request body.
+        if (lifecycleGuard.isCurrent('builds', generation)) {
+          console.error('Failed to load custom builds:', e?.message || String(e))
+        }
       } finally {
         if (lifecycleGuard.isCurrent('builds', generation) && !silent) loading.value = false
       }
@@ -1498,7 +1505,10 @@ export default defineComponent({
         if (!lifecycleGuard.isCurrent('presets', generation)) return
         presets.value = res.data.list || []
       } catch (e) {
-        if (lifecycleGuard.isCurrent('presets', generation)) console.error(e)
+        // Bounded diagnostic: the raw AxiosError carries config.headers['api-token'].
+        if (lifecycleGuard.isCurrent('presets', generation)) {
+          console.error('Failed to load custom presets:', e?.message || String(e))
+        }
       }
     }
 
@@ -1562,7 +1572,10 @@ export default defineComponent({
         syncFieldAria()
         ElMessage.success(T('OperationSuccess'))
       } catch (e) {
-        console.error('preset custom_json parse error', e)
+        // The V8 JSON.parse message quotes an excerpt of the offending input,
+        // and preset.custom_json can contain permanent_password/key. Log the
+        // error type only — never the message, never the object.
+        console.error('preset custom_json parse error:', e?.name || 'Error')
       }
     }
 
@@ -1624,8 +1637,10 @@ export default defineComponent({
         await nextTick()
         presetSelectRef.value?.focus?.()
       } catch (e) {
-        // Errors are toasted globally by the axios interceptor; just log here.
-        if (e !== 'cancel') console.error(e)
+        // Errors are toasted globally by the axios interceptor; log a bounded
+        // diagnostic only. The raw AxiosError carries config.headers['api-token']
+        // and the request body.
+        if (e !== 'cancel') console.error('Failed to delete custom preset:', e?.message || String(e))
       }
     }
 
@@ -1697,8 +1712,10 @@ export default defineComponent({
         loadBuilds()
       } catch (e) {
         // Backend/network errors are already toasted globally by the axios
-        // response interceptor (utils/request.js); only log unexpected JS errors.
-        if (e !== 'cancel') console.error(e)
+        // response interceptor (utils/request.js); log a bounded diagnostic only
+        // for unexpected JS errors. The raw AxiosError carries
+        // config.headers['api-token'] and the request body.
+        if (e !== 'cancel') console.error('Failed to delete custom build:', e?.message || String(e))
       }
     }
 
@@ -1804,7 +1821,10 @@ export default defineComponent({
           applyServerConfigDefaults()
         }
       } catch (e) {
-        if (lifecycleGuard.isCurrent('config', generation)) console.warn('fetchConfig failed:', e)
+        // Bounded diagnostic: the raw AxiosError carries config.headers['api-token'].
+        if (lifecycleGuard.isCurrent('config', generation)) {
+          console.warn('fetchConfig failed:', e?.message || String(e))
+        }
       }
     }
 
