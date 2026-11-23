@@ -5,8 +5,10 @@
 > `api/service/github_build_config.go`. Frontend: `admin-ui/src/views/custom-client/index.vue`,
 > `admin-ui/src/views/server/github-build.vue`. Windows workflow file
 > `.github/workflows/rustqs-windows.yml`, artifact `rustqs-windows`; `rustqs/workflows`
-> is a legacy read-only compatibility ref, not a production selector (canonical ref
-> table: `github-build/README.md`). Production execution uses approval-gated, guarded
+> is a backup copy of the fork's `master`, kept so workflow files cannot be lost if
+> `master` is damaged (canonical definition: `github-build/README.md`); it is not a
+> dispatch selector, and the code path retains it read-only for legacy compatibility.
+> Production execution uses approval-gated, guarded
 > immutable `refs/tags/workflow-*` under workflow-ref approval (`PLAN.md` §2 /
 > `github-build/README.md`); local `github-build/` workflow files are reference
 > material only.
@@ -24,6 +26,8 @@
 ---
 
 ## Historical architectural mismatch with PLAN.md §3
+
+> Note 2026-11-23: the `PLAN.md` section numbers referenced in this section (§3, §8.3, §8.4) refer to the pre-2026-11-23 `PLAN.md` numbering and may not resolve in the current `PLAN.md`.
 
 The original audit recorded a mismatch with the standalone / Docker build agents marked
 **frozen as fallback** (§8.3, §8.4). The current source now checks provider readiness
@@ -51,14 +55,15 @@ so the file-queue path is not a production fallback. `docker/docker-compose.yml`
 the status-mirror limitation if an operator runs them manually; no live provider evidence
 is implied by this closure boundary.
 
-**Current path:** `api/http/controller/admin/custom_build.go:1246-1261` dispatches
-production builds through the configured provider; the old queue references remain
+**Current path:** `api/http/controller/admin/custom_build.go:1461,1470`
+(`submitBuild` → `tryGithubDispatch`) dispatches production builds through the
+configured provider; the old queue references remain
 only in the frozen scripts below. **Historical queue locations:**
 `docker/entrypoint-linux.sh:37,49,76,...` and `docker/entrypoint-win.sh:33,45,210`
 write `output_dir/status`.
 **Historical symptom:** Linux/Android (and Windows when GitHub config was missing) builds
 sat at `Status=pending` forever. `DownloadByKey` returned HTTP 409. The Download button
-did not appear in the UI (`v-if="row.status === 'done'"`, `custom-client/index.vue:306`).
+did not appear in the UI (`v-if="row.status === 'done'"`, `custom-client/index.vue:672`).
 **Root cause:** no Go-side watcher reads `/rdgen-data/output/{id}/status`. The build agent's
 status file is dead-letter.
 **Fix path (per owner direction):**

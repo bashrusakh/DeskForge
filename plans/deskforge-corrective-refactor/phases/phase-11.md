@@ -3,6 +3,8 @@
 **Status:** 🟡 `in-progress` (not verified)
 **Scope:** end-to-end Linux and Android build capability validation and guarded platform exposure. This phase consumes PR7 streaming artifacts and does not equate workflow-file presence with support. Local static implementation evidence is recorded below; live capability evidence remains blocked and the capabilities remain disabled.
 
+> Historical record (point-in-time), qualified 2026-11-23. Superseded fact: the current local schema target is now `DatabaseVersion` 285 (PLAN.md §2); the schema-283 "current candidate" statements below are as recorded.
+
 ## Behavioral contract
 
 A user may choose Linux or Android only when the corresponding capability is known-good: the owned workflow, bridge dependencies, custom settings embedding, exact artifact, streamed delivery, and download path all pass. Unsupported or unproven platforms fail closed and are not shown as selectable normal capabilities.

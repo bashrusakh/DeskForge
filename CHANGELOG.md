@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+> **Note 2026-11-23:** `PLAN.md §…` section numbers referenced in older entries below (e.g. §8.x, §9) refer to the pre-2026-11-23 `PLAN.md` numbering and may not resolve in the current `PLAN.md`.
+
 ## [Unreleased]
 
 ### `libs/hbb_common`: last baked-in external endpoints neutralized — 2026-11-23
@@ -149,6 +151,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   the next 04:17 UTC window (cron `17 4 * * *`). It is the only unproven platform
   claim.
 
+### Custom-client schema 284/285 + runtime app-name/branding fields — 2026-10-13 (**back-fill**, added 2026-11-23)
+
+> Back-fill entry: this work landed without a changelog record; added 2026-11-23 from `PLAN.md §2` (lines 129-138) and the code/commit record. Not a new change.
+
+- **Schema 284:** create-time `preset_id` and `preset_name` provenance snapshots on
+  `custom_builds`.
+- **Schema 285:** the custom-client branding-field preflight runs before `AutoMigrate`,
+  failing closed when an existing `custom_builds` or `custom_presets` row already carries
+  a branding field value the shared branding seam rejects.
+- **Runtime app-name / Windows branding fields** (`bdd9c5c`): delivered through the
+  custom-client API/UI path (`api/service/custom_build_spec.go`,
+  `admin-ui/src/views/custom-client/index.vue`).
+- SQLite-only migration/preflight tests cover the schema-284 provenance columns and the
+  schema-285 branding preflight/version gate; MySQL/PostgreSQL migration and read/write
+  coverage remain unverified (`PLAN.md §2`).
+
 ### Local PR #59 review remediation — 2026-08-20
 - The current local corrective candidate is `DatabaseVersion` **283**; the published
   DeskForge schema remains **272**. Schema 283 adds
@@ -255,6 +273,7 @@ across three migration steps; `AutoMigrate` is idempotent so all schema addition
 - **api: capability-URL TTL** — public download links (`/build/k/{key}` and
   `/build/dl/{key}`) now return 410 Gone after expiry; check centralized in
   `findBuildByDownloadKey`. (B-006)
+  > Correction 2026-11-23: those two route strings are wrong (wrong even at the time) — the real routes are `api/admin/custom_build/public/detailByKey/:key` and `…/public/download/:key`, recorded at CHANGELOG.md:570-578. Line kept as recorded.
 - **Historical implementation note (superseded): api: GitHub artifact name fallback** —
   the former `DownloadArtifact` behavior fell back to the sole artifact of the run when
   the expected name did not match. The current path requires exact artifact identity.
@@ -309,6 +328,7 @@ across three migration steps; `AutoMigrate` is idempotent so all schema addition
 - **Workflow audit:** open findings consolidated from `AUDIT.md` + `audit-report.md` into
   `BUGS.md` (RD-A4, RD-B1, RD-B5, RD-B6 retired; AU-C-001, AU-S-001, AU-M-014, AU-M-021,
   AU-M-022, AU-L-007/010/011/015 carried forward).
+  > Reconciliation 2026-11-23: `RD-B6` was not retired — `BUGS.md:158-169` preserves it as `[~]` flagged-but-unfixed from this same consolidation. Line kept as recorded.
 
 ### Reference
 - Historical tracker snapshot (2026-06-22): 25 fixed, 4 partial, 2 open. The

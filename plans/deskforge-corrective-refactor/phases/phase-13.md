@@ -10,6 +10,8 @@ candidate, provider-workflow guard, and unresolved PR #59 publication boundary.
 does not establish a published schema, a provider-ready workflow, a production dispatch,
 or cross-database support.
 
+> Historical record (point-in-time), qualified 2026-11-23. Superseded fact: the current local schema target is now `DatabaseVersion` 285 (PLAN.md §2); the schema-283 "current local candidate" statements below are as recorded.
+
 ## Behavioral contract
 
 An operator selects a provider-derived workflow tag; the provider resolves its workflow

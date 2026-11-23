@@ -249,3 +249,5 @@ No hardcoded values in UI or YAML need to be changed.
 | `github-build/README.md` | ✅ Updated | Architecture + Version flow + bridge.yml |
 | `PLAN.md §7` | ✅ Updated | Added note about auto-appearing versions, 3-branch deploy section, bridge.yml warning |
 | `offline-kit/FORK-PROCEDURE.md` | ✅ Updated | Added C1 (versions in UI) and C2 (workflow deployment) |
+
+> Note 2026-11-23: the `PLAN.md §7` reference above points to the pre-2026-11-23 `PLAN.md` numbering.

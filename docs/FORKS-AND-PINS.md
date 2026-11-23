@@ -225,10 +225,10 @@ Moving `libs/hbb_common/` to a new pin (full client-release maintenance procedur
    [`libs/hbb_common/UPSTREAM.md`](../libs/hbb_common/UPSTREAM.md); re-decide every row
    of it on the record's carry-over rule (re-applied only if both still relevant against
    the new pin and still needed) and apply exactly the kept rows, recording every
-   kept/dropped verdict with its justification in the record. In summary at the current
-   pin: reproducible `gen_version()` in `src/lib.rs` (⚠️ must survive every re-pin — the
-   `server/` build's `$OUT_DIR/version.rs` include coupling is detailed in the record)
-   and the external-endpoint neutralizations in `src/config.rs`.
+   kept/dropped verdict with its justification in the record. The record's kept-row
+   table is the authoritative list of what to re-apply (no inline summary is kept here).
+   The ⚠️ `gen_version()` row must survive every re-pin — the
+   `server/` build's `$OUT_DIR/version.rs` include coupling is detailed in the record.
 5. **Verify**: run `cd libs/hbb_common && cargo test` — the three `gen_version()`
    unit tests live in that package and are **not** run by `server/`'s `cargo test`
    (path dependency, no workspace membership), so run them explicitly or they rot

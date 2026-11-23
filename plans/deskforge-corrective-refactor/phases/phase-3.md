@@ -3,6 +3,8 @@
 **Status:** ✅ `verified-with-notes`
 **Scope:** GitHub REST transport, exact workflow dispatch response, typed error policy, redaction, artifact identity, and retry classification. The exact dispatch response is a project/provider contract under test; no normal GitHub operation or live-provider claim is made.
 
+> Historical record (point-in-time), qualified 2026-11-23. Superseded fact: the GitHub dispatch contract changed on the 2026-03-10 API version — GitHub removed `return_run_details` and the endpoint always returns HTTP 200 with run details, so current dispatch no longer sends that parameter (PLAN.md §2). Assessments below are as recorded.
+
 ## Behavioral contract
 
 The operator selects a known build capability and starts it. The service encrypts the typed payload and asks GitHub to dispatch the configured workflow. GitHub supplies the run identity; the service must not manufacture it by listing recent runs or accept it from user input. Provider errors are typed and safe to surface; secrets and encrypted payloads never appear in logs.

@@ -73,9 +73,6 @@ fixtures with the RFC 2606 reserved `example.com`, `websocket/proxy_tests.rs`
 | `src/webrtc.rs` `DEFAULT_ICE_SERVERS = []` | Dropped — not needed in our build shape | `src/webrtc.rs` is `#[cfg(feature = "webrtc")]` and `server/` takes `hbb_common` with default features only, so the module never compiles in any DeskForge build/test command — no public STUN server can reach our binaries or configuration. Neutralizing it in the new shape would also conflict with the pin's feature-gated `test_webrtc_ice_server_list` (asserts `DEFAULT_ICE_SERVERS[0]`), which must not be weakened. Re-evaluate only if the `webrtc` feature is ever enabled. |
 | Formatting-only hunks (`src/tcp.rs`, `src/stream.rs`, `examples/webrtc.rs`, `src/webrtc.rs` test wrap, `src/lib.rs` import reorders / `init_log` wraps) | Dropped — not needed | Semantically inert; keep the delta minimal. Caveat: the CI `cargo fmt --check` gate on `libs/hbb_common` could not be run in the verification environment (rustfmt absent) — if CI's pinned rustfmt flags the pin's or the patch's formatting, that is a formatting-only follow-up. |
 
-Commit SHAs in the origin column are DeskForge repository commits where recorded; two
-origins predate this record and are marked "not recorded" where applicable.
-
 ## Re-pinning
 
 This file is DeskForge content and does not exist in the fork: save it before the

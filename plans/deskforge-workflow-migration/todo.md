@@ -3,6 +3,8 @@
 **Plan:** `plans/deskforge-workflow-migration/plan.md`
 **Status:** Prior workflow migration and local two-layer workflow SHA-guard implementation are complete. Two live branch runs validate guard sequencing, while a later DeskForge-local PR59 review remediation is recorded below; production artifact output and readiness remain unverified.
 
+> Historical record (point-in-time), qualified 2026-11-23. Superseded facts: `rustqs/workflows` is a backup copy of the fork's `master`, not a dispatch selector, and production dispatch is approval-gated, guarded, immutable `refs/tags/workflow-*` — the present-tense "Current state" below (incl. the `rustqs/min-test` → `rustqs/workflows` rename as execution ref) is as recorded (github-build/README.md).
+
 ## Current state
 
 - [x] Branch renamed from `rustqs/min-test` to `rustqs/workflows`; exact head is `b11be6aef84aa110884bec8fa5fe827663b8ff01`.

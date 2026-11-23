@@ -5,6 +5,8 @@
 
 **Current evidence boundary:** Packages A–C implementation and focused checks pass locally: strict offline fixtures/stage checks; v2 producer/API manifests including private `custom_.txt` declaration; deterministic handoff/archive hashes; TOCTOU-safe snapshot cleanup; retention-days/`if-no-files-found: error`; and public `custom_.txt` redaction. PR10 must remain `in-progress`, not `verified-with-notes`, because real offline-kit verification fails closed and the release-boundary gates remain unproven.
 
+> Historical record (point-in-time), qualified 2026-11-23. Superseded fact: the current local schema target is now `DatabaseVersion` 285 (PLAN.md §2); the schema-283 "current candidate" statements below are as recorded.
+
 ## Behavioral contract
 
 An operator naturally chooses **verify-only** for a frozen kit or follows a

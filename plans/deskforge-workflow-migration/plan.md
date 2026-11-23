@@ -4,6 +4,8 @@
 **Status:** Prior workflow migration and local two-layer workflow SHA-guard implementation are complete. Two live branch runs validate guard sequencing, while a later DeskForge-local PR59 review remediation is recorded below; production artifact output and readiness remain unverified.
 **Scope:** Add a provider-derived outer/inner workflow SHA guard to the DeskForge dispatch boundary and active RustDesk Windows/bridge workflows, with focused local checks and documented live guard runs. This does not establish production selector verification, artifact output, or readiness.
 
+> Historical record (point-in-time), qualified 2026-11-23. Superseded facts: `rustqs/workflows` is a backup copy of the fork's `master`, not a dispatch selector, and production dispatch is approval-gated, guarded, immutable `refs/tags/workflow-*` — the present-tense "Current state" below (incl. the `rustqs/min-test` → `rustqs/workflows` rename as execution ref) is as recorded (github-build/README.md).
+
 ## Current state
 
 - `rustqs/min-test` was renamed to `rustqs/workflows`. The accepted executable workflow is `rustqs-windows.yml`, producing artifact `rustqs-windows`, at exact head `b11be6aef84aa110884bec8fa5fe827663b8ff01`.

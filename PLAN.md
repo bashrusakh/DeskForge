@@ -27,7 +27,9 @@ repositories, so full upstream independence is not verified.
 configured RustDesk fork, polls the provider run, downloads the exact artifact
 through the provider API, then validates, extracts, and publishes it locally.
 `github-build/` and `rdgen/` are reference/documentation material only;
-`win-builder/` and `linux-build` are manual/historical-only builders outside the
+`win-builder/` and the Docker build agents (`docker/Dockerfile.build-linux` /
+`docker/Dockerfile.build-win` + `entrypoint-linux.sh` / `entrypoint-win.sh`, compose
+`profiles: ["fallback"]`) are manual/historical-only builders outside the
 production API path.
 
 GitHub-first because:
@@ -158,7 +160,7 @@ operation; a post-dispatch database failure remains a documented limitation.
 
 ```
 admin-ui → Go API → jobs/{id}.json → SMB share → standalone Windows builder
-                                                   or Docker linux-build
+                                                   or Docker build-linux
 ```
 
 These local-queue builders are not a production fallback for the current API.
@@ -180,7 +182,7 @@ alternative workflow source.
 | `github-build/`                | 📘 reference   | documentation only; no executable workflow copies                |
 | `rdgen/`                       | 📘 reference   | vendored historical/reference material, not the active source      |
 | win-builder standalone         | ❄️ frozen      | manual/historical only; not API path |
-| linux-build (Docker)           | ❄️ frozen      | manual/historical only; not API path |
+| Docker build agents (`Dockerfile.build-linux`/`build-win`) | ❄️ frozen      | manual/historical only; not API path |
 | offline-kit                    | ❄️ frozen      | re-freeze when client version changes |
 
 ---
@@ -265,9 +267,10 @@ disambiguating ref name (e.g. `upstream-<tag>`). Commands:
 ### 7.3. Re-pin DeskForge's `libs/hbb_common/` copy
 
 Replace the tracked copy with the fork's content at the pin SHA, record the new fork
-point in [`libs/hbb_common/UPSTREAM.md`](libs/hbb_common/UPSTREAM.md), and re-apply the
-documented patch set (`src/lib.rs` reproducible `gen_version()`, `src/config.rs`
-external-endpoint neutralization, `src/webrtc.rs` `DEFAULT_ICE_SERVERS = []`):
+point in [`libs/hbb_common/UPSTREAM.md`](libs/hbb_common/UPSTREAM.md), and re-apply
+exactly the record's **kept rows**: that record's kept/dropped table is the
+authoritative patch-set list — re-decide every row under its carry-over rule rather
+than any inline summary here, the same defer-and-verify step-4 pattern of
 [docs/FORKS-AND-PINS.md §5](docs/FORKS-AND-PINS.md#5-updating-the-deskforge-copy-to-a-new-pin).
 
 > **Important:** the `gen_version()` patch must survive every re-pin; the `server/`
@@ -377,5 +380,7 @@ signature, or release readiness.
 - `custom.json` in `flutter/lib/` — no-op, not read by the code.
 - Real mechanism: `custom_.txt` + `config.rs`.
 - `read_custom_client` checks signature — `allowCustom.py` patch removes the check.
-- Patches in `rdgen/.github/patches/`: allowCustom, hidecm, removeSetupServerTip,
-  removeNewVersionNotif, cycle_monitor, xoffline, privacyScreen.
+- Patches in `rdgen/.github/patches/` (7 `.diff`): allowCustom, cycle_monitor,
+  flutter_3.24.4_dropdown_menu_enableFilter, hidecm, removeNewVersionNotif,
+  removeSetupServerTip, xoffline — plus the `allowCustom.py` / `privacyScreen.py`
+  helper scripts.

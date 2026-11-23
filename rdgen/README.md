@@ -11,5 +11,4 @@ patches, `generator-windows.yml`, recipes for all 3 injection layers (config.rs 
 
 ## Patches (rdgen/.github/patches/)
 
-`allowCustom`, `hidecm`, `removeSetupServerTip`, `removeNewVersionNotif`,
-`cycle_monitor`, `xoffline`, `privacyScreen`.
+`allowCustom`, `cycle_monitor`, `flutter_3.24.4_dropdown_menu_enableFilter`, `hidecm`, `removeNewVersionNotif`, `removeSetupServerTip`, `xoffline` (`.diff`), plus the `allowCustom.py` / `privacyScreen.py` helpers.

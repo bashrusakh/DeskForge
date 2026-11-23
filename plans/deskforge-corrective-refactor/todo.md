@@ -13,6 +13,8 @@ files. This does not mark the PR ready, close PR10/PR11, or close their preserve
 No live-provider, full-offline-build, signature/attestation, cross-DB, protected-ref,
 release-readiness, or sovereignty claim is made.
 
+> Historical record (point-in-time), qualified 2026-11-23. Superseded facts: the current local schema target is now `DatabaseVersion` 285 (PLAN.md §2), and the GitHub dispatch contract changed on the 2026-03-10 API version (GitHub removed `return_run_details`; PLAN.md §2). Assessments below are as recorded.
+
 ## Status by original PR order
 
 - [x] **PR1 — verified-with-notes**
@@ -51,6 +53,7 @@ release-readiness, or sovereignty claim is made.
   - [x] User config is Repo/PAT/PayloadKey only; legacy workflow/ref columns remain unread for migration safety.
   - [x] Provider readiness precedes build-row persistence and production API has no file-queue fallback or PAT-sync machinery.
   - [x] DeskForge duplicate platform workflows and draft sync workflow deleted; rdgen bridge retained because vendored generator workflows still reference it.
+    > Correction 2026-11-23: the sync-workflow deletion never happened — `rdgen/.github/workflows/sync-workflows.yml` is still tracked in every recorded tree state (only its creation commits `d2bde6a`/`4067f52` exist); only the API-side behavioral removal half landed (and that code is now gone). Line kept as recorded.
   - [ ] Live GitHub dispatch/poll and real workflow execution remain deferred to later capability evidence.
 
 - [x] **PR7 — verified-with-notes: streaming artifact**

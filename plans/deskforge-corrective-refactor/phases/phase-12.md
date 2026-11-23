@@ -5,6 +5,8 @@
 **Boundary:** no live-provider, full-offline-build, signature/attestation, cross-DB, protected-ref, release-readiness, sovereignty, or Linux/Android support claim is allowed from local implementation notes or focused checks. Commits and PR publication are authorized by the user but remain pending final checks; this phase performs no publication.
 **Provenance:** the DeskForge and RustDesk candidates are separate publication units. `rdgen` deletion and dirty RustDesk submodule content are excluded; this phase is not an isolated publication diff.
 
+> Historical record (point-in-time), qualified 2026-11-23. Superseded fact: the current local schema target is now `DatabaseVersion` 285 (PLAN.md §2); the schema-283 "current candidate" statements in the checklist and body below are as recorded.
+
 ## Behavioral contract
 
 Operators and maintainers should find one truthful account of supported capabilities, configuration, endpoints, build status, artifact handling, offline/release constraints, and known gaps. Documentation and tracker entries must describe what the evidence actually proves; they must not promote planned, local-only, historical, or unverified work to ready.

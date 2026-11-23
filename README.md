@@ -30,7 +30,7 @@ branded Windows client through an owned GitHub Actions workflow in our RustDesk 
 | `docker/` | Image + compose | Single-image (s6-overlay) packaging |
 | `github-build/` | 📘 reference | Docs for fork workflows — no executable copies |
 | `rdgen/` | ❄️ frozen | Vendored historical/reference workflow material |
-| `win-builder/`, `offline-kit/` | ❄️ frozen | Manual/historical-only builder · dependency-freeze tool |
+| `win-builder/`, `offline-kit/`, Docker build agents (`docker/Dockerfile.build-linux` / `Dockerfile.build-win`) | ❄️ frozen | Manual/historical-only builders · dependency-freeze tool |
 
 ---
 
@@ -86,7 +86,7 @@ Production Compose publishes **21114–21118**; expose 21119 separately when the
 | `RUSTDESK_API_KEY_FILE`              | Path to public key file           |
 | `RUSTDESK_API_JWT_KEY`               | JWT secret                        |
 | `RUSTDESK_API_GORM_TYPE`             | sqlite / mysql / postgresql       |
-| `RUSTDESK_API_LANG`                  | en / ru / zh-CN                   |
+| `RUSTDESK_API_LANG`                  | en / es / fr / ko / ru / zh_CN / zh_TW (every locale in `api/resources/i18n/`) |
 | `SECRET_ENCRYPTION_KEY`              | AES-GCM key for secrets at rest   |
 | `SOURCE_DATE_EPOCH`                  | Trusted Docker build timestamp (optional) |
 
@@ -97,7 +97,7 @@ Full semantics (secret-key behavior, public-origin rules, `SOURCE_DATE_EPOCH`): 
 ## ✨ Features
 
 - **Server (Rust + Go)** — user CRUD, JWT, OAuth (GitHub/Google/OIDC), LDAP, groups, tags, address book (personal + shared with collections), peer-UUID binding, audit (login/connection/file-transfer), server commands with persistence and audit log, encrypted-at-rest secrets, captcha & brute-force protection. SQLite/MySQL/PostgreSQL drivers configured: **SQLite is locally exercised; MySQL/PostgreSQL migration and read/write coverage remain unverified.**
-- **Admin UI (Vue 3)** — 16 pages: login, dashboard, devices, users, groups, tags, OAuth, server config, audit, custom client builder, profile, my workspace, guest sharing. 3 locales (en/ru/zh_CN), light/dark/auto themes, shared DataTable / AppDialog / AppDrawer / FilterBar / ActionsToolbar.
+- **Admin UI (Vue 3)** — 16 pages: login, register, dashboard, devices, users, groups, tags, OAuth, server config, audit, custom client builder, address book, guest sharing, my workspace, RustDesk options, error page — the 16 top-level entries of `admin-ui/src/views/`. 3 locales (en/ru/zh_CN), light/dark/auto themes, shared DataTable / AppDialog / AppDrawer / FilterBar / ActionsToolbar.
 - **Custom client** — the API dispatches an owned workflow in the configured RustDesk fork and retrieves the exact provider artifact for local validation/publication. Windows is the only capability admitted today (Linux/Android gated pending PR11 evidence); **no live provider run or clean-environment build is claimed.** Evidence and caveats: [PLAN.md §2](PLAN.md#2-architecture) · fine-grained PAT permissions: [api/README.md](api/README.md#github-fine-grained-pat-permissions).
 
 **Not implemented (vs RustDesk Pro):** 2FA, RBAC, session recording, device policy, remote script, HA, backup/restore.
