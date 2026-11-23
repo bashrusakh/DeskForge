@@ -103,11 +103,33 @@ Full semantics (secret-key behavior, public-origin rules, `SOURCE_DATE_EPOCH`): 
 
 ## ✨ Features
 
-- **Server (Rust + Go)** — user CRUD, JWT, OAuth (GitHub/Google/OIDC), LDAP, groups, tags, address book (personal + shared collections), peer-UUID binding, audit, server commands with persistence and audit log, encrypted-at-rest secrets, captcha & brute-force protection. SQLite/MySQL/PostgreSQL drivers configured: **SQLite is locally exercised; MySQL/PostgreSQL migration and read/write coverage remain unverified** ([PLAN.md §2](PLAN.md#2-architecture)).
-- **Admin UI (Vue 3)** — 16 pages (login, register, dashboard, devices, users, groups, tags, OAuth, server config, audit, custom client builder, address book, guest sharing, workspace, Server Commands, error page), 3 locales (en/ru/zh_CN), light/dark/auto themes, shared DataTable / AppDialog / AppDrawer / FilterBar / ActionsToolbar.
-- **Custom client** — the API dispatches an owned workflow in the configured RustDesk fork and retrieves the exact provider artifact for local validation/publication. Windows only today (Linux/Android gated pending PR11 evidence); **no live provider run or clean-environment build is claimed.** Evidence and caveats: [PLAN.md §2](PLAN.md#2-architecture) · fine-grained PAT permissions: [api/README.md](api/README.md#github-fine-grained-pat-permissions).
+**Everything runs on your own server**
+
+- One Docker image: ID/relay servers, REST API, and browser admin panel.
+
+**Access control and audit**
+
+- JWT, OAuth (GitHub/Google/OIDC), and LDAP authentication; audit log; captcha and brute-force protection.
+- Secrets encrypted at rest; server commands persist with their own audit trail.
+
+**Build your own client**
+
+- The API dispatches an owned workflow in our configured RustDesk fork.
+- It builds a branded Windows client; the exact provider artifact is validated and published locally.
+
+| Area | Capabilities |
+| --- | --- |
+| **Server (Rust + Go)** | user CRUD · JWT · OAuth (GitHub/Google/OIDC) · LDAP · groups · tags · address book (personal + shared collections) · peer-UUID binding · audit · server commands with persistence and audit log · encrypted-at-rest secrets · captcha & brute-force protection |
+| **Admin UI (Vue 3)** | 16 pages: login, register, dashboard, devices, users, groups, tags, OAuth, server config, audit, custom client builder, address book, guest sharing, workspace, Server Commands, error page · 3 locales (en/ru/zh_CN) · light/dark/auto themes · shared DataTable / AppDialog / AppDrawer / FilterBar / ActionsToolbar |
+| **Custom client** | owned fork workflow · exact provider artifact · local validation/publication |
 
 **Not implemented (vs RustDesk Pro):** 2FA, RBAC, session recording, device policy, remote script, HA, backup/restore.
+
+**Evidence:**
+
+- SQLite/MySQL/PostgreSQL drivers configured — SQLite is locally exercised; MySQL/PostgreSQL migration and read/write coverage remain unverified.
+- Windows only today; Linux/Android gated pending PR11 evidence; **no live provider run or clean-environment build is claimed.**
+- Details: [PLAN.md §2](PLAN.md#2-architecture) · fine-grained PAT permissions: [api/README.md](api/README.md#github-fine-grained-pat-permissions).
 
 ---
 
