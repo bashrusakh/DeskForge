@@ -50,27 +50,33 @@ admin-ui/        — Vue 3 admin panel
 └── src/utils/   — auth, request, export, i18n (en/ru/zh_CN)
 
 rdgen/           — ❄️ frozen vendored historical/reference workflow material (patches, generator-*.yml)
-libs/hbb_common/ — tracked shared Rust library in DeskForge (not a submodule here)
+libs/hbb_common/ — tracked shared Rust library in DeskForge; copy of our hbb_common mirror fork @ pin + patches (not a submodule here)
 docker/          — Dockerfile + compose + entrypoint scripts
 github-build/    — reference/documentation only; no executable workflow copies
 win-builder/     — ❄️ frozen manual/historical-only standalone builder
 offline-kit/     — ❄️ frozen dependency-freeze tool; verification is incomplete
 ```
 
-DeskForge tracks `libs/hbb_common/` directly. The configured RustDesk fork has its
-own `libs/hbb_common` git submodule, currently recorded against upstream
-`rustdesk/hbb_common`; its local state is dirty and unpublished, so clean fork
-provenance is an explicit reproducibility gate. The fork's `.github/workflows/` files
+DeskForge tracks `libs/hbb_common/` directly: it is a copy of our mirror fork
+`bashrusakh/hbb_common` at a recorded pin plus a documented patch set — pin record:
+`libs/hbb_common/UPSTREAM.md`; topology, sync rules, and pin bookkeeping:
+`docs/FORKS-AND-PINS.md`. The mirror fork is just a fork of upstream
+`rustdesk/hbb_common` — it must be kept in sync with upstream automatically where
+technically possible (merge-based, never history-rewriting); on `main` it carries
+upstream history plus non-behavioral infrastructure commits only (license metadata,
+the sync workflow file) and never behavioral patches in library content — and the
+configured RustDesk fork records its `libs/hbb_common` gitlink against our mirror fork
+by SHA (`master` → `36ab6ed`, 2026-11-23). The fork's `.github/workflows/` files
 are the sole executable source for active client-build workflows; `github-build/` and
 `rdgen/` are reference/frozen material only. No current repository `vendor/` tree,
 `rustdesk-deps/` archive, or client-release directory is tracked here.
 The published RustDesk client source/ref is 1.4.8 and the published DeskForge API
 schema is `DatabaseVersion` 272. The current local corrective candidate targets API
-schema 283, which is not published or live-provider evidence. Schema 283 adds
-`idx_custom_presets_user_id_name` on `(user_id, name)`; before `AutoMigrate`, its
-preflight fails on existing duplicate groups without auto-selecting a row or deleting
-data. The earlier schema-282 workflow-approval migration remains historical
-context. SQLite is the only recorded migration evidence; MySQL/PostgreSQL migration
+schema 285, which is not published or live-provider evidence. The earlier schema-283
+migration adds `idx_custom_presets_user_id_name` on `(user_id, name)`; before
+`AutoMigrate`, its preflight fails on existing duplicate groups without auto-selecting
+a row or deleting data. The earlier schema-282 workflow-approval migration remains
+historical context. SQLite is the only recorded migration evidence; MySQL/PostgreSQL migration
 and read/write coverage remain unverified.
 
 ## Build / dev commands
@@ -186,4 +192,6 @@ rows remain readable; saving them again encrypts them when the key exists.
 
 ## New upstream version workflow
 
-See [PLAN.md §7](PLAN.md#7-historical-fork-maintenance-notes-for-a-new-upstream-rustdesk-client-release).
+See [PLAN.md §7](PLAN.md#7-fork-maintenance-procedure-for-a-new-upstream-rustdesk-client-release)
+for the maintenance procedure and [docs/FORKS-AND-PINS.md](docs/FORKS-AND-PINS.md) for
+fork topology, sync rules, and pin bookkeeping.

@@ -197,7 +197,7 @@ Credentials — encrypted payload, decrypted inside the runner via GitHub Secret
 ## Upstream updates
 
 Follow
-[PLAN.md §7](../PLAN.md#7-historical-fork-maintenance-notes-for-a-new-upstream-rustdesk-client-release)
+[PLAN.md §7](../PLAN.md#7-fork-maintenance-procedure-for-a-new-upstream-rustdesk-client-release)
 for the upstream release process. Active workflow changes belong in the rustdesk
 fork; this directory remains reference/documentation only.
 

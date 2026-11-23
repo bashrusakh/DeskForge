@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fork/pin/sync documentation ordering + hbb_common auto-sync installed — 2026-11-23
+- Fork/pin/sync documentation brought into order: new canonical `docs/FORKS-AND-PINS.md`
+  (topology, fork-creation rules, sync mandate + manual fallback, pin bookkeeping,
+  re-pin procedure) and new pin record `libs/hbb_common/UPSTREAM.md` (fork point
+  `387603f47cbb15c0d3dc3d67ae3396d3eb707daf` = the `rustdesk/rustdesk` 1.4.8
+  `libs/hbb_common` pin, plus the documented local patch set). Stale fork claims
+  corrected in `README.md`, `AGENTS.md`, `CONTRIBUTING.md`, `PLAN.md` (§7 rewritten as
+  the fork maintenance procedure), `github-build/README.md`, and the frozen
+  `offline-kit/FORK-PROCEDURE.md` fork rules. Current API schema statements aligned to
+  the code truth `DatabaseVersion` **285** (schema 283 described as the earlier
+  composite-index migration step).
+- `bashrusakh/hbb_common` auto-sync is installed and enabled: `sync-upstream.yml`
+  landed on `main` as `5a2d082f5051d1738ae39c997cfa92728bcab6c2` (merge-based
+  `upstream/main` → `main`, daily 04:17 UTC + manual; never history-rewriting). It
+  supersedes the concurrent draft `b53e044` "ci: auto-sync main with upstream on
+  schedule" (weekly `gh repo sync` variant) by user-ratified replacement; `b53e044`
+  remains in history and its content is retrievable there. Workflow state `active`;
+  smoke run `45125365177` concluded `success` ("Already in sync: every commit of
+  upstream/main is already on main. Nothing to do."). Fork history is linear:
+  `5a2d082 → b53e044 → 36ab6ed → bb416bc`.
+- **Pending (not claimed):** the schedule-fire proof — a `schedule`-triggered run after
+  the next 04:17 UTC window (cron `17 4 * * *`). It is the only unproven platform
+  claim.
+
 ### Local PR #59 review remediation — 2026-08-20
 - The current local corrective candidate is `DatabaseVersion` **283**; the published
   DeskForge schema remains **272**. Schema 283 adds

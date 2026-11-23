@@ -68,9 +68,10 @@ GitHub-first because:
 ```
 bashrusakh/
 ├── DeskForge              ← this repo (server, api, admin, docker)
+│   └── libs/hbb_common/   ← tracked copy of our hbb_common fork @ pin + patches; not a submodule here
 ├── rustdesk               ← owned RustDesk fork and active workflow source
 │   └── .github/workflows/ ← rustqs-windows.yml, rustqs-linux.yml, rustqs-android.yml
-└── libs/hbb_common        ← tracked shared source in DeskForge; not a submodule here
+└── hbb_common             ← mirror fork of rustdesk/hbb_common (must be kept in sync with upstream; main = upstream + non-behavioral infra commits; never behavioral patches)
 ```
 
 **Published client source/ref:** 1.4.8, aligned with `offline-kit/versions.env`. The
@@ -79,10 +80,12 @@ schema remains `DatabaseVersion` 272. Schema 283 adds
 `idx_custom_presets_user_id_name` on `(user_id, name)` and fails preflight on existing
 duplicate groups before `AutoMigrate`, without auto-selecting a row or deleting data. Schema 282
 remains the earlier workflow-approval migration.
-The configured RustDesk fork's `libs/hbb_common` is a separate git submodule currently
-recorded against upstream `rustdesk/hbb_common`; its local checkout is dirty and
-unpublished. Active RustDesk and DeskForge manifests also reference third-party upstream
-repositories/modules. Provider-side live execution and clean-build proof are not recorded
+The configured RustDesk fork's `libs/hbb_common` is a separate git submodule whose
+gitlink is repointed at our mirror fork `bashrusakh/hbb_common` by SHA (`master` →
+`36ab6ed`, 2026-11-23); DeskForge's own `libs/hbb_common/` copy is pinned at `387603f`
+plus local patches (pin record: `libs/hbb_common/UPSTREAM.md`; topology and rules:
+`docs/FORKS-AND-PINS.md`). Active RustDesk and DeskForge manifests also reference
+third-party upstream repositories/modules. Provider-side live execution and clean-build proof are not recorded
 here. On 2026-08-11, `GOWORK=off go vet ./...` and `GOWORK=off go test ./...`
 passed after test-only cache diagnostics and opt-in Redis test changes. Redis
 integration tests and benchmarks run only when `DESKFORGE_TEST_REDIS_ADDR` is
@@ -237,65 +240,81 @@ It is not the executable workflow source and must not be copied into the fork.
 
 ---
 
-## 7. Historical fork maintenance notes for a new upstream rustdesk-client release
+## 7. Fork maintenance procedure for a new upstream rustdesk-client release
 
-The steps below are historical maintenance notes for the owned RustDesk fork. They are not
-the DeskForge build execution path; active workflow files live only in that
-fork. Do not copy workflow files from `github-build/` or `rdgen/`.
+Maintenance procedure for the owned forks and DeskForge's `libs/hbb_common/` copy. It is
+not the DeskForge build execution path; active workflow files live only in that
+fork. Do not copy workflow files from `github-build/` or `rdgen/`. Fork topology, sync
+rules, pin bookkeeping, and the DeskForge re-pin mechanics are defined in
+[docs/FORKS-AND-PINS.md](docs/FORKS-AND-PINS.md); the current pin and patch record is
+[`libs/hbb_common/UPSTREAM.md`](libs/hbb_common/UPSTREAM.md).
 
-When `rustdesk/rustdesk` publishes a new tag (e.g. 1.5.0), follow these steps:
+**Pins are SHAs.** Upstream `rustdesk/hbb_common` has no version tags at all, so every
+`hbb_common` pin is a commit SHA. Client release tags (e.g. `1.5.0`, unprefixed) exist
+only on `rustdesk/rustdesk` — and tag names are not identities: the fork's `1.5.0`
+(`9253e1fc`) is a fork commit, not upstream's `1.5.0` (`fada664d`). Record the SHA.
 
-### 7.1. Fork sync
+When `rustdesk/rustdesk` publishes a new tag, follow these steps:
 
-```bash
-# In bashrusakh/rustdesk:
-git fetch upstream --tags
-git checkout v1.5.0
-git push origin v1.5.0
+### 7.1. Sync the `hbb_common` fork
 
-# In bashrusakh/hbb_common:
-git fetch upstream --tags
-git checkout v1.5.0   # or matching tag
-git push origin v1.5.0
-```
+Standing rule: [`bashrusakh/hbb_common`](https://github.com/bashrusakh/hbb_common) must
+be kept in sync with upstream automatically, where technically possible, by
+`sync-upstream.yml` in the fork repository — merge-based (`upstream/main` into `main`,
+never history-rewriting), so consumer SHA pins stay valid. Installation status, manual
+fallback (merge-based commands and conflict rules):
+[docs/FORKS-AND-PINS.md §3](docs/FORKS-AND-PINS.md#3-fork-maintenance).
 
-### 7.2. Repoint submodule
+### 7.2. Re-point the RustDesk fork's gitlink by SHA
 
-In the rustdesk fork:
-```bash
-# .gitmodules → url = https://github.com/bashrusakh/hbb_common.git, branch = v1.5.0
-git submodule sync && git submodule update --init --recursive
-git add .gitmodules libs/hbb_common
-git commit -m "chore: point hbb_common to v1.5.0"
-git push origin v1.5.0
-```
+In `bashrusakh/rustdesk`, bring the branch up to the new client tag (fetch
+`upstream --tags`, then merge or push the mirrored tag — mind the tag-collision caution
+above) and record the chosen `hbb_common` pin SHA in the `libs/hbb_common` gitlink
+(URL: `https://github.com/bashrusakh/hbb_common.git`). Tag-collision resolution: never
+overwrite an existing published fork tag (nothing is history-rewritten) — if the fork
+already owns a different commit under the upstream tag name (as with `1.5.0`), record
+the collision and the upstream tag's SHA, and if a mirror ref is needed use a
+disambiguating ref name (e.g. `upstream-<tag>`). Commands:
+[docs/FORKS-AND-PINS.md §5](docs/FORKS-AND-PINS.md#5-updating-the-deskforge-copy-to-a-new-pin).
 
-### 7.3. Update vendor (historical procedure; not current repository state)
+### 7.3. Re-pin DeskForge's `libs/hbb_common/` copy
+
+Replace the tracked copy with the fork's content at the pin SHA, record the new fork
+point in [`libs/hbb_common/UPSTREAM.md`](libs/hbb_common/UPSTREAM.md), and re-apply the
+documented patch set (`src/lib.rs` reproducible `gen_version()`, `src/config.rs`
+external-endpoint neutralization, `src/webrtc.rs` `DEFAULT_ICE_SERVERS = []`):
+[docs/FORKS-AND-PINS.md §5](docs/FORKS-AND-PINS.md#5-updating-the-deskforge-copy-to-a-new-pin).
+
+> **Important:** the `gen_version()` patch must survive every re-pin; the `server/`
+> build coupling it guarantees is recorded in
+> [`libs/hbb_common/UPSTREAM.md`](libs/hbb_common/UPSTREAM.md).
+
+### 7.4. Update vendor (historical procedure; not current repository state)
 
 ```bash
 # On a machine with Rust:
 cargo vendor vendor/
-git add vendor/ && git commit -m "chore: vendor deps for v1.5.0"
-git push origin v1.5.0
+git add vendor/ && git commit -m "chore: vendor deps for <client-tag>"
+git push origin <client-tag>
 ```
 
-Or if vendor is too heavy — historically, upload `vendor-1.5.0.tar.gz` as a release
-asset. DeskForge does not currently contain that vendor tree or release asset.
+Or if vendor is too heavy — historically, upload `vendor-<client-tag>.tar.gz` as a
+release asset. DeskForge does not currently contain that vendor tree or release asset.
 
-### 7.4. Update offline-kit
+### 7.5. Re-freeze offline-kit (when the client line changes)
 
 ```bash
 cd DeskForge/offline-kit
-# versions.env: RUSTDESK_REF=v1.5.0; check MSRV, Flutter, vcpkg baseline
+# versions.env: RUSTDESK_REF=<client-tag>, RUSTDESK_COMMIT=<full SHA>; check MSRV, Flutter, vcpkg baseline
 bash freeze.sh source vendor engine
 ```
 
-### 7.5. Update offline-assets release (historical operator procedure)
+### 7.6. Update offline-assets release (historical operator procedure)
 
 ```bash
 # Upload engine/usbmmidd/driver to the fork:
-gh release create offline-assets-1.5.0 --repo bashrusakh/rustdesk \
-    --title "Offline build assets (1.5.0)" \
+gh release create offline-assets-<client-tag> --repo bashrusakh/rustdesk \
+    --title "Offline build assets (<client-tag>)" \
     artifacts/windows-x64-release.zip artifacts/usbmmidd_v2.zip \
     artifacts/rustdesk_printer_driver_v4-1.4.zip artifacts/printer_driver_adapter.zip
 ```
@@ -305,7 +324,7 @@ gh release create offline-assets-1.5.0 --repo bashrusakh/rustdesk \
 > `offline-assets-*` release and source tag. The catalog is repository-derived;
 > there is no hardcoded repository or obsolete version fallback list.
 
-### 7.6. Adapt workflow
+### 7.7. Adapt workflow
 
 Compare upstream `build-for-windows-flutter` with `rustqs-windows.yml`:
 - New system dependencies?
@@ -317,14 +336,14 @@ Port changes to the fork workflow.
 > **Important:** `bridge.yml` must stay **without `inputs.version`** — same as upstream.
 > Bridge and build must work from the same code (the fork). Do not add `repository:` to checkout.
 
-### 7.7. Workflow ownership
+### 7.8. Workflow ownership
 
 The `.github/workflows/` files in the owned RustDesk fork are the sole
 executable source. `github-build/` is reference/documentation only, and the
 vendored `rdgen` workflows are historical/reference material. Maintain active
 workflow logic in the fork; do not create deployment copies in this repository.
 
-### 7.8. Verify
+### 7.9. Verify
 
 - [ ] GitHub Actions run ✅ (no `startup_failure`)
 - [ ] `VERSION` in logs matches the version selected in admin UI
@@ -332,8 +351,9 @@ workflow logic in the fork; do not create deployment copies in this repository.
 - [ ] `rustqs.exe`, ~23 MB, `custom_.txt` packed inside
 - [ ] Smoke test on clean Windows
 
-### 7.9. Update DeskForge reference
+### 7.10. Update DeskForge reference
 
+- [ ] `libs/hbb_common/UPSTREAM.md` — new fork point + patch record
 - [ ] `offline-kit/versions.env` — new `RUSTDESK_REF`
 - [ ] `offline-kit/FORK-PROCEDURE.md` — update versions in examples
 - [ ] `PLAN.md` — update current tag in §1

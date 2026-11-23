@@ -254,13 +254,19 @@ unverified.
 
 ## Forks (for custom client builds)
 
-- [`bashrusakh/rustdesk`](https://github.com/bashrusakh/rustdesk) — owned RustDesk fork at published client source/ref 1.4.8; current local corrective API schema target is 285
-- [`bashrusakh/hbb_common`](https://github.com/bashrusakh/hbb_common) — intended fork of
-  `rustdesk/hbb_common`; the configured RustDesk fork currently records the upstream
-  `rustdesk/hbb_common` submodule, and its local checkout is dirty/unpublished, so clean
-  fork provenance is not verified
+- [`bashrusakh/rustdesk`](https://github.com/bashrusakh/rustdesk) — owned RustDesk fork at published client source/ref 1.4.8; current local corrective API schema target is 285. Its intentional divergence from upstream is the repointed `libs/hbb_common` gitlink, fork-side workflow/branding branches, and fork-side tag history (e.g. tag `1.5.0`, a CI-workflow merge commit).
+- [`bashrusakh/hbb_common`](https://github.com/bashrusakh/hbb_common) — mirror fork of
+  `rustdesk/hbb_common` that must be kept in sync with upstream automatically (where
+  technically possible) and never carries behavioral patches; on `main` it adds only
+  non-behavioral infrastructure (license metadata, the sync workflow). DeskForge's
+  `libs/hbb_common/` is a copy of this fork at a recorded pin plus a small documented
+  patch set — canonical record:
+  [`libs/hbb_common/UPSTREAM.md`](libs/hbb_common/UPSTREAM.md).
 
-See [PLAN.md §7](PLAN.md#7-historical-fork-maintenance-notes-for-a-new-upstream-rustdesk-client-release) for the upstream update workflow.
+Topology, sync rules, pin bookkeeping, and the re-pin procedure:
+[docs/FORKS-AND-PINS.md](docs/FORKS-AND-PINS.md). See
+[PLAN.md §7](PLAN.md#7-fork-maintenance-procedure-for-a-new-upstream-rustdesk-client-release)
+for the upstream update workflow.
 
 ---
 

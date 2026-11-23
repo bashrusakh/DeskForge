@@ -302,7 +302,7 @@ historical/reference material; neither is an active workflow source.
 
 The published RustDesk client source/ref is 1.4.8 and the published DeskForge API
 schema is `DatabaseVersion` 272. The current local corrective candidate targets API
-schema 283, which is not published. Schema 283 adds
+schema 285, which is not published. The earlier schema-283 migration adds
 `idx_custom_presets_user_id_name` on `(user_id, name)` and fails migration preflight
 on existing duplicate groups without auto-selecting a row or deleting data. Schema 282 remains
 the earlier workflow-approval migration. Live provider execution remains unverified.
@@ -329,6 +329,8 @@ remains unverified.
 
 The current repository has no tracked `vendor/` tree, `rustdesk-deps/` archive, or
 client-release directory. Rust and Go manifests still use active third-party upstream
-dependencies, and the configured RustDesk fork's `hbb_common` submodule is currently
-upstream-referenced, dirty, and unpublished; upstream independence and MySQL/PostgreSQL
-cross-database support therefore remain unverified.
+dependencies, and the configured RustDesk fork's `libs/hbb_common` gitlink on `master`
+is repointed at our mirror fork `bashrusakh/hbb_common` by SHA (release tags `1.4.8`/
+`1.5.0` record the upstream `rustdesk/hbb_common` URL; pins are SHAs; see
+[docs/FORKS-AND-PINS.md](docs/FORKS-AND-PINS.md)); upstream independence and
+MySQL/PostgreSQL cross-database support therefore remain unverified.

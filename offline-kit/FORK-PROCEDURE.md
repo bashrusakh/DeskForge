@@ -19,6 +19,13 @@ gh repo fork rustdesk/rustdesk   --org YOUR_ORG --fork-name rustdesk   --clone=f
 gh repo fork rustdesk/hbb_common --org YOUR_ORG --fork-name hbb_common --clone=false
 ```
 
+Fork rules (canonical: [`docs/FORKS-AND-PINS.md`](../docs/FORKS-AND-PINS.md)): the
+`hbb_common` fork is a mirror of upstream — it must be kept in sync with upstream
+automatically, where technically possible (enable `sync-upstream.yml` on creation), and
+never carry behavioral patches (on `main`, only non-behavioral infrastructure commits
+beyond upstream history: license metadata, the sync workflow file). All `hbb_common`
+pins are SHAs: upstream `rustdesk/hbb_common` has no version tags.
+
 ### A2. Vendor into the fork
 
 From offline-kit:
