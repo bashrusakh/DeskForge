@@ -3,9 +3,13 @@
 > Tracker for issues found in the build-custom-agent end-to-end flow.
 > Backend: `api/http/controller/admin/custom_build.go`, `api/service/custom_build.go`,
 > `api/service/github_build_config.go`. Frontend: `admin-ui/src/views/custom-client/index.vue`,
-> `admin-ui/src/views/server/github-build.vue`. Active Windows workflow source: branch
-> `rustqs/workflows`, workflow `.github/workflows/rustqs-windows.yml`, artifact
-> `rustqs-windows`; local `github-build/` workflow files are reference material only.
+> `admin-ui/src/views/server/github-build.vue`. Windows workflow file
+> `.github/workflows/rustqs-windows.yml`, artifact `rustqs-windows`; `rustqs/workflows`
+> is a legacy read-only compatibility ref, not a production selector (canonical ref
+> table: `github-build/README.md`). Production execution uses approval-gated, guarded
+> immutable `refs/tags/workflow-*` under workflow-ref approval (`PLAN.md` §2 /
+> `github-build/README.md`); local `github-build/` workflow files are reference
+> material only.
 >
 > Status legend: `[ ]` open · `[x]` fixed · `[~]` partial · `[skip]` won't fix (owner decision).
 >
