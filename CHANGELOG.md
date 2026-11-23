@@ -4,7 +4,173 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased]
+> **Note 2026-11-23:** `PLAN.md §…` section numbers referenced in older entries below (e.g. §8.x) refer to the pre-2026-11-23 `PLAN.md` numbering and may not resolve in the current `PLAN.md`.
+
+## 2026-11-24
+
+### `libs/hbb_common`: last baked-in external endpoints neutralized — 2026-11-23
+- `version_check_request()` (`src/lib.rs`): the `URL` const emptied (was
+  `https://api.rustdesk.com/version/latest`); signature and request building unchanged,
+  the returned URL is now `""`.
+- `query_nip_io()` / `ipv4_to_ipv6()` (`src/socket_client.rs`): the `nip.io`
+  wildcard-DNS host removed from the lookup format (now the literal `<ip>:<port>` — no
+  DNS leaves the host, and a v4 input deterministically finds no IPv6 candidate → the
+  existing error) and the `<ip>.nip.io` mapping suffix emptied (the `ipv4=false` IPv4
+  branch is now the identity). Gate, structure and both signatures unchanged.
+- Why: closes the no-baked-in-external-endpoints invariant for **all always-compiled**
+  `libs/hbb_common/src` code (established product behavior since the initial import; the
+  `config.rs` neutralizations already covered their constants). Remaining known
+  non-issues: the feature-gated `webrtc` STUN list (never compiled in DeskForge's build
+  shape) and test-fixture strings. Kept-patch rows + invariant-coverage note:
+  `libs/hbb_common/UPSTREAM.md`. `socket_client::tests::test_nat64` adapted minimally —
+  its two hardcoded external-suffix expectations now assert pass-through, the
+  deterministic `query_nip_io(v4).is_err()` and all gate/passthrough assertions are kept,
+  and the env-conditional branch that probed the external service (AAAA via
+  `rustdesk.com`) was removed — recorded as its own test-only patch row.
+- Verification (2026-11-23, this state): endpoint grep over `libs/hbb_common/src` — zero
+  endpoint literals outside test code (remaining hits are the `query_nip_io` identifier,
+  matched only because the acceptance pattern's `.` is a wildcard, plus one
+  `test_check_ws` config string); `cargo test --lib` 110 passed; `--test proxy_transport`
+  6 passed + the environment-limited `ipv6_proxy_connect_and_data_exchange` (no `::1`
+  here) untouched; `--test websocket_proxy` 1 passed; doc-tests 2 ignored;
+  `cd server && cargo build --release --locked && cargo test --locked` green
+  (`OPENSSL_NO_VENDOR=1` + the CI `DATABASE_URL` sqlite schema seed). `clippy`/`fmt` were
+  **not run — tools absent** from this environment.
+
+### docs: documentation sweep — dedupe, dead content removed, stale claims fixed — 2026-11-23
+- One full pass over the living docs. CONTRIBUTING de-generated and de-duplicated
+  (generated filler, repeated workflow/PR/license/commands sections merged; layout
+  now points at AGENTS.md); PLAN header and §1 deduped against §2 and the copy pin
+  corrected to `fae47e024dd8`; AGENTS env-var table and schema/fork paragraphs
+  replaced with canonical links (README, DEPLOYMENT, PLAN §2, FORKS-AND-PINS);
+  api/README schema section corrected to candidate 285; github-build dispatch
+  contract and PR #59 state cross-link PLAN §2 / CHANGELOG; DEPLOYMENT quick-start
+  duplicates removed; UPSTREAM_DEPENDENCY_REMOVAL reframed as a completed record
+  (inline Dockerfile snippets replaced by pointers; its "full upstream independence"
+  line scoped to the one base image); BUGS.md dead "Where" list trimmed; README
+  auto-sync claim qualified (schedule-fire proof pending). Canonical homes
+  unchanged: README (showcase/env table), PLAN §2 (schema/dispatch evidence),
+  FORKS-AND-PINS (fork/pin canon), UPSTREAM.md (pin+patch record), DEPLOYMENT (ops).
+- Presentation-only tidy of existing entries (no entry substance changed): the
+  kept-patch row references now name the `src/websocket.rs` test row instead of a
+  positional number (the table's 5th data row).
+
+### docs: README restructured as a concise showcase — 2026-11-23
+- Root `README.md` rewritten as a short front door (system shape, quick start, ports,
+  env table, features, build commands, forks, doc links, license); deep content moved to
+  the new `docs/DEPLOYMENT.md` (`.env` setup, upgrade migration, environment semantics)
+  and `PLAN.md` §2 (schema-284/285 and migration-test evidence).
+
+### `libs/hbb_common` re-pinned to `fae47e02` (rustdesk 1.5.1/1.5.3) — 2026-11-23
+- Vendored `libs/hbb_common/` re-pinned to
+  `rustdesk/hbb_common@fae47e024dd83cef6aaecde0aa7d11731df11649` (2026-10-28, the
+  `rustdesk/rustdesk` 1.5.1/1.5.3 `libs/hbb_common` submodule pin; fetched by explicit
+  SHA from `bashrusakh/hbb_common`, an ancestor of its `main`), superseding the original
+  import pin `387603f47cbb15c0d3dc3d67ae3396d3eb707daf` (1.4.8). Tree = exact pin content
+  + kept patches + `UPSTREAM.md`; upstream had moved `message.proto`'s content,
+  `fs.rs`/`keyboard.rs`/`platform/*` and `examples/system_message.rs` out of the crate, so
+  those local-only files are gone.
+- Patch set re-decided on the user-ratified carry-over rule (keep only if still relevant
+  **and** still needed). **Kept:** reproducible `gen_version()` + its 3 tests
+  (`src/lib.rs` — hard `$OUT_DIR/version.rs` ↔ `server/` include coupling + reproducible
+  builds) and the `src/config.rs` external-endpoint neutralizations (`RENDEZVOUS_SERVERS =
+  &[]`, `LINK_DOCS_HOME`/`LINK_DOCS_X11_REQUIRED` = `""`). **Dropped:**
+  `LINK_HEADLESS_LINUX_SUPPORT` (constant removed upstream — not relevant), `HELPER_URL`
+  empty-map (redundant once the constants are zeroed), `DEFAULT_ICE_SERVERS = []` (the
+  `webrtc` module is never compiled in DeskForge's build shape — `server/` takes default
+  features only — and neutralizing it would require weakening the pin's
+  `test_webrtc_ice_server_list`), and the formatting-only hunks (semantically inert).
+  Verdicts with justifications: `libs/hbb_common/UPSTREAM.md`.
+- Break-fix: `server/src/rendezvous_server.rs` `get_pk()` builds
+  `rendezvous_proto::IdPk` now (`message_proto` moved out of the crate upstream). The new
+  `dtls_fingerprint`/`kx_version` fields are left unset, so proto3 omits them and the
+  signed payload stays **byte-identical** to the legacy `message.proto` encoding (wire
+  probe: 42-byte payload equal to hand-built legacy bytes; absent `kx_version` = scheme 0,
+  per upstream commit `e272fede`). No KX negotiation or new protocol behavior implemented.
+- New dependency resolution from the pin (accepted cost): `tokio-tungstenite` 0.29 from
+  `rustdesk-org` git rev `c241b11b03de…` and `tungstenite` 0.29 enter the build;
+  `server/Cargo.lock` updated accordingly (32 stale packages of the old platform/backtrace
+  tree dropped). The pin's `[patch.crates-io]` webrtc trio applies only to standalone
+  `libs/hbb_common` builds.
+- Verification (2026-11-23, this state): `cd libs/hbb_common && cargo test --lib` — 110
+  passed, including all 3 `gen_version` `build_date_tests` and
+  `websocket::tests::test_check_ws` (previously the 1 known failure: the pin's new final
+  assertion assumed the baked non-empty public rendezvous fallback, which the **kept**
+  `RENDEZVOUS_SERVERS = &[]` neutralization removes — counter-probe: passes on the
+  pristine pin and with only that hunk restored; per owner decision the neutralization
+  stays, so the test was minimally adapted instead — it now supplies its own explicit
+  `rendezvous-servers` fallback list while the `check_ws`/`websocket_port` assertion is
+  unchanged — the `src/websocket.rs` (test only) kept-patch row in
+  `libs/hbb_common/UPSTREAM.md`). `--test proxy_transport`:
+  6 passed, 1 environment-dependent failure
+  (`ipv6_proxy_connect_and_data_exchange` — this sandbox has no IPv6 loopback `::1`;
+  test untouched). `--test websocket_proxy`: 1 passed. Doc-tests: 2 ignored
+  (upstream-marked). `cd server && cargo build --release && cargo test`: green (with the
+  CI-documented `DATABASE_URL` sqlx schema setup; `OPENSSL_NO_VENDOR=1` because the
+  vendored-OpenSSL build is broken in this environment's stripped perl — missing core
+  modules `FindBin`/`File::Compare`/`File::Copy`; the env var changes no repo file).
+  `cargo clippy` and `cargo fmt --check` were **not run: both tools are absent** from this
+  environment's distro toolchain (no rustup) — clippy-clean/fmt-clean remain unverified.
+
+### `webrtc` branch deletion (superseded) + fork-state docs refresh — 2026-11-23
+- `bashrusakh/hbb_common` branch `webrtc` deleted by owner decision (verified
+  2026-11-23): one commit `5a78ec4` ("feat: support WebRTC rendezvous signaling",
+  2026-05-18; +14/−0 `protos/rendezvous.proto`, +110/−36 `src/webrtc.rs` vs merge-base
+  `9043c15`), fully superseded by upstream's merged WebRTC work — wire numbering
+  incompatible (upstream renumbered `webrtc_sdp_offer`/`webrtc_sdp_answer`) and
+  upstream has its own `webrtc` branch (`470612b`). Nothing unique of value;
+  recoverable tip `5a78ec42303ca046d808742e911a156636a2432b`. Fork `main` unchanged
+  at `5a2d082` (three non-behavioral infrastructure commits over upstream `bb416bc`);
+  the `main` invariant now covers the whole fork.
+- Docs record refreshed to current verified state (`docs/FORKS-AND-PINS.md` deletion
+  record, branch/tip update, empty hbb-fork exceptions list). Consumer gitlink pins
+  (e.g. `bashrusakh/rustdesk` `master` → `36ab6ed`) are unchanged facts and remain as
+  recorded.
+
+> **Note 2026-11-24:** field-numbering detail restored from the base `docs/FORKS-AND-PINS.md`
+> narrative (relocated during the 2026-11-24 docs simplification round): upstream renumbered
+> `PunchHoleRequest.webrtc_sdp_offer` **11→12** — this is what makes the branch's wire
+> numbering incompatible with upstream's merged WebRTC.
+
+### Fork/pin/sync documentation ordering + hbb_common auto-sync installed — 2026-11-23
+- Fork/pin/sync documentation brought into order: new canonical `docs/FORKS-AND-PINS.md`
+  (topology, fork-creation rules, sync mandate + manual fallback, pin bookkeeping,
+  re-pin procedure) and new pin record `libs/hbb_common/UPSTREAM.md` (fork point
+  `387603f47cbb15c0d3dc3d67ae3396d3eb707daf` = the `rustdesk/rustdesk` 1.4.8
+  `libs/hbb_common` pin, plus the documented local patch set). Stale fork claims
+  corrected in `README.md`, `AGENTS.md`, `CONTRIBUTING.md`, `PLAN.md` (§7 rewritten as
+  the fork maintenance procedure), `github-build/README.md`, and the frozen
+  `offline-kit/FORK-PROCEDURE.md` fork rules. Current API schema statements aligned to
+  the code truth `DatabaseVersion` **285** (schema 283 described as the earlier
+  composite-index migration step).
+- `bashrusakh/hbb_common` auto-sync is installed and enabled: `sync-upstream.yml`
+  landed on `main` as `5a2d082f5051d1738ae39c997cfa92728bcab6c2` (merge-based
+  `upstream/main` → `main`, daily 04:17 UTC + manual; never history-rewriting). It
+  supersedes the concurrent draft `b53e044` "ci: auto-sync main with upstream on
+  schedule" (weekly `gh repo sync` variant) by user-ratified replacement; `b53e044`
+  remains in history and its content is retrievable there. Workflow state `active`;
+  smoke run `45125365177` concluded `success` ("Already in sync: every commit of
+  upstream/main is already on main. Nothing to do."). Fork history is linear:
+  `5a2d082 → b53e044 → 36ab6ed → bb416bc`.
+- **Pending (not claimed):** the schedule-fire proof — a `schedule`-triggered run after
+  the next 04:17 UTC window (cron `17 4 * * *`). It is the only unproven platform
+  claim.
+
+### Custom-client schema 284/285 + runtime app-name/branding fields — 2026-10-13 (**back-fill**, added 2026-11-23)
+
+> Back-fill entry: this work landed without a changelog record; added 2026-11-23 from `PLAN.md §2` (lines 131-140) and the code/commit record. Not a new change.
+
+- **Schema 284:** create-time `preset_id` and `preset_name` provenance snapshots on
+  `custom_builds`.
+- **Schema 285:** the custom-client branding-field preflight runs before `AutoMigrate`,
+  failing closed when an existing `custom_builds` or `custom_presets` row already carries
+  a branding field value the shared branding seam rejects.
+- **Runtime app-name / Windows branding fields** (`bdd9c5c`): delivered through the
+  custom-client API/UI path (`api/service/custom_build_spec.go`,
+  `admin-ui/src/views/custom-client/index.vue`).
+- SQLite-only migration/preflight tests cover the schema-284 provenance columns and the
+  schema-285 branding preflight/version gate; MySQL/PostgreSQL migration and read/write
+  coverage remain unverified (`PLAN.md §2`).
 
 ### Local PR #59 review remediation — 2026-08-20
 - The current local corrective candidate is `DatabaseVersion` **283**; the published
@@ -32,10 +198,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   pushed. `workflow-v1.2.0` does not exist, and no newly signed provider-verified
   immutable protected workflow tag exists yet; live tag protection verification,
   reapproval, and reverification remain required before production dispatch.
+> **Note 2026-11-24:** PR #59 merged 2026-08-20 (`gh pr view`: MERGED, `mergedAt 2026-08-20T14:32:19Z`, landed as `bfc2a4c` "refactor: harden build provenance and releases (#59)"); the open/dirty state above is historical.
 - Prior local remediation results record passing focused migration/custom-preset
   coverage, a focused race check, `go vet`, `gofmt`, and `git diff --check`.
   Migration evidence is SQLite-only; MySQL/PostgreSQL migration and read/write
   coverage remain unverified.
+> **Note 2026-11-24:** unique external IDs preserved from the deleted `plans/` (workflow-migration record, 2026-08-16): guard runs [32333446480](https://github.com/bashrusakh/rustdesk/actions/runs/32333446480) — live mismatch run, failed in `verify_workflow_identity` with "outer workflow_sha does not match github.sha", no secret-bearing job ran — and [32334155671](https://github.com/bashrusakh/rustdesk/actions/runs/32334155671) — live matching run, passed the outer guard to the intentional post-inner failure "encrypted payload is missing source_sha"; together they evidence outer/inner guard sequencing only, not production artifact output; Repository Ruleset `20901403` (`DeskForge workflow tags`) recorded protecting `refs/tags/workflow-*` with deletion/update protection (`bypass_actors=[]`, `current_user_can_bypass=never`); also recorded there: PR #5 (`bashrusakh/rustdesk`, "feat: make client sources upstream-independent" — open at record date, merged 2026-09-14) and DeskForge PR #57 (merged 2026-06-28).
 
 ### Current-state reconciliation — 2026-08-10
 - The published RustDesk client source/ref is **1.4.8** and the published DeskForge API
@@ -72,7 +240,150 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   correct key that the client reads for WebSocket protocol selection and API URL.
   (H-011)
 
-## [Unreleased] - 2026-06-22
+### Upstream s6 dependency removal — archived from `docs/UPSTREAM_DEPENDENCY_REMOVAL.md` (2026-11-24)
+
+> **Archive entry 2026-11-24:** the executed plan, verification result, changed-files list, and risk
+> pass were relocated from `docs/UPSTREAM_DEPENDENCY_REMOVAL.md` during the docs simplification round;
+> that document keeps the problem, why-s6 rationale, what changed, pinned versions, and verification
+> commands. The migration below was executed and verified 2026-06-28; content is as recorded.
+
+**Implementation plan (executed):**
+
+1. Verify `rustdesk-utils` builds under musl: `cd server && cargo build --bin rustdesk-utils --target x86_64-unknown-linux-musl --release` — if it fails, fix deps (hbb_common must be accessible).
+2. Update `docker/Dockerfile`: Stage 1 add `--bin rustdesk-utils` (line 34); remove Stage 4 (`FROM rustdesk/rustdesk-server-s6:latest AS s6-source`); add new Stage 4 (`s6-stage`) downloading s6-overlay v3.2.3.0; Stage 5 copy from `s6-stage` instead of `s6-source`; Stage 5 add custom `healthcheck.sh` creation; Stage 5 copy `rustdesk-utils` from `rust-builder`.
+3. Test build: `cd docker && docker compose build --no-cache`.
+4. Test runtime: `docker compose up -d`, `docker compose logs -f` — verify hbbs/hbbr/API start, healthcheck passes, `rustdesk-utils genkeypair` works.
+5. Update or remove `api/Dockerfile_full_s6`: add `# DEPRECATED` comment or delete.
+
+**Result (verified 2026-06-28):**
+
+- ✅ **Build succeeds** — `docker compose build` no errors
+- ✅ **Container starts** — `docker compose up -d`
+- ✅ **Healthcheck: healthy** — all 3 services (hbbs, hbbr, api) running
+- ✅ **rustdesk-utils works** — `genkeypair` generates valid Ed25519 keys
+- ✅ **Keys created automatically** — `/data/id_ed25519` and `/data/id_ed25519.pub`
+- ✅ **API responds** — `GET /api/` → `{"code":0,"message":"success","data":"Hello Gwen"}`
+- ✅ **Admin UI accessible** — `GET /admin/` serves Vue SPA
+- ✅ **Image 127 MB** (was ~150+ MB with upstream pull)
+- ✅ **No docker.io/rustdesk pull** — the `rustdesk-server-s6` base-image dependency is gone from the
+  image build. This is image-build independence from that one upstream image only: the Dockerfile
+  still pulls official `rust`/`golang`/`node`/`alpine` base images and active third-party upstream
+  dependencies remain in the Rust/Go manifests — no project-wide upstream-independence, sovereignty,
+  or release claim is made (see `AGENTS.md` / `PLAN.md` §0).
+
+**Changed files:** `docker/Dockerfile` (Stage 1 `--bin rustdesk-utils`; Stage 4 upstream → GitHub
+s6-overlay v3.2.3.0; Stage 5 custom healthcheck.sh + rustdesk-utils from Stage 1);
+`api/Dockerfile_full_s6` (commented + DEPRECATED marker, unused in compose);
+`docs/UPSTREAM_DEPENDENCY_REMOVAL.md` (the document).
+
+**Risks & mitigations (status: passed):** s6-overlay v3.2.3.0 incompatible → ✅ OK (all 3 services
+started, s6-rc works); `rustdesk-utils` fails musl build → ✅ OK (built in Stage 1, runs in
+container); healthcheck misses services → ✅ OK (checks hbbs, hbbr, api — all up); keys don't work
+with clients → ✅ OK (keys generated, hbbs reads them, API serves pub key).
+
+**Next steps (optional):** remove `rustdesk/rustdesk-server-s6` locally
+(`docker rmi rustdesk/rustdesk-server-s6:latest`); delete `api/Dockerfile_full_s6` entirely
+(deprecated marker present; unused in compose); `.env.example` upstream references — none found
+(checked 2026-11-23); CI coverage — done: `.github/workflows/build.yml` builds `docker/Dockerfile`.
+
+### Recorded workflow-protection evidence — archived from `api/README.md` (2026-11-24)
+
+> **Archive entry 2026-11-24:** the workflow-protection ruleset rules and the recorded
+> provider-evidence transcript were relocated from `api/README.md` ("Workflow protection evidence")
+> during the docs simplification round; `api/README.md` keeps the summary. Guard-run records: run
+> [32333446480](https://github.com/bashrusakh/rustdesk/actions/runs/32333446480)
+> (live mismatch run, failed in `verify_workflow_identity` with "outer workflow_sha does not match
+> github.sha", no secret-bearing job ran) and
+> [32334155671](https://github.com/bashrusakh/rustdesk/actions/runs/32334155671) (live matching run,
+> passed the outer guard to the intentional post-inner failure "encrypted payload is missing
+> source_sha") — together they evidence outer/inner guard sequencing only, not production artifact
+> output; Repository Ruleset `20901403` (`DeskForge workflow tags`) recorded protecting
+> `refs/tags/workflow-*` with deletion/update protection (`bypass_actors=[]`,
+> `current_user_can_bypass=never`).
+
+**Ruleset protection rules (as implemented):**
+
+- **Ruleset discovery** — modern `GET /repos/{owner}/{repo}/rulesets?targets=tag&includes_parents=true`,
+  bounded to three pages and 256 rulesets, discovers candidate IDs only. DeskForge then consumes
+  `GET /repos/{owner}/{repo}/rulesets/{id}?includes_parents=true` and validates the
+  repository-scoped detail metadata (`name`, `source`, and `source_type` in `Repository`,
+  `Organization`, or `Enterprise`; documented `created_at` and `updated_at` values are type-checked
+  when present).
+- **Applicability** — the repository-scoped `includes_parents=true` response establishes
+  applicability at the provider boundary. DeskForge requires `conditions.ref_name` for tag matching
+  and does not independently evaluate `repository_name`, `repository_id`, or `repository_property`
+  selectors. The separate organization authoring endpoint, `POST /orgs/{org}/rulesets`, uses
+  repository selectors to define where a ruleset applies; that create-schema requirement must not be
+  imposed on repository-scoped inherited detail responses.
+- **Fail-closed conditions** — unknown condition fields and malformed condition values fail closed.
+  Excludes win. `tag_name_pattern` is validated only as rule metadata; it is not the ref selector,
+  and no `fnmatch` rule is required for selection.
+- **Rule parameters** — for tag rules, `update` without parameters is valid; when parameters are
+  present they must be a strict object containing the boolean `update_allows_fetch_and_merge`. Null,
+  empty, malformed, or unknown parameter objects fail closed. Branch-target rules continue to require
+  that parameter.
+- **Bypass** — every applicable ruleset must expose `bypass_actors: []` and
+  `current_user_can_bypass: "never"`; any applicable bypass actor or other current-user bypass mode
+  rejects approval. Effective `update` and `deletion` rules may be split across matching rulesets.
+  Other documented known rules are neutral or stronger additions, while unknown or malformed rules
+  fail closed. Inherited parent rulesets use the same checks.
+- **Tag verification** — the provider must reject a tag/branch collision for the same label, and the
+  tag's verification must report `verified=true` with the accepted provider verification reason. Raw
+  SHA selectors are not approval inputs.
+
+The former tag-protection LIST compatibility path is **CONFIRMED OBSOLETE**: the GitHub.com provider
+is hard-wired to `https://api.github.com`, DeskForge has no configurable GHES base URL or provider,
+and current GitHub documentation marks that legacy surface as closing down/removed. A GHES
+installation may have a historical `enabled`/`pattern` schema, but it is separate context rather than
+a DeskForge capability. A mismatch, absent evidence, any bypass actor, or an active applicable
+ruleset without effective update and deletion protection never proves protection.
+
+The endpoint distinction follows the [organization ruleset creation
+documentation](https://docs.github.com/en/rest/orgs/rules#create-an-organization-repository-ruleset),
+the [repository ruleset detail documentation](https://docs.github.com/en/rest/repos/rules#get-a-repository-ruleset),
+and the [tag protection LIST documentation](https://docs.github.com/en/rest/repos/tags#get-all-tag-protection-states-for-a-repository).
+
+On 2026-08-14, an authenticated observation of `github/docs` returned the following summary from the
+repository-scoped list endpoint:
+
+```text
+GET https://api.github.com/repos/github/docs/rulesets?targets=tag&includes_parents=true&per_page=100
+=> id=18281681, target=tag, source_type=Organization, source=github, enforcement=active
+```
+
+The summary did not contain conditions, rules, or bypass metadata. The matching repository-scoped
+detail was:
+
+```text
+GET https://api.github.com/repos/github/docs/rulesets/18281681?includes_parents=true
+```
+
+It was ruleset `18281681` (`Enterprise Tags`) with `conditions.ref_name` only and these exact
+include patterns:
+
+```text
+refs/tags/enterprise-[0-9].*-freeze
+refs/tags/enterprise-[0-9].[0-9].[0-9]
+refs/tags/enterprise-[0-9].[0-9].[0-9][0-9]
+refs/tags/enterprise-[0-9].[0-9][0-9].[0-9]
+refs/tags/enterprise-[0-9].[0-9][0-9].[0-9][0-9]
+refs/tags/enterprise-[0-9].*.pre[0-9]
+refs/tags/enterprise-[0-9].*.pre[0-9][0-9]
+refs/tags/enterprise-[0-9].*.gm[0-9]
+refs/tags/enterprise-[0-9].*.gm[0-9][0-9]
+refs/tags/enterprise-[0-9].*.rc[0-9]
+refs/tags/enterprise-[0-9].*.rc[0-9][0-9]
+```
+
+Its rules were `deletion`, `non_fast_forward`, `creation`, and `update` with no parameters;
+`created_at` was `2026-06-30T07:19:50.340+11:00`, `updated_at` was `2026-06-30T07:20:37.936+11:00`,
+and `current_user_can_bypass` was `never`. `bypass_actors` was omitted because the observing token
+lacked write access. DeskForge therefore uses `bypass_actors: []` as the positive write-authorized
+contract fixture and fails closed when the field is omitted. This observation is provider evidence,
+not a completed live approval, dispatch, or release claim. Initial and later ruleset list failures,
+detail failures, policy failures, and contract failures remain failures.
+
+## 2026-06-22
 
 Audit-cycle batch: 18 fix branches merged in a single train via PR #30 on top of the
 security/doc-consolidation chain (PRs #24 → #29). `DatabaseVersion` bumped from 269 → **272**
@@ -112,6 +423,7 @@ across three migration steps; `AutoMigrate` is idempotent so all schema addition
 - **api: capability-URL TTL** — public download links (`/build/k/{key}` and
   `/build/dl/{key}`) now return 410 Gone after expiry; check centralized in
   `findBuildByDownloadKey`. (B-006)
+  > Correction 2026-11-23: those two route strings are wrong (wrong even at the time) — the real routes are `api/admin/custom_build/public/detailByKey/:key` and `…/public/download/:key`, recorded at CHANGELOG.md:570-578. Line kept as recorded.
 - **Historical implementation note (superseded): api: GitHub artifact name fallback** —
   the former `DownloadArtifact` behavior fell back to the sole artifact of the run when
   the expected name did not match. The current path requires exact artifact identity.
@@ -166,6 +478,7 @@ across three migration steps; `AutoMigrate` is idempotent so all schema addition
 - **Workflow audit:** open findings consolidated from `AUDIT.md` + `audit-report.md` into
   `BUGS.md` (RD-A4, RD-B1, RD-B5, RD-B6 retired; AU-C-001, AU-S-001, AU-M-014, AU-M-021,
   AU-M-022, AU-L-007/010/011/015 carried forward).
+  > Reconciliation 2026-11-23: `RD-B6` was not retired — `BUGS.md:158-169` preserves it as `[~]` flagged-but-unfixed from this same consolidation. Line kept as recorded.
 
 ### Reference
 - Historical tracker snapshot (2026-06-22): 25 fixed, 4 partial, 2 open. The
@@ -174,7 +487,7 @@ across three migration steps; `AutoMigrate` is idempotent so all schema addition
 
 ---
 
-## [Unreleased] - 2026-06-17
+## 2026-06-17
 
 ### Security
 - **api: stop exposing OAuth `client_secret`** — `Oauth.ClientSecret` now `json:"-"` so list/detail responses never ship secrets to the browser. (M-016)

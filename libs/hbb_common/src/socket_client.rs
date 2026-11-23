@@ -140,7 +140,7 @@ pub async fn connect_tcp<
     let target_str = check_ws(&target.to_string());
     if is_ws_endpoint(&target_str) {
         return Ok(Stream::WebSocket(
-            websocket::WsFramedStream::new(target_str, None, None, ms_timeout).await?,
+            websocket::WsFramedStream::new(target_str, None, ms_timeout).await?,
         ));
     }
     connect_tcp_local(target, None, ms_timeout).await
@@ -187,37 +187,60 @@ pub fn is_ipv4(target: &TargetAddr<'_>) -> bool {
 
 #[inline]
 pub async fn query_nip_io(addr: &SocketAddr) -> ResultType<SocketAddr> {
-    tokio::net::lookup_host(format!("{}.nip.io:{}", addr.ip(), addr.port()))
+    tokio::net::lookup_host(format!("{}:{}", addr.ip(), addr.port()))
         .await?
         .find(|x| x.is_ipv6())
-        .context("Failed to get ipv6 from nip.io")
+        .context("Failed to get ipv6")
 }
 
 #[inline]
 pub fn ipv4_to_ipv6(addr: String, ipv4: bool) -> String {
     if !ipv4 && crate::is_ipv4_str(&addr) {
         if let Some(ip) = addr.split(':').next() {
-            return addr.replace(ip, &format!("{ip}.nip.io"));
+            return addr.replace(ip, ip);
         }
     }
     addr
 }
 
-async fn test_target(target: &str) -> ResultType<SocketAddr> {
-    if let Ok(Ok(s)) = super::timeout(1000, tokio::net::TcpStream::connect(target)).await {
-        if let Ok(addr) = s.peer_addr() {
-            return Ok(addr);
-        }
-    }
+/// The resolver's preferred address for `target`: first in getaddrinfo's RFC 6724 order, so NAT64's
+/// synthesized IPv6 leads on a v6-only host. Preferred, not proven reachable: what `test_target`
+/// falls back to, and what the controller's NAT test takes as is to spare itself the proof.
+async fn resolve_target(target: &str) -> ResultType<SocketAddr> {
     tokio::net::lookup_host(target)
         .await?
         .next()
         .context(format!("Failed to look up host for {target}"))
 }
 
+/// The address of `target` a TCP connection reaches, the resolver's candidates tried in order until
+/// one answers: an AAAA the server refuses is passed over for its A record, which the order alone
+/// would not do. For the rendezvous registration and the punch reply, which live on what it picks.
+async fn test_target(target: &str) -> ResultType<SocketAddr> {
+    if let Ok(Ok(s)) = super::timeout(1000, tokio::net::TcpStream::connect(target)).await {
+        if let Ok(addr) = s.peer_addr() {
+            return Ok(addr);
+        }
+    }
+    resolve_target(target).await
+}
+
 #[inline]
 pub async fn new_direct_udp_for(target: &str) -> ResultType<(Arc<UdpSocket>, SocketAddr)> {
     let peer_addr = test_target(target).await?;
+    let local_addr = Config::get_any_listen_addr(peer_addr.is_ipv4());
+    let socket = UdpSocket::bind(local_addr).await?;
+    Ok((Arc::new(socket), peer_addr))
+}
+
+/// `new_direct_udp_for` on the resolver's preferred address, with no handshake to prove it and a
+/// second at most for the lookup: for the controller's NAT test, once per connection, where the
+/// proof cost a round trip right before the connection it then opens to the same host.
+#[inline]
+pub async fn new_direct_udp_for_unverified(
+    target: &str,
+) -> ResultType<(Arc<UdpSocket>, SocketAddr)> {
+    let peer_addr = super::timeout(1000, resolve_target(target)).await??;
     let local_addr = Config::get_any_listen_addr(peer_addr.is_ipv4());
     let socket = UdpSocket::bind(local_addr).await?;
     Ok((Arc::new(socket), peer_addr))
@@ -273,8 +296,6 @@ pub async fn rebind_udp_for(
 
 #[cfg(test)]
 mod tests {
-    use std::net::ToSocketAddrs;
-
     use super::*;
 
     #[test]
@@ -285,28 +306,19 @@ mod tests {
     #[tokio::main(flavor = "current_thread")]
     async fn test_nat64_async() {
         assert_eq!(ipv4_to_ipv6("1.1.1.1".to_owned(), true), "1.1.1.1");
-        assert_eq!(ipv4_to_ipv6("1.1.1.1".to_owned(), false), "1.1.1.1.nip.io");
+        // Neutralized (DeskForge 2026-11-23): the external mapping suffix is gone —
+        // an IPv4 input passes through unchanged, bare and with port.
+        assert_eq!(ipv4_to_ipv6("1.1.1.1".to_owned(), false), "1.1.1.1");
         assert_eq!(
             ipv4_to_ipv6("1.1.1.1:8080".to_owned(), false),
-            "1.1.1.1.nip.io:8080"
+            "1.1.1.1:8080"
         );
         assert_eq!(
             ipv4_to_ipv6("rustdesk.com".to_owned(), false),
             "rustdesk.com"
         );
-        if ("rustdesk.com:80")
-            .to_socket_addrs()
-            .unwrap()
-            .next()
-            .unwrap()
-            .is_ipv6()
-        {
-            assert!(query_nip_io(&"1.1.1.1:80".parse().unwrap())
-                .await
-                .unwrap()
-                .is_ipv6());
-            return;
-        }
+        // No external v6-mapping host remains: a v4 literal deterministically yields
+        // no IPv6 candidate (numeric input, no DNS).
         assert!(query_nip_io(&"1.1.1.1:80".parse().unwrap()).await.is_err());
     }
 

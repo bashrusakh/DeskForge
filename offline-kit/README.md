@@ -13,6 +13,7 @@ network-denied full client build.
 | `freeze.sh`                       | Downloads sources, toolchain, dependencies            |
 | `versions.env`                    | Versions of all components (Rust, Flutter, vcpkg...)  |
 | `verify.sh`                        | Read-only, fail-closed local manifest/pin verifier     |
+| `tests/`                           | Read-only local check fixtures (`verify-fixtures.sh`)  |
 | `license-inventory.sh`             | Deterministic license-evidence inventory; known gaps are reported |
 | `FORK-PROCEDURE.md`               | Historical fork procedure; not sovereignty proof      |
 | `artifacts/`                      | Local output of freeze.sh (**not in git**)             |

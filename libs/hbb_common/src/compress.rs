@@ -1,5 +1,10 @@
-use std::{cell::RefCell, io};
+use std::{
+    cell::RefCell,
+    io::{self, Read},
+};
 use zstd::bulk::Compressor;
+
+const MAX_DECOMPRESSED_SIZE: usize = 256 * 1024 * 1024;
 
 // The library supports regular compression levels from 1 up to ZSTD_maxCLevel(),
 // which is currently 22. Levels >= 20
@@ -30,5 +35,41 @@ pub fn compress(data: &[u8]) -> Vec<u8> {
 }
 
 pub fn decompress(data: &[u8]) -> Vec<u8> {
-    zstd::decode_all(data).unwrap_or_default()
+    decompress_with_limit(data, MAX_DECOMPRESSED_SIZE).unwrap_or_default()
+}
+
+fn decompress_with_limit(data: &[u8], limit: usize) -> io::Result<Vec<u8>> {
+    let decoder = zstd::Decoder::new(data)?;
+    let mut output = Vec::new();
+    decoder
+        .take(limit.saturating_add(1) as u64)
+        .read_to_end(&mut output)?;
+    if output.len() > limit {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "decompressed data exceeds size limit",
+        ));
+    }
+    Ok(output)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_data_larger_than_limit() {
+        let compressed = zstd::encode_all(&vec![0u8; 1025][..], 0).unwrap();
+        assert!(decompress_with_limit(&compressed, 1024).is_err());
+    }
+
+    #[test]
+    fn accepts_data_at_limit() {
+        let input = vec![0u8; 1024];
+        let compressed = zstd::encode_all(&input[..], 0).unwrap();
+        assert_eq!(
+            decompress_with_limit(&compressed, input.len()).unwrap(),
+            input
+        );
+    }
 }

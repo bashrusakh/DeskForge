@@ -1,16 +1,15 @@
 # FORK-PROCEDURE — historical fork/dependency procedure (frozen reference)
 
-> **FROZEN** — examples below use 1.4.8 and are historical reference for a new version
-> or downstream forkers. The commands are not a claim that a current release or complete
-> offline build exists; commands are executed only by the repo owner.
->
-> This procedure is not evidence of upstream independence, a network-denied full build,
-> a verified license bundle, or a release. The offline kit has no signature claim;
-> signature verification is still a gap.
+> **FROZEN — historical reference only.** Everything below (fork + vendor candidate, asset handoff,
+> downstream-forker notes, sovereignty checklist) is a historical procedure for a new version or for
+> downstream forkers: examples use 1.4.8, the commands are executed only by the repo owner, and none
+> of it is evidence that a current release or complete offline build exists. This procedure is not
+> evidence of upstream independence, a network-denied full build, a verified license bundle, or a
+> release; the offline kit has no signature claim — signature verification is still a gap.
 
 ---
 
-## Level A — historical fork + vendor candidate (not current proof)
+## Level A — historical fork + vendor candidate
 
 ### A1. Fork rustdesk + hbb_common
 
@@ -18,6 +17,8 @@
 gh repo fork rustdesk/rustdesk   --org YOUR_ORG --fork-name rustdesk   --clone=false
 gh repo fork rustdesk/hbb_common --org YOUR_ORG --fork-name hbb_common --clone=false
 ```
+
+Fork rules (canonical: [`docs/FORKS-AND-PINS.md`](../docs/FORKS-AND-PINS.md)): the `hbb_common` fork is a mirror kept in sync with upstream automatically where technically possible (enable `sync-upstream.yml` on creation), never carrying behavioral patches; all `hbb_common` pins are SHAs — upstream `rustdesk/hbb_common` has no version tags.
 
 ### A2. Vendor into the fork
 
@@ -69,7 +70,7 @@ manually recorded in `versions.env`.
 
 ---
 
-## Level B — historical candidate asset handoff (not current sovereignty proof)
+## Level B — historical candidate asset handoff
 
 ### B1. What to upload (historical candidate handoff)
 
@@ -83,7 +84,7 @@ From `offline-kit/artifacts/`, after the local verification gates pass:
 | `printer_driver_adapter.zip`     | Printer adapter                    |
 | `vendor-*.tar.gz`                | (optional, if not in git)          |
 
-### B2. Historical release command (not a publication or readiness claim)
+### B2. Historical release command
 
 ```bash
 gh release create offline-assets-1.4.8 --repo YOUR_ORG/rustdesk \
@@ -114,27 +115,13 @@ passes.
 
 ### C1. Versions in admin UI
 
-The version list in the admin UI (Custom Client → Version dropdown) is loaded
-dynamically from the configured provider repository's `offline-assets-*` catalog.
-Matching source-tag and required-asset checks determine the entries; provider
-catalog failure returns an empty/error state rather than a hardcoded fallback.
+Version-catalog rules (repository-derived `offline-assets-*` entries, matching source-tag and required-asset checks, empty/error state instead of a hardcoded fallback): [`github-build/README.md`](../github-build/README.md) §Version flow (canonical).
 
-**For downstream forkers:**
-- After a matching provider asset release and source tag are available, the version
-  may appear in the UI after the provider-derived catalog refreshes
-- If the provider API is unavailable, no obsolete version fallback is shown
-- No hardcoded values in code need to be changed
+**For downstream forkers:** a published matching provider asset release and source tag may appear in the dropdown after the provider-derived catalog refreshes; no hardcoded code values need changing.
 
 ### C2. Active workflow ownership
 
-The configured RustDesk fork's `.github/workflows/` files are the sole executable
-source. `github-build/` and `rdgen/` are reference/frozen material and must not be
-copied into the active fork as deployment sources. The API preserves the configured
-branch/tag selector and separately checks the resolved workflow SHA; immutable
-workflow-ref protection remains a gate, not a current readiness claim.
-
-The current DeskForge default workflow execution ref is `rustqs/workflows`. The
-following three-branch model is historical reference only:
+Workflow ownership, selector/tag rules, and the `rustqs/workflows` backup-ref definition (insurance copy of the fork's `master`, not an execution ref; production execution uses approval-gated, guarded immutable `refs/tags/workflow-*`): [`docs/FORKS-AND-PINS.md`](../docs/FORKS-AND-PINS.md) §1 (canonical), with secondary detail in [`github-build/README.md`](../github-build/README.md). The API preserves the configured branch/tag selector and separately checks the resolved workflow SHA; immutable workflow-ref protection remains a gate, not a current readiness claim. The following three-branch model is historical reference only:
 
 | Branch | Purpose |
 |---|---|
@@ -142,13 +129,11 @@ following three-branch model is historical reference only:
 | `rustqs/min-test` | Execution — all dispatches go here |
 | `rustqs/master-workflows` | Mirror — backup for applying after upstream sync |
 
-Historical bridge/checkout constraints are retained for maintenance context:
-`bridge.yml` must be without `inputs.version`, and checkout must use the current
-fork repository rather than upstream. They do not make a live run or support claim.
+Historical bridge/checkout constraints are retained for maintenance context: `bridge.yml` must stay without `inputs.version`, and checkout must use the current fork repository rather than upstream. They do not make a live run or support claim.
 
 ---
 
-## Sovereignty verification checklist (not a current claim)
+## Sovereignty verification checklist
 
 - [ ] `YOUR_ORG/rustdesk` with independently verified vendor + Cargo source config
 - [ ] `YOUR_ORG/hbb_common` (submodule) with clean, published provenance

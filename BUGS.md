@@ -1,38 +1,31 @@
 # BUGS.md — Custom Client Builder workflow audit
 
 > Tracker for issues found in the build-custom-agent end-to-end flow.
-> Backend: `api/http/controller/admin/custom_build.go`, `api/service/custom_build.go`,
-> `api/service/github_build_config.go`. Frontend: `admin-ui/src/views/custom-client/index.vue`,
-> `admin-ui/src/views/server/github-build.vue`. Active Windows workflow source: branch
-> `rustqs/workflows`, workflow `.github/workflows/rustqs-windows.yml`, artifact
-> `rustqs-windows`; local `github-build/` workflow files are reference material only.
 >
-> Status legend: `[ ]` open · `[x]` fixed · `[~]` partial · `[skip]` won't fix (owner decision).
+> **Surfaces:** backend `api/http/controller/admin/custom_build.go`,
+> `api/service/custom_build.go`, `api/service/github_build_config.go`; frontend
+> `admin-ui/src/views/custom-client/index.vue`, `admin-ui/src/views/server/github-build.vue`.
 >
-> Last audit: 2026-06-23. Current file contents are a bounded tracker snapshot:
-> 1 fixed, 4 partial, and 1 open entry; older aggregate counts remain in dated
-> changelog history.
-> Current-state reconciliation: 2026-08-10. Historical findings below are labeled
-> where the current provider-only path supersedes the old queue behavior; no live
-> provider or clean-build evidence is implied. Older branch and workflow names below
-> are retained as historical records and do not describe the current executable path.
+> **Workflow path:** Windows workflow file `.github/workflows/rustqs-windows.yml`, artifact
+> `rustqs-windows`. Workflow ownership and the `rustqs/workflows` backup-ref definition (not a
+> dispatch selector; legacy read-only compatibility): `github-build/README.md` (canonical) and
+> `docs/FORKS-AND-PINS.md` §1. Status legend: `[ ]` open · `[x]` fixed · `[~]` partial ·
+> `[skip]` won't fix (owner decision). **Last audit:** 2026-06-23; current file contents are a
+> bounded tracker snapshot: 1 fixed, 4 partial, and 1 open entry (older aggregate counts remain in
+> dated changelog history).
+>
+> **Current-state reconciliation:** 2026-08-10. Historical findings below are labeled where the
+> current provider-only path supersedes the old queue behavior; no live provider or clean-build
+> evidence is implied, and older branch/workflow names are historical records that do not describe
+> the current executable path.
 
 ---
 
-## Historical architectural mismatch with PLAN.md §3
+## Historical architectural mismatch with PLAN.md's architecture section
 
-The original audit recorded a mismatch with the standalone / Docker build agents marked
-**frozen as fallback** (§8.3, §8.4). The current source now checks provider readiness
-before persistence and does not route production submissions into the file queue. The
-queue scripts remain frozen historical material. Owner decision (2026-06-20):
+> Note 2026-11-24: the `PLAN.md` references in this section (§3, §8.3, §8.4) use the 2026-06-era numbering and do not resolve in the current `PLAN.md`. Name-based current homes: `PLAN.md` "Historical/frozen builders (not used by the current API)" and the frozen builder rows of "Component status".
 
-1. Treat Docker `build-linux` and `build-win` containers as **frozen manual/historical-only** material, not the
-   default route. They stay on disk but should not be started by `docker compose up`.
-2. Remove `windows-x86` (32-bit) as a build target everywhere — UI option, form defaults,
-   any router branches. 2026; not worth maintaining.
-3. Keep the fork-owned Linux + Android workflow mappings, but do not re-expose those
-   platforms until PR11 has real end-to-end evidence. Until then, non-Windows platforms
-   remain gated in the UI/API to prevent phantom builds.
+Tombstone: the mismatch (frozen fallback builders vs the provider path) is resolved in the current source, which checks provider readiness before persistence and does not route production submissions into the file queue. Owner decision (2026-06-20), kept complete: (1) Docker `build-linux`/`build-win` remain **frozen manual/historical-only** material — on disk, but not started by `docker compose up`; (2) `windows-x86` (32-bit) removed as a build target everywhere (UI option, form defaults, router branches) — 2026, not worth maintaining; (3) keep the fork-owned Linux + Android workflow mappings, but do not re-expose those platforms until PR11 has real end-to-end evidence — until then non-Windows platforms stay gated in the UI/API to prevent phantom builds. Current homes: `PLAN.md` §3 (frozen builder rows), §9 (`windows-x86` dead), §2 (Linux/Android gated).
 
 The bugs below are grouped by where they leak into user-visible breakage.
 
@@ -41,26 +34,8 @@ The bugs below are grouped by where they leak into user-visible breakage.
 ## Historical critical finding — workflow was silently broken end-to-end
 
 ### [~] B-001 · Historical file-queue jobs do not propagate `done` status back to the DB
-**Current state:** provider readiness is checked before a production build row is persisted,
-so the file-queue path is not a production fallback. `docker/docker-compose.yml` keeps
-`build-linux` and `build-win` behind a `fallback` profile. The frozen scripts still have
-the status-mirror limitation if an operator runs them manually; no live provider evidence
-is implied by this closure boundary.
 
-**Current path:** `api/http/controller/admin/custom_build.go:1246-1261` dispatches
-production builds through the configured provider; the old queue references remain
-only in the frozen scripts below. **Historical queue locations:**
-`docker/entrypoint-linux.sh:37,49,76,...` and `docker/entrypoint-win.sh:33,45,210`
-write `output_dir/status`.
-**Historical symptom:** Linux/Android (and Windows when GitHub config was missing) builds
-sat at `Status=pending` forever. `DownloadByKey` returned HTTP 409. The Download button
-did not appear in the UI (`v-if="row.status === 'done'"`, `custom-client/index.vue:306`).
-**Root cause:** no Go-side watcher reads `/rdgen-data/output/{id}/status`. The build agent's
-status file is dead-letter.
-**Fix path (per owner direction):**
-- Current: keep all non-Windows-via-GitHub options gated in the UI/API (B-002, B-013).
-- Future: enable Linux/Android only after fork workflow, artifact, embedding, and download
-  evidence is recorded under B-012/PR11.
+**Tombstone (historical):** no Go-side watcher read `/rdgen-data/output/{id}/status` — the build agent's status file was dead-letter, so Linux/Android builds (and Windows when GitHub config was missing) sat at `pending` forever (`DownloadByKey` HTTP 409, no Download button; UI gated on `row.status === 'done'`, `custom-client/index.vue:672`; status writes: `docker/entrypoint-linux.sh:37,49,76`, `docker/entrypoint-win.sh:33,45,210`). Superseded as a production path: provider readiness is now checked before a build row is persisted (`api/http/controller/admin/custom_build.go:1461,1470` → `tryGithubDispatch`), and `docker/docker-compose.yml` keeps `build-linux`/`build-win` behind the `fallback` profile; the frozen scripts (`docker/entrypoint-linux.sh`, `docker/entrypoint-win.sh`) still have the status-mirror limitation if run manually. Chronology: CHANGELOG.md ("Current-state reconciliation — 2026-08-10"). Enable Linux/Android only after fork workflow, artifact, embedding, and download evidence is recorded under B-012/PR11.
 
 ## LOW — dead code / cleanup
 
@@ -77,14 +52,11 @@ status file is dead-letter.
 Still open: `/custom_build/public/detailByKey/:key` exists but has no caller in the UI.
 Left in place because it's a documented capability URL and may have third-party consumers.
 
-**Where:**
-- `api/http/request/admin/custom_build.go:14` — `CustomBuildForm.FromCustomBuild` (no callers).
-- `api/http/request/admin/custom_preset.go:24` — `CustomPresetForm.FromCustomPreset` (no callers).
-- `admin-ui/src/api/custom_client.js:10` — `detail()` exported, no importer.
-- `admin-ui/src/views/custom-client/index.vue:323` — `detailPreset` imported, never used in
-  `setup()`.
-- `GET /custom_build/detail/:id` and `GET /custom_build/public/detailByKey/:key` — already
-  noted as unused in `audit-report.md:879-881`.
+**Where:** only that public route remains —
+`GET /api/admin/custom_build/public/detailByKey/:key` (the other unused surfaces
+listed above were deleted in the partial fix; the original `audit-report.md`
+reference was removed with that file on 2026-06-21).
+
 **Fix:** delete in a single janitorial PR after the higher-priority work lands.
 
 ## STRUCTURAL — to enable B-001/B-002/B-013 fixes
@@ -100,12 +72,12 @@ No live provider/workflow run or clean build is recorded in the current canonica
 by workflow constant; `tryGithubDispatch` picks `rustqs-linux.yml`/`rustqs-android.yml`;
 `pollAndDownload` selects artifact by platform).
 
-**Workflow files:** deployed to `bashrusakh/rustdesk` on both `master` (API discovery)
-and `rustqs/min-test` (execution) — all three are indexed (HTTP 200):
-`rustqs-windows-min-test.yml`, `rustqs-linux.yml`, `rustqs-android.yml`.
-Filenames in Go constants match fork filenames exactly.
-These deployment observations are historical; they are not current provider-run,
-artifact, package, or support evidence.
+**Workflow files:** deployed to `bashrusakh/rustdesk` on both `master` (API discovery) and
+`rustqs/min-test` (execution — historical; that branch no longer exists, absent from the fork's
+branches as of 2026-11-24) — all three indexed (HTTP 200, as of the 2026-06 audit):
+`rustqs-windows-min-test.yml`, `rustqs-linux.yml`, `rustqs-android.yml`; filenames in Go constants
+match fork filenames exactly. These deployment observations are historical, not current
+provider-run, artifact, package, or support evidence.
 
 **Critical dependency:** `bridge.yml` must also exist on both branches — all three
 `rustqs-*.yml` reference it as a reusable workflow. Without it, dispatch succeeds
@@ -120,31 +92,33 @@ Still open:
 
 **Where (active source):** the configured RustDesk fork's
 `.github/workflows/rustqs-linux.yml` and `.github/workflows/rustqs-android.yml`.
+
 **Historical/reference templates:** former local `github-build/` workflow references and
 `rdgen/.github/workflows/generator-linux.yml`, `rdgen/.github/workflows/generator-android.yml`.
 The `github-build/` and `rdgen/` workflow material is not the executable source.
-**Symptoms (historical):** before the push, dispatch returned HTTP 404 because workflow files
-were not on `master` (default branch); submit went to the deprecated file queue (B-001).
-Resolved by pushing workflow files to both `master` and `rustqs/min-test`.
+
+**Symptoms (historical):** before the push, dispatch returned HTTP 404 because workflow files were not on `master` (default branch) and submit went to the deprecated file queue (B-001); resolved by pushing workflow files to `master` and `rustqs/min-test` (historical — `rustqs/min-test` no longer exists as of 2026-11-24).
 
 ## ADMIN UI / API — open findings (consolidated from the removed `audit-report.md`)
 
-The functional admin-UI audit (PR #19) had 65 findings; 58 were fixed in PR #20–#22.
-The full report file was removed during doc consolidation (2026-06-21). The findings
-still open are preserved here:
+The functional admin-UI audit (PR #19) had 65 findings; 58 were fixed in PR #20–#22, and the full report file was removed during doc consolidation (2026-06-21). The findings still open are preserved here:
 
 ### [ ] AU-M-022 · Unauthenticated writes on the client-facing API
-**Where:** `api/http/router/api.go` — routes registered before `frg.Use(RustAuth())` (line 76).
+
+**Where:** `api/http/router/api.go` — routes registered before `frg.Use(RustAuth())`
+(line 76).
+
 **Symptom:** `POST /api/sysinfo` (creates/updates `Peer` rows by caller-supplied `id`),
-`/api/heartbeat`, `/api/audit/conn`, `/api/audit/file` are unauthenticated; an anonymous caller
-can create/alter peers and inject audit entries. `/api/shared-peer` also does an unchecked
-`(*j)["share_token"].(string)` assertion (`webClient.go:57`) → 500 on missing token.
-**Fix:** needs RustDesk protocol design confirmation (the PC client hits these before auth).
+`/api/heartbeat`, `/api/audit/conn`, `/api/audit/file` are unauthenticated; an
+anonymous caller can create/alter peers and inject audit entries. `/api/shared-peer`
+also does an unchecked `(*j)["share_token"].(string)` assertion (`webClient.go:57`)
+→ 500 on missing token.
+
+**Fix:** needs RustDesk protocol design confirmation (the PC client hits these before
+auth).
 
 ### [x] AU-L-010 · Hardcoded version list in Custom Client UI
-Resolved in the current source by the provider-derived version catalog; unavailable
-provider catalog data returns an empty/error state rather than an obsolete hardcoded
-version fallback. Live provider catalog evidence remains unverified.
+Resolved in the current source by the provider-derived version catalog; unavailable provider catalog data returns an empty/error state rather than an obsolete hardcoded version fallback. Live provider catalog evidence remains unverified.
 
 ## rdgen generator — open findings (consolidated from the removed `AUDIT.md`)
 
