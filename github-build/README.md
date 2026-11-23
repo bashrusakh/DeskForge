@@ -35,7 +35,7 @@ live provider run currently exist:
 
 > **Current-state notes.** Windows is the only platform admitted by the API production capability gate; Linux/Android mappings exist but remain gated until PR11 records end-to-end provider, artifact, embedding, and download evidence — workflow manifests, bridge/helper source, Android app-ID/runtime-path checks, and package assertions are static evidence only, and no live provider run or clean-environment build proof is recorded here.
 > RustDesk guard PR (recorded 2026-08-20): [RustDesk PR #7](https://github.com/bashrusakh/rustdesk/pull/7) merged into `rustqs/workflows` at `ced31ae07f69c20119b88212b10d2eb2df651c97` (prior source commit `6ef1cd7fe`) — adds the marker, requires outer and authenticated inner SHA checks in the bridge, and gates draft Linux/Android before secret-bearing jobs.
-> `workflow-v1.2.0` never existed; annotated tags `workflow-v1.2.1` (at `ced31ae`), `workflow-v1.3.7`, and `workflow-v1.3.8` exist in the fork — existence only, verified via `git ls-remote` 2026-11-24; signing and tag/ruleset protection are not verified here, and live reapproval/reverification remains pending.
+> `workflow-v1.2.0` does not exist (checked 2026-11-24); annotated tags `workflow-v1.2.1` (at `ced31ae`), `workflow-v1.3.7`, and `workflow-v1.3.8` exist in the fork — existence only, verified via `git ls-remote` 2026-11-24; signing and tag/ruleset protection are not verified here, and live reapproval/reverification remains pending.
 > This is not provider deployment, tag protection, live workflow, or live artifact evidence. DeskForge-local remediation state for the same date (commits `da42521`/`9a1ee5e`/`d67b6e7`, PR #59): [CHANGELOG.md](../CHANGELOG.md) ("Local PR #59 review remediation — 2026-08-20").
 
 ---
