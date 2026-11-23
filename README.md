@@ -161,3 +161,5 @@ sovereignty claim is made.
 Based on:
 - [rustdesk/rustdesk-server](https://github.com/rustdesk/rustdesk-server) (AGPL-3.0)
 - [lejianwen/rustdesk-api](https://github.com/lejianwen/rustdesk-api) (MIT)
+- [lejianwen/rustdesk-api-web](https://github.com/lejianwen/rustdesk-api-web) (MIT; base: vue-manage-system, MIT)
+- [bryangerlach/rdgen](https://github.com/bryangerlach/rdgen) (GPL-3.0, reference material only)
