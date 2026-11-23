@@ -20,7 +20,7 @@ The operator chooses a known version/capability. The catalog and immutable build
 - Define one canonical owner for repository, workflow filenames, execution ref, and version propagation; remove duplicate/hardcoded fallback authority without breaking legacy reads. ✅
 - Remove DeskForge `github-build/rustqs-{windows-min-test,linux,android}.yml` duplicates; the configured rustdesk fork owns executable workflows. ✅
 - Remove `rdgen/.github/workflows/sync-workflows.yml`; no workflow-file or PAT synchronization path remains. ✅
-  > Correction 2026-11-23: the ✅ deletion never happened — `rdgen/.github/workflows/sync-workflows.yml` is still tracked in every recorded tree state (only its creation commits `d2bde6a`/`4067f52` exist). The API-side behavioral removal half did land and is now gone. Line kept as recorded.
+  > Correction 2026-11-23: the ✅ deletion never happened — `rdgen/.github/workflows/sync-workflows.yml` is still tracked in every recorded tree state (only `d2bde6a`/`4067f52` touch it: creation `d2bde6a`, hardening `4067f52`). The API-side behavioral removal half did land and is now gone. Line kept as recorded.
 - Keep `rdgen/.github/workflows/bridge.yml` because vendored rdgen generator workflows reference it as their manual/reference workflow. ✅ deferred duplicate cleanup.
 - Preserve the upstream-compatible bridge contract: no guessed `inputs.version` requirement and no checkout of the wrong repository.
 - Historical/deferred note (superseded by `plans/deskforge-workflow-migration`): prior verification targeted `master` discovery, `rustqs/min-test` execution, and `rustqs/master-workflows` mirror ownership; live provider validation remains deferred.

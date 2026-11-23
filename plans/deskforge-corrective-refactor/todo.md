@@ -53,7 +53,7 @@ release-readiness, or sovereignty claim is made.
   - [x] User config is Repo/PAT/PayloadKey only; legacy workflow/ref columns remain unread for migration safety.
   - [x] Provider readiness precedes build-row persistence and production API has no file-queue fallback or PAT-sync machinery.
   - [x] DeskForge duplicate platform workflows and draft sync workflow deleted; rdgen bridge retained because vendored generator workflows still reference it.
-    > Correction 2026-11-23: the sync-workflow deletion never happened — `rdgen/.github/workflows/sync-workflows.yml` is still tracked in every recorded tree state (only its creation commits `d2bde6a`/`4067f52` exist); only the API-side behavioral removal half landed (and that code is now gone). Line kept as recorded.
+    > Correction 2026-11-23: the sync-workflow deletion never happened — `rdgen/.github/workflows/sync-workflows.yml` is still tracked in every recorded tree state (only `d2bde6a`/`4067f52` touch it: creation `d2bde6a`, hardening `4067f52`); only the API-side behavioral removal half landed (and that code is now gone). Line kept as recorded.
   - [ ] Live GitHub dispatch/poll and real workflow execution remain deferred to later capability evidence.
 
 - [x] **PR7 — verified-with-notes: streaming artifact**

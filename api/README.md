@@ -306,7 +306,7 @@ GOWORK=off go test ./...
 Both broad checks passed (recorded 2026-08-11/12, after test-only cache diagnostics
 and opt-in Redis test changes); that pass predates the schema-284/285 code of
 2026-10-13 and is therefore stale rather than contradicted (evidence dating:
-`PLAN.md:61-63`).
+`PLAN.md:63-65`).
 Redis integration tests and benchmarks run only when
 `DESKFORGE_TEST_REDIS_ADDR` is configured; no live Redis run is recorded.
 MySQL/PostgreSQL, live provider, and the other release/build gates remain

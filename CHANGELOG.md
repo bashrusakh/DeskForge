@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-> **Note 2026-11-23:** `PLAN.md §…` section numbers referenced in older entries below (e.g. §8.x, §9) refer to the pre-2026-11-23 `PLAN.md` numbering and may not resolve in the current `PLAN.md`.
+> **Note 2026-11-23:** `PLAN.md §…` section numbers referenced in older entries below (e.g. §8.x) refer to the pre-2026-11-23 `PLAN.md` numbering and may not resolve in the current `PLAN.md`.
 
 ## [Unreleased]
 
@@ -153,7 +153,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Custom-client schema 284/285 + runtime app-name/branding fields — 2026-10-13 (**back-fill**, added 2026-11-23)
 
-> Back-fill entry: this work landed without a changelog record; added 2026-11-23 from `PLAN.md §2` (lines 129-138) and the code/commit record. Not a new change.
+> Back-fill entry: this work landed without a changelog record; added 2026-11-23 from `PLAN.md §2` (lines 131-140) and the code/commit record. Not a new change.
 
 - **Schema 284:** create-time `preset_id` and `preset_name` provenance snapshots on
   `custom_builds`.

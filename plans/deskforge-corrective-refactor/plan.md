@@ -69,7 +69,7 @@ files, local implementation checks, or dirty submodule state as publication evid
 - Fixed platform workflow mapping and immutable catalog identity own new dispatches; existing builds poll stored provenance with only the current token.
 - Provider readiness is checked before custom-build persistence; production API has no implicit file-queue fallback or PAT-sync endpoint.
 - DeskForge duplicate platform workflows and the draft sync workflow were deleted. The rdgen bridge copy remains because vendored rdgen generator workflows reference it; the rustdesk fork bridge remains the executable source of truth.
-  > Correction 2026-11-23: the sync-workflow deletion never happened — `rdgen/.github/workflows/sync-workflows.yml` is still tracked in every recorded tree state (only its creation commits `d2bde6a`/`4067f52` exist); only the API-side behavioral removal half landed (and that code is now gone). Line kept as recorded.
+  > Correction 2026-11-23: the sync-workflow deletion never happened — `rdgen/.github/workflows/sync-workflows.yml` is still tracked in every recorded tree state (only `d2bde6a`/`4067f52` touch it: creation `d2bde6a`, hardening `4067f52`); only the API-side behavioral removal half landed (and that code is now gone). Line kept as recorded.
 - Focused Go tests, race, targeted vet, UI build, formatting, diff-check, and deletion/source-marker checks passed; live GitHub credentials/runs and real workflow execution remain deferred to PR7/PR11.
 
 ### PR7 — `verified-with-notes`
