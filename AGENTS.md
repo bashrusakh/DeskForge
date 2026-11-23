@@ -47,7 +47,7 @@ admin-ui/        — Vue 3 admin panel
 ├── src/store/   — Pinia (user, app, tags, router)
 ├── src/api/     — axios wrappers
 ├── src/styles/  — SCSS (design tokens, light/dark)
-└── src/utils/   — auth, request, export, i18n (en/ru/zh_CN)
+└── src/utils/   — auth, request, i18n (en/ru/zh_CN), clipboard/file/peer/time, webclient/
 
 rdgen/           — ❄️ frozen vendored historical/reference workflow material (patches, generator-*.yml)
 libs/hbb_common/ — tracked shared Rust library in DeskForge; copy of our hbb_common mirror fork @ pin + patches (not a submodule here)
@@ -124,7 +124,7 @@ section); full semantics are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 ### Admin UI ↔ Go API
 
 - REST: `/api/` (PC client) + `/api/admin/` (admin-only)
-- Auth: JWT in cookie, optional OAuth
+- Auth: JWT (HS256) in the `api-token` header, token kept client-side in localStorage; optional OAuth
 - Swagger: `/admin/swagger/index.html`
 - WebSocket: real-time peer status
 
@@ -151,8 +151,11 @@ section); full semantics are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 ## Architecture patterns
 
 - **Clean layered (Go):** Controller → Service → Model. Do not mix layers.
-- **Embedded UI:** Go embeds `admin-ui/dist/` and `web/`.
-- **Configured multi-DB:** GORM with SQLite/MySQL/PostgreSQL drivers, no raw SQL;
+- **Admin UI serving:** no `go:embed` — the production image copies `admin-ui/dist`
+  to `/app/resources/admin/` (`docker/Dockerfile`) and Gin serves it as static files
+  (`g.StaticFS("/admin", http.Dir(...))`, `api/http/router/router.go`).
+- **Configured multi-DB:** GORM with SQLite/MySQL/PostgreSQL drivers, no `.Raw()` ORM
+  bypass (the migration/repair path does use raw `Exec` statements);
   SQLite is locally exercised, cross-DB coverage as in [PLAN.md §2](PLAN.md#2-architecture).
 - **OAuth/LDAP:** configured via admin panel → DB. Falls back to local users.
 - **Server commands:** allowlist in `serverCmd.go`.

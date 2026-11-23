@@ -58,8 +58,8 @@ Working directories: `docker/` for Compose, `server/`, `api/`, `admin-ui/`.
 
 ```bash
 # Docker (full image + dev API stack)
-docker compose build && docker compose up -d
-cd api && docker compose -f docker-compose-dev.yaml up -d
+cd docker && docker compose build && docker compose up -d
+cd ../api && docker compose -f docker-compose-dev.yaml up -d
 
 # Rust
 cd server && cargo build --release && cargo clippy && cargo test
@@ -108,7 +108,7 @@ scope: short imperative summary
 - No trailing period.
 - Keep each commit specific to one logical change.
 
-Observed scopes: `admin-ui`, `api`, `server`, `docker`, `workflow`, `docs`.
+Observed scopes: `admin-ui`, `api`, `server`, `docker`, `workflow`, `docs`, `chore` (7), `fix` (3).
 
 ## Pull Requests
 
