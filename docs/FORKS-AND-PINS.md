@@ -39,7 +39,7 @@ Verified state (GitHub API + clones, 2026-11-23):
   `bb416bc94e48` + three non-behavioral infrastructure commits: `36ab6ed` (license
   metadata — content in §3), `b53e044` (superseded sync draft "ci: auto-sync main
   with upstream on schedule" — content retrievable in history), `5a2d082` (sync
-  workflow). Linear history: `5a2d082 → b53e044 → 36ab6ed → bb416bc`.
+  workflow). Linear history (tip → base): `5a2d082 → b53e044 → 36ab6ed → bb416bc`.
 - **Branches:** `main` only. The `webrtc` branch is a dated **deletion record**:
   deleted 2026-11-23 by owner decision after evidence showed it fully superseded —
   exactly one commit `5a78ec4` (2026-05-18, "feat: support WebRTC rendezvous

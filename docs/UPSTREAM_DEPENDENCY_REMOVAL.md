@@ -13,7 +13,7 @@ The previous implementation in `docker/Dockerfile` used:
 FROM rustdesk/rustdesk-server-s6:latest AS s6-source
 ```
 
-This pulls **150 MB** from docker.io just to get **10 MB** of s6-overlay.
+This pulls **150 MB** from docker.io just to get **10 MB** of s6-overlay + 2 utilities.
 
 ---
 
