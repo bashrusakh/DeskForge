@@ -29,12 +29,13 @@
 
 ---
 
-## Historical architectural mismatch with PLAN.md §3
+## Historical architectural mismatch with PLAN.md's architecture section
 
-> Note 2026-11-23: the `PLAN.md` section numbers referenced in this section (§3, §8.3, §8.4) refer to the pre-2026-11-23 `PLAN.md` numbering and may not resolve in the current `PLAN.md`.
+> Note 2026-11-24: the `PLAN.md` references in this section (§3, §8.3, §8.4) use the 2026-06-era numbering (§3 = "Architecture"; §8.3/§8.4 = the frozen standalone Windows builder and its API↔agent SMB channel) and do not resolve in the current `PLAN.md`. Name-based current homes: `PLAN.md` "Architecture" → "Historical/frozen builders (not used by the current API)", and the frozen builder rows of "Component status".
 
 The original audit recorded a mismatch with the standalone / Docker build agents marked
-**frozen as fallback** (§8.3, §8.4). The current source now checks provider readiness
+**frozen as fallback** (now `PLAN.md`'s "Historical/frozen builders (not used by the
+current API)" and the frozen builder rows of "Component status"). The current source now checks provider readiness
 before persistence and does not route production submissions into the file queue. The
 queue scripts remain frozen historical material. Owner decision (2026-06-20):
 
@@ -115,7 +116,9 @@ by workflow constant; `tryGithubDispatch` picks `rustqs-linux.yml`/`rustqs-andro
 `pollAndDownload` selects artifact by platform).
 
 **Workflow files:** deployed to `bashrusakh/rustdesk` on both `master` (API discovery)
-and `rustqs/min-test` (execution) — all three are indexed (HTTP 200):
+and `rustqs/min-test` (execution — historical; the branch no longer exists, absent from
+the fork's branches as of 2026-11-24) — all three were indexed (HTTP 200, as of the
+2026-06 audit):
 `rustqs-windows-min-test.yml`, `rustqs-linux.yml`, `rustqs-android.yml`.
 Filenames in Go constants match fork filenames exactly.
 These deployment observations are historical; they are not current provider-run,
@@ -141,7 +144,8 @@ The `github-build/` and `rdgen/` workflow material is not the executable source.
 
 **Symptoms (historical):** before the push, dispatch returned HTTP 404 because workflow
 files were not on `master` (default branch); submit went to the deprecated file queue
-(B-001). Resolved by pushing workflow files to both `master` and `rustqs/min-test`.
+(B-001). Resolved by pushing workflow files to both `master` and `rustqs/min-test`
+(historical; `rustqs/min-test` no longer exists as of 2026-11-24).
 
 ## ADMIN UI / API — open findings (consolidated from the removed `audit-report.md`)
 

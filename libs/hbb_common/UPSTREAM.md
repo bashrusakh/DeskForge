@@ -15,6 +15,9 @@ behavioral patches in library content (its `main` holds upstream history plus
 non-behavioral infrastructure commits only — fork-content invariant in
 `docs/FORKS-AND-PINS.md` §3); every DeskForge behavior change is in the patch set below.
 
+Baselines marked `was …` below are the pin's upstream values as recorded on
+2026-11-23 (commit-graph as of 2026-11-23; not re-resolved).
+
 ## Local patch set (delta above the pin)
 
 Carry-over rule (user-ratified 2026-11-23): a patch is re-applied on a re-pin **only if

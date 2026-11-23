@@ -31,7 +31,7 @@ that synchronized copies, protected tags, or a live provider run currently exist
 | ------------------------- | -------------------------------------------------------------- |
 | `master`                  | Fork default branch; not a dispatch selector                  |
 | `rustqs/workflows`        | Backup copy of the fork's `master` (workflow-file insurance if `master` is lost); not a dispatch selector; retained read-only for legacy compatibility |
-| `rustqs/master-workflows` | Fork-maintained workflow mirror/reference ref (workflow-file backup for re-applying after an upstream sync — distinct from the whole-`master` backup above); not a selector |
+| `rustqs/master-workflows` | **Deleted former ref** — fork-maintained workflow mirror/reference ref (workflow-file backup for re-applying after an upstream sync — distinct from the whole-`master` backup above); absent from the fork's branches as of 2026-11-24; historical reference only; not a selector |
 
 | Platform | Executable workflow in fork                           | Status    |
 | -------- | ----------------------------------------------------- | --------- |
@@ -51,9 +51,12 @@ that synchronized copies, protected tags, or a live provider run currently exist
 > `rustqs/workflows` at merge commit `ced31ae07f69c20119b88212b10d2eb2df651c97`,
 > which contains prior source commit `6ef1cd7fe`. It adds the marker, requires outer
 > and authenticated inner SHA checks in the bridge, and gates draft Linux/Android
-> before secret-bearing jobs. The merge does not deploy a guard tag:
-> `workflow-v1.2.0` does not exist, and no newly signed provider-verified immutable
-> protected workflow tag exists yet; live reapproval/reverification remains pending.
+> before secret-bearing jobs. The merge itself does not cut a guard tag:
+> `workflow-v1.2.0` never existed. Annotated tags `workflow-v1.2.1` (pointing at
+> that merge commit `ced31ae`), `workflow-v1.3.7` and `workflow-v1.3.8` do exist in
+> the fork — existence only, verified via `git ls-remote` 2026-11-24; signing and
+> tag/ruleset protection are not verified here, and live reapproval/reverification
+> remains pending.
 > This is not provider deployment, tag protection,
 > live workflow, or live artifact evidence. DeskForge-local remediation state for the
 > same date (commits `da42521`/`9a1ee5e`/`d67b6e7`, PR #59) is recorded chronologically

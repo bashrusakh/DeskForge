@@ -1,8 +1,7 @@
 # rdgen — vendored reference (not a service)
 
 > DeskForge **does not run** rdgen as a service. This is a vendored copy of
-> [bryangerlach/rdgen](https://github.com/bryangerlach/rdgen). Working instance:
-> [rdgen.crayoneater.org](https://rdgen.crayoneater.org).
+> [bryangerlach/rdgen](https://github.com/bryangerlach/rdgen).
 
 ## Purpose
 

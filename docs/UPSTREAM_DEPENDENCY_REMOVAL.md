@@ -76,7 +76,7 @@ Without it: 3 separate containers or custom bash supervisor.
 | Stage 4 (s6-source) | `FROM rustdesk/rustdesk-server-s6:latest` | **Remove**. Replace with GitHub s6-overlay download |
 | Stage 5 (final) | `COPY --from=s6-source /init /etc/s6-overlay /package /command /usr/bin/healthcheck.sh /usr/bin/rustdesk-utils` | `COPY --from=s6-stage` + custom `healthcheck.sh` + `rustdesk-utils` from Stage 1 |
 
-**As implemented** (exact state: `docker/Dockerfile`, `s6-stage`): Stage 4 runs on
+**As implemented** (exact state as of 2026-06-28: `docker/Dockerfile`, `s6-stage`): Stage 4 runs on
 pinned `alpine:3.24.1`, maps `TARGETARCH` to the s6-overlay arch
 (`amd64→x86_64`, `arm64→aarch64`), and downloads the noarch + arch tarballs from
 the `just-containers/s6-overlay` GitHub release with pinned SHA-256 checksums
@@ -145,7 +145,8 @@ Add `# DEPRECATED` comment or delete.
 ## Pinned Versions
 
 Production base images are pinned by both version and digest. The s6-overlay
-release is pinned by version tag and SHA-256 checksums.
+release is pinned by version tag and SHA-256 checksums. The table below is the
+2026-06-28 snapshot (as of 2026-06-28), not a re-verified current state.
 
 | Component | Version | Where |
 |-----------|---------|-------|

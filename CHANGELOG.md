@@ -193,6 +193,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   pushed. `workflow-v1.2.0` does not exist, and no newly signed provider-verified
   immutable protected workflow tag exists yet; live tag protection verification,
   reapproval, and reverification remain required before production dispatch.
+> **Note 2026-11-24:** PR #59 merged 2026-08-20 (`gh pr view`: MERGED, `mergedAt 2026-08-20T14:32:19Z`, landed as `bfc2a4c` "refactor: harden build provenance and releases (#59)"); the open/dirty state above is historical.
 - Prior local remediation results record passing focused migration/custom-preset
   coverage, a focused race check, `go vet`, `gofmt`, and `git diff --check`.
   Migration evidence is SQLite-only; MySQL/PostgreSQL migration and read/write

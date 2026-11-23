@@ -75,11 +75,11 @@ only intentionally, in three classes: the `libs/hbb_common` gitlink is repointed
 mirror fork; fork-side workflow/branding branches (`rustqs/*`) carry the client-build
 workflows; and fork-side tag history records fork-side work (tag `1.5.0` = `9253e1fc`,
 a CI-workflow merge commit — record in §3).
-`libs/hbb_common` gitlink records (URL + SHA) in the fork:
+`libs/hbb_common` gitlink records (URL + SHA) in the fork (commit-graph as of 2026-11-23; not re-resolved):
 
 | Fork ref | Fork ref SHA | `libs/hbb_common` gitlink |
 |---|---|---|
-| `master` | — | `bashrusakh/hbb_common` @ `36ab6ed` (2026-11-23) |
+| `master` | `694042d` (fork `master` HEAD) | `bashrusakh/hbb_common` @ `36ab6ed` (2026-11-23) |
 | tag `1.4.8` | `3c574a4` (identical to upstream 1.4.8) | `rustdesk/hbb_common` @ `387603f` |
 | tag `1.5.0` | `9253e1fc` (fork's own CI-workflow merge commit, record §3 — **not** upstream's `1.5.0` = `fada664d`) | `rustdesk/hbb_common` @ `229b9045` |
 
@@ -242,7 +242,7 @@ Moving `libs/hbb_common/` to a new pin (full client-release maintenance procedur
 
 ## 6. Reference pin timeline
 
-`hbb_common` pin recorded by each upstream ref (context, verified 2026-11-23):
+`hbb_common` pin recorded by each upstream ref (context; commit-graph as of 2026-11-23; not re-resolved):
 
 | Source ref | `hbb_common` pin |
 |---|---|
