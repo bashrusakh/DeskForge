@@ -34,6 +34,14 @@ branded Windows client through an owned GitHub Actions workflow in our RustDesk 
 
 ---
 
+## 📸 Screenshots
+
+| Dashboard | Custom Client Builder |
+|---|---|
+| ![Dashboard](docs/screenshots/dashboard.png) | ![Custom Client Builder](docs/screenshots/client-builder.png) |
+
+---
+
 ## 🚀 Quick start
 
 ```bash
@@ -101,12 +109,6 @@ Full semantics (secret-key behavior, public-origin rules, `SOURCE_DATE_EPOCH`): 
 - **Custom client** — the API dispatches an owned workflow in the configured RustDesk fork and retrieves the exact provider artifact for local validation/publication. Windows is the only capability admitted today (Linux/Android gated pending PR11 evidence); **no live provider run or clean-environment build is claimed.** Evidence and caveats: [PLAN.md §2](PLAN.md#2-architecture) · fine-grained PAT permissions: [api/README.md](api/README.md#github-fine-grained-pat-permissions).
 
 **Not implemented (vs RustDesk Pro):** 2FA, RBAC, session recording, device policy, remote script, HA, backup/restore.
-
-### Screenshots
-
-| Dashboard | Custom Client Builder |
-|---|---|
-| ![Dashboard](docs/screenshots/dashboard.png) | ![Custom Client Builder](docs/screenshots/client-builder.png) |
 
 ---
 

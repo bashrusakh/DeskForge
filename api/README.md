@@ -154,35 +154,37 @@ one modern provider-verified ruleset surface for the exact tag label. The modern
 ruleset surface is authoritative and the only supported protection surface;
 initial list, later page, detail, policy, and contract failures all fail closed:
 
-- modern `GET /repos/{owner}/{repo}/rulesets?targets=tag&includes_parents=true`, bounded to
+- **Ruleset discovery** — modern
+  `GET /repos/{owner}/{repo}/rulesets?targets=tag&includes_parents=true`, bounded to
   three pages and 256 rulesets, discovers candidate IDs only. DeskForge then
   consumes `GET /repos/{owner}/{repo}/rulesets/{id}?includes_parents=true` and
   validates the repository-scoped detail metadata (`name`, `source`, and
   `source_type` in `Repository`, `Organization`, or `Enterprise`; documented
-  `created_at` and `updated_at` values are type-checked when present). The
-  repository-scoped `includes_parents=true` response establishes applicability
-  at the provider boundary. DeskForge requires `conditions.ref_name` for tag
-  matching and does not independently evaluate `repository_name`,
-  `repository_id`, or `repository_property` selectors. The separate
-  organization authoring endpoint, `POST /orgs/{org}/rulesets`, uses repository
-  selectors to define where a ruleset applies; that create-schema requirement
-  must not be imposed on repository-scoped inherited detail responses. Unknown
-  condition fields and malformed condition values fail closed. Excludes win.
-  `tag_name_pattern` is validated only as rule metadata; it is not the ref
-  selector, and no `fnmatch` rule is required for selection. For tag rules,
-  `update` without parameters is valid; when parameters are present they must
-  be a strict object containing the boolean
+  `created_at` and `updated_at` values are type-checked when present).
+- **Applicability** — the repository-scoped `includes_parents=true` response
+  establishes applicability at the provider boundary. DeskForge requires
+  `conditions.ref_name` for tag matching and does not independently evaluate
+  `repository_name`, `repository_id`, or `repository_property` selectors. The
+  separate organization authoring endpoint, `POST /orgs/{org}/rulesets`, uses
+  repository selectors to define where a ruleset applies; that create-schema
+  requirement must not be imposed on repository-scoped inherited detail responses.
+- **Fail-closed conditions** — unknown condition fields and malformed condition
+  values fail closed. Excludes win. `tag_name_pattern` is validated only as rule
+  metadata; it is not the ref selector, and no `fnmatch` rule is required for
+  selection.
+- **Rule parameters** — for tag rules, `update` without parameters is valid; when
+  parameters are present they must be a strict object containing the boolean
   `update_allows_fetch_and_merge`. Null, empty, malformed, or unknown parameter
   objects fail closed. Branch-target rules continue to require that parameter.
-  Every applicable ruleset must expose `bypass_actors: []` and
+- **Bypass** — every applicable ruleset must expose `bypass_actors: []` and
   `current_user_can_bypass: "never"`; any applicable bypass actor or other
   current-user bypass mode rejects approval. Effective `update` and `deletion`
   rules may be split across matching rulesets. Other documented known rules are
   neutral or stronger additions, while unknown or malformed rules fail closed.
-  Inherited parent rulesets use the same checks;
-- the provider must reject a tag/branch collision for the same label, and the
-  tag's verification must report `verified=true` with the accepted provider
-  verification reason. Raw SHA selectors are not approval inputs.
+  Inherited parent rulesets use the same checks.
+- **Tag verification** — the provider must reject a tag/branch collision for the
+  same label, and the tag's verification must report `verified=true` with the
+  accepted provider verification reason. Raw SHA selectors are not approval inputs.
 
 The former tag-protection LIST compatibility path is **CONFIRMED OBSOLETE**:
 the GitHub.com provider is hard-wired to `https://api.github.com`, DeskForge has
@@ -263,28 +265,34 @@ permissions are repository/provider settings, not proven by local fake-transport
 tests.
 
 This policy is a provider-boundary contract, not live-provider evidence: the
-worktree has focused fake-transport coverage but no live GitHub/provider
-approval, dispatch, run, or artifact pass. Dispatch sends only the `ref` and
-required `inputs`; see [PLAN.md §2](../PLAN.md#2-architecture) for the dispatch
-API-version contract and its rationale, and the local atomicity limitation: the
-pending → building identity write is atomic, but there is no durable outbox or
-distributed lease coordinating provider dispatch with that database write, so a
-provider dispatch can succeed while the local write fails and no end-to-end
-atomic-dispatch claim is made.
+worktree has focused fake-transport coverage but no live GitHub/provider approval,
+dispatch, run, or artifact pass.
+
+Dispatch sends only the `ref` and required `inputs`; see
+[PLAN.md §2](../PLAN.md#2-architecture) for the dispatch API-version contract and its
+rationale. Local atomicity limitation: the `pending → building` identity write is
+atomic, but no durable outbox or distributed lease coordinates provider dispatch with
+that database write — a provider dispatch can succeed while the local write fails, so
+no end-to-end atomic-dispatch claim is made.
 
 ## Schema and secret compatibility evidence
 
 The published DeskForge API schema is `DatabaseVersion` **272**; the current local
 corrective candidate targets schema **285** (`api/cmd/apimain.go`), which is not
-published or live-provider evidence. Earlier migration steps: **280/281/282**
-(workflow-approval fields `workflow_ref_approved`, `workflow_ref_provider_verified`,
-`workflow_ref_approval_sha`), **283** (`idx_custom_presets_user_id_name` on
-`(user_id, name)` — before `AutoMigrate`, preflight fails on an existing duplicate
-group without auto-selecting or deleting a row), **284** (create-time `preset_id` /
-`preset_name` provenance snapshots), and **285** (branding-field preflight before
-`AutoMigrate`, failing closed on a rejected stored value). Migration tests are
-SQLite-only; MySQL/PostgreSQL migration and read/write coverage remain unverified.
-Full schema/migration-test evidence: [PLAN.md §2](../PLAN.md#2-architecture).
+published or live-provider evidence. Earlier migration steps:
+
+- **280/281/282** — workflow-approval fields `workflow_ref_approved`,
+  `workflow_ref_provider_verified`, `workflow_ref_approval_sha`
+- **283** — `idx_custom_presets_user_id_name` on `(user_id, name)`; before
+  `AutoMigrate`, preflight fails on an existing duplicate group without auto-selecting
+  or deleting a row
+- **284** — create-time `preset_id` / `preset_name` provenance snapshots
+- **285** — branding-field preflight before `AutoMigrate`, failing closed on a
+  rejected stored value
+
+Migration tests are SQLite-only; MySQL/PostgreSQL migration and read/write coverage
+remain unverified. Full schema/migration-test evidence:
+[PLAN.md §2](../PLAN.md#2-architecture).
 
 `AutoMigrate` keeps legacy rows readable. Legacy plaintext PAT/payload-key
 metadata remains readable, and metadata-only configuration saves preserve those

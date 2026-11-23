@@ -1,24 +1,28 @@
 # BUGS.md — Custom Client Builder workflow audit
 
 > Tracker for issues found in the build-custom-agent end-to-end flow.
-> Backend: `api/http/controller/admin/custom_build.go`, `api/service/custom_build.go`,
-> `api/service/github_build_config.go`. Frontend: `admin-ui/src/views/custom-client/index.vue`,
-> `admin-ui/src/views/server/github-build.vue`. Windows workflow file
-> `.github/workflows/rustqs-windows.yml`, artifact `rustqs-windows`; `rustqs/workflows`
-> is a backup copy of the fork's `master`, kept so workflow files cannot be lost if
-> `master` is damaged (canonical definition: `github-build/README.md`); it is not a
-> dispatch selector, and the code path retains it read-only for legacy compatibility.
-> Production execution uses approval-gated, guarded
-> immutable `refs/tags/workflow-*` under workflow-ref approval (`PLAN.md` §2 /
-> `github-build/README.md`); local `github-build/` workflow files are reference
-> material only.
 >
-> Status legend: `[ ]` open · `[x]` fixed · `[~]` partial · `[skip]` won't fix (owner decision).
+> **Surfaces:** backend `api/http/controller/admin/custom_build.go`,
+> `api/service/custom_build.go`, `api/service/github_build_config.go`; frontend
+> `admin-ui/src/views/custom-client/index.vue`,
+> `admin-ui/src/views/server/github-build.vue`.
 >
-> Last audit: 2026-06-23. Current file contents are a bounded tracker snapshot:
+> **Workflow path:** Windows workflow file `.github/workflows/rustqs-windows.yml`,
+> artifact `rustqs-windows`. `rustqs/workflows` is a backup copy of the fork's
+> `master`, kept so workflow files cannot be lost if `master` is damaged (canonical
+> definition: `github-build/README.md`); it is not a dispatch selector, and the code
+> path retains it read-only for legacy compatibility. Production execution uses
+> approval-gated, guarded immutable `refs/tags/workflow-*` under workflow-ref
+> approval (`PLAN.md` §2 / `github-build/README.md`); local `github-build/` workflow
+> files are reference material only.
+>
+> **Status legend:** `[ ]` open · `[x]` fixed · `[~]` partial · `[skip]` won't fix (owner decision).
+>
+> **Last audit:** 2026-06-23. Current file contents are a bounded tracker snapshot:
 > 1 fixed, 4 partial, and 1 open entry; older aggregate counts remain in dated
 > changelog history.
-> Current-state reconciliation: 2026-08-10. Historical findings below are labeled
+>
+> **Current-state reconciliation:** 2026-08-10. Historical findings below are labeled
 > where the current provider-only path supersedes the old queue behavior; no live
 > provider or clean-build evidence is implied. Older branch and workflow names below
 > are retained as historical records and do not describe the current executable path.
@@ -57,19 +61,23 @@ is implied by this closure boundary.
 
 **Current path:** `api/http/controller/admin/custom_build.go:1461,1470`
 (`submitBuild` → `tryGithubDispatch`) dispatches production builds through the
-configured provider; the old queue references remain
-only in the frozen scripts below. **Historical queue locations:**
-`docker/entrypoint-linux.sh:37,49,76,...` and `docker/entrypoint-win.sh:33,45,210`
-write `output_dir/status`.
+configured provider; the old queue references remain only in the frozen scripts below.
+
+**Historical queue locations:** `docker/entrypoint-linux.sh:37,49,76,...` and
+`docker/entrypoint-win.sh:33,45,210` write `output_dir/status`.
+
 **Historical symptom:** Linux/Android (and Windows when GitHub config was missing) builds
 sat at `Status=pending` forever. `DownloadByKey` returned HTTP 409. The Download button
 did not appear in the UI (`v-if="row.status === 'done'"`, `custom-client/index.vue:672`).
-**Root cause:** no Go-side watcher reads `/rdgen-data/output/{id}/status`. The build agent's
-status file is dead-letter.
+
+**Root cause:** no Go-side watcher reads `/rdgen-data/output/{id}/status`. The build
+agent's status file is dead-letter.
+
 **Fix path (per owner direction):**
+
 - Current: keep all non-Windows-via-GitHub options gated in the UI/API (B-002, B-013).
-- Future: enable Linux/Android only after fork workflow, artifact, embedding, and download
-  evidence is recorded under B-012/PR11.
+- Future: enable Linux/Android only after fork workflow, artifact, embedding, and
+  download evidence is recorded under B-012/PR11.
 
 ## LOW — dead code / cleanup
 
@@ -86,9 +94,11 @@ status file is dead-letter.
 Still open: `/custom_build/public/detailByKey/:key` exists but has no caller in the UI.
 Left in place because it's a documented capability URL and may have third-party consumers.
 
-**Where:** only that public route remains — `GET /api/admin/custom_build/public/detailByKey/:key`
-(the other unused surfaces listed above were deleted in the partial fix; the original
-`audit-report.md` reference was removed with that file on 2026-06-21).
+**Where:** only that public route remains —
+`GET /api/admin/custom_build/public/detailByKey/:key` (the other unused surfaces
+listed above were deleted in the partial fix; the original `audit-report.md`
+reference was removed with that file on 2026-06-21).
+
 **Fix:** delete in a single janitorial PR after the higher-priority work lands.
 
 ## STRUCTURAL — to enable B-001/B-002/B-013 fixes
@@ -124,12 +134,14 @@ Still open:
 
 **Where (active source):** the configured RustDesk fork's
 `.github/workflows/rustqs-linux.yml` and `.github/workflows/rustqs-android.yml`.
+
 **Historical/reference templates:** former local `github-build/` workflow references and
 `rdgen/.github/workflows/generator-linux.yml`, `rdgen/.github/workflows/generator-android.yml`.
 The `github-build/` and `rdgen/` workflow material is not the executable source.
-**Symptoms (historical):** before the push, dispatch returned HTTP 404 because workflow files
-were not on `master` (default branch); submit went to the deprecated file queue (B-001).
-Resolved by pushing workflow files to both `master` and `rustqs/min-test`.
+
+**Symptoms (historical):** before the push, dispatch returned HTTP 404 because workflow
+files were not on `master` (default branch); submit went to the deprecated file queue
+(B-001). Resolved by pushing workflow files to both `master` and `rustqs/min-test`.
 
 ## ADMIN UI / API — open findings (consolidated from the removed `audit-report.md`)
 
@@ -138,12 +150,18 @@ The full report file was removed during doc consolidation (2026-06-21). The find
 still open are preserved here:
 
 ### [ ] AU-M-022 · Unauthenticated writes on the client-facing API
-**Where:** `api/http/router/api.go` — routes registered before `frg.Use(RustAuth())` (line 76).
+
+**Where:** `api/http/router/api.go` — routes registered before `frg.Use(RustAuth())`
+(line 76).
+
 **Symptom:** `POST /api/sysinfo` (creates/updates `Peer` rows by caller-supplied `id`),
-`/api/heartbeat`, `/api/audit/conn`, `/api/audit/file` are unauthenticated; an anonymous caller
-can create/alter peers and inject audit entries. `/api/shared-peer` also does an unchecked
-`(*j)["share_token"].(string)` assertion (`webClient.go:57`) → 500 on missing token.
-**Fix:** needs RustDesk protocol design confirmation (the PC client hits these before auth).
+`/api/heartbeat`, `/api/audit/conn`, `/api/audit/file` are unauthenticated; an
+anonymous caller can create/alter peers and inject audit entries. `/api/shared-peer`
+also does an unchecked `(*j)["share_token"].(string)` assertion (`webClient.go:57`)
+→ 500 on missing token.
+
+**Fix:** needs RustDesk protocol design confirmation (the PC client hits these before
+auth).
 
 ### [x] AU-L-010 · Hardcoded version list in Custom Client UI
 Resolved in the current source by the provider-derived version catalog; unavailable

@@ -1,14 +1,12 @@
 # github-build — reference/docs for fork workflows
 
-All executable client-build workflows live in the configured RustDesk fork.
-This directory is reference and documentation only; it is not an executable
-workflow source and does not contain deployable workflow copies.
+All executable client-build workflows live in the configured RustDesk fork; this
+directory is reference and documentation only — no executable or deployable workflow
+copies. The API dispatches the application-owned platform workflow in that fork; the
+fork's branch/ref and workflow files are provider-side execution details this
+directory does not define or deploy.
 
-The API dispatches the application-owned platform workflow in the configured
-RustDesk fork. The fork's branch/ref and workflow files are provider-side
-execution details; this directory does not define or deploy them.
-
-The dispatch contract under test sends only the `ref` selector and required `inputs`
+**Dispatch contract under test:** sends only the `ref` selector and required `inputs`
 (no `return_run_details`) and pins the request to `X-GitHub-Api-Version: 2026-03-10`
 (the client-wide pin stays `2022-11-28`); a standard 204 and latest-run inference
 remain intentionally unsupported because they do not provide an accepted exact run
@@ -110,9 +108,9 @@ used by the owned workflow for its matching build assets.
   readiness and run `head_sha` checks use the resolved SHA. `workflow_dispatch` does
   not provide atomic SHA binding between that selector and the executed workflow;
   verified annotated tags under an active immutable no-bypass ruleset are a
-  compensating control, not an atomic guarantee. The two-layer SHA guard is
-  defense in depth, not an atomic defense against a malicious workflow file;
-  the verified tag and no-bypass ruleset remain required controls.
+  compensating control, not an atomic guarantee; the two-layer SHA guard is defense
+  in depth, not an atomic defense against a malicious workflow file. The verified tag
+  and no-bypass ruleset remain required controls.
 
 ### Provider identity and asset contract
 

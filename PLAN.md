@@ -3,16 +3,18 @@
 > Last updated: 2026-11-23
 > Related: [CHANGELOG.md](CHANGELOG.md) · [BUGS.md](BUGS.md) · [CONTRIBUTING.md](CONTRIBUTING.md)
 
-> **Evidence labels (2026-11-23):** the published RustDesk client source/ref is
-> 1.4.8 and the published DeskForge API schema is `DatabaseVersion` 272. The current
-> local corrective candidate targets API schema 285 (`api/cmd/apimain.go`); it is not
-> a public current-schema or release claim. The current API path is provider dispatch
-> → exact run/artifact retrieval → local validation and publication; Windows is the
-> only production capability admitted by the API gate, with Linux/Android gated
-> pending PR11 evidence. The Go API owns port 21114; Rust services use 21115–21119
-> (relay WebSocket 21119), with production Compose exposure 21114–21118. No live
-> provider run or clean-environment build proof is claimed. Full dispatch-contract,
-> workflow-approval, schema/migration, and atomicity evidence lives in §2 below.
+> **Evidence labels (2026-11-23):**
+>
+> - Published RustDesk client source/ref **1.4.8**; published DeskForge API schema
+>   `DatabaseVersion` **272**. The current local corrective candidate targets API
+>   schema **285** (`api/cmd/apimain.go`) — not a public current-schema or release claim.
+> - Current API path: provider dispatch → exact run/artifact retrieval → local
+>   validation and publication. Windows is the only production capability admitted by
+>   the API gate; Linux/Android are gated pending PR11 evidence.
+> - Ports: Go API 21114; Rust services 21115–21119 (relay WebSocket 21119);
+>   production Compose exposure 21114–21118.
+> - No live provider run or clean-environment build proof is claimed. Full
+>   dispatch-contract, workflow-approval, schema/migration, and atomicity evidence: §2.
 
 ---
 
@@ -33,6 +35,7 @@ through the provider API, then validates, extracts, and publishes it locally.
 production API path.
 
 GitHub-first because:
+
 - free Windows runners
 - fork workflow is configured; the min-test result below is historical
 - standalone requires a separate Windows Server, not deployed
@@ -53,23 +56,27 @@ bashrusakh/
 **Published client source/ref:** 1.4.8, aligned with `offline-kit/versions.env`. The
 current local corrective candidate targets API schema 285; the published DeskForge
 schema remains `DatabaseVersion` 272 — migration history and test evidence: §2.
-The configured RustDesk fork's `libs/hbb_common` is a separate git submodule whose
-gitlink is repointed at our mirror fork `bashrusakh/hbb_common` by SHA (`master` →
-`36ab6ed`, 2026-11-23); DeskForge's own `libs/hbb_common/` copy is pinned at
-`fae47e024dd8` (the `rustdesk/rustdesk` 1.5.1/1.5.3 pin, re-pinned 2026-11-23) plus
-the recorded local patch set (pin record: `libs/hbb_common/UPSTREAM.md`; topology and
-rules: `docs/FORKS-AND-PINS.md`). Active RustDesk and DeskForge manifests also
-reference third-party upstream repositories/modules. Provider-side live execution and
+
+**Pins:** the configured RustDesk fork's `libs/hbb_common` is a separate git submodule
+whose gitlink is repointed at our mirror fork `bashrusakh/hbb_common` by SHA
+(`master` → `36ab6ed`, 2026-11-23). DeskForge's own `libs/hbb_common/` copy is pinned
+at `fae47e024dd8` (the `rustdesk/rustdesk` 1.5.1/1.5.3 pin, re-pinned 2026-11-23) plus
+the recorded local patch set — pin record: `libs/hbb_common/UPSTREAM.md`; topology and
+rules: `docs/FORKS-AND-PINS.md`.
+
+**Evidence boundaries:** active RustDesk and DeskForge manifests also reference
+third-party upstream repositories/modules; provider-side live execution and
 clean-build proof are not recorded here. The broad `GOWORK=off go vet ./...` /
 `go test ./...` pass and its opt-in Redis boundary are recorded in CHANGELOG.md
 ("Current-state reconciliation — 2026-08-10"). MySQL/PostgreSQL, live provider, and
 the other release/build gates remain unverified. DeskForge does not currently track a
 repository `vendor/` tree, client-release directory, or `rustdesk-deps/` archive.
 
-The combined DeskForge distribution is identified as AGPL-3.0 for the covered work;
-separate or independent components retain their applicable upstream licenses and
-notices (canonical: [LICENSE](LICENSE) and [NOTICE](NOTICE)); the license inventory
-is incomplete, with no signatures, attestations, or full-sovereignty claim.
+**License:** the combined DeskForge distribution is identified as AGPL-3.0 for the
+covered work; separate or independent components retain their applicable upstream
+licenses and notices (canonical: [LICENSE](LICENSE) and [NOTICE](NOTICE)). The
+license inventory is incomplete, with no signatures, attestations, or
+full-sovereignty claim.
 
 ---
 
@@ -91,70 +98,78 @@ provider artifact API → Go API downloads the exact artifact
 Go API validates/extracts/publishes locally → admin-ui Download
 ```
 
-**Security:** password never published — `enc_payload`, decrypted inside runner via
-GitHub Secret `WORKFLOW_PAYLOAD_KEY`. Before approval, preparation, or secret-bearing
-dispatch, the API requires the exact provider-owned
-`# deskforge-workflow-identity-guard: v1` marker in workflow content resolved at the
-immutable workflow SHA; legacy unguarded tags fail closed. The provider-derived outer
-`workflow_sha` is checked against `github.sha` before secret-bearing jobs; the same
-authenticated inner payload field is checked again before exports, checkout, or build
-use. This is defense in depth, not an atomic defense against a malicious workflow file
-or GitHub's selector/SHA binding; the verified tag and active no-bypass ruleset remain
-required controls. The runner does not callback to the API; the API retrieves the
-artifact through the provider API and publishes it locally, not to a public release.
+**Security:**
+
+- The password is never published — `enc_payload`, decrypted inside the runner via
+  GitHub Secret `WORKFLOW_PAYLOAD_KEY`.
+- Before approval, preparation, or secret-bearing dispatch, the API requires the exact
+  provider-owned `# deskforge-workflow-identity-guard: v1` marker in workflow content
+  resolved at the immutable workflow SHA; legacy unguarded tags fail closed.
+- The provider-derived outer `workflow_sha` is checked against `github.sha` before
+  secret-bearing jobs; the same authenticated inner payload field is checked again
+  before exports, checkout, or build use.
+- Defense in depth, not an atomic defense against a malicious workflow file or
+  GitHub's selector/SHA binding — the verified tag and active no-bypass ruleset remain
+  required controls.
+- The runner does not callback to the API; the API retrieves the artifact through the
+  provider API and publishes it locally, not to a public release.
 
 ### Workflow approval and schema evidence
 
 Before a provider-backed build can run, the API accepts only a provider-derived
-verified annotated tag. The provider must report an accepted verification reason,
-the aggregate of all applicable active protected tag rulesets for that label with
+verified annotated tag. The provider must report an accepted verification reason, the
+aggregate of all applicable active protected tag rulesets for that label with
 effective update and deletion protections, and no bypass actors. A tag/branch
-collision with the same label is rejected. At the resolved immutable workflow SHA,
-the exact provider-owned `# deskforge-workflow-identity-guard: v1` marker is also
-required before approval, preparation, or secret-bearing dispatch; legacy unguarded
-tags fail closed. Raw refs, SHAs, credentials, and workflow internals are not normal
-UI inputs.
+collision with the same label is rejected. The identity-guard marker check above
+(before approval, preparation, or secret-bearing dispatch) is additionally required at
+the resolved immutable workflow SHA; legacy unguarded tags fail closed. Raw refs,
+SHAs, credentials, and workflow internals are not normal UI inputs.
 
-The published DeskForge schema is `DatabaseVersion` **272**. The current local
-corrective candidate targets schema **285**, which is not published or live-provider
-evidence. The historical workflow-approval additive fields are **280**
-(`workflow_ref_approved`, approval status), **281**
-(`workflow_ref_provider_verified`, provider-policy status), and **282**
-(`workflow_ref_approval_sha`, the provider-resolved approval commit). Schema **283**
-adds the `idx_custom_presets_user_id_name` composite index on `(user_id, name)`.
-Before `AutoMigrate`, migration preflight fails if it finds an existing duplicate
-group; it does not automatically select or delete a row. Legacy metadata-only
-configuration saves remain compatible with plaintext secret rows: they can preserve
-legacy values without `SECRET_ENCRYPTION_KEY`; new or replaced non-empty secret writes
-require the key, and a resave with the key encrypts legacy plaintext values.
+**Schema history.** The published DeskForge schema is `DatabaseVersion` **272**; the
+current local corrective candidate targets schema **285** — not published and not
+live-provider evidence. The historical workflow-approval additive fields are
+**280**–**282**, followed by migration steps **283**–**285**:
 
-Schema 284 adds create-time `preset_id` and `preset_name` provenance snapshots to
-`custom_builds`. Schema 285 runs the custom-client branding-field preflight before
-`AutoMigrate`, failing closed when an existing `custom_builds` or `custom_presets`
-row already carries a branding field value the shared branding seam rejects.
-SQLite-only tests cover the schema-283 duplicate-data preflight/unique index,
-schema-284 provenance columns (including migration and readback of a populated
-pre-provenance `custom_builds` row), and the schema-285 branding preflight/version
-gate: an install already at 284 fails closed on a rejected stored branding value
-without recording 285, an accepted one upgrades and records 285, and a fresh, 283,
-or 284 install runs the preflight while a 285 install skips it. MySQL/PostgreSQL
-migration and read/write coverage remain unverified. Local workflow manifests,
-bridge/helper source, Android app-ID/runtime-path checks, and package assertions
-are static evidence only; no APK/package/install/runtime evidence exists.
+| Schema | Change |
+| ------ | ------ |
+| **280** | `workflow_ref_approved` — approval status |
+| **281** | `workflow_ref_provider_verified` — provider-policy status |
+| **282** | `workflow_ref_approval_sha` — provider-resolved approval commit |
+| **283** | `idx_custom_presets_user_id_name` composite index on `(user_id, name)` |
+| **284** | create-time `preset_id` / `preset_name` provenance snapshots on `custom_builds` |
+| **285** | custom-client branding-field preflight before `AutoMigrate`, failing closed when an existing `custom_builds` or `custom_presets` row already carries a branding field value the shared branding seam rejects |
 
-Focused fake-transport and SQLite checks do not prove live GitHub/provider
-approval, dispatch, polling, or artifact delivery. Dispatch relies on the exact
-HTTP 200 run-details contract, pins the dispatch request to the
-`X-GitHub-Api-Version: 2026-03-10` version (the client-wide pin stays
-`2022-11-28`), and sends only the ref/inputs body: GitHub's 2026-03-10 breaking
-change removed `return_run_details` and made the endpoint always return HTTP 200
-with the run details, so the dispatch reads them directly and no longer sends the
-retired parameter. This is a deliberate contract modernization, not a #80
-requirement (the pinned `2022-11-28` version with `return_run_details=true` also
-returns the run details). A standard 204 or latest-run inference is unsupported.
-The local identity write is atomic, but no durable outbox
-or distributed lease makes provider dispatch plus the database write one atomic
-operation; a post-dispatch database failure remains a documented limitation.
+- Before `AutoMigrate`, migration preflight fails if it finds an existing duplicate
+  group; it does not automatically select or delete a row.
+- Legacy metadata-only configuration saves remain compatible with plaintext secret
+  rows: they can preserve legacy values without `SECRET_ENCRYPTION_KEY`; new or
+  replaced non-empty secret writes require the key, and a resave with the key
+  encrypts legacy plaintext values.
+
+**Migration test evidence.** SQLite-only tests cover the schema-283 duplicate-data
+preflight/unique index, schema-284 provenance columns (including migration and
+readback of a populated pre-provenance `custom_builds` row), and the schema-285
+branding preflight/version gate: an install already at 284 fails closed on a
+rejected stored branding value without recording 285, an accepted one upgrades and
+records 285, and a fresh, 283, or 284 install runs the preflight while a 285 install
+skips it. MySQL/PostgreSQL migration and read/write coverage remain unverified. Local
+workflow manifests, bridge/helper source, Android app-ID/runtime-path checks, and
+package assertions are static evidence only; no APK/package/install/runtime evidence
+exists.
+
+**Dispatch and atomicity.** Focused fake-transport and SQLite checks do not prove
+live GitHub/provider approval, dispatch, polling, or artifact delivery. Dispatch
+relies on the exact HTTP 200 run-details contract, pins the dispatch request to
+`X-GitHub-Api-Version: 2026-03-10` (the client-wide pin stays `2022-11-28`), and sends
+only the ref/inputs body: GitHub's 2026-03-10 breaking change removed
+`return_run_details` and made the endpoint always return HTTP 200 with the run
+details, so the dispatch reads them directly and no longer sends the retired
+parameter. This is a deliberate contract modernization, not a #80 requirement (the
+pinned `2022-11-28` version with `return_run_details=true` also returns the run
+details). A standard 204 or latest-run inference is unsupported. The local identity
+write is atomic, but no durable outbox or distributed lease makes provider dispatch
+plus the database write one atomic operation; a post-dispatch database failure
+remains a documented limitation.
 
 ### Historical/frozen builders (not used by the current API)
 
@@ -202,8 +217,10 @@ It is not the executable workflow source and must not be copied into the fork.
 
 ## 5. ✅ Completed milestones
 
-- [x] Published RustDesk client source/ref is 1.4.8; current local corrective API schema target is
-      `DatabaseVersion 285`, while the published DeskForge schema remains 272
+- [x] Published RustDesk client source/ref is 1.4.8; current local corrective API schema
+      target is `DatabaseVersion 285`, while the published DeskForge schema remains 272 —
+      the schema-283 composite-index migration is exercised only on SQLite, while
+      MySQL/PostgreSQL migration/read/write support remains unverified
 - [x] Offline-kit freeze/verify tooling and local artifact set retained; real-kit
       verification remains blocked under PR10
 - [x] GitHub min-test Windows: historical green run, ~33 min, single-binary rustqs.exe
@@ -212,9 +229,6 @@ It is not the executable workflow source and must not be copied into the fork.
 - [x] Admin UI redesign: design tokens, DataTable, AppDialog, FilterBar, 16 pages
 - [x] Security: encrypted-at-rest (AES-GCM), OAuth delete guard, audit, TTL
 - [x] Rust server: atomic blocklist, aur-fix, JWT
-- [x] Current local schema target: `DatabaseVersion 285`; the schema-283 composite-index
-      migration is exercised only on SQLite, while MySQL/PostgreSQL migration/read/write
-      support remains unverified
 
 ---
 
@@ -255,23 +269,24 @@ fallback (merge-based commands and conflict rules):
 ### 7.2. Re-point the RustDesk fork's gitlink by SHA
 
 In `bashrusakh/rustdesk`, bring the branch up to the new client tag (fetch
-`upstream --tags`, then merge or push the mirrored tag — mind the tag-collision caution
-above) and record the chosen `hbb_common` pin SHA in the `libs/hbb_common` gitlink
-(URL: `https://github.com/bashrusakh/hbb_common.git`). Tag-collision resolution: never
-overwrite an existing published fork tag (nothing is history-rewritten) — if the fork
-already owns a different commit under the upstream tag name (as with `1.5.0`), record
-the collision and the upstream tag's SHA, and if a mirror ref is needed use a
-disambiguating ref name (e.g. `upstream-<tag>`). Commands:
+`upstream --tags`, then merge or push the mirrored tag), and record the chosen
+`hbb_common` pin SHA in the `libs/hbb_common` gitlink (URL:
+`https://github.com/bashrusakh/hbb_common.git`). Commands:
 [docs/FORKS-AND-PINS.md §5](docs/FORKS-AND-PINS.md#5-updating-the-deskforge-copy-to-a-new-pin).
+
+**Tag-collision resolution:** never overwrite an existing published fork tag — nothing
+is history-rewritten. If the fork already owns a different commit under the upstream
+tag name (as with `1.5.0`), record the collision and the upstream tag's SHA; if a
+mirror ref is needed, use a disambiguating ref name (e.g. `upstream-<tag>`).
 
 ### 7.3. Re-pin DeskForge's `libs/hbb_common/` copy
 
-Replace the tracked copy with the fork's content at the pin SHA, record the new fork
-point in [`libs/hbb_common/UPSTREAM.md`](libs/hbb_common/UPSTREAM.md), and re-apply
-exactly the record's **kept rows**: that record's kept/dropped table is the
+Replace the tracked copy with the fork's content at the pin SHA and record the new
+fork point in [`libs/hbb_common/UPSTREAM.md`](libs/hbb_common/UPSTREAM.md). Then
+re-apply exactly the record's **kept rows**: that record's kept/dropped table is the
 authoritative patch-set list — re-decide every row under its carry-over rule rather
-than any inline summary here, the same defer-and-verify step-4 pattern of
-[docs/FORKS-AND-PINS.md §5](docs/FORKS-AND-PINS.md#5-updating-the-deskforge-copy-to-a-new-pin).
+than any inline summary here (the same defer-and-verify step-4 pattern of
+[docs/FORKS-AND-PINS.md §5](docs/FORKS-AND-PINS.md#5-updating-the-deskforge-copy-to-a-new-pin)).
 
 > **Important:** the `gen_version()` patch must survive every re-pin; the `server/`
 > build coupling it guarantees is recorded in
@@ -315,6 +330,7 @@ gh release create offline-assets-<client-tag> --repo bashrusakh/rustdesk \
 ### 7.7. Adapt workflow
 
 Compare upstream `build-for-windows-flutter` with `rustqs-windows.yml`:
+
 - New system dependencies?
 - Changed `build.py` flags?
 - Changed `config.rs` / `custom_.txt` format?

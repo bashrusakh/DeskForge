@@ -23,25 +23,24 @@ rustdesk/hbb_common                        — upstream (standalone repo since 2
 | [`bashrusakh/hbb_common`](https://github.com/bashrusakh/hbb_common) | Mirror fork of upstream | On `main`: upstream history + non-behavioral infrastructure commits only (license metadata; the sync workflow file) — never behavioral patches. No behavioral patches anywhere in the fork (library content); documented exceptions in §3 |
 | `libs/hbb_common/` (this repo) | Tracked copy of the fork at a recorded pin | Upstream content at the pin + DeskForge's patch set + the `UPSTREAM.md` pin record (the patch set and the record are DeskForge content, absent from the fork) — [`libs/hbb_common/UPSTREAM.md`](../libs/hbb_common/UPSTREAM.md) |
 
-The mirror fork is **just a fork of `rustdesk/hbb_common`**: on `main` it mirrors
-upstream and adds no behavior — the only permitted fork-side commits there are
-non-behavioral infrastructure (license metadata; the sync workflow file). The rule
-"no behavioral patches" applies to library content anywhere in the fork; since the
-`webrtc` branch was deleted (deletion record in §1), the `main` invariant covers the
-whole fork. (Fork-side tag history is a client-fork divergence class of
+The mirror fork is **just a fork of `rustdesk/hbb_common`** — on `main` it mirrors
+upstream, plus only the permitted non-behavioral infrastructure commits (table above).
+The rule "no behavioral patches" applies to library content anywhere in the fork;
+since the `webrtc` branch was deleted (deletion record in §1), the `main` invariant
+covers the whole fork. (Fork-side tag history is a client-fork divergence class of
 `bashrusakh/rustdesk`, recorded in §1 below.) DeskForge's local patches exist only in
 the `libs/hbb_common/` copy.
 
 Verified state (GitHub API + clones, 2026-11-23):
 
-- Upstream `main` HEAD `bb416bc94e48` (2026-11-10). Upstream has **no version tags at
-  all** — every `hbb_common` pin in the ecosystem is a commit SHA.
-- Fork created 2026-06-11. Fork `main` @ `5a2d082` = upstream `main` @ `bb416bc94e48` +
-  three non-behavioral infrastructure commits: `36ab6ed` (license metadata — content
-  in §3), `b53e044` (superseded sync draft "ci: auto-sync main with upstream on
-  schedule" — content retrievable in history), `5a2d082` (sync workflow). Linear
-  history: `5a2d082 → b53e044 → 36ab6ed → bb416bc`.
-- Fork branches: `main` only. The `webrtc` branch is a dated **deletion record**:
+- **Upstream:** `main` HEAD `bb416bc94e48` (2026-11-10). Upstream has **no version
+  tags at all** — every `hbb_common` pin in the ecosystem is a commit SHA.
+- **Fork:** created 2026-06-11. Fork `main` @ `5a2d082` = upstream `main` @
+  `bb416bc94e48` + three non-behavioral infrastructure commits: `36ab6ed` (license
+  metadata — content in §3), `b53e044` (superseded sync draft "ci: auto-sync main
+  with upstream on schedule" — content retrievable in history), `5a2d082` (sync
+  workflow). Linear history: `5a2d082 → b53e044 → 36ab6ed → bb416bc`.
+- **Branches:** `main` only. The `webrtc` branch is a dated **deletion record**:
   deleted 2026-11-23 by owner decision after evidence showed it fully superseded —
   exactly one commit `5a78ec4` (2026-05-18, "feat: support WebRTC rendezvous
   signaling") vs merge-base `9043c15acc6d` (upstream, 2026-05-16): +14/−0
@@ -51,17 +50,17 @@ Verified state (GitHub API + clones, 2026-11-23):
   with upstream's merged WebRTC) and adds DTLS-fingerprint identity binding the branch
   lacked; upstream also has its own `webrtc` branch (`470612b`). Nothing unique of
   value. Recoverable tip reference: `5a78ec42303ca046d808742e911a156636a2432b`.
-- Junk tags `driver`/`dirver` (upstream's historical typo tags) are mirrored by the
-  fork and carry no meaning.
-- DeskForge's `libs/hbb_common/` fork point:
-  `rustdesk/hbb_common@fae47e024dd83cef6aaecde0aa7d11731df11649` (2026-10-28) — the
-  `rustdesk/rustdesk` **1.5.1 / 1.5.3** `libs/hbb_common` pin (timeline §6). An ancestor
-  of the fork's `main` (verified `git merge-base --is-ancestor`, 2026-11-23), so the tree
-  was materialized by fetching the explicit SHA from `bashrusakh/hbb_common`. History:
-  the original import pin `387603f47cbb15c0d3dc3d67ae3396d3eb707daf` (2026-06-04) — the
-  exact `rustdesk/rustdesk` **1.4.8** pin, verified then by blob comparison + exhaustive
+- **Tags:** junk tags `driver`/`dirver` (upstream's historical typo tags) are mirrored
+  by the fork and carry no meaning.
+- **DeskForge fork point:** `rustdesk/hbb_common@fae47e024dd83cef6aaecde0aa7d11731df11649`
+  (2026-10-28) — the `rustdesk/rustdesk` **1.5.1 / 1.5.3** `libs/hbb_common` pin
+  (timeline §6). An ancestor of the fork's `main` (verified
+  `git merge-base --is-ancestor`, 2026-11-23), so the tree was materialized by
+  fetching the explicit SHA from `bashrusakh/hbb_common`. History: the original
+  import pin `387603f47cbb15c0d3dc3d67ae3396d3eb707daf` (2026-06-04) — the exact
+  `rustdesk/rustdesk` **1.4.8** pin, verified then by blob comparison + exhaustive
   ref scan; superseded 2026-11-23.
-- Cleanliness of any particular local checkout is **not tracked and remains
+- **Checkout cleanliness:** any particular local checkout is **not tracked and remains
   unverified**; the published refs above are the provenance of record.
 
 ### `rustdesk` (client)
@@ -222,17 +221,17 @@ Moving `libs/hbb_common/` to a new pin (full client-release maintenance procedur
    ```
 
 4. **Re-apply the patch set** — the canonical record is
-   [`libs/hbb_common/UPSTREAM.md`](../libs/hbb_common/UPSTREAM.md); re-decide every row
+   [`libs/hbb_common/UPSTREAM.md`](../libs/hbb_common/UPSTREAM.md): re-decide every row
    of it on the record's carry-over rule (re-applied only if both still relevant against
-   the new pin and still needed) and apply exactly the kept rows, recording every
+   the new pin and still needed), apply exactly the kept rows, and record every
    kept/dropped verdict with its justification in the record. The record's kept-row
-   table is the authoritative list of what to re-apply (no inline summary is kept here).
-   The ⚠️ `gen_version()` row must survive every re-pin — the
-   `server/` build's `$OUT_DIR/version.rs` include coupling is detailed in the record.
+   table is the authoritative list of what to re-apply — no inline summary is kept
+   here. The ⚠️ `gen_version()` row must survive every re-pin — the `server/` build's
+   `$OUT_DIR/version.rs` include coupling is detailed in the record.
 5. **Verify**: run `cd libs/hbb_common && cargo test` — the three `gen_version()`
    unit tests live in that package and are **not** run by `server/`'s `cargo test`
-   (path dependency, no workspace membership), so run them explicitly or they rot
-   across re-pins. Then run the documented `server/` checks
+   (path dependency, no workspace membership); run them explicitly or they rot across
+   re-pins. Then run the documented `server/` checks
    (`cd server && cargo build --release && cargo clippy && cargo test`): what these
    prove is the coupling, not the tests — `server/build.rs` calls
    `hbb_common::gen_version()`, so the `server/` build exercises the coupling and the

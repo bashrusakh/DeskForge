@@ -31,8 +31,6 @@ This pulls **150 MB** from docker.io just to get **10 MB** of s6-overlay.
 | **Their Go API** | ~20 MB | REST API | **NO** — ours in Stage 2 |
 | **Their Admin UI** | ~10 MB | Vue static files | **NO** — ours in Stage 3 |
 
-**Bottom line:** 150 MB pulled for 10 MB s6-overlay + 2 utilities.
-
 ---
 
 ## What Is s6-overlay and Why We Need It

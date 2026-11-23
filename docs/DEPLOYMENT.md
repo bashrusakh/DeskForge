@@ -11,11 +11,8 @@ with client-reachable addresses, set the optional `RUSTDESK_API_RUSTDESK_PUBLIC_
 values there. When Compose is run from `docker/`, the combined service loads root
 `.env` through `env_file: ../.env`; these values prefill builder fields and do not
 replace the operational server addresses. `RUSTDESK_API_RUSTDESK_PUBLIC_API_SERVER` is
-also the origin used to resolve a local branding asset (`/upload/...`) into a
-fetchable URL for the build workflow. Set it to a public http(s) address the build
-runner can reach: a literal loopback/private/special-purpose origin is refused, and
-a DNS hostname is not resolved at create or dispatch — it is constrained only when
-the workflow fetches the asset.
+also the branding-asset origin for the build workflow — full semantics and validation
+rules: [`RUSTDESK_API_RUSTDESK_PUBLIC_*` below](#rustdesk_api_rustdesk_public_).
 
 Admin login, RustDesk client settings, and the public-key command are in the
 [README quick start](../README.md).
@@ -56,20 +53,26 @@ used to prefill the Custom Client Builder's Host / Relay / API server fields
 They are intentionally distinct from `RUSTDESK_API_RUSTDESK_ID_SERVER` /
 `RUSTDESK_API_RUSTDESK_RELAY_SERVER` / `RUSTDESK_API_RUSTDESK_API_SERVER`, which may
 legitimately hold internal or Docker addresses consumed by the dashboard and server
-commands. `RUSTDESK_API_RUSTDESK_PUBLIC_API_SERVER` additionally serves as the public
-origin that resolves a server-relative branding asset (`/upload/...`) into an absolute
-URL for the build workflow; the build runner fetches that URL, so the origin must be a
-public http(s) address the runner can reach. A literal address on a non-public
-special-purpose range (loopback, unspecified, private, link-local, shared, documentation,
-benchmarking, multicast, reserved, NAT64/6to4, ...) is refused at create and dispatch
-without a DNS lookup; a DNS hostname passes that syntactic check and is finally
-constrained when the workflow fetches the asset. The operational
-`RUSTDESK_API_RUSTDESK_API_SERVER` is never used as a fallback. When a
-`PUBLIC_*` value is unset, the builder falls back to the operational value for its
-prefill fields; the asset origin has no such fallback. The builder's "Local IP" button
-additionally resolves the server's own network interface addresses server-side; in
-Docker bridge setups those are container addresses, and the picker labels each
-candidate with its source interface.
+commands.
+
+`RUSTDESK_API_RUSTDESK_PUBLIC_API_SERVER` additionally serves as the public origin
+that resolves a server-relative branding asset (`/upload/...`) into an absolute URL
+for the build workflow. The build runner fetches that URL, so the origin must be a
+public http(s) address the runner can reach:
+
+- A literal address on a non-public special-purpose range (loopback, unspecified,
+  private, link-local, shared, documentation, benchmarking, multicast, reserved,
+  NAT64/6to4, ...) is refused at create and dispatch, without a DNS lookup.
+- A DNS hostname passes that syntactic check and is finally constrained when the
+  workflow fetches the asset.
+
+The operational `RUSTDESK_API_RUSTDESK_API_SERVER` is never used as a fallback. When
+a `PUBLIC_*` value is unset, the builder falls back to the operational value for its
+prefill fields; the asset origin has no such fallback.
+
+The builder's "Local IP" button additionally resolves the server's own network
+interface addresses server-side; in Docker bridge setups those are container
+addresses, and the picker labels each candidate with its source interface.
 
 ### `SOURCE_DATE_EPOCH`
 
