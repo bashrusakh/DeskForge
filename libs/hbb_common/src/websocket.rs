@@ -781,14 +781,24 @@ mod tests {
         assert_eq!(check_ws("example.com:21116"), "wss://example.com/ws/id");
         assert_eq!(check_ws("example.com:21117"), "wss://example.com/ws/relay");
         assert_eq!(check_ws("127.0.0.1:21116"), "ws://127.0.0.1:21118");
-        // with no rendezvous server set, the public fallback is not one of ours
+        // with no custom rendezvous server set, the fallback server list is not one of ours.
+        // DeskForge bakes no public fallback (RENDEZVOUS_SERVERS = &[]), so the test supplies
+        // its own `rendezvous-servers` list; that option is consulted only for a config serial
+        // newer than the compiled-in default, so bump it here and restore it after the check.
         Config::set_option("custom-rendezvous-server".to_string(), "".to_string());
+        let serial = Config::get_serial();
+        Config::set_serial(serial + 1);
+        Config::set_option(
+            "rendezvous-servers".to_string(),
+            "public.example.com".to_string(),
+        );
         let fallback = Config::get_rendezvous_server();
         let (fallback_host, _) = split_host_port(&fallback).unwrap();
         assert_eq!(
             check_ws(&fallback),
             format!("wss://{}/ws/id", fallback_host)
         );
+        Config::set_serial(serial);
         Config::set_options(options);
     }
     // A server-to-client frame is unmasked, so it can be put on the wire by hand: the header alone,

@@ -31,16 +31,21 @@ below were decided against `fae47e024dd8` on that rule.
 | `src/config.rs` | `RENDEZVOUS_SERVERS = &[]` (was `&["rs-ny.rustdesk.com"]`) | Relevant: the pin still bakes in `rs-ny.rustdesk.com`, consumed by the rendezvous-server fallback (`config.rs`). Needed: no baked-in external endpoints/hosts in shipped code; the constant is the owning site. | `f74249f` (initial import) |
 | `src/config.rs` | `LINK_DOCS_HOME = ""` (was `https://rustdesk.com/docs/en/`) | Relevant: external URL still present. Needed: no baked-in external hosts in shipped code (always-compiled `config` module). | `f74249f` (initial import) |
 | `src/config.rs` | `LINK_DOCS_X11_REQUIRED = ""` (was `https://rustdesk.com/docs/en/manual/linux/#x11-required`) | Same as above. | `f74249f` (initial import) |
+| `src/websocket.rs` (test only) | `tests::test_check_ws` final block: the fallback check supplies its own `rendezvous-servers` option entry (bumping/restoring the config `serial` that gates that option) instead of reading the baked `RENDEZVOUS_SERVERS` default; the `check_ws(&fallback)` assertion itself is unchanged. | Relevant: the pin's final assertion derives `fallback` from `Config::get_rendezvous_server()`, which with `RENDEZVOUS_SERVERS = &[]` yields `":21116"`; `websocket_port()` then matches the empty host against an empty `own_servers` entry (`:8443` appended) and the pin's non-empty-fallback assumption fails. Needed: keeps the suite green under the established no-external-endpoints requirement while still verifying the same `websocket_port()` host-matching rule (a rendezvous fallback outside the client's configured servers keeps the default port). Test-only — the `RENDEZVOUS_SERVERS` product patch above stays intact. | `DeskForge, 2026-11-23` |
 
-Known interaction (documented, accepted): the `RENDEZVOUS_SERVERS` neutralization makes
+Known interaction (resolved 2026-11-23): the `RENDEZVOUS_SERVERS` neutralization makes
 `Config::get_rendezvous_server()` fall through to an empty host, and the pin's upstream
 test `websocket::tests::test_check_ws` (final assertion — "with no rendezvous server set,
 the public fallback is not one of ours") then fails: with `custom-rendezvous-server`
 empty, `websocket_port()`'s own-server match treats host `""` as ours (`:8443` appended)
 while the test formats the empty fallback host without a port. The test encodes upstream's
 non-empty-fallback assumption; it passes on the pristine pin and with only this hunk
-restored (counter-probe 2026-11-23). Upstream tests are deliberately not weakened —
-resolution is an owner decision (see CHANGELOG entry).
+restored (counter-probe 2026-11-23). Owner decision: the neutralization stands (it is
+established product behavior; the upstream test's assumption does not define the product
+contract), so the **test** is adapted instead — kept-patch row 4 above makes the final
+check supply an explicit `rendezvous-servers` fallback list, while the
+`check_ws`/`websocket_port` assertion stays byte-identical, so the host-matching behavior
+it verifies is unchanged. CHANGELOG entry for the same date.
 
 ### Dropped patches (recorded per the carry-over rule)
 

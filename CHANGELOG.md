@@ -37,14 +37,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `server/Cargo.lock` updated accordingly (32 stale packages of the old platform/backtrace
   tree dropped). The pin's `[patch.crates-io]` webrtc trio applies only to standalone
   `libs/hbb_common` builds.
-- Verification (2026-11-23, this state): `cd libs/hbb_common && cargo test` — 109 passed,
-  including all 3 `gen_version` `build_date_tests`; 1 known failure
-  `websocket::tests::test_check_ws` — a documented interaction of the **kept**
-  `RENDEZVOUS_SERVERS` neutralization with the pin's new test (it assumes a non-empty
-  public rendezvous fallback; passes on the pristine pin and with only that hunk restored
-  — counter-probe). The upstream test is deliberately not weakened; accepting the
-  documented exception vs. authorizing a minimal test adaptation is an owner decision.
-  `--test proxy_transport`: 6 passed, 1 environment-dependent failure
+- Verification (2026-11-23, this state): `cd libs/hbb_common && cargo test --lib` — 110
+  passed, including all 3 `gen_version` `build_date_tests` and
+  `websocket::tests::test_check_ws` (previously the 1 known failure: the pin's new final
+  assertion assumed the baked non-empty public rendezvous fallback, which the **kept**
+  `RENDEZVOUS_SERVERS = &[]` neutralization removes — counter-probe: passes on the
+  pristine pin and with only that hunk restored; per owner decision the neutralization
+  stays, so the test was minimally adapted instead — it now supplies its own explicit
+  `rendezvous-servers` fallback list while the `check_ws`/`websocket_port` assertion is
+  unchanged, kept-patch row 4 in `libs/hbb_common/UPSTREAM.md`). `--test proxy_transport`:
+  6 passed, 1 environment-dependent failure
   (`ipv6_proxy_connect_and_data_exchange` — this sandbox has no IPv6 loopback `::1`;
   test untouched). `--test websocket_proxy`: 1 passed. Doc-tests: 2 ignored
   (upstream-marked). `cd server && cargo build --release && cargo test`: green (with the
