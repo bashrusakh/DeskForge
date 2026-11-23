@@ -230,9 +230,10 @@ gh release create offline-assets-<client-tag> --repo bashrusakh/rustdesk \
     artifacts/rustdesk_printer_driver_v4-1.4.zip artifacts/printer_driver_adapter.zip
 ```
 
-> **Note:** the version catalog is repository-derived — it exposes a published
-> `offline-assets-*` release only with a matching source tag; there is no hardcoded
-> repository or obsolete version fallback list (contract: `github-build/README.md` §Version flow).
+> **Note:** After publishing the release, the version catalog can expose it in the admin UI
+> when the configured repository contains the matching `offline-assets-*` release and source
+> tag. The catalog is repository-derived — there is no hardcoded repository or obsolete version
+> fallback list (contract: `github-build/README.md` §Version flow).
 
 ### 7.7. Adapt workflow
 

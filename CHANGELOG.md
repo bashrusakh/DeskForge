@@ -127,6 +127,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   (e.g. `bashrusakh/rustdesk` `master` → `36ab6ed`) are unchanged facts and remain as
   recorded.
 
+> **Note 2026-11-24:** field-numbering detail restored from the base `docs/FORKS-AND-PINS.md`
+> narrative (relocated during the 2026-11-24 docs simplification round): upstream renumbered
+> `PunchHoleRequest.webrtc_sdp_offer` **11→12** — this is what makes the branch's wire
+> numbering incompatible with upstream's merged WebRTC.
+
 ### Fork/pin/sync documentation ordering + hbb_common auto-sync installed — 2026-11-23
 - Fork/pin/sync documentation brought into order: new canonical `docs/FORKS-AND-PINS.md`
   (topology, fork-creation rules, sync mandate + manual fallback, pin bookkeeping,
@@ -285,8 +290,8 @@ with clients → ✅ OK (keys generated, hbbs reads them, API serves pub key).
 
 > **Archive entry 2026-11-24:** the workflow-protection ruleset rules and the recorded
 > provider-evidence transcript were relocated from `api/README.md` ("Workflow protection evidence")
-> during the docs simplification round; `api/README.md` keeps the summary. Guard-run records kept
-> verbatim: runs [32333446480](https://github.com/bashrusakh/rustdesk/actions/runs/32333446480)
+> during the docs simplification round; `api/README.md` keeps the summary. Guard-run records: run
+> [32333446480](https://github.com/bashrusakh/rustdesk/actions/runs/32333446480)
 > (live mismatch run, failed in `verify_workflow_identity` with "outer workflow_sha does not match
 > github.sha", no secret-bearing job ran) and
 > [32334155671](https://github.com/bashrusakh/rustdesk/actions/runs/32334155671) (live matching run,

@@ -121,7 +121,7 @@ Version-catalog rules (repository-derived `offline-assets-*` entries, matching s
 
 ### C2. Active workflow ownership
 
-Workflow ownership, selector/tag rules, and the `rustqs/workflows` backup-ref definition (insurance copy of the fork's `master`, not an execution ref; production execution uses approval-gated, guarded immutable `refs/tags/workflow-*`): [`github-build/README.md`](../github-build/README.md) and [`docs/FORKS-AND-PINS.md`](../docs/FORKS-AND-PINS.md) §1 (canonical). The API preserves the configured branch/tag selector and separately checks the resolved workflow SHA; immutable workflow-ref protection remains a gate, not a current readiness claim. The following three-branch model is historical reference only:
+Workflow ownership, selector/tag rules, and the `rustqs/workflows` backup-ref definition (insurance copy of the fork's `master`, not an execution ref; production execution uses approval-gated, guarded immutable `refs/tags/workflow-*`): [`docs/FORKS-AND-PINS.md`](../docs/FORKS-AND-PINS.md) §1 (canonical), with secondary detail in [`github-build/README.md`](../github-build/README.md). The API preserves the configured branch/tag selector and separately checks the resolved workflow SHA; immutable workflow-ref protection remains a gate, not a current readiness claim. The following three-branch model is historical reference only:
 
 | Branch | Purpose |
 |---|---|
