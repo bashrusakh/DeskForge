@@ -26,23 +26,31 @@ rustdesk/hbb_common                        — upstream (standalone repo since 2
 The mirror fork is **just a fork of `rustdesk/hbb_common`**: on `main` it mirrors
 upstream and adds no behavior — the only permitted fork-side commits there are
 non-behavioral infrastructure (license metadata; the sync workflow file). The rule
-"no behavioral patches" applies to library content anywhere in the fork; the `webrtc`
-branch is the one documented record outside the `main` invariant (§3). (Fork-side tag
-history is a client-fork divergence class of `bashrusakh/rustdesk`, recorded in §1
-below.) DeskForge's local patches exist only in the `libs/hbb_common/` copy.
+"no behavioral patches" applies to library content anywhere in the fork; since the
+`webrtc` branch was deleted (deletion record in §1), the `main` invariant covers the
+whole fork. (Fork-side tag history is a client-fork divergence class of
+`bashrusakh/rustdesk`, recorded in §1 below.) DeskForge's local patches exist only in
+the `libs/hbb_common/` copy.
 
 Verified state (GitHub API + clones, 2026-11-23):
 
 - Upstream `main` HEAD `bb416bc94e48` (2026-11-10). Upstream has **no version tags at
   all** — every `hbb_common` pin in the ecosystem is a commit SHA.
-- Fork created 2026-06-11. Fork `main` @ `36ab6ed7862f` = upstream `main` @
-  `bb416bc94e48` + exactly one fork-side commit `36ab6ed` ("chore: declare AGPL-3.0
-  license", 2026-11-23): a `LICENSE` file and `license = "AGPL-3.0"` in `Cargo.toml`.
-  License metadata only — see §3.
-- Fork branches: `main`, `webrtc`. The `webrtc` branch is documented fork-side work
-  outside the `main` invariant (`5a78ec4`, 2026-05-18, based on upstream `9043c15`);
-  its relation to upstream's later-merged WebRTC work is **unverified**, and its future
-  (keep/delete/reconcile) is an open owner item — not decided here (§3).
+- Fork created 2026-06-11. Fork `main` @ `5a2d082` = upstream `main` @ `bb416bc94e48` +
+  three non-behavioral infrastructure commits: `36ab6ed` (license metadata — content
+  in §3), `b53e044` (superseded sync draft "ci: auto-sync main with upstream on
+  schedule" — content retrievable in history), `5a2d082` (sync workflow). Linear
+  history: `5a2d082 → b53e044 → 36ab6ed → bb416bc`.
+- Fork branches: `main` only. The `webrtc` branch is a dated **deletion record**:
+  deleted 2026-11-23 by owner decision after evidence showed it fully superseded —
+  exactly one commit `5a78ec4` (2026-05-18, "feat: support WebRTC rendezvous
+  signaling") vs merge-base `9043c15acc6d` (upstream, 2026-05-16): +14/−0
+  `protos/rendezvous.proto`, +110/−36 `src/webrtc.rs`. Upstream `main` (`bb416bc`)
+  carries the conceptual delta merged and evolved (e.g. `PunchHoleRequest.
+  webrtc_sdp_offer` renumbered 11→12, so the branch's wire numbering is incompatible
+  with upstream's merged WebRTC) and adds DTLS-fingerprint identity binding the branch
+  lacked; upstream also has its own `webrtc` branch (`470612b`). Nothing unique of
+  value. Recoverable tip reference: `5a78ec42303ca046d808742e911a156636a2432b`.
 - Junk tags `driver`/`dirver` (upstream's historical typo tags) are mirrored by the
   fork and carry no meaning.
 - DeskForge's `libs/hbb_common/` fork point:
@@ -142,9 +150,9 @@ divergence is a separate class — §1):
   AGPL-3.0 `LICENSE` file (probe 2026-11-23).
 - **Documented exceptions/records**, named per repository (none behavioral in library
   content):
-  - In `bashrusakh/hbb_common`: the `webrtc` branch — fork-side work; record and
-    unverified-relation note in §1; its future (keep/delete/reconcile) is an open
-    owner item, not decided here.
+  - In `bashrusakh/hbb_common`: **none remain** — the `webrtc` branch was deleted
+    2026-11-23 (deletion record in §1), so the `main` invariant now covers the whole
+    fork.
   - In `bashrusakh/rustdesk` (client fork; divergence class recorded in §1): fork-side
     tag `1.5.0` (`9253e1fc`) — a merge commit of
     `bashrusakh/fix/rustqs-windows-bridge-call` ("fix(ci): drop undeclared enc_payload
@@ -249,8 +257,10 @@ SHAs are abbreviated here; the pin of record is the full 40-character SHA.
 
 ## 7. Status and non-claims
 
-- Facts in §1 are verified as of 2026-11-23 from the GitHub API and local clones.
-  Unverified beyond that record: local-checkout cleanliness (§1) and the `webrtc`
-  branch's relation to upstream's later-merged WebRTC work (§1).
+- Facts in §1 are verified as of 2026-11-23 from the GitHub API and local clones,
+  including the fork-state and deletion-stage probes. Unverified beyond that record:
+  local-checkout cleanliness (§1). The former `webrtc`-branch relation question is
+  resolved by the §1 deletion record: fully superseded by upstream's merged WebRTC
+  work.
 - No upstream-independence claim: active third-party upstream dependencies remain in
   the Rust/Go manifests (see [CONTRIBUTING.md](../CONTRIBUTING.md)).

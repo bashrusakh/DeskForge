@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### `webrtc` branch deletion (superseded) + fork-state docs refresh — 2026-11-23
+- `bashrusakh/hbb_common` branch `webrtc` deleted by owner decision (verified
+  2026-11-23): one commit `5a78ec4` ("feat: support WebRTC rendezvous signaling",
+  2026-05-18; +14/−0 `protos/rendezvous.proto`, +110/−36 `src/webrtc.rs` vs merge-base
+  `9043c15`), fully superseded by upstream's merged WebRTC work — wire numbering
+  incompatible (upstream renumbered `webrtc_sdp_offer`/`webrtc_sdp_answer`) and
+  upstream has its own `webrtc` branch (`470612b`). Nothing unique of value;
+  recoverable tip `5a78ec42303ca046d808742e911a156636a2432b`. Fork `main` unchanged
+  at `5a2d082` (three non-behavioral infrastructure commits over upstream `bb416bc`);
+  the `main` invariant now covers the whole fork.
+- Docs record refreshed to current verified state (`docs/FORKS-AND-PINS.md` deletion
+  record, branch/tip update, empty hbb-fork exceptions list). Consumer gitlink pins
+  (e.g. `bashrusakh/rustdesk` `master` → `36ab6ed`) are unchanged facts and remain as
+  recorded.
+
 ### Fork/pin/sync documentation ordering + hbb_common auto-sync installed — 2026-11-23
 - Fork/pin/sync documentation brought into order: new canonical `docs/FORKS-AND-PINS.md`
   (topology, fork-creation rules, sync mandate + manual fallback, pin bookkeeping,
