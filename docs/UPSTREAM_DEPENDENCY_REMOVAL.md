@@ -15,7 +15,7 @@ The previous `docker/Dockerfile` used `FROM rustdesk/rustdesk-server-s6:latest A
 
 **s6-overlay** — process supervisor for containers (like systemd but for containers). Required to run **3 services in ONE container**: **hbbs** (21116, ID/signaling), **hbbr** (21117, relay), and the **Go API** (21114, REST API + Admin UI). Without it: 3 separate containers or a custom bash supervisor. `ENTRYPOINT ["/init"]` — `/init` from s6-overlay becomes PID 1.
 
-`rustdesk-utils genkeypair` generates an **Ed25519 keypair**: a base64 public key (44 chars) announced to clients (the client's `ID Server Public Key`, verifying the server signature) and a base64 secret key (88 chars) at `/data/id_ed25519`, read by `hbbs` at startup to sign tokens; the Go API reads the public key from `RUSTDESK_API_KEY_FILE` (`/data/id_ed25519.pub`) and serves it to clients. We build **ours** from `server/src/utils.rs` — copying upstream's binary means an upstream algorithm/format change breaks our keys.
+`rustdesk-utils genkeypair` generates an **Ed25519 keypair**: a base64 public key (44 chars) announced to clients (the client's `ID Server Public Key`, verifying the server signature) and a base64 secret key (88 chars) at `/data/id_ed25519`, read by `hbbs` at startup to sign tokens and prove ID ownership; `rustdesk-utils` also provides `validatekeypair` and `doctor`. The Go API reads the public key from `RUSTDESK_API_KEY_FILE` (`/data/id_ed25519.pub`) and serves it to clients. We build **ours** from `server/src/utils.rs` — copying upstream's binary means an upstream algorithm/format change breaks our keys.
 
 ## What Changed
 

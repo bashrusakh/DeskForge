@@ -150,7 +150,7 @@ source annotations and are regenerated from them when the annotations change.
 ## Workflow protection evidence
 
 Workflow-ref approval requires a provider-derived, verified annotated tag plus one modern provider-verified ruleset surface for the exact tag label — the modern ruleset surface is the only supported protection surface, and ruleset discovery/detail/policy/contract failures all fail closed: every applicable ruleset must expose `bypass_actors: []` and `current_user_can_bypass: "never"`, tag/branch collisions for the same label are rejected, and unknown or malformed conditions/rules/parameters fail closed (the former tag-protection LIST compatibility path is **CONFIRMED OBSOLETE** — the GitHub.com provider is hard-wired, DeskForge has no configurable GHES base URL, and GitHub marks that legacy surface as removed).
-Recorded provider evidence: guard runs [32333446480](https://github.com/bashrusakh/rustdesk/actions/runs/32333446480) (outer `workflow_sha` mismatch, no secret-bearing job ran) and [32334155671](https://github.com/bashrusakh/rustdesk/actions/runs/32334155671) (passed the outer guard to the intentional post-inner failure) — together they evidence outer/inner guard sequencing only, not production artifact output — plus Repository Ruleset `20901403` (`DeskForge workflow tags`, protecting `refs/tags/workflow-*`, `bypass_actors=[]`, `current_user_can_bypass=never`).
+Recorded provider evidence — guard runs `32333446480` / `32334155671` and Repository Ruleset `20901403`, with their qualifiers (outer/inner guard sequencing only, not production artifact output; `bypass_actors=[]`, `current_user_can_bypass=never`) — is recorded in [CHANGELOG.md](../CHANGELOG.md) ("Local PR #59 review remediation — 2026-08-10", 2026-11-24 note).
 Full ruleset rules (discovery bounds, applicability, fail-closed conditions, rule parameters, bypass, tag verification) and the observed `github/docs` ruleset `18281681` contract transcript are archived in [CHANGELOG.md](../CHANGELOG.md) ("Recorded workflow-protection evidence — archived from `api/README.md`, 2026-11-24"). This is a provider-boundary contract description, not a completed live approval, dispatch, run, artifact, signature, attestation, or release claim.
 
 ### GitHub fine-grained PAT permissions
@@ -185,7 +185,7 @@ no end-to-end atomic-dispatch claim is made.
 
 ## Schema and secret compatibility evidence
 
-Published vs candidate schema state, the migration table (280–285), and migration-test evidence: [PLAN.md §2](../PLAN.md#2-architecture) — the single canonical statement. Migration tests are SQLite-only; **MySQL/PostgreSQL migration and read/write coverage remain unverified.**
+Published vs candidate schema state, the migration table (280–285), and migration-test evidence: [PLAN.md §2](../PLAN.md#2-architecture) — the single canonical statement (SQLite-only; MySQL/PG coverage unverified).
 
 `AutoMigrate` keeps legacy rows readable: metadata-only configuration saves preserve legacy plaintext PAT/payload-key values without requiring `SECRET_ENCRYPTION_KEY`, new or replaced non-empty secret writes require that key, and secret values are never returned in the safe configuration view — full semantics: [docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md).
 
