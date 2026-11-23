@@ -77,14 +77,9 @@ status file is dead-letter.
 Still open: `/custom_build/public/detailByKey/:key` exists but has no caller in the UI.
 Left in place because it's a documented capability URL and may have third-party consumers.
 
-**Where:**
-- `api/http/request/admin/custom_build.go:14` — `CustomBuildForm.FromCustomBuild` (no callers).
-- `api/http/request/admin/custom_preset.go:24` — `CustomPresetForm.FromCustomPreset` (no callers).
-- `admin-ui/src/api/custom_client.js:10` — `detail()` exported, no importer.
-- `admin-ui/src/views/custom-client/index.vue:323` — `detailPreset` imported, never used in
-  `setup()`.
-- `GET /custom_build/detail/:id` and `GET /custom_build/public/detailByKey/:key` — already
-  noted as unused in `audit-report.md:879-881`.
+**Where:** only that public route remains — `GET /api/admin/custom_build/public/detailByKey/:key`
+(the other unused surfaces listed above were deleted in the partial fix; the original
+`audit-report.md` reference was removed with that file on 2026-06-21).
 **Fix:** delete in a single janitorial PR after the higher-priority work lands.
 
 ## STRUCTURAL — to enable B-001/B-002/B-013 fixes

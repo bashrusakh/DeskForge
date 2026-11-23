@@ -17,12 +17,8 @@ runner can reach: a literal loopback/private/special-purpose origin is refused, 
 a DNS hostname is not resolved at create or dispatch — it is constrained only when
 the workflow fetches the asset.
 
-**Admin:** `http://your-server:21114/admin/` — login `admin`, password in logs.
-
-**RustDesk client:** ID Server `your-server:21116`, Relay `your-server:21117`, API
-`http://your-server:21114`, Key — paste the public-key contents returned by
-`docker compose exec rustdesk cat /data/id_ed25519.pub`; the file is at
-`/data/id_ed25519.pub` inside the container.
+Admin login, RustDesk client settings, and the public-key command are in the
+[README quick start](../README.md).
 
 ## Upgrading an existing deployment
 

@@ -127,7 +127,7 @@ Redis integration tests/benchmarks are opt-in (`DESKFORGE_TEST_REDIS_ADDR`); no 
 
 ## 🍴 Forks
 
-Two owned repositories back custom-client builds: [`bashrusakh/rustdesk`](https://github.com/bashrusakh/rustdesk) — client fork at published source/ref 1.4.8, whose `.github/workflows/` files are the sole executable workflow source — and [`bashrusakh/hbb_common`](https://github.com/bashrusakh/hbb_common) — auto-synced mirror of `rustdesk/hbb_common`, never behavioral patches.
+Two owned repositories back custom-client builds: [`bashrusakh/rustdesk`](https://github.com/bashrusakh/rustdesk) — client fork at published source/ref 1.4.8, whose `.github/workflows/` files are the sole executable workflow source — and [`bashrusakh/hbb_common`](https://github.com/bashrusakh/hbb_common) — mirror of `rustdesk/hbb_common` with auto-sync installed and active (schedule-fire proof pending), never behavioral patches.
 
 Topology, sync rules, and pin bookkeeping (canonical): [docs/FORKS-AND-PINS.md](docs/FORKS-AND-PINS.md) · New-upstream procedure: [PLAN.md §7](PLAN.md#7-fork-maintenance-procedure-for-a-new-upstream-rustdesk-client-release) · Pin + patch record: [`libs/hbb_common/UPSTREAM.md`](libs/hbb_common/UPSTREAM.md).
 
@@ -138,7 +138,7 @@ Topology, sync rules, and pin bookkeeping (canonical): [docs/FORKS-AND-PINS.md](
 | Document | Contents |
 | --- | --- |
 | [PLAN.md](PLAN.md) | Project SSOT: goal, architecture, status, roadmap, fork procedure |
-| [AGENTS.md](AGENTS.md) | Repo map, stack, env vars, build commands, agent constraints |
+| [AGENTS.md](AGENTS.md) | Repo map, stack, build commands, agent constraints |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Branch model, dev commands, PR and review rules |
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
 | [docs/FORKS-AND-PINS.md](docs/FORKS-AND-PINS.md) | Fork topology, sync rules, pin bookkeeping |

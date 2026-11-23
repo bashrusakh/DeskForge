@@ -9,15 +9,10 @@ RustDesk fork. The fork's branch/ref and workflow files are provider-side
 execution details; this directory does not define or deploy them.
 
 The dispatch contract under test sends only the `ref` selector and required `inputs`
-(no `return_run_details`) and pins the dispatch request to the
-`X-GitHub-Api-Version: 2026-03-10` version (the client-wide pin stays `2022-11-28`).
-GitHub's 2026-03-10 breaking change removed the `return_run_details` parameter and
-made the endpoint always return HTTP 200 with the run details, so the dispatch reads
-the run details directly from an always-200 response and no longer sends the retired
-parameter. This is a deliberate contract modernization, not a #80 requirement: the
-pinned `2022-11-28` version with `return_run_details=true` also returns the run
-details. A standard 204 response and latest-run inference remain intentionally
-unsupported because they do not provide an accepted exact run correlation.
+(no `return_run_details`) and pins the request to `X-GitHub-Api-Version: 2026-03-10`
+(the client-wide pin stays `2022-11-28`); a standard 204 and latest-run inference
+remain intentionally unsupported because they do not provide an accepted exact run
+correlation. Full contract rationale and evidence labels: [PLAN.md §2](../PLAN.md#2-architecture).
 Local fake-transport/static checks cover this contract; no normal GitHub
 dispatch, poll, or download operation is verified.
 
@@ -50,7 +45,7 @@ that synchronized copies, protected tags, or a live provider run currently exist
 > package assertions are static implementation evidence only; capabilities remain disabled.
 > No live provider run or clean-environment build proof is recorded here.
 >
-> **RustDesk guard PR (2026-08-20):** [RustDesk PR
+> **RustDesk guard PR (recorded 2026-08-20):** [RustDesk PR
 > #7](https://github.com/bashrusakh/rustdesk/pull/7) is merged into
 > `rustqs/workflows` at merge commit `ced31ae07f69c20119b88212b10d2eb2df651c97`,
 > which contains prior source commit `6ef1cd7fe`. It adds the marker, requires outer
@@ -59,11 +54,9 @@ that synchronized copies, protected tags, or a live provider run currently exist
 > `workflow-v1.2.0` does not exist, and no newly signed provider-verified immutable
 > protected workflow tag exists yet; live reapproval/reverification remains pending.
 > This is not provider deployment, tag protection,
-> live workflow, or live artifact evidence.
-> DeskForge local remediation includes `da42521`, `9a1ee5e`, and `d67b6e7`; the last
-> requires a stored v2 producer-manifest and exact canonical-output proof across
-> publication, recovery, detail, download, reuse, and handoff boundaries. These local
-> commits remain unpushed; DeskForge PR #59 remains open and dirty remotely.
+> live workflow, or live artifact evidence. DeskForge-local remediation state for the
+> same date (commits `da42521`/`9a1ee5e`/`d67b6e7`, PR #59) is recorded chronologically
+> in [CHANGELOG.md](../CHANGELOG.md) ("Local PR #59 review remediation — 2026-08-20").
 
 ---
 

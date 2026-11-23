@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### docs: documentation sweep — dedupe, dead content removed, stale claims fixed — 2026-11-23
+- One full pass over the living docs. CONTRIBUTING de-generated and de-duplicated
+  (generated filler, repeated workflow/PR/license/commands sections merged; layout
+  now points at AGENTS.md); PLAN header and §1 deduped against §2 and the copy pin
+  corrected to `fae47e024dd8`; AGENTS env-var table and schema/fork paragraphs
+  replaced with canonical links (README, DEPLOYMENT, PLAN §2, FORKS-AND-PINS);
+  api/README schema section corrected to candidate 285; github-build dispatch
+  contract and PR #59 state cross-link PLAN §2 / CHANGELOG; DEPLOYMENT quick-start
+  duplicates removed; UPSTREAM_DEPENDENCY_REMOVAL reframed as a completed record
+  (inline Dockerfile snippets replaced by pointers; its "full upstream independence"
+  line scoped to the one base image); BUGS.md dead "Where" list trimmed; README
+  auto-sync claim qualified (schedule-fire proof pending). Canonical homes
+  unchanged: README (showcase/env table), PLAN §2 (schema/dispatch evidence),
+  FORKS-AND-PINS (fork/pin canon), UPSTREAM.md (pin+patch record), DEPLOYMENT (ops).
+- Presentation-only tidy of existing entries (no entry substance changed): the
+  kept-patch row references now name the `src/websocket.rs` test row instead of a
+  positional number (the table's 5th data row).
+
 ### docs: README restructured as a concise showcase — 2026-11-23
 - Root `README.md` rewritten as a short front door (system shape, quick start, ports,
   env table, features, build commands, forks, doc links, license); deep content moved to
@@ -51,7 +69,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   pristine pin and with only that hunk restored; per owner decision the neutralization
   stays, so the test was minimally adapted instead — it now supplies its own explicit
   `rendezvous-servers` fallback list while the `check_ws`/`websocket_port` assertion is
-  unchanged, kept-patch row 4 in `libs/hbb_common/UPSTREAM.md`). `--test proxy_transport`:
+  unchanged — the `src/websocket.rs` (test only) kept-patch row in
+  `libs/hbb_common/UPSTREAM.md`). `--test proxy_transport`:
   6 passed, 1 environment-dependent failure
   (`ipv6_proxy_connect_and_data_exchange` — this sandbox has no IPv6 loopback `::1`;
   test untouched). `--test websocket_proxy`: 1 passed. Doc-tests: 2 ignored

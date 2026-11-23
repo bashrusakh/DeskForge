@@ -42,7 +42,8 @@ while the test formats the empty fallback host without a port. The test encodes 
 non-empty-fallback assumption; it passes on the pristine pin and with only this hunk
 restored (counter-probe 2026-11-23). Owner decision: the neutralization stands (it is
 established product behavior; the upstream test's assumption does not define the product
-contract), so the **test** is adapted instead — kept-patch row 4 above makes the final
+contract), so the **test** is adapted instead — the kept-patch `src/websocket.rs` (test
+only) row above makes the final
 check supply an explicit `rendezvous-servers` fallback list, while the
 `check_ws`/`websocket_port` assertion stays byte-identical, so the host-matching behavior
 it verifies is unchanged. CHANGELOG entry for the same date.

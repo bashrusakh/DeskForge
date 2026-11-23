@@ -59,25 +59,19 @@ offline-kit/     — ❄️ frozen dependency-freeze tool; verification is incom
 
 DeskForge tracks `libs/hbb_common/` directly: it is a copy of our mirror fork
 `bashrusakh/hbb_common` at a recorded pin plus a documented patch set — pin record:
-`libs/hbb_common/UPSTREAM.md`; topology, sync rules, and pin bookkeeping:
-`docs/FORKS-AND-PINS.md`. The mirror fork is just a fork of upstream
-`rustdesk/hbb_common` — it must be kept in sync with upstream automatically where
-technically possible (merge-based, never history-rewriting); on `main` it carries
-upstream history plus non-behavioral infrastructure commits only (license metadata,
-the sync workflow file) and never behavioral patches in library content — and the
-configured RustDesk fork records its `libs/hbb_common` gitlink against our mirror fork
-by SHA (`master` → `36ab6ed`, 2026-11-23). The fork's `.github/workflows/` files
-are the sole executable source for active client-build workflows; `github-build/` and
-`rdgen/` are reference/frozen material only. No current repository `vendor/` tree,
-`rustdesk-deps/` archive, or client-release directory is tracked here.
-The published RustDesk client source/ref is 1.4.8 and the published DeskForge API
-schema is `DatabaseVersion` 272. The current local corrective candidate targets API
-schema 285, which is not published or live-provider evidence. The earlier schema-283
-migration adds `idx_custom_presets_user_id_name` on `(user_id, name)`; before
-`AutoMigrate`, its preflight fails on existing duplicate groups without auto-selecting
-a row or deleting data. The earlier schema-282 workflow-approval migration remains
-historical context. SQLite is the only recorded migration evidence; MySQL/PostgreSQL migration
-and read/write coverage remain unverified.
+`libs/hbb_common/UPSTREAM.md`; topology, sync rules, invariants, and pin bookkeeping:
+`docs/FORKS-AND-PINS.md` (canonical). The mirror fork must be kept in sync with
+upstream automatically where technically possible (merge-based, never history-rewriting)
+and never carries behavioral patches; the configured RustDesk fork records its
+`libs/hbb_common` gitlink against our mirror fork by SHA (`master` → `36ab6ed`,
+2026-11-23). The fork's `.github/workflows/` files are the sole executable source for
+active client-build workflows; `github-build/` and `rdgen/` are reference/frozen
+material only. No current repository `vendor/` tree, `rustdesk-deps/` archive, or
+client-release directory is tracked here.
+Current-state summary: published RustDesk client source/ref 1.4.8; published DeskForge
+API schema `DatabaseVersion` 272, current local candidate 285 (not published;
+SQLite-only migration evidence; MySQL/PostgreSQL migration and read/write coverage
+remain unverified) — details: [PLAN.md §2](PLAN.md#2-architecture).
 
 ## Build / dev commands
 
@@ -113,27 +107,10 @@ GOWORK=off go test ./...
 cd admin-ui && npm install && npm run dev && npm run build
 ```
 
-## Environment variables (critical)
+## Environment variables
 
-| Variable | Purpose | Used by |
-|----------|---------|---------|
-| `RELAY` | Relay server address | Rust hbbr |
-| `HBBR_PORT` | Relay server port | Rust hbbr |
-| `HBBS_PORT` | ID/Rendezvous server port | Rust hbbs |
-| `ENCRYPTED_ONLY` | Only encrypted connections | Rust |
-| `MUST_LOGIN` | Require login before connect | Rust |
-| `RUSTDESK_API_RUSTDESK_ID_SERVER` | ID server address | Go API |
-| `RUSTDESK_API_RUSTDESK_RELAY_SERVER` | Relay server address | Go API |
-| `RUSTDESK_API_RUSTDESK_API_SERVER` | API server URL | Go API |
-| `RUSTDESK_API_KEY_FILE` | Path to public key file | Go API |
-| `RUSTDESK_API_JWT_KEY` | JWT secret key | Go + Rust |
-| `RUSTDESK_API_GORM_TYPE` | sqlite/mysql/postgresql | Go API |
-| `RUSTDESK_API_LANG` | en/ru/zh-CN | Go + UI |
-| `SECRET_ENCRYPTION_KEY` | AES-GCM key for secrets at rest | Go API |
-
-New non-empty secret writes and secret-bearing Custom Builder operations require this
-key and are rejected rather than stored as plaintext when it is missing. Legacy plaintext
-rows remain readable; saving them again encrypts them when the key exists.
+The canonical variable table lives in the [README](README.md) ("Environment"
+section); full semantics are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Key integration points
 
@@ -176,8 +153,7 @@ rows remain readable; saving them again encrypts them when the key exists.
 - **Clean layered (Go):** Controller → Service → Model. Do not mix layers.
 - **Embedded UI:** Go embeds `admin-ui/dist/` and `web/`.
 - **Configured multi-DB:** GORM with SQLite/MySQL/PostgreSQL drivers, no raw SQL;
-  SQLite is locally exercised, while MySQL/PostgreSQL migration and read/write
-  coverage remain unverified.
+  SQLite is locally exercised, cross-DB coverage as in [PLAN.md §2](PLAN.md#2-architecture).
 - **OAuth/LDAP:** configured via admin panel → DB. Falls back to local users.
 - **Server commands:** allowlist in `serverCmd.go`.
 

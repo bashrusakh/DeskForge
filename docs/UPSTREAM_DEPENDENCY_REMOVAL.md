@@ -1,5 +1,11 @@
 # Removing Upstream Dependency on `rustdesk/rustdesk-server-s6`
 
+> Completed migration record (verified 2026-06-28): the production image no longer
+> pulls `rustdesk/rustdesk-server-s6` from docker.io. The implemented state is the
+> `docker/Dockerfile` itself (`s6-stage` + custom healthcheck + `rustdesk-utils`
+> from Stage 1); this document keeps the rationale, what changed, and the
+> verification result.
+
 ## Problem
 
 The previous implementation in `docker/Dockerfile` used:
@@ -70,62 +76,18 @@ Without it: 3 separate containers or custom bash supervisor.
 |-------|--------|-------|
 | Stage 1 (rust-builder) | `cargo build --bin hbbs --bin hbbr` | Add `--bin rustdesk-utils` |
 | Stage 4 (s6-source) | `FROM rustdesk/rustdesk-server-s6:latest` | **Remove**. Replace with GitHub s6-overlay download |
-| Stage 5 (final) | `COPY --from=s6-source /init /etc/s6-overlay /package /command /usr/bin/healthcheck.sh /usr/bin/rustdesk-utils` | `COPY --from=s6-stage /init /etc/s6-overlay /package /command` + custom `healthcheck.sh` + `rustdesk-utils` from Stage 1 |
+| Stage 5 (final) | `COPY --from=s6-source /init /etc/s6-overlay /package /command /usr/bin/healthcheck.sh /usr/bin/rustdesk-utils` | `COPY --from=s6-stage` + custom `healthcheck.sh` + `rustdesk-utils` from Stage 1 |
 
-**New Stage 4 (s6-stage) — as implemented in `docker/Dockerfile`:**
-```dockerfile
-# Stage 4: Install s6-overlay from official GitHub release (no upstream dependency)
-FROM alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b AS s6-stage
+**As implemented** (exact state: `docker/Dockerfile`, `s6-stage`): Stage 4 runs on
+pinned `alpine:3.24.1`, maps `TARGETARCH` to the s6-overlay arch
+(`amd64→x86_64`, `arm64→aarch64`), and downloads the noarch + arch tarballs from
+the `just-containers/s6-overlay` GitHub release with pinned SHA-256 checksums
+(`SHELL ["/bin/ash", "-o", "pipefail", "-c"]` so a piped `curl` failure aborts the
+`RUN`). Stage 5 copies `/init`, `/etc/s6-overlay`, `/package`, and `/command` from
+`s6-stage`.
 
-ARG S6_OVERLAY_VERSION=3.2.3.0
-# s6-overlay arch differs from Docker TARGETARCH naming (x86_64 vs amd64)
-# Map TARGETARCH to s6-overlay arch: amd64->x86_64, arm64->aarch64
-ARG TARGETARCH=amd64
-
-# SHA256 checksums for s6-overlay v3.2.3.0 (from just-containers/s6-overlay releases)
-# noarch is platform-independent
-ARG S6_NOARCH_SHA256=b720f9d9340efc8bb07528b9743813c836e4b02f8693d90241f047998b4c53cf
-# x86_64 checksum
-ARG S6_X86_64_SHA256=a93f02882c6ed46b21e7adb5c0add86154f01236c93cd82c7d682722e8840563
-# aarch64 checksum (for arm64 builds)
-ARG S6_AARCH64_SHA256=0952056ff913482163cc30e35b2e944b507ba1025d78f5becbb89367bf344581
-
-# Download and extract s6-overlay from just-containers/s6-overlay with checksum verification
-# Switch shell to /bin/ash with pipefail so a curl failure in the middle of a
-# pipe (e.g. `curl ... | sha256sum -c -`) correctly aborts the RUN instead
-# of being masked by sha256sum's exit code.
-SHELL ["/bin/ash", "-o", "pipefail", "-c"]
-RUN case "${TARGETARCH}" in \
-    amd64) S6_OVERLAY_ARCH=x86_64 ; S6_ARCH_SHA256="${S6_X86_64_SHA256}" ;; \
-    arm64) S6_OVERLAY_ARCH=aarch64 ; S6_ARCH_SHA256="${S6_AARCH64_SHA256}" ;; \
-    *) echo "Unsupported TARGETARCH: ${TARGETARCH}" && exit 1 ;; \
-  esac && \
-  apk add --no-cache curl xz && \
-  curl -fsSL -o /tmp/s6-overlay-noarch.tar.xz https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz && \
-  echo "${S6_NOARCH_SHA256}  /tmp/s6-overlay-noarch.tar.xz" | sha256sum -c - && \
-  curl -fsSL -o /tmp/s6-overlay-${S6_OVERLAY_ARCH}.tar.xz https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-${S6_OVERLAY_ARCH}.tar.xz && \
-  echo "${S6_ARCH_SHA256}  /tmp/s6-overlay-${S6_OVERLAY_ARCH}.tar.xz" | sha256sum -c - && \
-  tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz && \
-  tar -C / -Jxpf /tmp/s6-overlay-${S6_OVERLAY_ARCH}.tar.xz && \
-  rm -f /tmp/s6-overlay-*.tar.xz
-# Reset shell to default after the pipelined RUN; subsequent stages inherit
-# the previous SHELL unless re-declared.
-SHELL ["/bin/sh", "-c"]
-```
-
-**Copy s6-overlay into the final stage (Stage 5):**
-```dockerfile
-# Copy s6-overlay from GitHub release (no upstream docker.io/rustdesk)
-COPY --from=s6-stage /init /init
-COPY --from=s6-stage /etc/s6-overlay /etc/s6-overlay
-COPY --from=s6-stage /package /package
-COPY --from=s6-stage /command /command
-```
-
-**Custom healthcheck.sh (Stage 5) — sourced from `docker/scripts/healthcheck.sh`:**
-```dockerfile
-COPY docker/scripts/healthcheck.sh /usr/bin/healthcheck.sh
-```
+**Custom healthcheck** (`docker/scripts/healthcheck.sh`, copied to
+`/usr/bin/healthcheck.sh`):
 The script probes the listening TCP ports of all three services (api 21114,
 hbbs 21116, hbbr 21117) with BusyBox `nc -z` and exits non-zero if any of them
 is not bound. Port binding is the user-facing definition of "ready": until the
@@ -134,14 +96,9 @@ because our services do not use s6-notifywhenup (not shipped in the standard
 s6-overlay v3 image), so every service would report `ready=false` and the
 healthcheck would always fail.
 
-**Copy rustdesk-utils (in Stage 5) — staged at an arch-independent path:**
-```dockerfile
-COPY --from=rust-builder /build/server/release/rustdesk-utils /usr/bin/rustdesk-utils
-```
-Stage 1 builds for the musl target matching `TARGETARCH`
-(`x86_64-unknown-linux-musl` / `aarch64-unknown-linux-musl`) and copies the
-binaries to `/build/server/release/` so the final stage does not re-derive the
-target.
+**rustdesk-utils**: built in Stage 1 for the musl target matching `TARGETARCH`
+(`x86_64-unknown-linux-musl` / `aarch64-unknown-linux-musl`) and copied from
+`/build/server/release/` so the final stage does not re-derive the target.
 
 ### 2. `api/Dockerfile_full_s6` — Legacy, unused
 
@@ -149,7 +106,10 @@ target.
 
 ---
 
-## Implementation Plan
+## Implementation Plan (executed)
+
+The plan below was executed and verified on 2026-06-28 (result section); the
+authoritative state now lives in `docker/Dockerfile` itself.
 
 ### Step 1: Verify rustdesk-utils builds under musl
 ```bash
@@ -209,7 +169,12 @@ release is pinned by version tag and SHA-256 checksums.
 ✅ **API responds** — `GET /api/` → `{"code":0,"message":"success","data":"Hello Gwen"}`  
 ✅ **Admin UI accessible** — `GET /admin/` serves Vue SPA  
 ✅ **Image 127 MB** (was ~150+ MB with upstream pull)  
-✅ **No docker.io/rustdesk pull** — full upstream independence  
+✅ **No docker.io/rustdesk pull** — the `rustdesk-server-s6` base-image dependency is
+gone from the image build. This is image-build independence from that one upstream
+image only: the Dockerfile still pulls official `rust`/`golang`/`node`/`alpine` base
+images and active third-party upstream dependencies remain in the Rust/Go manifests —
+no project-wide upstream-independence, sovereignty, or release claim is made
+(see `AGENTS.md` / `PLAN.md` §0).
 
 ### Changed Files
 
@@ -260,6 +225,6 @@ docker compose logs -f
 ## Next Steps (Optional)
 
 1. **Remove `rustdesk/rustdesk-server-s6` locally**: `docker rmi rustdesk/rustdesk-server-s6:latest`
-2. **Delete `api/Dockerfile_full_s6`** entirely (currently commented)
-3. **Update `.env.example`** — remove any upstream references
-4. **CI coverage** — the production Dockerfile is now covered by CI
+2. **Delete `api/Dockerfile_full_s6`** entirely (deprecated marker present; unused in compose)
+3. **`.env.example` upstream references** — none found (checked 2026-11-23)
+4. **CI coverage** — done: `.github/workflows/build.yml` builds `docker/Dockerfile`

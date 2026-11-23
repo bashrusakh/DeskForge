@@ -265,37 +265,26 @@ tests.
 This policy is a provider-boundary contract, not live-provider evidence: the
 worktree has focused fake-transport coverage but no live GitHub/provider
 approval, dispatch, run, or artifact pass. Dispatch sends only the `ref` and
-required `inputs`. The dispatch request pins the
-`X-GitHub-Api-Version: 2026-03-10` version (the client-wide pin stays
-`2022-11-28`). GitHub's 2026-03-10 breaking change removed the
-`return_run_details` parameter and made the endpoint always return HTTP 200
-with the run details, so the dispatch reads the run details directly from an
-always-200 response and no longer sends the retired parameter. This is a
-deliberate contract modernization, not a #80 requirement: the pinned
-`2022-11-28` version with `return_run_details=true` also returns the run
-details. A standard 204 response and latest-run inference remain
-unsupported. The local pending →
-building identity write is atomic, but there is no durable outbox or distributed
-lease coordinating provider dispatch with that database write. A provider
-dispatch can therefore succeed while the local write fails; no end-to-end
+required `inputs`; see [PLAN.md §2](../PLAN.md#2-architecture) for the dispatch
+API-version contract and its rationale, and the local atomicity limitation: the
+pending → building identity write is atomic, but there is no durable outbox or
+distributed lease coordinating provider dispatch with that database write, so a
+provider dispatch can succeed while the local write fails and no end-to-end
 atomic-dispatch claim is made.
 
 ## Schema and secret compatibility evidence
 
-The published DeskForge API schema is `DatabaseVersion` **272**. The current local
-corrective candidate targets schema **283** and is not published or live-provider
-evidence. The historical workflow-approval fields are:
-
-- **280** — `workflow_ref_approved`, the persisted approval status;
-- **281** — `workflow_ref_provider_verified`, the persisted provider-policy
-  verification status;
-- **282** — `workflow_ref_approval_sha`, the provider-resolved commit recorded
-  for the approved tag.
-
-Schema **283** adds `idx_custom_presets_user_id_name` on `(user_id, name)`. Before
-`AutoMigrate`, migration preflight fails on an existing duplicate group; it does not
-automatically choose or delete a duplicate row. The migration tests are SQLite-only;
-MySQL/PostgreSQL migration and read/write coverage remain unverified.
+The published DeskForge API schema is `DatabaseVersion` **272**; the current local
+corrective candidate targets schema **285** (`api/cmd/apimain.go`), which is not
+published or live-provider evidence. Earlier migration steps: **280/281/282**
+(workflow-approval fields `workflow_ref_approved`, `workflow_ref_provider_verified`,
+`workflow_ref_approval_sha`), **283** (`idx_custom_presets_user_id_name` on
+`(user_id, name)` — before `AutoMigrate`, preflight fails on an existing duplicate
+group without auto-selecting or deleting a row), **284** (create-time `preset_id` /
+`preset_name` provenance snapshots), and **285** (branding-field preflight before
+`AutoMigrate`, failing closed on a rejected stored value). Migration tests are
+SQLite-only; MySQL/PostgreSQL migration and read/write coverage remain unverified.
+Full schema/migration-test evidence: [PLAN.md §2](../PLAN.md#2-architecture).
 
 `AutoMigrate` keeps legacy rows readable. Legacy plaintext PAT/payload-key
 metadata remains readable, and metadata-only configuration saves preserve those

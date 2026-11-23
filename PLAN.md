@@ -1,44 +1,18 @@
 # PLAN.md — DeskForge: Single Source of Truth
 
-> Last updated: 2026-08-20
+> Last updated: 2026-11-23
 > Related: [CHANGELOG.md](CHANGELOG.md) · [BUGS.md](BUGS.md) · [CONTRIBUTING.md](CONTRIBUTING.md)
 
-> **Evidence labels (2026-08-20):** The published RustDesk client source/ref is
+> **Evidence labels (2026-11-23):** the published RustDesk client source/ref is
 > 1.4.8 and the published DeskForge API schema is `DatabaseVersion` 272. The current
-> local corrective candidate targets API schema 285; it is not a public current-schema
-> or release claim. Schema 283 adds `idx_custom_presets_user_id_name` on
-> `(user_id, name)` and fails preflight on existing duplicate groups before
-> `AutoMigrate`, without auto-selecting a row or deleting data. Schema 282 is the earlier
-> workflow-approval migration preserved as history.
-> The current API path is provider dispatch → exact run/artifact retrieval → local
-> validation and publication. Runner callbacks, local file-queue fallback, and
-> sole-artifact selection are not current production behavior. Windows is the only
-> production capability admitted by the API gate; Linux/Android remain gated pending
-> PR11 evidence. The dispatch contract under test sends only the `ref` selector
-> and required `inputs` (no `return_run_details`) and pins the dispatch request to
-> the `X-GitHub-Api-Version: 2026-03-10` version (the client-wide pin stays
-> `2022-11-28`). GitHub's 2026-03-10 breaking change removed the
-> `return_run_details` parameter and made the endpoint always return HTTP 200 with
-> the run details, so the dispatch reads the run details directly from an always-200
-> response and no longer sends the retired parameter; this is a deliberate contract
-> modernization, not a #80 requirement (the pinned `2022-11-28` version with
-> `return_run_details=true` also returns the run details). Standard 204 is
-> intentionally unsupported because it cannot correlate the exact run. No
-> normal GitHub operation is verified. The Go API owns
-> port 21114; Rust services use 21115–21119, with relay WebSocket on 21119; current
-> production Compose exposure remains
-> 21114–21118. No live provider run or clean-environment build proof is claimed.
-> Workflow approval requires a provider-derived verified annotated tag, the
-> aggregate of all applicable active protected-tag rulesets with effective update
-> and deletion protections, no bypass actors, and rejection of tag/branch label
-> collisions. At the resolved immutable workflow SHA, the exact provider-owned
-> `# deskforge-workflow-identity-guard: v1` marker is required before approval,
-> preparation, or secret-bearing dispatch; legacy unguarded tags fail closed. The
-> local gate is not
-> live-provider evidence. Its pending → building identity write is atomic, but
-> provider dispatch and that database write are not an end-to-end atomic
-> transaction: there is no durable outbox or distributed lease for the
-> post-dispatch database-failure window.
+> local corrective candidate targets API schema 285 (`api/cmd/apimain.go`); it is not
+> a public current-schema or release claim. The current API path is provider dispatch
+> → exact run/artifact retrieval → local validation and publication; Windows is the
+> only production capability admitted by the API gate, with Linux/Android gated
+> pending PR11 evidence. The Go API owns port 21114; Rust services use 21115–21119
+> (relay WebSocket 21119), with production Compose exposure 21114–21118. No live
+> provider run or clean-environment build proof is claimed. Full dispatch-contract,
+> workflow-approval, schema/migration, and atomicity evidence lives in §2 below.
 
 ---
 
@@ -76,27 +50,24 @@ bashrusakh/
 
 **Published client source/ref:** 1.4.8, aligned with `offline-kit/versions.env`. The
 current local corrective candidate targets API schema 285; the published DeskForge
-schema remains `DatabaseVersion` 272. Schema 283 adds
-`idx_custom_presets_user_id_name` on `(user_id, name)` and fails preflight on existing
-duplicate groups before `AutoMigrate`, without auto-selecting a row or deleting data. Schema 282
-remains the earlier workflow-approval migration.
+schema remains `DatabaseVersion` 272 — migration history and test evidence: §2.
 The configured RustDesk fork's `libs/hbb_common` is a separate git submodule whose
 gitlink is repointed at our mirror fork `bashrusakh/hbb_common` by SHA (`master` →
-`36ab6ed`, 2026-11-23); DeskForge's own `libs/hbb_common/` copy is pinned at `387603f`
-plus local patches (pin record: `libs/hbb_common/UPSTREAM.md`; topology and rules:
-`docs/FORKS-AND-PINS.md`). Active RustDesk and DeskForge manifests also reference
-third-party upstream repositories/modules. Provider-side live execution and clean-build proof are not recorded
-here. On 2026-08-11, `GOWORK=off go vet ./...` and `GOWORK=off go test ./...`
-passed after test-only cache diagnostics and opt-in Redis test changes. Redis
-integration tests and benchmarks run only when `DESKFORGE_TEST_REDIS_ADDR` is
-configured; no live Redis run is recorded. MySQL/PostgreSQL, live provider, and
-the other release/build gates remain unverified. DeskForge does not currently track a repository `vendor/` tree, client-release
-directory, or `rustdesk-deps/` archive.
+`36ab6ed`, 2026-11-23); DeskForge's own `libs/hbb_common/` copy is pinned at
+`fae47e024dd8` (the `rustdesk/rustdesk` 1.5.1/1.5.3 pin, re-pinned 2026-11-23) plus
+the recorded local patch set (pin record: `libs/hbb_common/UPSTREAM.md`; topology and
+rules: `docs/FORKS-AND-PINS.md`). Active RustDesk and DeskForge manifests also
+reference third-party upstream repositories/modules. Provider-side live execution and
+clean-build proof are not recorded here. The broad `GOWORK=off go vet ./...` /
+`go test ./...` pass and its opt-in Redis boundary are recorded in CHANGELOG.md
+("Current-state reconciliation — 2026-08-10"). MySQL/PostgreSQL, live provider, and
+the other release/build gates remain unverified. DeskForge does not currently track a
+repository `vendor/` tree, client-release directory, or `rustdesk-deps/` archive.
 
 The combined DeskForge distribution is identified as AGPL-3.0 for the covered work;
-separate or independent API/UI/reference components retain their applicable upstream
-licenses and notices. The license inventory is incomplete; no signatures or attestations
-are recorded, and no full sovereignty claim is made. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+separate or independent components retain their applicable upstream licenses and
+notices (canonical: [LICENSE](LICENSE) and [NOTICE](NOTICE)); the license inventory
+is incomplete, with no signatures, attestations, or full-sovereignty claim.
 
 ---
 
