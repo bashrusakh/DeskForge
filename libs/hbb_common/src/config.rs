@@ -569,7 +569,10 @@ impl Config2 {
     pub fn get_trusted_device_stores() -> crate::ResultType<(String, String)> {
         let _lock = CONFIG2.read().unwrap();
         let config: Self = try_load_path(Self::file())?;
-        Ok((config.trusted_devices_v2()?.to_owned(), config.trusted_devices))
+        Ok((
+            config.trusted_devices_v2()?.to_owned(),
+            config.trusted_devices,
+        ))
     }
 
     pub fn has_trusted_devices_v2() -> crate::ResultType<bool> {

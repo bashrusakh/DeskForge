@@ -32,14 +32,29 @@ mod send_recovery_tests {
         });
         let invalid_destination: SocketAddr = "[::1]:9".parse().unwrap();
         assert!(sender.send(&response, invalid_destination).await.is_err());
-        sender.send(&response, receiver.local_addr().unwrap()).await.unwrap();
+        sender
+            .send(&response, receiver.local_addr().unwrap())
+            .await
+            .unwrap();
         let mut bytes = [0; 64];
-        let (length, source) = crate::timeout(1000, receiver.recv_from(&mut bytes)).await.unwrap().unwrap();
+        let (length, source) = crate::timeout(1000, receiver.recv_from(&mut bytes))
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(&bytes[..length], response.write_to_bytes().unwrap());
         assert_eq!(Some(source), original_address);
-        assert!(sender.send_raw(b"bad destination", invalid_destination).await.is_err());
-        sender.send_raw(b"next datagram", receiver.local_addr().unwrap()).await.unwrap();
-        let (length, source) = crate::timeout(1000, receiver.recv_from(&mut bytes)).await.unwrap().unwrap();
+        assert!(sender
+            .send_raw(b"bad destination", invalid_destination)
+            .await
+            .is_err());
+        sender
+            .send_raw(b"next datagram", receiver.local_addr().unwrap())
+            .await
+            .unwrap();
+        let (length, source) = crate::timeout(1000, receiver.recv_from(&mut bytes))
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(&bytes[..length], b"next datagram");
         assert_eq!(Some(source), original_address);
     }

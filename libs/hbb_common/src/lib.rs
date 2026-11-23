@@ -58,9 +58,9 @@ pub use flexi_logger;
 pub mod log_throttle;
 pub mod rx_probe;
 pub mod stream;
-pub mod websocket;
 #[cfg(feature = "webrtc")]
 pub mod webrtc;
+pub mod websocket;
 #[cfg(any(target_os = "android", target_os = "ios"))]
 pub use rustls_platform_verifier;
 pub use stream::Stream;
@@ -68,9 +68,9 @@ pub use whoami;
 pub mod tls;
 pub mod verifier;
 pub use async_recursion;
+pub use libloading;
 #[cfg(target_os = "linux")]
 pub use users;
-pub use libloading;
 #[cfg(target_os = "linux")]
 pub use x11;
 

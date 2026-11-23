@@ -377,9 +377,7 @@ impl WebRTCStream {
     ) -> Vec<String> {
         let keys: Vec<String> = sessions
             .iter()
-            .filter_map(|(key, session)| {
-                Arc::ptr_eq(&session.pc, pc).then(|| key.clone())
-            })
+            .filter_map(|(key, session)| Arc::ptr_eq(&session.pc, pc).then(|| key.clone()))
             .collect();
         for key in &keys {
             sessions.remove(key);
@@ -821,10 +819,9 @@ impl WebRTCStream {
                         // By pc identity, not by re-deriving the key: a duplicate offer shares
                         // the key with the live winner, and this must not evict that one.
                         let mut sessions_lock = SESSIONS.lock().await;
-                        for key in Self::remove_sessions_for_peer(
-                            &mut sessions_lock,
-                            &pc_for_close2,
-                        ) {
+                        for key in
+                            Self::remove_sessions_for_peer(&mut sessions_lock, &pc_for_close2)
+                        {
                             log::debug!("WebRTC session removed key: {}", key);
                         }
                     }
@@ -990,7 +987,10 @@ impl WebRTCStream {
     /// Candidates are the only part of a local description that grows. Stripping them makes the
     /// size a property of the value rather than of when it was taken, so it cannot drift with
     /// gathering however this is later refactored.
-    fn trickle_endpoint(local_desc: &RTCSessionDescription, relay_only: bool) -> ResultType<String> {
+    fn trickle_endpoint(
+        local_desc: &RTCSessionDescription,
+        relay_only: bool,
+    ) -> ResultType<String> {
         let mut sdp = String::with_capacity(local_desc.sdp.len());
         for line in local_desc.sdp.lines() {
             // `end-of-candidates` would tell the remote agent to stop waiting for the trickle.
@@ -1760,7 +1760,10 @@ mod tests {
 
         let endpoint = WebRTCStream::trickle_endpoint(&gathered, false).unwrap();
         let json = WebRTCStream::get_remote_offer(&endpoint).unwrap();
-        assert!(!json.contains("a=candidate:"), "candidate survived the split");
+        assert!(
+            !json.contains("a=candidate:"),
+            "candidate survived the split"
+        );
         assert!(
             !json.contains("a=end-of-candidates"),
             "end-of-candidates would stop the remote agent waiting for the trickle"
@@ -2301,7 +2304,10 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
         let flag = AtomicBool::new(false);
 
         WebRTCStream::note_health(&flag, RTCPeerConnectionState::Disconnected);
-        assert!(flag.load(Ordering::SeqCst), "Disconnected must raise the hint");
+        assert!(
+            flag.load(Ordering::SeqCst),
+            "Disconnected must raise the hint"
+        );
 
         WebRTCStream::note_health(&flag, RTCPeerConnectionState::Connected);
         assert!(!flag.load(Ordering::SeqCst), "Connected must clear it");
@@ -2405,7 +2411,11 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
 
             offerer.send_raw(vec![0xCDu8; 8 * 1024]).await.unwrap();
             let got = answerer.next().await.unwrap().unwrap();
-            assert_eq!(got.len(), 8 * 1024, "a message under the bound still arrives");
+            assert_eq!(
+                got.len(),
+                8 * 1024,
+                "a message under the bound still arrives"
+            );
 
             offerer.send_raw(vec![0xCDu8; 200_000]).await.unwrap();
             match timeout(Duration::from_secs(10), answerer.next()).await {
@@ -2446,7 +2456,11 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
                 .expect("answerer.next() hung after the bound was lifted")
                 .unwrap()
                 .unwrap();
-            assert_eq!(got.len(), 200_000, "lifting the bound lets a large message through again");
+            assert_eq!(
+                got.len(),
+                200_000,
+                "lifting the bound lets a large message through again"
+            );
 
             offerer.close().await;
             answerer.close().await;
@@ -2641,7 +2655,10 @@ IHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDY0MDA4XHJcbmE9ZW5kLW9mLWNhbmRpZGF0ZXNc
                 Ok(Err(_)) => {}
             }
         }
-        assert!(cancelled, "new() never lost the race with its own cancellation");
+        assert!(
+            cancelled,
+            "new() never lost the race with its own cancellation"
+        );
         // Let the detached setup task finish (and insert its session) before sampling, or the
         // first sample is taken before the leak has formed and every later one intersects to
         // nothing.
