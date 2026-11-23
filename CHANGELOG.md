@@ -6,6 +6,54 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### `libs/hbb_common` re-pinned to `fae47e02` (rustdesk 1.5.1/1.5.3) — 2026-11-23
+- Vendored `libs/hbb_common/` re-pinned to
+  `rustdesk/hbb_common@fae47e024dd83cef6aaecde0aa7d11731df11649` (2026-10-28, the
+  `rustdesk/rustdesk` 1.5.1/1.5.3 `libs/hbb_common` submodule pin; fetched by explicit
+  SHA from `bashrusakh/hbb_common`, an ancestor of its `main`), superseding the original
+  import pin `387603f47cbb15c0d3dc3d67ae3396d3eb707daf` (1.4.8). Tree = exact pin content
+  + kept patches + `UPSTREAM.md`; upstream had moved `message.proto`'s content,
+  `fs.rs`/`keyboard.rs`/`platform/*` and `examples/system_message.rs` out of the crate, so
+  those local-only files are gone.
+- Patch set re-decided on the user-ratified carry-over rule (keep only if still relevant
+  **and** still needed). **Kept:** reproducible `gen_version()` + its 3 tests
+  (`src/lib.rs` — hard `$OUT_DIR/version.rs` ↔ `server/` include coupling + reproducible
+  builds) and the `src/config.rs` external-endpoint neutralizations (`RENDEZVOUS_SERVERS =
+  &[]`, `LINK_DOCS_HOME`/`LINK_DOCS_X11_REQUIRED` = `""`). **Dropped:**
+  `LINK_HEADLESS_LINUX_SUPPORT` (constant removed upstream — not relevant), `HELPER_URL`
+  empty-map (redundant once the constants are zeroed), `DEFAULT_ICE_SERVERS = []` (the
+  `webrtc` module is never compiled in DeskForge's build shape — `server/` takes default
+  features only — and neutralizing it would require weakening the pin's
+  `test_webrtc_ice_server_list`), and the formatting-only hunks (semantically inert).
+  Verdicts with justifications: `libs/hbb_common/UPSTREAM.md`.
+- Break-fix: `server/src/rendezvous_server.rs` `get_pk()` builds
+  `rendezvous_proto::IdPk` now (`message_proto` moved out of the crate upstream). The new
+  `dtls_fingerprint`/`kx_version` fields are left unset, so proto3 omits them and the
+  signed payload stays **byte-identical** to the legacy `message.proto` encoding (wire
+  probe: 42-byte payload equal to hand-built legacy bytes; absent `kx_version` = scheme 0,
+  per upstream commit `e272fede`). No KX negotiation or new protocol behavior implemented.
+- New dependency resolution from the pin (accepted cost): `tokio-tungstenite` 0.29 from
+  `rustdesk-org` git rev `c241b11b03de…` and `tungstenite` 0.29 enter the build;
+  `server/Cargo.lock` updated accordingly (32 stale packages of the old platform/backtrace
+  tree dropped). The pin's `[patch.crates-io]` webrtc trio applies only to standalone
+  `libs/hbb_common` builds.
+- Verification (2026-11-23, this state): `cd libs/hbb_common && cargo test` — 109 passed,
+  including all 3 `gen_version` `build_date_tests`; 1 known failure
+  `websocket::tests::test_check_ws` — a documented interaction of the **kept**
+  `RENDEZVOUS_SERVERS` neutralization with the pin's new test (it assumes a non-empty
+  public rendezvous fallback; passes on the pristine pin and with only that hunk restored
+  — counter-probe). The upstream test is deliberately not weakened; accepting the
+  documented exception vs. authorizing a minimal test adaptation is an owner decision.
+  `--test proxy_transport`: 6 passed, 1 environment-dependent failure
+  (`ipv6_proxy_connect_and_data_exchange` — this sandbox has no IPv6 loopback `::1`;
+  test untouched). `--test websocket_proxy`: 1 passed. Doc-tests: 2 ignored
+  (upstream-marked). `cd server && cargo build --release && cargo test`: green (with the
+  CI-documented `DATABASE_URL` sqlx schema setup; `OPENSSL_NO_VENDOR=1` because the
+  vendored-OpenSSL build is broken in this environment's stripped perl — missing core
+  modules `FindBin`/`File::Compare`/`File::Copy`; the env var changes no repo file).
+  `cargo clippy` and `cargo fmt --check` were **not run: both tools are absent** from this
+  environment's distro toolchain (no rustup) — clippy-clean/fmt-clean remain unverified.
+
 ### `webrtc` branch deletion (superseded) + fork-state docs refresh — 2026-11-23
 - `bashrusakh/hbb_common` branch `webrtc` deleted by owner decision (verified
   2026-11-23): one commit `5a78ec4` ("feat: support WebRTC rendezvous signaling",

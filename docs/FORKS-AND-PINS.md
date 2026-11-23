@@ -54,10 +54,13 @@ Verified state (GitHub API + clones, 2026-11-23):
 - Junk tags `driver`/`dirver` (upstream's historical typo tags) are mirrored by the
   fork and carry no meaning.
 - DeskForge's `libs/hbb_common/` fork point:
-  `rustdesk/hbb_common@387603f47cbb15c0d3dc3d67ae3396d3eb707daf` (2026-06-04) — the
-  exact `rustdesk/rustdesk` **1.4.8** `libs/hbb_common` pin (verified by blob
-  comparison + exhaustive ref scan). The commit exists in the fork's history too
-  (`bashrusakh/hbb_common` shares upstream history).
+  `rustdesk/hbb_common@fae47e024dd83cef6aaecde0aa7d11731df11649` (2026-10-28) — the
+  `rustdesk/rustdesk` **1.5.1 / 1.5.3** `libs/hbb_common` pin (timeline §6). An ancestor
+  of the fork's `main` (verified `git merge-base --is-ancestor`, 2026-11-23), so the tree
+  was materialized by fetching the explicit SHA from `bashrusakh/hbb_common`. History:
+  the original import pin `387603f47cbb15c0d3dc3d67ae3396d3eb707daf` (2026-06-04) — the
+  exact `rustdesk/rustdesk` **1.4.8** pin, verified then by blob comparison + exhaustive
+  ref scan; superseded 2026-11-23.
 - Cleanliness of any particular local checkout is **not tracked and remains
   unverified**; the published refs above are the provenance of record.
 
@@ -219,13 +222,13 @@ Moving `libs/hbb_common/` to a new pin (full client-release maintenance procedur
    ```
 
 4. **Re-apply the patch set** — the canonical record is
-   [`libs/hbb_common/UPSTREAM.md`](../libs/hbb_common/UPSTREAM.md); apply it exactly
-   as recorded there. In summary: reproducible `gen_version()` in `src/lib.rs`
-   (⚠️ must survive every re-pin — the `server/` build's `$OUT_DIR/version.rs` include
-   coupling is detailed in the record), external-endpoint neutralization in
-   `src/config.rs`, `DEFAULT_ICE_SERVERS = []` in `src/webrtc.rs`, and semantically
-   inert formatting hunks (keep or drop as a style choice; record the outcome in
-   [`libs/hbb_common/UPSTREAM.md`](../libs/hbb_common/UPSTREAM.md)).
+   [`libs/hbb_common/UPSTREAM.md`](../libs/hbb_common/UPSTREAM.md); re-decide every row
+   of it on the record's carry-over rule (re-applied only if both still relevant against
+   the new pin and still needed) and apply exactly the kept rows, recording every
+   kept/dropped verdict with its justification in the record. In summary at the current
+   pin: reproducible `gen_version()` in `src/lib.rs` (⚠️ must survive every re-pin — the
+   `server/` build's `$OUT_DIR/version.rs` include coupling is detailed in the record)
+   and the external-endpoint neutralizations in `src/config.rs`.
 5. **Verify**: run `cd libs/hbb_common && cargo test` — the three `gen_version()`
    unit tests live in that package and are **not** run by `server/`'s `cargo test`
    (path dependency, no workspace membership), so run them explicitly or they rot
@@ -245,10 +248,10 @@ Moving `libs/hbb_common/` to a new pin (full client-release maintenance procedur
 | Source ref | `hbb_common` pin |
 |---|---|
 | `rustdesk/rustdesk` 1.4.7 | `df6badca` |
-| `rustdesk/rustdesk` 1.4.8 | `387603f` — DeskForge's current fork point |
+| `rustdesk/rustdesk` 1.4.8 | `387603f` — DeskForge's original import pin (superseded 2026-11-23) |
 | `rustdesk/rustdesk` 1.4.9 | `7e1c392c` |
 | `rustdesk/rustdesk` 1.5.0 | `229b9045` |
-| `rustdesk/rustdesk` 1.5.1 / 1.5.3 | `fae47e02` |
+| `rustdesk/rustdesk` 1.5.1 / 1.5.3 | `fae47e02` — DeskForge's current fork point |
 | `rustdesk/rustdesk` master | `450cc1d7` |
 | `rustdesk/rustdesk-server` 1.1.15 / 1.1.16 | `83419b65` |
 | `rustdesk/rustdesk-server` master | `69cea8da` |
