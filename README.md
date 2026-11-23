@@ -9,7 +9,7 @@
 [![License](https://img.shields.io/badge/License-AGPL--3.0-14b8a6?style=for-the-badge)](LICENSE)
 [![Deploy](https://img.shields.io/badge/Deploy-Docker_s6--overlay-2496ed?style=for-the-badge)](docker/)
 [![Stack](https://img.shields.io/badge/Stack-Rust_%7C_Go_%7C_Vue_3-64748b?style=for-the-badge)](AGENTS.md)
-[![Evidence](https://img.shields.io/badge/Client-1.4.8-blue?style=for-the-badge)](PLAN.md)
+[![rustdesk fork](https://img.shields.io/badge/rustdesk_fork-1.5.3-blue?style=for-the-badge)](PLAN.md)
 
 </div>
 
@@ -71,7 +71,11 @@ docker compose exec rustdesk cat /data/id_ed25519.pub   # public key
 
 Production Compose publishes **21114–21118**; expose 21119 separately when the public relay WebSocket path is required.
 
-**Status:** published client source/ref **1.4.8**; schema/migration state and evidence: [PLAN.md §2](PLAN.md#2-architecture).
+**Status:**
+
+- The client builds from the owned fork [`bashrusakh/rustdesk`](https://github.com/bashrusakh/rustdesk) — currently **1.5.3** (version lives in the fork's `Cargo.toml`).
+- DeskForge's tracked pin: `libs/hbb_common` @ **`fae47e024dd8`** — the rustdesk 1.5.1/1.5.3 line, re-pinned 2026-11-23.
+- Schema/migration state and evidence: [PLAN.md §2](PLAN.md#2-architecture).
 
 ---
 
@@ -150,7 +154,12 @@ Redis integration tests/benchmarks are opt-in (`DESKFORGE_TEST_REDIS_ADDR`); no 
 
 ## 🍴 Forks
 
-Two owned repositories back custom-client builds: [`bashrusakh/rustdesk`](https://github.com/bashrusakh/rustdesk) — the client fork at published source/ref 1.4.8 — and [`bashrusakh/hbb_common`](https://github.com/bashrusakh/hbb_common) — mirror of `rustdesk/hbb_common` with auto-sync installed and active (schedule-fire proof pending), never behavioral patches.
+Two owned repositories back custom-client builds:
+
+- [`bashrusakh/rustdesk`](https://github.com/bashrusakh/rustdesk) — the client fork; the client is built from it, currently **1.5.3** (`Cargo.toml` on `master`).
+- [`bashrusakh/hbb_common`](https://github.com/bashrusakh/hbb_common) — mirror of `rustdesk/hbb_common`; auto-sync installed and active (schedule-fire proof pending), never behavioral patches.
+
+DeskForge's `libs/hbb_common/` copy pins **`fae47e024dd8`** — the `rustdesk/rustdesk` 1.5.1/1.5.3 `hbb_common` line, re-pinned 2026-11-23.
 
 Canonical: workflow ownership (the fork's `.github/workflows/` are the sole executable source), topology, sync rules, pin bookkeeping → [docs/FORKS-AND-PINS.md](docs/FORKS-AND-PINS.md) · New-upstream procedure → [PLAN.md §7](PLAN.md#7-fork-maintenance-procedure-for-a-new-upstream-rustdesk-client-release) · Pin + patch record → [`libs/hbb_common/UPSTREAM.md`](libs/hbb_common/UPSTREAM.md).
 

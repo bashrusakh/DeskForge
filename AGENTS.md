@@ -119,7 +119,9 @@ section); full semantics are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 - **Clean layered (Go):** Controller → Service → Model. Do not mix layers.
 - **Admin UI serving:** no `go:embed` — the production image copies `admin-ui/dist`
   to `/app/resources/admin/` (`docker/Dockerfile`) and Gin serves it as static files
-  (`g.StaticFS("/admin", http.Dir(...))`, `api/http/router/router.go`).
+  (`g.StaticFS("/admin", http.Dir(...))`, `api/http/router/router.go`). The webclient
+  ships from `api/resources/web` (`COPY api/resources /app/resources`, `docker/Dockerfile`)
+  and Gin serves it at `/webclient` (`g.StaticFS("/webclient", http.Dir(...))`, `router.go`).
 - **Configured multi-DB:** GORM with SQLite/MySQL/PostgreSQL drivers, no `.Raw()` ORM
   bypass (the migration/repair path does use raw `Exec` statements);
   SQLite is locally exercised, cross-DB coverage as in [PLAN.md §2](PLAN.md#2-architecture).

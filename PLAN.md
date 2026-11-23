@@ -41,8 +41,9 @@ bashrusakh/
 └── hbb_common             ← mirror fork of rustdesk/hbb_common (sync mandate: docs/FORKS-AND-PINS.md §3)
 ```
 
-**Published client source/ref:** 1.4.8, aligned with `offline-kit/versions.env`; current
-schema/migration state: §2.
+**Client version:** owned by the fork `bashrusakh/rustdesk` — currently **1.5.3** (`Cargo.toml` on `master`); DeskForge contains no built-in client.
+
+`offline-kit/versions.env` is a frozen 1.4.8-era snapshot (`RUSTDESK_REF="1.4.8"`, commit `3c574a4`), not a current version source. Current schema/migration state: §2.
 
 **Pins:**
 
@@ -177,7 +178,7 @@ Historical reference: `rdgen/.github/workflows/generator-windows.yml` — not th
 
 ## 5. ✅ Completed milestones
 
-- [x] Published RustDesk client source/ref is 1.4.8; schema/migration state and evidence: §2
+- [x] Client builds from the owned fork `bashrusakh/rustdesk` @ 1.5.3 — version lives in the fork; schema/migration state and evidence: §2
 - [x] Offline-kit freeze/verify tooling and local artifact set retained; real-kit verification remains blocked under PR10
 - [x] GitHub min-test Windows: historical green run, ~33 min, single-binary rustqs.exe
 - [x] Go API: provider workflow dispatch/polling, artifact download, local validation, extraction, publication, capability-URL TTL
