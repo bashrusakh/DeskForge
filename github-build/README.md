@@ -16,10 +16,13 @@ correlation. Full contract rationale and evidence labels: [PLAN.md §2](../PLAN.
 Local fake-transport/static checks cover this contract; no normal GitHub
 dispatch, poll, or download operation is verified.
 
-The legacy compatibility ref `rustqs/workflows` is retained for read-only
-compatibility; it is not the production workflow tag. Production approval and
-dispatch require a guarded, provider-verified immutable `refs/tags/*` workflow
-tag. At the provider-resolved immutable commit, the mapped workflow must declare
+The ref `rustqs/workflows` is a backup copy of the fork's `master`, kept so the
+workflow files cannot be lost if something happens to `master`. It is not a
+dispatch selector: production approval and dispatch require a guarded,
+provider-verified immutable `refs/tags/workflow-*` workflow tag. The ref is also
+retained read-only in code for legacy compatibility (the API normalizes legacy
+workflow values to it). At the provider-resolved immutable commit, the mapped
+workflow must declare
 `workflow_dispatch` and contain the exact
 `# deskforge-workflow-identity-guard: v1` marker. The configured provider
 repository resolves the selected tag and workflow identity.
@@ -29,8 +32,8 @@ that synchronized copies, protected tags, or a live provider run currently exist
 | Ref                       | Purpose                                                        |
 | ------------------------- | -------------------------------------------------------------- |
 | `master`                  | Fork default branch; not a dispatch selector                  |
-| `rustqs/workflows`        | Legacy/read-only compatibility ref; not a production selector |
-| `rustqs/master-workflows` | Fork-maintained workflow mirror/reference ref; not a selector |
+| `rustqs/workflows`        | Backup copy of the fork's `master` (workflow-file insurance if `master` is lost); not a dispatch selector; retained read-only for legacy compatibility |
+| `rustqs/master-workflows` | Fork-maintained workflow mirror/reference ref (workflow-file backup for re-applying after an upstream sync — distinct from the whole-`master` backup above); not a selector |
 
 | Platform | Executable workflow in fork                           | Status    |
 | -------- | ----------------------------------------------------- | --------- |

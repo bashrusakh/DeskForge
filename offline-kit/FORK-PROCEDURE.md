@@ -140,8 +140,11 @@ copied into the active fork as deployment sources. The API preserves the configu
 branch/tag selector and separately checks the resolved workflow SHA; immutable
 workflow-ref protection remains a gate, not a current readiness claim.
 
-The current DeskForge default workflow execution ref is `rustqs/workflows`. The
-following three-branch model is historical reference only:
+`rustqs/workflows` is a backup copy of the fork's `master` workflows — insurance
+against losing them — not an execution ref; production execution uses
+approval-gated, guarded immutable `refs/tags/workflow-*` (see
+[`github-build/README.md`](../github-build/README.md)). The following
+three-branch model is historical reference only:
 
 | Branch | Purpose |
 |---|---|
