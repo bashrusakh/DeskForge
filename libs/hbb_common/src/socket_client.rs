@@ -187,17 +187,17 @@ pub fn is_ipv4(target: &TargetAddr<'_>) -> bool {
 
 #[inline]
 pub async fn query_nip_io(addr: &SocketAddr) -> ResultType<SocketAddr> {
-    tokio::net::lookup_host(format!("{}.nip.io:{}", addr.ip(), addr.port()))
+    tokio::net::lookup_host(format!("{}:{}", addr.ip(), addr.port()))
         .await?
         .find(|x| x.is_ipv6())
-        .context("Failed to get ipv6 from nip.io")
+        .context("Failed to get ipv6")
 }
 
 #[inline]
 pub fn ipv4_to_ipv6(addr: String, ipv4: bool) -> String {
     if !ipv4 && crate::is_ipv4_str(&addr) {
         if let Some(ip) = addr.split(':').next() {
-            return addr.replace(ip, &format!("{ip}.nip.io"));
+            return addr.replace(ip, ip);
         }
     }
     addr
@@ -296,8 +296,6 @@ pub async fn rebind_udp_for(
 
 #[cfg(test)]
 mod tests {
-    use std::net::ToSocketAddrs;
-
     use super::*;
 
     #[test]
@@ -308,28 +306,19 @@ mod tests {
     #[tokio::main(flavor = "current_thread")]
     async fn test_nat64_async() {
         assert_eq!(ipv4_to_ipv6("1.1.1.1".to_owned(), true), "1.1.1.1");
-        assert_eq!(ipv4_to_ipv6("1.1.1.1".to_owned(), false), "1.1.1.1.nip.io");
+        // Neutralized (DeskForge 2026-11-23): the external mapping suffix is gone —
+        // an IPv4 input passes through unchanged, bare and with port.
+        assert_eq!(ipv4_to_ipv6("1.1.1.1".to_owned(), false), "1.1.1.1");
         assert_eq!(
             ipv4_to_ipv6("1.1.1.1:8080".to_owned(), false),
-            "1.1.1.1.nip.io:8080"
+            "1.1.1.1:8080"
         );
         assert_eq!(
             ipv4_to_ipv6("rustdesk.com".to_owned(), false),
             "rustdesk.com"
         );
-        if ("rustdesk.com:80")
-            .to_socket_addrs()
-            .unwrap()
-            .next()
-            .unwrap()
-            .is_ipv6()
-        {
-            assert!(query_nip_io(&"1.1.1.1:80".parse().unwrap())
-                .await
-                .unwrap()
-                .is_ipv6());
-            return;
-        }
+        // No external v6-mapping host remains: a v4 literal deterministically yields
+        // no IPv6 candidate (numeric input, no DNS).
         assert!(query_nip_io(&"1.1.1.1:80".parse().unwrap()).await.is_err());
     }
 

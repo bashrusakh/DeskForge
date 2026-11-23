@@ -6,6 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### `libs/hbb_common`: last baked-in external endpoints neutralized — 2026-11-23
+- `version_check_request()` (`src/lib.rs`): the `URL` const emptied (was
+  `https://api.rustdesk.com/version/latest`); signature and request building unchanged,
+  the returned URL is now `""`.
+- `query_nip_io()` / `ipv4_to_ipv6()` (`src/socket_client.rs`): the `nip.io`
+  wildcard-DNS host removed from the lookup format (now the literal `<ip>:<port>` — no
+  DNS leaves the host, and a v4 input deterministically finds no IPv6 candidate → the
+  existing error) and the `<ip>.nip.io` mapping suffix emptied (the `ipv4=false` IPv4
+  branch is now the identity). Gate, structure and both signatures unchanged.
+- Why: closes the no-baked-in-external-endpoints invariant for **all always-compiled**
+  `libs/hbb_common/src` code (established product behavior since the initial import; the
+  `config.rs` neutralizations already covered their constants). Remaining known
+  non-issues: the feature-gated `webrtc` STUN list (never compiled in DeskForge's build
+  shape) and test-fixture strings. Kept-patch rows + invariant-coverage note:
+  `libs/hbb_common/UPSTREAM.md`. `socket_client::tests::test_nat64` adapted minimally —
+  its two hardcoded external-suffix expectations now assert pass-through, the
+  deterministic `query_nip_io(v4).is_err()` and all gate/passthrough assertions are kept,
+  and the env-conditional branch that probed the external service (AAAA via
+  `rustdesk.com`) was removed — recorded as its own test-only patch row.
+- Verification (2026-11-23, this state): endpoint grep over `libs/hbb_common/src` — zero
+  endpoint literals outside test code (remaining hits are the `query_nip_io` identifier,
+  matched only because the acceptance pattern's `.` is a wildcard, plus one
+  `test_check_ws` config string); `cargo test --lib` 110 passed; `--test proxy_transport`
+  6 passed + the environment-limited `ipv6_proxy_connect_and_data_exchange` (no `::1`
+  here) untouched; `--test websocket_proxy` 1 passed; doc-tests 2 ignored;
+  `cd server && cargo build --release --locked && cargo test --locked` green
+  (`OPENSSL_NO_VENDOR=1` + the CI `DATABASE_URL` sqlite schema seed). `clippy`/`fmt` were
+  **not run — tools absent** from this environment.
+
 ### docs: documentation sweep — dedupe, dead content removed, stale claims fixed — 2026-11-23
 - One full pass over the living docs. CONTRIBUTING de-generated and de-duplicated
   (generated filler, repeated workflow/PR/license/commands sections merged; layout
