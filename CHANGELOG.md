@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 > **Note 2026-11-23:** `PLAN.md §…` section numbers referenced in older entries below (e.g. §8.x) refer to the pre-2026-11-23 `PLAN.md` numbering and may not resolve in the current `PLAN.md`.
 
-## [Unreleased]
+## 2026-11-24
 
 ### `libs/hbb_common`: last baked-in external endpoints neutralized — 2026-11-23
 - `version_check_request()` (`src/lib.rs`): the `URL` const emptied (was
@@ -198,6 +198,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   coverage, a focused race check, `go vet`, `gofmt`, and `git diff --check`.
   Migration evidence is SQLite-only; MySQL/PostgreSQL migration and read/write
   coverage remain unverified.
+> **Note 2026-11-24:** unique external IDs preserved from the deleted `plans/` (workflow-migration record, 2026-08-16): guard runs [32333446480](https://github.com/bashrusakh/rustdesk/actions/runs/32333446480) — live mismatch run, failed in `verify_workflow_identity` with "outer workflow_sha does not match github.sha", no secret-bearing job ran — and [32334155671](https://github.com/bashrusakh/rustdesk/actions/runs/32334155671) — live matching run, passed the outer guard to the intentional post-inner failure "encrypted payload is missing source_sha"; together they evidence outer/inner guard sequencing only, not production artifact output; Repository Ruleset `20901403` (`DeskForge workflow tags`) recorded protecting `refs/tags/workflow-*` with deletion/update protection (`bypass_actors=[]`, `current_user_can_bypass=never`); also recorded there: PR #5 (`bashrusakh/rustdesk`, "feat: make client sources upstream-independent" — open at record date, merged 2026-09-14) and DeskForge PR #57 (merged 2026-06-28).
 
 ### Current-state reconciliation — 2026-08-10
 - The published RustDesk client source/ref is **1.4.8** and the published DeskForge API
@@ -234,7 +235,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   correct key that the client reads for WebSocket protocol selection and API URL.
   (H-011)
 
-## [Unreleased] - 2026-06-22
+## 2026-06-22
 
 Audit-cycle batch: 18 fix branches merged in a single train via PR #30 on top of the
 security/doc-consolidation chain (PRs #24 → #29). `DatabaseVersion` bumped from 269 → **272**
@@ -338,7 +339,7 @@ across three migration steps; `AutoMigrate` is idempotent so all schema addition
 
 ---
 
-## [Unreleased] - 2026-06-17
+## 2026-06-17
 
 ### Security
 - **api: stop exposing OAuth `client_secret`** — `Oauth.ClientSecret` now `json:"-"` so list/detail responses never ship secrets to the browser. (M-016)
