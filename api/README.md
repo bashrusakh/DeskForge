@@ -149,101 +149,9 @@ source annotations and are regenerated from them when the annotations change.
 
 ## Workflow protection evidence
 
-Workflow-ref approval requires a provider-derived, verified annotated tag and
-one modern provider-verified ruleset surface for the exact tag label. The modern
-ruleset surface is authoritative and the only supported protection surface;
-initial list, later page, detail, policy, and contract failures all fail closed:
-
-- **Ruleset discovery** — modern
-  `GET /repos/{owner}/{repo}/rulesets?targets=tag&includes_parents=true`, bounded to
-  three pages and 256 rulesets, discovers candidate IDs only. DeskForge then
-  consumes `GET /repos/{owner}/{repo}/rulesets/{id}?includes_parents=true` and
-  validates the repository-scoped detail metadata (`name`, `source`, and
-  `source_type` in `Repository`, `Organization`, or `Enterprise`; documented
-  `created_at` and `updated_at` values are type-checked when present).
-- **Applicability** — the repository-scoped `includes_parents=true` response
-  establishes applicability at the provider boundary. DeskForge requires
-  `conditions.ref_name` for tag matching and does not independently evaluate
-  `repository_name`, `repository_id`, or `repository_property` selectors. The
-  separate organization authoring endpoint, `POST /orgs/{org}/rulesets`, uses
-  repository selectors to define where a ruleset applies; that create-schema
-  requirement must not be imposed on repository-scoped inherited detail responses.
-- **Fail-closed conditions** — unknown condition fields and malformed condition
-  values fail closed. Excludes win. `tag_name_pattern` is validated only as rule
-  metadata; it is not the ref selector, and no `fnmatch` rule is required for
-  selection.
-- **Rule parameters** — for tag rules, `update` without parameters is valid; when
-  parameters are present they must be a strict object containing the boolean
-  `update_allows_fetch_and_merge`. Null, empty, malformed, or unknown parameter
-  objects fail closed. Branch-target rules continue to require that parameter.
-- **Bypass** — every applicable ruleset must expose `bypass_actors: []` and
-  `current_user_can_bypass: "never"`; any applicable bypass actor or other
-  current-user bypass mode rejects approval. Effective `update` and `deletion`
-  rules may be split across matching rulesets. Other documented known rules are
-  neutral or stronger additions, while unknown or malformed rules fail closed.
-  Inherited parent rulesets use the same checks.
-- **Tag verification** — the provider must reject a tag/branch collision for the
-  same label, and the tag's verification must report `verified=true` with the
-  accepted provider verification reason. Raw SHA selectors are not approval inputs.
-
-The former tag-protection LIST compatibility path is **CONFIRMED OBSOLETE**:
-the GitHub.com provider is hard-wired to `https://api.github.com`, DeskForge has
-no configurable GHES base URL or provider, and current GitHub documentation marks
-that legacy surface as closing down/removed. A GHES installation may have a
-historical `enabled`/`pattern` schema, but it is separate context rather than a
-DeskForge capability. A mismatch, absent evidence, any bypass actor, or
-an active applicable ruleset without effective update and deletion protection
-never proves protection.
-
-### Recorded ruleset provider evidence
-
-The endpoint distinction follows the [organization ruleset creation
-documentation](https://docs.github.com/en/rest/orgs/rules#create-an-organization-repository-ruleset),
-the [repository ruleset detail documentation](https://docs.github.com/en/rest/repos/rules#get-a-repository-ruleset),
-and the [tag protection LIST documentation](https://docs.github.com/en/rest/repos/tags#get-all-tag-protection-states-for-a-repository).
-
-On 2026-08-14, an authenticated observation of `github/docs` returned the
-following summary from the repository-scoped list endpoint:
-
-```text
-GET https://api.github.com/repos/github/docs/rulesets?targets=tag&includes_parents=true&per_page=100
-=> id=18281681, target=tag, source_type=Organization, source=github, enforcement=active
-```
-
-The summary did not contain conditions, rules, or bypass metadata. The matching
-repository-scoped detail was:
-
-```text
-GET https://api.github.com/repos/github/docs/rulesets/18281681?includes_parents=true
-```
-
-It was ruleset `18281681` (`Enterprise Tags`) with
-`conditions.ref_name` only and these exact include patterns:
-
-```text
-refs/tags/enterprise-[0-9].*-freeze
-refs/tags/enterprise-[0-9].[0-9].[0-9]
-refs/tags/enterprise-[0-9].[0-9].[0-9][0-9]
-refs/tags/enterprise-[0-9].[0-9][0-9].[0-9]
-refs/tags/enterprise-[0-9].[0-9][0-9].[0-9][0-9]
-refs/tags/enterprise-[0-9].*.pre[0-9]
-refs/tags/enterprise-[0-9].*.pre[0-9][0-9]
-refs/tags/enterprise-[0-9].*.gm[0-9]
-refs/tags/enterprise-[0-9].*.gm[0-9][0-9]
-refs/tags/enterprise-[0-9].*.rc[0-9]
-refs/tags/enterprise-[0-9].*.rc[0-9][0-9]
-```
-
-Its rules were `deletion`, `non_fast_forward`, `creation`, and `update` with
-no parameters; `created_at` was `2026-06-30T07:19:50.340+11:00`,
-`updated_at` was `2026-06-30T07:20:37.936+11:00`, and
-`current_user_can_bypass` was `never`. `bypass_actors` was omitted because the
-observing token lacked write access. DeskForge therefore uses
-`bypass_actors: []` as the positive write-authorized contract fixture and fails
-closed when the field is omitted. This observation is provider evidence, not a
-completed live approval, dispatch, or release claim. Initial and later ruleset
-list failures, detail failures, policy failures, and contract failures remain
-failures.
+Workflow-ref approval requires a provider-derived, verified annotated tag plus one modern provider-verified ruleset surface for the exact tag label — the modern ruleset surface is the only supported protection surface, and ruleset discovery/detail/policy/contract failures all fail closed: every applicable ruleset must expose `bypass_actors: []` and `current_user_can_bypass: "never"`, tag/branch collisions for the same label are rejected, and unknown or malformed conditions/rules/parameters fail closed (the former tag-protection LIST compatibility path is **CONFIRMED OBSOLETE** — the GitHub.com provider is hard-wired, DeskForge has no configurable GHES base URL, and GitHub marks that legacy surface as removed).
+Recorded provider evidence: guard runs [32333446480](https://github.com/bashrusakh/rustdesk/actions/runs/32333446480) (outer `workflow_sha` mismatch, no secret-bearing job ran) and [32334155671](https://github.com/bashrusakh/rustdesk/actions/runs/32334155671) (passed the outer guard to the intentional post-inner failure) — together they evidence outer/inner guard sequencing only, not production artifact output — plus Repository Ruleset `20901403` (`DeskForge workflow tags`, protecting `refs/tags/workflow-*`, `bypass_actors=[]`, `current_user_can_bypass=never`).
+Full ruleset rules (discovery bounds, applicability, fail-closed conditions, rule parameters, bypass, tag verification) and the observed `github/docs` ruleset `18281681` contract transcript are archived in [CHANGELOG.md](../CHANGELOG.md) ("Recorded workflow-protection evidence — archived from `api/README.md`, 2026-11-24"). This is a provider-boundary contract description, not a completed live approval, dispatch, run, artifact, signature, attestation, or release claim.
 
 ### GitHub fine-grained PAT permissions
 
@@ -277,29 +185,9 @@ no end-to-end atomic-dispatch claim is made.
 
 ## Schema and secret compatibility evidence
 
-The published DeskForge API schema is `DatabaseVersion` **272**; the current local
-corrective candidate targets schema **285** (`api/cmd/apimain.go`), which is not
-published or live-provider evidence. Earlier migration steps:
+Published vs candidate schema state, the migration table (280–285), and migration-test evidence: [PLAN.md §2](../PLAN.md#2-architecture) — the single canonical statement. Migration tests are SQLite-only; **MySQL/PostgreSQL migration and read/write coverage remain unverified.**
 
-- **280/281/282** — workflow-approval fields `workflow_ref_approved`,
-  `workflow_ref_provider_verified`, `workflow_ref_approval_sha`
-- **283** — `idx_custom_presets_user_id_name` on `(user_id, name)`; before
-  `AutoMigrate`, preflight fails on an existing duplicate group without auto-selecting
-  or deleting a row
-- **284** — create-time `preset_id` / `preset_name` provenance snapshots
-- **285** — branding-field preflight before `AutoMigrate`, failing closed on a
-  rejected stored value
-
-Migration tests are SQLite-only; MySQL/PostgreSQL migration and read/write coverage
-remain unverified. Full schema/migration-test evidence:
-[PLAN.md §2](../PLAN.md#2-architecture).
-
-`AutoMigrate` keeps legacy rows readable. Legacy plaintext PAT/payload-key
-metadata remains readable, and metadata-only configuration saves preserve those
-legacy values without requiring `SECRET_ENCRYPTION_KEY`. New or replaced
-non-empty secret writes require that key; when it is available, resaving a
-legacy row encrypts its plaintext secrets. Secret values are never returned in
-the safe configuration view.
+`AutoMigrate` keeps legacy rows readable: metadata-only configuration saves preserve legacy plaintext PAT/payload-key values without requiring `SECRET_ENCRYPTION_KEY`, new or replaced non-empty secret writes require that key, and secret values are never returned in the safe configuration view — full semantics: [docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md).
 
 ## Quick start
 
@@ -311,11 +199,9 @@ GOWORK=off go vet ./...
 GOWORK=off go test ./...
 ```
 
-Both broad checks passed (recorded 2026-08-11/12, after test-only cache diagnostics
-and opt-in Redis test changes); that pass predates the schema-284/285 code of
-2026-10-13 and is therefore stale rather than contradicted (evidence dating:
-`PLAN.md:69-71`).
-Redis integration tests and benchmarks run only when
-`DESKFORGE_TEST_REDIS_ADDR` is configured; no live Redis run is recorded.
-MySQL/PostgreSQL, live provider, and the other release/build gates remain
+Both broad checks passed (recorded 2026-08-11/12, after test-only cache diagnostics and opt-in Redis
+test changes); that pass predates the schema-284/285 code of 2026-10-13 and is therefore stale rather
+than contradicted (evidence dating: `PLAN.md:69-71`).
+Redis integration tests and benchmarks run only when `DESKFORGE_TEST_REDIS_ADDR` is configured; no live
+Redis run is recorded. MySQL/PostgreSQL, live provider, and the other release/build gates remain
 unverified.

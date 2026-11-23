@@ -57,55 +57,22 @@ win-builder/     — ❄️ frozen manual/historical-only standalone builder
 offline-kit/     — ❄️ frozen dependency-freeze tool; verification is incomplete
 ```
 
-DeskForge tracks `libs/hbb_common/` directly: it is a copy of our mirror fork
-`bashrusakh/hbb_common` at a recorded pin plus a documented patch set — pin record:
-`libs/hbb_common/UPSTREAM.md`; topology, sync rules, invariants, and pin bookkeeping:
-`docs/FORKS-AND-PINS.md` (canonical). The mirror fork must be kept in sync with
-upstream automatically where technically possible (merge-based, never history-rewriting)
-and never carries behavioral patches; the configured RustDesk fork records its
-`libs/hbb_common` gitlink against our mirror fork by SHA (`master` → `36ab6ed`,
-2026-11-23). The fork's `.github/workflows/` files are the sole executable source for
-active client-build workflows; `github-build/` and `rdgen/` are reference/frozen
-material only. No current repository `vendor/` tree, `rustdesk-deps/` archive, or
-client-release directory is tracked here.
-Current-state summary: published RustDesk client source/ref 1.4.8; published DeskForge
-API schema `DatabaseVersion` 272, current local candidate 285 (not published;
-SQLite-only migration evidence; MySQL/PostgreSQL migration and read/write coverage
-remain unverified) — details: [PLAN.md §2](PLAN.md#2-architecture).
+DeskForge tracks `libs/hbb_common/` directly — a copy of our mirror fork
+`bashrusakh/hbb_common` at a recorded pin plus a documented patch set. Canonical homes:
+fork topology, sync rules, pin bookkeeping, and workflow ownership (the fork's
+`.github/workflows/` are the sole executable workflow source; `github-build/` and
+`rdgen/` are reference/frozen material only) →
+[docs/FORKS-AND-PINS.md](docs/FORKS-AND-PINS.md); pin + patch record →
+[`libs/hbb_common/UPSTREAM.md`](libs/hbb_common/UPSTREAM.md); current schema/migration
+state → [PLAN.md §2](PLAN.md#2-architecture).
 
 ## Build / dev commands
 
-### Docker (primary)
-
-```bash
-cd docker
-docker compose build          # full build
-docker compose up -d          # start
-cd ../api && docker compose -f docker-compose-dev.yaml up -d   # dev API stack
-```
-
-### Rust
-
-```bash
-cd server && cargo build --release && cargo clippy && cargo test
-```
-
-### Go
-
-```bash
-cd api && go build -o release/apimain cmd/apimain.go
-# Full local checks:
-GOWORK=off go vet ./...
-GOWORK=off go test ./...
-# Redis integration tests and benchmarks are opt-in. Configure
-# DESKFORGE_TEST_REDIS_ADDR to run them; no live Redis endpoint is assumed.
-```
-
-### Admin UI
-
-```bash
-cd admin-ui && npm install && npm run dev && npm run build
-```
+Canonical commands: [CONTRIBUTING.md](CONTRIBUTING.md) ("Dev Commands") — Docker
+(`docker/`), Rust (`server/`), Go (`api/`), admin UI (`admin-ui/`); component-local
+commands also live in [api/README.md](api/README.md) and
+[admin-ui/README.md](admin-ui/README.md). Redis integration tests/benchmarks are opt-in
+(`DESKFORGE_TEST_REDIS_ADDR`); no live Redis run is recorded.
 
 ## Environment variables
 
@@ -134,9 +101,8 @@ section); full semantics are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 - Active third-party upstream dependencies remain in the Rust/Go manifests; a complete
   upstream-independent or offline dependency bundle is not currently verified.
 - The combined DeskForge distribution is identified as AGPL-3.0 for the covered work;
-  separate API/UI/reference components retain their applicable upstream licenses and notices.
-  The license inventory is incomplete; no signatures or attestations are recorded, and no
-  full sovereignty claim is made.
+  component licenses, the incomplete inventory, and the no-sovereignty non-claim:
+  [LICENSE](LICENSE), [NOTICE](NOTICE), [README](README.md) ("License").
 - Keep Docker entrypoint scripts in sync with the services they supervise.
 - Never log or commit secrets.
 - Document env vars in README + docker-compose.

@@ -235,6 +235,149 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   correct key that the client reads for WebSocket protocol selection and API URL.
   (H-011)
 
+### Upstream s6 dependency removal — archived from `docs/UPSTREAM_DEPENDENCY_REMOVAL.md` (2026-11-24)
+
+> **Archive entry 2026-11-24:** the executed plan, verification result, changed-files list, and risk
+> pass were relocated from `docs/UPSTREAM_DEPENDENCY_REMOVAL.md` during the docs simplification round;
+> that document keeps the problem, why-s6 rationale, what changed, pinned versions, and verification
+> commands. The migration below was executed and verified 2026-06-28; content is as recorded.
+
+**Implementation plan (executed):**
+
+1. Verify `rustdesk-utils` builds under musl: `cd server && cargo build --bin rustdesk-utils --target x86_64-unknown-linux-musl --release` — if it fails, fix deps (hbb_common must be accessible).
+2. Update `docker/Dockerfile`: Stage 1 add `--bin rustdesk-utils` (line 34); remove Stage 4 (`FROM rustdesk/rustdesk-server-s6:latest AS s6-source`); add new Stage 4 (`s6-stage`) downloading s6-overlay v3.2.3.0; Stage 5 copy from `s6-stage` instead of `s6-source`; Stage 5 add custom `healthcheck.sh` creation; Stage 5 copy `rustdesk-utils` from `rust-builder`.
+3. Test build: `cd docker && docker compose build --no-cache`.
+4. Test runtime: `docker compose up -d`, `docker compose logs -f` — verify hbbs/hbbr/API start, healthcheck passes, `rustdesk-utils genkeypair` works.
+5. Update or remove `api/Dockerfile_full_s6`: add `# DEPRECATED` comment or delete.
+
+**Result (verified 2026-06-28):**
+
+- ✅ **Build succeeds** — `docker compose build` no errors
+- ✅ **Container starts** — `docker compose up -d`
+- ✅ **Healthcheck: healthy** — all 3 services (hbbs, hbbr, api) running
+- ✅ **rustdesk-utils works** — `genkeypair` generates valid Ed25519 keys
+- ✅ **Keys created automatically** — `/data/id_ed25519` and `/data/id_ed25519.pub`
+- ✅ **API responds** — `GET /api/` → `{"code":0,"message":"success","data":"Hello Gwen"}`
+- ✅ **Admin UI accessible** — `GET /admin/` serves Vue SPA
+- ✅ **Image 127 MB** (was ~150+ MB with upstream pull)
+- ✅ **No docker.io/rustdesk pull** — the `rustdesk-server-s6` base-image dependency is gone from the
+  image build. This is image-build independence from that one upstream image only: the Dockerfile
+  still pulls official `rust`/`golang`/`node`/`alpine` base images and active third-party upstream
+  dependencies remain in the Rust/Go manifests — no project-wide upstream-independence, sovereignty,
+  or release claim is made (see `AGENTS.md` / `PLAN.md` §0).
+
+**Changed files:** `docker/Dockerfile` (Stage 1 `--bin rustdesk-utils`; Stage 4 upstream → GitHub
+s6-overlay v3.2.3.0; Stage 5 custom healthcheck.sh + rustdesk-utils from Stage 1);
+`api/Dockerfile_full_s6` (commented + DEPRECATED marker, unused in compose);
+`docs/UPSTREAM_DEPENDENCY_REMOVAL.md` (the document).
+
+**Risks & mitigations (status: passed):** s6-overlay v3.2.3.0 incompatible → ✅ OK (all 3 services
+started, s6-rc works); `rustdesk-utils` fails musl build → ✅ OK (built in Stage 1, runs in
+container); healthcheck misses services → ✅ OK (checks hbbs, hbbr, api — all up); keys don't work
+with clients → ✅ OK (keys generated, hbbs reads them, API serves pub key).
+
+**Next steps (optional):** remove `rustdesk/rustdesk-server-s6` locally
+(`docker rmi rustdesk/rustdesk-server-s6:latest`); delete `api/Dockerfile_full_s6` entirely
+(deprecated marker present; unused in compose); `.env.example` upstream references — none found
+(checked 2026-11-23); CI coverage — done: `.github/workflows/build.yml` builds `docker/Dockerfile`.
+
+### Recorded workflow-protection evidence — archived from `api/README.md` (2026-11-24)
+
+> **Archive entry 2026-11-24:** the workflow-protection ruleset rules and the recorded
+> provider-evidence transcript were relocated from `api/README.md` ("Workflow protection evidence")
+> during the docs simplification round; `api/README.md` keeps the summary. Guard-run records kept
+> verbatim: runs [32333446480](https://github.com/bashrusakh/rustdesk/actions/runs/32333446480)
+> (live mismatch run, failed in `verify_workflow_identity` with "outer workflow_sha does not match
+> github.sha", no secret-bearing job ran) and
+> [32334155671](https://github.com/bashrusakh/rustdesk/actions/runs/32334155671) (live matching run,
+> passed the outer guard to the intentional post-inner failure "encrypted payload is missing
+> source_sha") — together they evidence outer/inner guard sequencing only, not production artifact
+> output; Repository Ruleset `20901403` (`DeskForge workflow tags`) recorded protecting
+> `refs/tags/workflow-*` with deletion/update protection (`bypass_actors=[]`,
+> `current_user_can_bypass=never`).
+
+**Ruleset protection rules (as implemented):**
+
+- **Ruleset discovery** — modern `GET /repos/{owner}/{repo}/rulesets?targets=tag&includes_parents=true`,
+  bounded to three pages and 256 rulesets, discovers candidate IDs only. DeskForge then consumes
+  `GET /repos/{owner}/{repo}/rulesets/{id}?includes_parents=true` and validates the
+  repository-scoped detail metadata (`name`, `source`, and `source_type` in `Repository`,
+  `Organization`, or `Enterprise`; documented `created_at` and `updated_at` values are type-checked
+  when present).
+- **Applicability** — the repository-scoped `includes_parents=true` response establishes
+  applicability at the provider boundary. DeskForge requires `conditions.ref_name` for tag matching
+  and does not independently evaluate `repository_name`, `repository_id`, or `repository_property`
+  selectors. The separate organization authoring endpoint, `POST /orgs/{org}/rulesets`, uses
+  repository selectors to define where a ruleset applies; that create-schema requirement must not be
+  imposed on repository-scoped inherited detail responses.
+- **Fail-closed conditions** — unknown condition fields and malformed condition values fail closed.
+  Excludes win. `tag_name_pattern` is validated only as rule metadata; it is not the ref selector,
+  and no `fnmatch` rule is required for selection.
+- **Rule parameters** — for tag rules, `update` without parameters is valid; when parameters are
+  present they must be a strict object containing the boolean `update_allows_fetch_and_merge`. Null,
+  empty, malformed, or unknown parameter objects fail closed. Branch-target rules continue to require
+  that parameter.
+- **Bypass** — every applicable ruleset must expose `bypass_actors: []` and
+  `current_user_can_bypass: "never"`; any applicable bypass actor or other current-user bypass mode
+  rejects approval. Effective `update` and `deletion` rules may be split across matching rulesets.
+  Other documented known rules are neutral or stronger additions, while unknown or malformed rules
+  fail closed. Inherited parent rulesets use the same checks.
+- **Tag verification** — the provider must reject a tag/branch collision for the same label, and the
+  tag's verification must report `verified=true` with the accepted provider verification reason. Raw
+  SHA selectors are not approval inputs.
+
+The former tag-protection LIST compatibility path is **CONFIRMED OBSOLETE**: the GitHub.com provider
+is hard-wired to `https://api.github.com`, DeskForge has no configurable GHES base URL or provider,
+and current GitHub documentation marks that legacy surface as closing down/removed. A GHES
+installation may have a historical `enabled`/`pattern` schema, but it is separate context rather than
+a DeskForge capability. A mismatch, absent evidence, any bypass actor, or an active applicable
+ruleset without effective update and deletion protection never proves protection.
+
+The endpoint distinction follows the [organization ruleset creation
+documentation](https://docs.github.com/en/rest/orgs/rules#create-an-organization-repository-ruleset),
+the [repository ruleset detail documentation](https://docs.github.com/en/rest/repos/rules#get-a-repository-ruleset),
+and the [tag protection LIST documentation](https://docs.github.com/en/rest/repos/tags#get-all-tag-protection-states-for-a-repository).
+
+On 2026-08-14, an authenticated observation of `github/docs` returned the following summary from the
+repository-scoped list endpoint:
+
+```text
+GET https://api.github.com/repos/github/docs/rulesets?targets=tag&includes_parents=true&per_page=100
+=> id=18281681, target=tag, source_type=Organization, source=github, enforcement=active
+```
+
+The summary did not contain conditions, rules, or bypass metadata. The matching repository-scoped
+detail was:
+
+```text
+GET https://api.github.com/repos/github/docs/rulesets/18281681?includes_parents=true
+```
+
+It was ruleset `18281681` (`Enterprise Tags`) with `conditions.ref_name` only and these exact
+include patterns:
+
+```text
+refs/tags/enterprise-[0-9].*-freeze
+refs/tags/enterprise-[0-9].[0-9].[0-9]
+refs/tags/enterprise-[0-9].[0-9].[0-9][0-9]
+refs/tags/enterprise-[0-9].[0-9][0-9].[0-9]
+refs/tags/enterprise-[0-9].[0-9][0-9].[0-9][0-9]
+refs/tags/enterprise-[0-9].*.pre[0-9]
+refs/tags/enterprise-[0-9].*.pre[0-9][0-9]
+refs/tags/enterprise-[0-9].*.gm[0-9]
+refs/tags/enterprise-[0-9].*.gm[0-9][0-9]
+refs/tags/enterprise-[0-9].*.rc[0-9]
+refs/tags/enterprise-[0-9].*.rc[0-9][0-9]
+```
+
+Its rules were `deletion`, `non_fast_forward`, `creation`, and `update` with no parameters;
+`created_at` was `2026-06-30T07:19:50.340+11:00`, `updated_at` was `2026-06-30T07:20:37.936+11:00`,
+and `current_user_can_bypass` was `never`. `bypass_actors` was omitted because the observing token
+lacked write access. DeskForge therefore uses `bypass_actors: []` as the positive write-authorized
+contract fixture and fails closed when the field is omitted. This observation is provider evidence,
+not a completed live approval, dispatch, or release claim. Initial and later ruleset list failures,
+detail failures, policy failures, and contract failures remain failures.
+
 ## 2026-06-22
 
 Audit-cycle batch: 18 fix branches merged in a single train via PR #30 on top of the
