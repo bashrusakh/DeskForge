@@ -155,6 +155,20 @@ configuration saves remain compatible with plaintext secret rows: they can prese
 legacy values without `SECRET_ENCRYPTION_KEY`; new or replaced non-empty secret writes
 require the key, and a resave with the key encrypts legacy plaintext values.
 
+Schema 284 adds create-time `preset_id` and `preset_name` provenance snapshots to
+`custom_builds`. Schema 285 runs the custom-client branding-field preflight before
+`AutoMigrate`, failing closed when an existing `custom_builds` or `custom_presets`
+row already carries a branding field value the shared branding seam rejects.
+SQLite-only tests cover the schema-283 duplicate-data preflight/unique index,
+schema-284 provenance columns (including migration and readback of a populated
+pre-provenance `custom_builds` row), and the schema-285 branding preflight/version
+gate: an install already at 284 fails closed on a rejected stored branding value
+without recording 285, an accepted one upgrades and records 285, and a fresh, 283,
+or 284 install runs the preflight while a 285 install skips it. MySQL/PostgreSQL
+migration and read/write coverage remain unverified. Local workflow manifests,
+bridge/helper source, Android app-ID/runtime-path checks, and package assertions
+are static evidence only; no APK/package/install/runtime evidence exists.
+
 Focused fake-transport and SQLite checks do not prove live GitHub/provider
 approval, dispatch, polling, or artifact delivery. Dispatch relies on the exact
 HTTP 200 run-details contract, pins the dispatch request to the

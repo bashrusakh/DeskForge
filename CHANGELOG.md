@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### docs: README restructured as a concise showcase — 2026-11-23
+- Root `README.md` rewritten as a short front door (system shape, quick start, ports,
+  env table, features, build commands, forks, doc links, license); deep content moved to
+  the new `docs/DEPLOYMENT.md` (`.env` setup, upgrade migration, environment semantics)
+  and `PLAN.md` §2 (schema-284/285 and migration-test evidence).
+
 ### `libs/hbb_common` re-pinned to `fae47e02` (rustdesk 1.5.1/1.5.3) — 2026-11-23
 - Vendored `libs/hbb_common/` re-pinned to
   `rustdesk/hbb_common@fae47e024dd83cef6aaecde0aa7d11731df11649` (2026-10-28, the
