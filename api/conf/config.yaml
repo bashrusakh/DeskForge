@@ -10,7 +10,7 @@ app:
   web-sso: true #web auth sso
   disable-pwd-login: false #
   api-base: "" # reserved public base URL; provider-backed builds do not use agent callbacks
-  download-key-ttl: 168h # custom-build download capability URL lifetime (BUGS.md B-006); <=0 => 7d default
+  download-key-ttl: 168h # custom-build download capability URL lifetime (PLAN §6, B-006); <=0 => 7d default
 
 admin:
   title: "DeskForge Admin"

@@ -79,7 +79,7 @@ func (l *CustomPresetList) Safe() *CustomPresetSafeList {
 	return view
 }
 
-// --- BUGS.md B-008: non-empty permanent_password lies inside custom_json.
+// --- PLAN §6, B-008: non-empty permanent_password lies inside custom_json.
 // Secret-bearing JSON is encrypted at rest; non-secret typed JSON keeps its
 // existing representation so core non-secret operations remain available. ----
 

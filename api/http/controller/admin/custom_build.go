@@ -458,7 +458,7 @@ func scheduleArtifactCleanupRetryDefault(buildID uint, archivePath string) {
 }
 
 // defaultWindowsArtifactName — имя GitHub-артефакта, который продюсит
-// rustqs-windows workflow. Вынесено из inline-строки (BUGS.md AU-L-011).
+// rustqs-windows workflow. Вынесено из inline-строки (PLAN §6, AU-L-011).
 const defaultWindowsArtifactName = "rustqs-windows"
 
 func artifactNameForPlatform(platform string) string {
@@ -499,7 +499,7 @@ func (ct *CustomBuild) List(c *gin.Context) {
 
 // Versions — список версий RustDesk, доступных для custom-сборки. На ошибке
 // GitHub API возвращает 200 + пустой массив, чтобы UI мог показать empty/error
-// state, а не 5xx (BUGS.md AU-L-016).
+// state, а не 5xx (PLAN §6, AU-L-016).
 type versionsResponse struct {
 	Versions []versionOption `json:"versions"`
 	Error    bool            `json:"error"`
@@ -694,7 +694,7 @@ func (ct *CustomBuild) Create(c *gin.Context) {
 	}
 	b.Status = model.CustomBuildStatusPending
 	b.DownloadKey = utils.RandomString(32)
-	// BUGS.md B-006: capability-ссылка должна протухать. TTL из конфига,
+	// PLAN §6, B-006: capability-ссылка должна протухать. TTL из конфига,
 	// дефолт 7 дней если не задан/невалиден.
 	ttl := global.Config.App.DownloadKeyTTL
 	if ttl <= 0 {
@@ -821,7 +821,7 @@ func (ct *CustomBuild) Delete(c *gin.Context) {
 
 // findBuildByDownloadKey — единая точка валидации capability-ключа для всех
 // публичных эндпоинтов (DetailByKey/DownloadByKey). Проверяет и существование,
-// и срок жизни (BUGS.md B-006), чтобы протухание нельзя было забыть проверить
+// и срок жизни (PLAN §6, B-006), чтобы протухание нельзя было забыть проверить
 // в одном из обработчиков. Возвращает (build, httpStatus, ok), где httpStatus =
 // 404 для ненайденного ключа, 410 для протухшего, 200 для валидного.
 func findBuildByDownloadKey(key string) (*model.CustomBuild, int, bool) {

@@ -1,7 +1,7 @@
 # PLAN.md — DeskForge: Single Source of Truth
 
 > Last updated: 2026-11-23
-> Related: [CHANGELOG.md](CHANGELOG.md) · [BUGS.md](BUGS.md) · [CONTRIBUTING.md](CONTRIBUTING.md)
+> Related: [CHANGELOG.md](CHANGELOG.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [Open findings & tracker IDs](#61-open-findings--tracker-ids)
 
 > **Evidence labels (2026-11-23):** no live provider run or clean-environment build
 > proof is claimed; Windows is the only production capability admitted by the API gate,
@@ -194,6 +194,41 @@ Historical reference: `rdgen/.github/workflows/generator-windows.yml` — not th
 - [ ] **Full client rebrand** — About, URLs, icons — in workflow, not in the fork
 - [ ] **Smoke test** for built binary (`--version`)
 - [ ] **Ballast cleanup** — remove MinGW leftovers, test containers
+
+### 6.1. Open findings & tracker IDs
+
+Folded from `BUGS.md` (deleted 2026-11-24). Live findings first, then every retired ID
+still cited from code, so each citation resolves here.
+Legend: `[ ]` open · `[~]` partial · `[x]` fixed.
+
+| ID | Status | Essence | Where |
+| --- | --- | --- | --- |
+| `AU-M-022` | `[ ]` open · security | Unauthenticated client-API writes: `POST /api/sysinfo`, `/api/heartbeat`, `/api/audit/conn`, `/api/audit/file` register before `RustAuth()`, so an anonymous caller can create/alter `Peer` rows and inject audit entries; `/api/shared-peer` asserts `share_token` unchecked (500 when missing). Fix needs RustDesk protocol-design confirmation — the PC client hits these endpoints before auth. | `api/http/router/api.go` (before `Use(RustAuth())` at `:76`); `api/http/controller/api/webClient.go:57` |
+| `RD-B6` | `[~]` partial | rdgen `download`/`get_png`/`get_zip` stay unauthenticated by protocol; hardened with file TTLs instead of a token gate — exe 7d (`RDGEN_EXE_TTL`), png 6h (`RDGEN_PNG_TTL`), zip 1h (`RDGEN_ZIP_TTL`), `<=0` disables; path-traversal/UUID validation already in place. Still open (needs design): server-signed expiring URLs threaded through all URL-generation sites. | `rdgen/rdgenerator/views.py:506,527,716`, `rdgen/docker-compose.yml:18-20` (frozen) |
+| `B-012` | `[~]` partial | Linux/Android build workflows: the API maps fork-owned workflow filenames, but the production capability gate rejects both platforms until PR11 validates real Actions runs and the full artifact path; `bridge.yml` must exist on both branches (else dispatch 422s). No live provider/workflow evidence. UI re-expose tracked as `B-013` behind a feature flag once runs are green. | fork `.github/workflows/rustqs-linux.yml`, `rustqs-android.yml` (reference templates only: `github-build/`, `rdgen/.github/workflows/`) |
+| `B-014` | `[~]` partial | Unused conversion helpers/API surface partially deleted 2026-06-20 (`FromCustomBuild`, `FromCustomPreset`, `detail()` export, `GET /custom_build/detail/:id` un-routed). Still open: `GET /api/admin/custom_build/public/detailByKey/:key` has no UI caller — kept as a documented capability URL; delete in a janitorial PR after the higher-priority work. | `api/http/router/admin.go:63` (open route), `:388` (un-routed `detail/:id`) |
+| `AU-C-001` | `[x]` fixed · retired | Server settings are volatile — runtime changes lost on restart; state now persists in `server_cmd_states` and is replayed on startup (`ReplayServerCmds`). | `api/cmd/apimain.go:66,271`; `api/http/controller/admin/rustdesk.go:238`; `api/service/serverCmd.go:47`; `api/model/server_cmd_state.go:3` |
+| `B-003` | `[x]` fixed · retired | `pollAndDownload` was orphaned on API container restart; `custom_builds.github_run_id` + `ResumePendingPolls()` now resume in-flight GitHub polling after restart. | `api/cmd/apimain.go:268`; `api/model/custom_build.go:34` |
+| `B-006` | `[x]` fixed · retired | `download_key` was permanent and rate-limit-free; capability URLs now expire via `download_key_expires_at` + config `download-key-ttl` (default 7d; `<=0` → 7d). | `api/conf/config.yaml:13`; `api/config/config.go:28`; `api/model/custom_build.go:30`; `api/http/controller/admin/custom_build.go:697,824` |
+| `B-008` | `[x]` fixed · retired | GitHub PAT and `permanent_password` were stored in plaintext; secrets at rest are now AES-256-GCM-encrypted via `SECRET_ENCRYPTION_KEY` (semantics: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)), including `permanent_password` inside `custom_json`. | `api/utils/secretcrypt.go:18`; `api/model/github_build_config.go:154`; `api/model/custom_build.go:212`; `api/model/custom_preset.go:82` |
+| `B-009` | `[x]` fixed · retired | `dispatchTest` sent an empty payload `map[string]any{}` to the workflow; the real payload is sent now. | `api/http/controller/admin/github_build_config.go:295` |
+| `AU-M-021` | `[x]` fixed · retired | My Profile — account info not editable; self-editable `UpdateCurrent`/`UpdateCurrentForm` added (GORM `Updates(struct)` skips zero values — noted at the call site). | `api/http/controller/admin/user.go:283`; `api/http/request/admin/user.go:65`; `api/service/user.go:269` |
+| `AU-S-001` | `[x]` fixed · retired | No audit logging for server commands; `server_cmd_audits` records command, payload, actor, timestamp — after auth. | `api/model/server_cmd_audit.go:3`; `api/http/middleware/audit.go:17`; `api/http/controller/admin/rustdesk.go:50` |
+| `AU-L-007` | `[x]` fixed · retired | OAuth provider delete had no check for in-flight sessions; a usage guard runs before deletion. | `api/service/oauth.go:398` |
+| `AU-L-011` | `[x]` fixed · retired | Hardcoded artifact name in the build downloader; lifted out of an inline string into `defaultWindowsArtifactName`. | `api/http/controller/admin/custom_build.go:461` |
+| `AU-L-015` | `[x]` fixed · retired | Auto-registered users always got `GroupId=1`; creation-order-dependent assignment replaced by a fallback. | `api/service/group.go:20` |
+| `AU-L-016` | `[x]` fixed · retired | Versions-list GitHub failures surfaced as 5xx; now 200 + empty/error state so the UI can show empty/error instead (cited from code; absent from the final `BUGS.md` snapshot). | `api/http/controller/admin/custom_build.go:502` |
+| `RD-B5` | `[x]` fixed · retired | rdgen `ALLOWED_HOSTS = ['*']`; hosts now come from env and startup refuses a wildcard host. | `rdgen/rdgen/settings.py:61,73` (frozen — that comment still names `BUGS.md`) |
+
+> **Retired:** the remaining `BUGS.md` entries — `B-001` `[~]` (file-queue `done`
+> propagation, tombstoned), `B-002`, `B-013`, `AU-L-010` `[x]`, and older fixed IDs —
+> were retired 2026-11-24; the 2026-06-20 frozen-builder / `windows-x86` /
+> platform-gating owner decisions are already reflected in PLAN §2, §3, §9.
+> Full record: CHANGELOG + git history.
+
+> **Tracker rule** (carried from `BUGS.md`): this block is owned alongside PLAN.md —
+> new findings take a fresh `B-NNN` (or `AU-*`/`RD-*`) ID here; on fix, flip the status
+> and record the PR/commit on the same line; owner won't-fix → `[skip]` + one-line reason.
 
 ---
 

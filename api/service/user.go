@@ -266,7 +266,7 @@ func (us *UserService) Delete(u *model.User) error {
 // Update 
 // UpdateProfile обновляет поля профиля, которые пользователь правит сам
 // (nickname, email). Явный Select — чтобы очистка nickname сохранялась
-// (Updates(struct) пропускает zero-value). BUGS.md AU-M-021.
+// (Updates(struct) пропускает zero-value). PLAN §6, AU-M-021.
 func (us *UserService) UpdateProfile(id uint, nickname, email string) error {
 	return DB.Model(&model.User{}).Where("id = ?", id).
 		Select("nickname", "email").

@@ -47,7 +47,7 @@ func (r *Rustdesk) CmdList(c *gin.Context) {
 	response.Success(c, res)
 }
 
-// CmdAuditList — журнал выполненных server-команд (BUGS.md AU-S-001), новейшие
+// CmdAuditList — журнал выполненных server-команд (PLAN §6, AU-S-001), новейшие
 // сверху, постранично. Только для просмотра; пишется middleware.ServerCmdAudit.
 // CmdAuditList lists recorded server-command executions.
 // @Tags Rustdesk
@@ -235,7 +235,7 @@ func (r *Rustdesk) SendCmd(c *gin.Context) {
 	response.Success(c, res)
 }
 
-// ReplayServerCmds — стартап-хук (BUGS.md AU-C-001). Переприменяет сохранённые
+// ReplayServerCmds — стартап-хук (PLAN §6, AU-C-001). Переприменяет сохранённые
 // server-команды (RELAY_SERVERS / ALWAYS_USE_RELAY / MUST_LOGIN / blocklist и т.п.),
 // которые иначе откатываются к env/файлам при рестарте контейнера. Best-effort:
 // если hbbs/hbbr ещё не подняли сокет — логируем и идём дальше. Небольшая задержка

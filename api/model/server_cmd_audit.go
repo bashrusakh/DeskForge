@@ -1,6 +1,6 @@
 package model
 
-// ServerCmdAudit — журнал админских server-команд (BUGS.md AU-S-001).
+// ServerCmdAudit — журнал админских server-команд (PLAN §6, AU-S-001).
 // PR #20 закрыл группу /rustdesk/* за AdminPrivilege, но не вёл учёт того,
 // КТО и КАКУЮ команду выполнял. Эта таблица + middleware (audit.go) пишут по
 // записи на каждый мутирующий вызов: пользователь, метод/путь, тело запроса

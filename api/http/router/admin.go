@@ -385,7 +385,7 @@ func CustomBuildBind(rg *gin.RouterGroup) {
 	aR.GET("/list", cont.List)
 	aR.GET("/manifest/:id", cont.Manifest)
 	aR.GET("/download/:id", cont.DownloadByID)
-	// /detail/:id intentionally not exposed: never had a UI consumer (BUGS.md B-014).
+	// /detail/:id intentionally not exposed: never had a UI consumer (PLAN §6, B-014).
 	aR.POST("/create", cont.Create)
 	aR.POST("/delete", cont.Delete)
 	aR.GET("/versions", cont.Versions)

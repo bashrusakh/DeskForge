@@ -44,7 +44,7 @@ func (is *ServerCmdService) Create(u *model.ServerCmd) error {
 }
 
 // PersistCmd сохраняет применённую set-команду для последующего реаплея на старте
-// (BUGS.md AU-C-001). Пустой option — это read-команда (h/u/get-варианты), её не
+// (PLAN §6, AU-C-001). Пустой option — это read-команда (h/u/get-варианты), её не
 // храним. Семантика:
 //   - `<x>-remove`: удаляем соответствующую сохранённую `<x>-add` с тем же option;
 //   - `<x>-add`: добавляем (без дублей);
