@@ -76,8 +76,8 @@ commands also live in [api/README.md](api/README.md) and
 
 ## Environment variables
 
-The canonical variable table lives in the [README](README.md) ("Environment"
-section); full semantics are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+The canonical variable table lives in [`.env.example`](.env.example); full semantics
+are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Key integration points
 
@@ -105,7 +105,7 @@ section); full semantics are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
   [LICENSE](LICENSE), [NOTICE](NOTICE), [README](README.md) ("License").
 - Keep Docker entrypoint scripts in sync with the services they supervise.
 - Never log or commit secrets.
-- Document env vars in README + docker-compose.
+- Document env vars in `.env.example` + docker-compose.
 
 ## Development rules
 
@@ -135,7 +135,7 @@ section); full semantics are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 - Changing JWT? Verify Rust still validates tokens.
 - Changing admin-ui? `npm run build` must pass.
 - Changing Docker? s6-overlay must start all services.
-- Adding env var? Update README + docker-compose.
+- Adding env var? Update `.env.example` + docker-compose.
 
 ## New upstream version workflow
 
