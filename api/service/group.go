@@ -17,7 +17,7 @@ func (us *GroupService) InfoById(id uint) *model.Group {
 
 // DefaultGroupId возвращает id системной группы по умолчанию (Type=GroupTypeDefault),
 // в которую попадают новорегистрируемые пользователи. Раньше id=1 был зашит в коде
-// (BUGS.md AU-L-015) — это ломается, если порядок создания групп иной. Фолбэк на 1
+// (PLAN §6, AU-L-015) — это ломается, если порядок создания групп иной. Фолбэк на 1
 // сохраняет прежнее поведение, если группа почему-то не найдена.
 func (us *GroupService) DefaultGroupId() uint {
 	g := &model.Group{}

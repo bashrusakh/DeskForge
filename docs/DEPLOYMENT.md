@@ -5,14 +5,14 @@ key variables) lives in the [README](../README.md).
 
 ## Quick start details
 
-For a fresh checkout, create the repository-root `.env` from `.env.example` before
-starting Compose (preserve any existing `.env`). To prefill the Custom Client Builder
-with client-reachable addresses, set the optional `RUSTDESK_API_RUSTDESK_PUBLIC_*`
-values there. When Compose is run from `docker/`, the combined service loads root
-`.env` through `env_file: ../.env`; these values prefill builder fields and do not
-replace the operational server addresses. `RUSTDESK_API_RUSTDESK_PUBLIC_API_SERVER` is
-also the branding-asset origin for the build workflow — full semantics and validation
-rules: [`RUSTDESK_API_RUSTDESK_PUBLIC_*` below](#rustdesk_api_rustdesk_public_).
+For a fresh checkout, create the repository-root `.env` from `.env.example` before starting Compose (preserve any existing `.env`).
+Set the optional `RUSTDESK_API_RUSTDESK_PUBLIC_*` values there to prefill the Custom Client Builder with client-reachable addresses.
+
+When Compose is run from `docker/`, the combined service loads root `.env` through `env_file: ../.env`.
+These values prefill builder fields; they do not replace the operational server addresses.
+`RUSTDESK_API_RUSTDESK_PUBLIC_API_SERVER` is also the branding-asset origin for the build workflow.
+
+Full semantics and validation rules: [`RUSTDESK_API_RUSTDESK_PUBLIC_*` below](#rustdesk_api_rustdesk_public_).
 
 Admin login, RustDesk client settings, and the public-key command are in the
 [README quick start](../README.md).
@@ -20,10 +20,9 @@ Admin login, RustDesk client settings, and the public-key command are in the
 ## Upgrading an existing deployment
 
 The Compose file bind-mounts `../data/uploads` to `/app/resources/public/upload`.
-On an existing deployment the mount shadows the uploads already stored inside the
-old container, so branding assets referenced before the mount (`GET /upload/...`)
-return 404. Copy them out of the old container before the first `docker compose
-up -d` with the new mount:
+On an existing deployment, the mount shadows the uploads already stored inside the old container.
+Branding assets referenced before the mount (`GET /upload/...`) return 404.
+Copy them out of the old container before the first `docker compose up -d` with the new mount:
 
 ```bash
 mkdir -p ../data/uploads
@@ -47,32 +46,28 @@ rows remain readable; saving them again encrypts them when the key exists.
 
 ### `RUSTDESK_API_RUSTDESK_PUBLIC_*`
 
-The `RUSTDESK_API_RUSTDESK_PUBLIC_*` variables are optional external/public addresses
-used to prefill the Custom Client Builder's Host / Relay / API server fields
-(needed behind Docker/NAT where the server cannot discover its own external address).
-They are intentionally distinct from `RUSTDESK_API_RUSTDESK_ID_SERVER` /
-`RUSTDESK_API_RUSTDESK_RELAY_SERVER` / `RUSTDESK_API_RUSTDESK_API_SERVER`, which may
-legitimately hold internal or Docker addresses consumed by the dashboard and server
-commands.
+The `RUSTDESK_API_RUSTDESK_PUBLIC_*` variables are optional external/public addresses.
+They prefill the Custom Client Builder's Host / Relay / API server fields.
+They are needed behind Docker/NAT, where the server cannot discover its own external address.
 
-`RUSTDESK_API_RUSTDESK_PUBLIC_API_SERVER` additionally serves as the public origin
-that resolves a server-relative branding asset (`/upload/...`) into an absolute URL
-for the build workflow. The build runner fetches that URL, so the origin must be a
-public http(s) address the runner can reach:
+They are intentionally distinct from `RUSTDESK_API_RUSTDESK_ID_SERVER` / `RUSTDESK_API_RUSTDESK_RELAY_SERVER` / `RUSTDESK_API_RUSTDESK_API_SERVER`.
+Those operational values may legitimately hold internal or Docker addresses consumed by the dashboard and server commands.
 
-- A literal address on a non-public special-purpose range (loopback, unspecified,
-  private, link-local, shared, documentation, benchmarking, multicast, reserved,
-  NAT64/6to4, ...) is refused at create and dispatch, without a DNS lookup.
-- A DNS hostname passes that syntactic check and is finally constrained when the
-  workflow fetches the asset.
+`RUSTDESK_API_RUSTDESK_PUBLIC_API_SERVER` additionally serves as the public origin that resolves a server-relative branding asset (`/upload/...`) into an absolute URL for the build workflow.
+The build runner fetches that URL, so the origin must be a public http(s) address the runner can reach:
 
-The operational `RUSTDESK_API_RUSTDESK_API_SERVER` is never used as a fallback. When
-a `PUBLIC_*` value is unset, the builder falls back to the operational value for its
-prefill fields; the asset origin has no such fallback.
+- A literal address on a non-public special-purpose range is refused at create and dispatch, without a DNS lookup.
+  Non-public ranges: loopback, unspecified, private, link-local, shared, documentation, benchmarking, multicast, reserved, NAT64/6to4, ...
+- A DNS hostname passes that syntactic check and is finally constrained when the workflow fetches the asset.
 
-The builder's "Local IP" button additionally resolves the server's own network
-interface addresses server-side; in Docker bridge setups those are container
-addresses, and the picker labels each candidate with its source interface.
+The operational `RUSTDESK_API_RUSTDESK_API_SERVER` is never used as a fallback.
+
+**Fallback rule:** when a `PUBLIC_*` value is unset, the builder falls back to the operational value for its prefill fields.
+The asset origin has no such fallback.
+
+The builder's "Local IP" button additionally resolves the server's own network interface addresses server-side.
+In Docker bridge setups those are container addresses.
+The picker labels each candidate with its source interface.
 
 ### `SOURCE_DATE_EPOCH`
 

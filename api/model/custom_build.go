@@ -27,11 +27,11 @@ type CustomBuild struct {
 	FileSize    int64  `json:"file_size" gorm:"default:0;not null;"`
 	DownloadKey string `json:"-" gorm:"size:64;default:'';not null;"`
 	// DownloadKeyExpiresAt — unix-секунды, после которых capability-ссылка
-	// (download_key) протухает (BUGS.md B-006). 0 = бессрочно: legacy-строки,
+	// (download_key) протухает (PLAN §6, B-006). 0 = бессрочно: legacy-строки,
 	// созданные до появления TTL, остаются доступны.
 	DownloadKeyExpiresAt int64 `json:"download_key_expires_at" gorm:"default:0;not null;"`
 	// GithubRunId — id рана GitHub Actions, если билд диспетчился туда. Нужен для
-	// возобновления `pollAndDownload` после рестарта api (BUGS.md B-003). 0 = legacy
+	// возобновления `pollAndDownload` после рестарта api (PLAN §6, B-003). 0 = legacy
 	// file-queue/не диспетчен; это не допустимый id текущего provider-backed рана.
 	GithubRunId int64 `json:"github_run_id" gorm:"default:0;not null;"`
 	// Immutable GitHub dispatch provenance. These fields are provider-derived
@@ -209,7 +209,7 @@ const (
 	CustomBuildStatusFailed      = "failed"
 )
 
-// --- BUGS.md B-008: non-empty permanent_password lies inside custom_json.
+// --- PLAN §6, B-008: non-empty permanent_password lies inside custom_json.
 // Secret-bearing JSON is encrypted at rest; non-secret typed JSON keeps its
 // existing representation so core non-secret operations remain available. ----
 

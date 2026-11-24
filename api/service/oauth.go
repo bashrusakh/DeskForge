@@ -395,7 +395,7 @@ func (os *OauthService) InfoByOp(op string) *model.Oauth {
 }
 
 // CountBoundUsers — сколько аккаунтов привязано к OAuth-провайдеру (по op).
-// Используется перед удалением провайдера (BUGS.md AU-L-007): нельзя сносить
+// Используется перед удалением провайдера (PLAN §6, AU-L-007): нельзя сносить
 // провайдер, через который пользователи входят, не осиротив их способ логина.
 func (os *OauthService) CountBoundUsers(op string) int64 {
 	var n int64

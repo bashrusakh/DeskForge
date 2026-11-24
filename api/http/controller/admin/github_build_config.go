@@ -292,7 +292,7 @@ func (h *GithubBuildConfig) SyncSecret(c *gin.Context) {
 // Диспетчит workflow_dispatch и возвращает run_id. Статус — в GitHub Actions
 // (длинный poll здесь не держим, чтобы не ловить обрыв прокси).
 //
-// BUGS.md B-009: раньше слался ПУСТОЙ payload (`map[string]any{}`) → реальная
+// PLAN §6, B-009: раньше слался ПУСТОЙ payload (`map[string]any{}`) → реальная
 // сборка с пустыми server/key/app_name падала поздно или давала непригодный
 // артефакт, впустую тратя минуты Actions и засоряя историю. Теперь:
 //   - запуск требует явного подтверждения (`{"confirm": true}` в теле) — это

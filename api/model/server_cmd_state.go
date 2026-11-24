@@ -1,6 +1,6 @@
 package model
 
-// ServerCmdState — персистентное состояние server-команд (BUGS.md AU-C-001).
+// ServerCmdState — персистентное состояние server-команд (PLAN §6, AU-C-001).
 // SendCmd по сокету только проксирует команду в hbbs/hbbr и НИЧЕГО не хранит,
 // поэтому RELAY_SERVERS / ALWAYS_USE_RELAY / MUST_LOGIN / blocklist, выставленные
 // через админку, терялись при рестарте контейнера (откатывались к env/файлам).

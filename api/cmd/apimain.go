@@ -63,7 +63,7 @@ import (
 // version/build-ref identity fields on `custom_builds` (PR5 / Phase 5). Earlier bump: 273 added
 // immutable GitHub build provenance fields (PR4 / Phase 4). Earlier bumps: 272
 // `server_cmd_states` for persisting admin server-command state across
-// restarts (BUGS.md AU-C-001), 271 `server_cmd_audits`, 270
+// restarts (PLAN §6, AU-C-001), 271 `server_cmd_audits`, 270
 // `download_key_expires_at` on `custom_builds` for capability-URL expiry
 // (B-006), 269 `github_run_id` for restart-safe GitHub Actions polling (B-003).
 // AutoMigrate is idempotent so all tables/columns are still created.
@@ -265,7 +265,7 @@ func InitGlobal() error {
 		return err
 	}
 
-	// Возобновить поллинг in-flight GitHub-сборок после рестарта (BUGS.md B-003).
+	// Возобновить поллинг in-flight GitHub-сборок после рестарта (PLAN §6, B-003).
 	// Запускается ПОСЛЕ AutoMigrate — иначе колонки github_run_id может ещё не быть.
 	admin.ResumePendingPolls()
 	// AU-C-001: переприменяем сохранённые server-команды (relay/aur/ml/blocklist),

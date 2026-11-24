@@ -25,7 +25,7 @@ type App struct {
 	BanThreshold     int           `mapstructure:"ban-threshold"`
 	ApiBase          string        `mapstructure:"api-base"`
 	// DownloadKeyTTL — время жизни capability-ссылки на скачивание билда
-	// (BUGS.md B-006). <=0 => дефолт 7 дней (см. CustomBuild.Create).
+	// (PLAN §6, B-006). <=0 => дефолт 7 дней (см. CustomBuild.Create).
 	DownloadKeyTTL time.Duration `mapstructure:"download-key-ttl"`
 }
 type Admin struct {

@@ -62,7 +62,7 @@ type ChangeCurPasswordForm struct {
 	NewPassword string `json:"new_password" validate:"required,gte=4,lte=32"`
 }
 
-// UpdateCurrentForm — self-editable profile fields (BUGS.md AU-M-021).
+// UpdateCurrentForm — self-editable profile fields (PLAN §6, AU-M-021).
 type UpdateCurrentForm struct {
 	Nickname string `json:"nickname" validate:"omitempty,lte=128"`
 	Email    string `json:"email" validate:"omitempty,email,lte=128"`

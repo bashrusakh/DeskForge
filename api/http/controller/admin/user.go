@@ -280,7 +280,7 @@ func (ct *User) ChangeCurPwd(c *gin.Context) {
 	response.Success(c, nil)
 }
 
-// UpdateCurrent — обновление профиля текущего пользователя (BUGS.md AU-M-021).
+// UpdateCurrent — обновление профиля текущего пользователя (PLAN §6, AU-M-021).
 // Редактируемы только nickname и email; username — идентификатор, role/status/group
 // меняет лишь админ. Email проверяется на уникальность.
 // @Tags User

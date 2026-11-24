@@ -14,7 +14,7 @@ import (
 const auditParamsMaxLen = 2000
 
 // ServerCmdAudit — middleware журналирования админских server-команд
-// (BUGS.md AU-S-001). Ставится ПОСЛЕ авторизации (curUser уже в контексте) на
+// (PLAN §6, AU-S-001). Ставится ПОСЛЕ авторизации (curUser уже в контексте) на
 // мутирующие маршруты /rustdesk/*. Пишет запись после обработки: кто, метод,
 // путь, тело запроса (усечённое), IP и итоговый HTTP-статус.
 func ServerCmdAudit() gin.HandlerFunc {
