@@ -1,21 +1,18 @@
-# Deployment & environment
+# Deployment and environment
 
-Operational deep reference for running DeskForge. The quick summary (commands, ports,
-key variables) lives in the [README](../README.md).
+Operational reference for running DeskForge. The quick start is in the [README](../README.md);
+every variable is listed with a comment in [`.env.example`](../.env.example).
 
-## Quick start details
+## Setup details
 
-For a fresh checkout, create the repository-root `.env` from `.env.example` before starting Compose (preserve any existing `.env`).
-Set the optional `RUSTDESK_API_RUSTDESK_PUBLIC_*` values there to prefill the Custom Client Builder with client-reachable addresses.
+On a fresh checkout, create the repository-root `.env` from `.env.example` (keep an existing
+`.env`). Compose, run from `docker/`, loads it through `env_file: ../.env`.
 
-When Compose is run from `docker/`, the combined service loads root `.env` through `env_file: ../.env`.
-These values prefill builder fields; they do not replace the operational server addresses.
-`RUSTDESK_API_RUSTDESK_PUBLIC_API_SERVER` is also the branding-asset origin for the build workflow.
-
-Full semantics and validation rules: [`RUSTDESK_API_RUSTDESK_PUBLIC_*` below](#rustdesk_api_rustdesk_public_).
-
-Admin login, RustDesk client settings, and the public-key command are in the
-[README quick start](../README.md).
+Set the optional `RUSTDESK_API_RUSTDESK_PUBLIC_*` values there to prefill the Custom Client
+Builder with addresses clients can reach. They do not replace the operational server
+addresses. Do not add `RUSTDESK_API_RUSTDESK_PUBLIC_API_SERVER` to the `environment:` block
+of `docker-compose.yml`: an explicit entry would blank the value from `.env`.
+Rules for these variables: [below](#rustdesk_api_rustdesk_public_).
 
 ## Upgrading an existing deployment
 
@@ -35,8 +32,8 @@ database) stays on its existing volumes.
 
 ## Environment variables in depth
 
-The key-variable table lives in the [README](../README.md) ("Environment" section).
-The semantics below apply on top of it.
+Defaults and one-line descriptions are in [`.env.example`](../.env.example).
+The notes below cover variables that need more explanation.
 
 ### `SECRET_ENCRYPTION_KEY`
 
