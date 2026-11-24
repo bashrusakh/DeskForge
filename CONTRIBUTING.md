@@ -8,7 +8,7 @@ Project purpose and current state: [README.md](README.md) (showcase) and
 
 ## Where facts live (cross-link, do not copy)
 
-- env-var table → [README.md](README.md) ("Environment"); env semantics → [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
+- env-var table → [`.env.example`](.env.example); env semantics → [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 - monorepo layout and frozen-status labels → [AGENTS.md](AGENTS.md)
 - schema/migration + dispatch evidence → [PLAN.md §2](PLAN.md#2-architecture); fork/pin topology, sync rules, and workflow ownership → [docs/FORKS-AND-PINS.md](docs/FORKS-AND-PINS.md)
 - pin + patch record → [`libs/hbb_common/UPSTREAM.md`](libs/hbb_common/UPSTREAM.md); new-upstream maintenance procedure → [PLAN.md §7](PLAN.md#7-fork-maintenance-procedure-for-a-new-upstream-rustdesk-client-release)
